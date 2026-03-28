@@ -1,4 +1,7 @@
+using System;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace OpenClawPTT;
 
@@ -54,20 +57,22 @@ public sealed class ConfigManager
         return issues;
     }
 
-    public async Task<AppConfig> RunSetup(AppConfig? existing = null)
+    public async Task<AppConfig> RunSetup(AppConfig? existing = null, CancellationToken cancellationToken = default)
     {
         var cfg = existing ?? new AppConfig();
 
-        cfg.GatewayUrl = Prompt(
+        cfg.GatewayUrl = await Prompt(
             "Gateway URL",
             cfg.GatewayUrl,
             v => Uri.TryCreate(v, UriKind.Absolute, out var u)
-                 && (u.Scheme == "ws" || u.Scheme == "wss"));
+                 && (u.Scheme == "ws" || u.Scheme == "wss"),
+            cancellationToken);
 
-        cfg.AuthToken = Prompt(
+        cfg.AuthToken = await Prompt(
             "Auth token (OPENCLAW_GATEWAY_TOKEN)",
             cfg.AuthToken ?? Environment.GetEnvironmentVariable("OPENCLAW_GATEWAY_TOKEN") ?? "",
-            _ => true);
+            _ => true,
+            cancellationToken);
 
         if (string.IsNullOrWhiteSpace(cfg.AuthToken))
             cfg.AuthToken = null;
@@ -75,47 +80,60 @@ public sealed class ConfigManager
         var useTls = cfg.GatewayUrl.StartsWith("wss://", StringComparison.OrdinalIgnoreCase);
         if (useTls)
         {
-            cfg.TlsFingerprint = Prompt(
+            cfg.TlsFingerprint = await Prompt(
                 "TLS cert fingerprint (blank to skip pinning)",
                 cfg.TlsFingerprint ?? "",
-                _ => true);
+                _ => true,
+                cancellationToken);
 
             if (string.IsNullOrWhiteSpace(cfg.TlsFingerprint))
                 cfg.TlsFingerprint = null;
         }
 
-        cfg.GroqApiKey = Prompt(
+        cfg.GroqApiKey = await Prompt(
             "Groq API key",
             cfg.GroqApiKey,
-            value => value.StartsWith("gsk_")
-        );
+            value => value.StartsWith("gsk_"),
+            cancellationToken);
 
-        cfg.Locale = Prompt("Locale", cfg.Locale, v => v.Length >= 2);
+        cfg.Locale = await Prompt("Locale", cfg.Locale, v => v.Length >= 2, cancellationToken);
 
-        var rate = Prompt("Audio sample rate", cfg.SampleRate.ToString(),
-            v => int.TryParse(v, out var n) && n is >= 8000 and <= 48000);
+        var rate = await Prompt("Audio sample rate", cfg.SampleRate.ToString(),
+            v => int.TryParse(v, out var n) && n is >= 8000 and <= 48000,
+            cancellationToken);
         cfg.SampleRate = int.Parse(rate);
 
-        var maxSec = Prompt("Max recording seconds", cfg.MaxRecordSeconds.ToString(),
-            v => int.TryParse(v, out var n) && n is >= 5 and <= 600);
+        var maxSec = await Prompt("Max recording seconds", cfg.MaxRecordSeconds.ToString(),
+            v => int.TryParse(v, out var n) && n is >= 5 and <= 600,
+            cancellationToken);
         cfg.MaxRecordSeconds = int.Parse(maxSec);
 
-        cfg.RealTimeReplyOutput = bool.Parse(Prompt(
+        cfg.RealTimeReplyOutput = bool.Parse(await Prompt(
             "Real-time reply output",
             cfg.RealTimeReplyOutput.ToString(),
-            v => bool.TryParse(v, out _)));
+            v => bool.TryParse(v, out _),
+            cancellationToken));
 
         await Task.CompletedTask;
         return cfg;
     }
 
-    private static string Prompt(string label, string defaultVal, Func<string, bool> validate)
+    private static async Task<string> Prompt(string label, string defaultVal, Func<string, bool> validate, CancellationToken cancellationToken = default)
     {
         while (true)
         {
             var def = string.IsNullOrEmpty(defaultVal) ? "" : $" [{defaultVal}]";
             Console.Write($"  {label}{def}: ");
-            var input = Console.ReadLine()?.Trim() ?? "";
+            string input;
+            try
+            {
+                input = (await Console.In.ReadLineAsync(cancellationToken))?.Trim() ?? "";
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine(); // move to new line after ^C
+                throw;
+            }
 
             if (string.IsNullOrEmpty(input) && !string.IsNullOrEmpty(defaultVal))
                 input = defaultVal;

@@ -1,5 +1,8 @@
 namespace OpenClawPTT;
 
+using System.Linq;
+using System.Threading;
+
 /// <summary>
 /// Improvements:
 /// 1. Shortcut settings: any keys, hold/toggle option
@@ -25,6 +28,8 @@ internal static class Program
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         PrintBanner();
 
+        bool reconfigureFlag = args.Contains("--reconfigure");
+
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
@@ -39,7 +44,7 @@ internal static class Program
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.WriteLine("  No configuration found — starting first-time setup.\n");
                 Console.ResetColor();
-                cfg = await cfgMgr.RunSetup();
+                cfg = await cfgMgr.RunSetup(cancellationToken: cts.Token);
                 cfgMgr.Save(cfg);
                 Console.ForegroundColor = ConsoleColor.Green;
                 Console.WriteLine("\n  ✓ Configuration saved.\n");
@@ -57,7 +62,7 @@ internal static class Program
                         Console.WriteLine($"    • {i}");
                     Console.WriteLine();
 
-                    cfg = await cfgMgr.RunSetup(cfg);
+                    cfg = await cfgMgr.RunSetup(cfg, cts.Token);
                     cfgMgr.Save(cfg);
                 }
                 else
