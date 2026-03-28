@@ -1,97 +1,105 @@
-# OpenClaw Push-to-Talk Console Client
+# OpenClaw Push-to-Talk Client
 
-A cross-platform C# console application for voice interaction with OpenClaw agents via push-to-talk.
+A desktop app for voice-controlled interaction with **OpenClaw** — an open-source AI assistant platform. Speak into your microphone using push-to-talk, get intelligent responses in real-time.
 
-(READ me needs rework)
+**Works with OpenClaw's AI agents** through your local gateway. Currently uses **Groq's Whisper API** for speech-to-text transcription.
+
+## What It Does
+
+1. **Push-to-talk**: Hold a key (Alt+=), speak, release — your voice is transcribed and sent to OpenClaw
+2. **AI responses**: Get answers from OpenClaw agents displayed in your console
+3. **Real-time streaming**: See responses word-by-word as they're generated
+4. **Groq integration**: Uses Groq's Whisper API for accurate speech-to-text
+5. **Cross-platform**: Windows, macOS, Linux — just needs a microphone
+
+## Quick Start
+
+```bash
+# Clone and run
+git clone https://github.com/Venando/openclaw-ptt-client
+cd openclaw-ptt-client
+dotnet run
+```
+
+First run asks for:
+- **Gateway URL** (default: `ws://localhost:18789`) — your OpenClaw gateway
+- **Groq API key** (for speech-to-text) — get from [groq.com](https://console.groq.com)
+- **Audio settings** (usually just press Enter)
+
+## Controls
+
+| Key | Action |
+|-----|--------|
+| **Space** | Push-to-talk (hold to record, release to send) |
+| **T** | Type a text message instead |
+| **Q** | Quit the application |
 
 ## Features
 
-- **Push-to-talk voice recording** (Space/R key)
-- **Text message fallback** (T key)
-- **Cross-platform audio capture**:
-  - Windows: NAudio
-  - macOS/Linux: sox or arecord fallback
-- **Full Gateway v3 protocol** with device identity (ECDSA P-256)
-- **Auto-approval** for exec requests
-- **Persistent configuration** with setup wizard
+- **OpenClaw integration**: Connects to your local OpenClaw gateway
+- **Groq Whisper API**: High-quality speech-to-text transcription
+- **Voice commands**: Natural conversation with AI agents
+- **Clean console UI**: Color-coded responses with proper formatting
+- **Cross-platform**: Windows, macOS, and Linux support
+- **Guided setup**: Configuration wizard for easy onboarding
+- **Persistent settings**: Saves preferences in `~/.openclaw-ptt/`
+
+## Technical Details
+
+- **Language**: C# (.NET 8)
+- **Audio**: System audio APIs + Groq Whisper for transcription
+- **Communication**: WebSocket connection to AI gateway
+- **Storage**: Config in `~/.openclaw-ptt/config.json`
 
 ## Project Structure
 
 ```
-openclaw-ptt/
-├── OpenClawPTT.csproj          # .NET 8 project file
-├── README.md                   # This file
-└── src/
-    ├── AppConfig.cs            # Configuration model
-    ├── ConfigManager.cs        # Load/save/validate config
-    ├── DeviceIdentity.cs       # ECDSA keypair & signing
-    ├── GatewayClient.cs        # WebSocket + protocol
-    ├── AudioRecorder.cs        # NAudio + CLI recording
-    └── Program.cs              # Entry point + PTT loop
+src/
+├── Program.cs              # Main application loop
+├── GatewayClient.cs        # AI communication
+├── AudioRecorder.cs        # Microphone handling
+├── GroqTranscriber.cs      # Speech-to-text
+├── ConfigManager.cs        # Settings management
+└── AppConfig.cs           # Configuration model
 ```
-
-## Requirements
-
-- **.NET 8 SDK**
-- **Audio recording**:
-  - Windows: NAudio (auto-installed via NuGet)
-  - macOS: `brew install sox`
-  - Linux: `apt install sox` or `arecord` (ALSA)
 
 ## Building
 
 ```bash
-cd openclaw-ptt
 dotnet build
-dotnet publish -c Release -r win-x64 --self-contained false
+# Or create standalone executable:
+dotnet publish -c Release -r win-x64 --self-contained
 ```
 
-## Running
+## Need Help?
 
-```bash
-cd openclaw-ptt
-dotnet run
-```
+- Check that your microphone works in other apps
+- Ensure you have .NET 8 SDK installed
+- The setup wizard guides you through configuration
+- Verify your OpenClaw gateway is running
 
-First run will prompt for:
-- Gateway URL (default: `ws://localhost:4440`)
-- Auth token (or device token)
-- Audio settings (sample rate, max recording seconds)
+## Planned Improvements
 
-## Controls
+From the code comments (`Program.cs`):
 
-```
-╔══════════════════════════════════════════╗
-║  Push-to-Talk ready                      ║
-╠══════════════════════════════════════════╣
-║  [Alt + "="]  Toggle recording           ║
-║  [T]        Type a text message          ║
-║  [Q]        Quit                         ║
-╚══════════════════════════════════════════╝
-```
+1. **Shortcut settings**: Customizable hotkeys, hold/toggle options
+2. **Config reconfigure**: Option to re-run setup without deleting config
+3. **Transcriber selection**: Choose between different speech-to-text services
+4. **Long speech handling**: Chunked transcription for extended recordings
+5. **Visual feedback**: Recording indicator outside terminal (e.g., red dot)
+6. **System tray**: Minimize to tray when not in use
+7. **Text-to-speech**: Voice responses from agent (optional)
+8. **Raw audio streaming**: Send audio directly to OpenClaw for interpretation
+9. **Session management**: Select different OpenClaw sessions (currently "main" only)
+10. **Code cleanup**: Refactor Program.cs and other files
+11. **Cross-platform testing**: Verify Linux/macOS compatibility
+12. **Exit handling**: Fix Ctrl+C during config setup
+13. **Connection resilience**: Better handling for gateway restarts (currently stops application)
 
-## Configuration
+## Contributing
 
-Stored in `~/.openclaw-ptt/config.json`:
+Found a bug? Have a feature request? Open an issue or submit a pull request.
 
-```json
-{
-  "gatewayUrl": "ws://localhost:4440",
-  "authToken": "your_token_here",
-  "deviceToken": "auto-populated",
-  "locale": "en-US",
-  "sampleRate": 16000,
-  "channels": 1,
-  "bitsPerSample": 16,
-  "maxRecordSeconds": 120
-}
-```
+---
 
-## Device Identity
-
-Generates a persistent ECDSA P-256 keypair at `~/.openclaw-ptt/device.key`.  
-Used for Gateway v3 authentication — device token is saved after first connection.
-
-## License
-
-OpenClaw project — see OpenClaw repository for license details.
+*Voice control for OpenClaw AI assistants. Press Alt+=, start talking.*
