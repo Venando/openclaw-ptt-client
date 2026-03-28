@@ -47,22 +47,47 @@ internal static class Program
             }
             else
             {
-                var issues = cfgMgr.Validate(cfg);
-                if (issues.Count > 0)
+                if (reconfigureFlag)
                 {
                     Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine("  Configuration issues:");
+                    Console.WriteLine("  Reconfigure flag set — starting setup wizard.\n");
                     Console.ResetColor();
-                    foreach (var i in issues)
-                        Console.WriteLine($"    • {i}");
-                    Console.WriteLine();
-
-                    cfg = await cfgMgr.RunSetup(cfg);
+                    cfg = await cfgMgr.RunSetup(cfg, cts.Token);
                     cfgMgr.Save(cfg);
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine("\n  ✓ Configuration updated.\n");
+                    Console.ResetColor();
                 }
                 else
                 {
-                    Console.WriteLine($"  Config loaded: {cfg.GatewayUrl}");
+                    var issues = cfgMgr.Validate(cfg);
+                    if (issues.Count > 0)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine("  Configuration issues:");
+                        Console.ResetColor();
+                        foreach (var i in issues)
+                            Console.WriteLine($"    • {i}");
+                        Console.WriteLine();
+
+                        cfg = await cfgMgr.RunSetup(cfg, cts.Token);
+                        cfgMgr.Save(cfg);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"  Config loaded: {cfg.GatewayUrl}");
+                        if (ShouldReconfigure())
+                        {
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.WriteLine("  Starting setup wizard...\n");
+                            Console.ResetColor();
+                            cfg = await cfgMgr.RunSetup(cfg, cts.Token);
+                            cfgMgr.Save(cfg);
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine("\n  ✓ Configuration updated.\n");
+                            Console.ResetColor();
+                        }
+                    }
                 }
             }
 
@@ -150,6 +175,24 @@ internal static class Program
 #endif
             return 1;
         }
+    }
+
+    private static bool ShouldReconfigure()
+    {
+        Console.Write("  Press R to reconfigure, any other key to continue... ");
+        var timeout = TimeSpan.FromSeconds(3);
+        var start = DateTime.Now;
+        while (DateTime.Now - start < timeout)
+        {
+            if (Console.KeyAvailable)
+            {
+                var key = Console.ReadKey(intercept: true);
+                return key.Key == ConsoleKey.R;
+            }
+            Thread.Sleep(100);
+        }
+        Console.WriteLine();
+        return false;
     }
 
     // ─── PTT loop ───────────────────────────────────────────────────

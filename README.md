@@ -26,6 +26,15 @@ First run asks for:
 - **Groq API key** (for speech-to-text) — get from [groq.com](https://console.groq.com)
 - **Audio settings** (usually just press Enter)
 
+### Reconfiguration
+
+If you need to update your configuration (e.g., change Gateway URL or Groq API key), you can:
+
+- Run the application with `--reconfigure` flag: `dotnet run -- --reconfigure`
+- Or press `R` when the application starts (within 3 seconds) to enter setup wizard.
+
+The existing configuration will be used as default values; device identity and tokens are preserved unless explicitly changed.
+
 ## Controls
 
 | Key | Action |
@@ -83,7 +92,7 @@ dotnet publish -c Release -r win-x64 --self-contained
 From the code comments (`Program.cs`):
 
 1. **Shortcut settings**: Customizable hotkeys, add hold-to-talk option (currently toggle-only)
-2. **Config reconfigure**: Option to re-run setup without deleting config
+2. **Config reconfigure** (implemented): Option to re-run setup without deleting config
 3. **Transcriber selection**: Choose between different speech-to-text services
 4. **Long speech handling**: Chunked transcription for extended recordings
 5. **Visual feedback**: Recording indicator outside terminal (e.g., red dot)
