@@ -94,6 +94,7 @@ From the code comments (`Program.cs`):
 10. **Code cleanup**: Refactor Program.cs and other files
 11. **Cross-platform testing**: Verify Linux/macOS compatibility
 12. **Exit handling**: Fix Ctrl+C during config setup
+13. **Connection resilience**: Better handling for gateway restarts (currently stops application)
 
 ## Contributing
 
