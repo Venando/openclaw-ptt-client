@@ -17,7 +17,7 @@ using System.Threading;
 /// 10. Refactor/Clean up Program.cs and other files
 /// 11. Check if works on linux/macos
 /// 12. Add session selection (Currently attaches to "main")
-/// 13. Fix: Ctrl + C, not working during config setup
+/// 13. Fix: Ctrl + C, not working during config setup (FIXED)
 /// </summary>
 internal static class Program
 {
