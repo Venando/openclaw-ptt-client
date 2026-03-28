@@ -6,7 +6,7 @@ A desktop app for voice-controlled interaction with **OpenClaw** — an open-sou
 
 ## What It Does
 
-1. **Push-to-talk**: Hold a key (Alt+=), speak, release — your voice is transcribed and sent to OpenClaw
+1. **Push-to-talk toggle**: Press Alt+= to start recording, press again to stop — your voice is transcribed and sent to OpenClaw
 2. **AI responses**: Get answers from OpenClaw agents displayed in your console
 3. **Real-time streaming**: See responses word-by-word as they're generated
 4. **Groq integration**: Uses Groq's Whisper API for accurate speech-to-text
@@ -30,7 +30,7 @@ First run asks for:
 
 | Key | Action |
 |-----|--------|
-| **Space** | Push-to-talk (hold to record, release to send) |
+| **Alt+=** | Toggle recording (press to start, press again to stop) |
 | **T** | Type a text message instead |
 | **Q** | Quit the application |
 
@@ -82,7 +82,7 @@ dotnet publish -c Release -r win-x64 --self-contained
 
 From the code comments (`Program.cs`):
 
-1. **Shortcut settings**: Customizable hotkeys, hold/toggle options
+1. **Shortcut settings**: Customizable hotkeys, add hold-to-talk option (currently toggle-only)
 2. **Config reconfigure**: Option to re-run setup without deleting config
 3. **Transcriber selection**: Choose between different speech-to-text services
 4. **Long speech handling**: Chunked transcription for extended recordings
@@ -102,4 +102,4 @@ Found a bug? Have a feature request? Open an issue or submit a pull request.
 
 ---
 
-*Voice control for OpenClaw AI assistants. Press Alt+=, start talking.*
+*Voice control for OpenClaw AI assistants. Press Alt+= to start recording, press again to send.*
