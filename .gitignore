@@ -1,0 +1,34 @@
+# Build outputs
+bin/
+obj/
+publish/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# IDE files
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Runtime data
+~/.openclaw-ptt/
+*.key
+*.pem
+
+# Audio recordings (temporary)
+*.wav
+*.mp3
+
+# Logs
+*.log
+logs/
+
+# OS generated files
+.DS_Store
+Thumbs.db
