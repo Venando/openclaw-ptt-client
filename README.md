@@ -1,15 +1,16 @@
-# Voice Control for AI Assistant
+# OpenClaw Push-to-Talk Client
 
-A simple desktop app that lets you talk to an AI assistant using push-to-talk. Speak into your microphone, get intelligent responses in real-time.
+A desktop app for voice-controlled interaction with **OpenClaw** — an open-source AI assistant platform. Speak into your microphone using push-to-talk, get intelligent responses in real-time.
 
-**For everyone** — no need to know what "OpenClaw" is. Just install, press a key, and talk.
+**Works with OpenClaw's AI agents** through your local gateway. Currently uses **Groq's Whisper API** for speech-to-text transcription.
 
 ## What It Does
 
-1. **Push-to-talk**: Hold a key (like Space), speak, release — your voice is sent for processing
-2. **AI responses**: Get answers from an AI assistant displayed in your console
+1. **Push-to-talk**: Hold a key (Alt+=), speak, release — your voice is transcribed and sent to OpenClaw
+2. **AI responses**: Get answers from OpenClaw agents displayed in your console
 3. **Real-time streaming**: See responses word-by-word as they're generated
-4. **Works anywhere**: Windows, macOS, Linux — just needs a microphone
+4. **Groq integration**: Uses Groq's Whisper API for accurate speech-to-text
+5. **Cross-platform**: Windows, macOS, Linux — just needs a microphone
 
 ## Quick Start
 
@@ -21,8 +22,8 @@ dotnet run
 ```
 
 First run asks for:
-- **Gateway URL** (default: `ws://localhost:18789`)
-- **API key** (for speech-to-text)
+- **Gateway URL** (default: `ws://localhost:18789`) — your OpenClaw gateway
+- **Groq API key** (for speech-to-text) — get from [groq.com](https://console.groq.com)
 - **Audio settings** (usually just press Enter)
 
 ## Controls
@@ -35,11 +36,13 @@ First run asks for:
 
 ## Features
 
-- **Voice commands**: Natural conversation with AI assistant
+- **OpenClaw integration**: Connects to your local OpenClaw gateway
+- **Groq Whisper API**: High-quality speech-to-text transcription
+- **Voice commands**: Natural conversation with AI agents
 - **Clean console UI**: Color-coded responses with proper formatting
-- **Cross-platform**: Works on Windows, macOS, and Linux
-- **No complex setup**: Guided configuration wizard
-- **Persistent settings**: Saves your preferences automatically
+- **Cross-platform**: Windows, macOS, and Linux support
+- **Guided setup**: Configuration wizard for easy onboarding
+- **Persistent settings**: Saves preferences in `~/.openclaw-ptt/`
 
 ## Technical Details
 
@@ -73,7 +76,29 @@ dotnet publish -c Release -r win-x64 --self-contained
 - Check that your microphone works in other apps
 - Ensure you have .NET 8 SDK installed
 - The setup wizard guides you through configuration
+- Verify your OpenClaw gateway is running
+
+## Planned Improvements
+
+From the code comments (`Program.cs`):
+
+1. **Shortcut settings**: Customizable hotkeys, hold/toggle options
+2. **Config reconfigure**: Option to re-run setup without deleting config
+3. **Transcriber selection**: Choose between different speech-to-text services
+4. **Long speech handling**: Chunked transcription for extended recordings
+5. **Visual feedback**: Recording indicator outside terminal (e.g., red dot)
+6. **System tray**: Minimize to tray when not in use
+7. **Text-to-speech**: Voice responses from agent (optional)
+8. **Raw audio streaming**: Send audio directly to OpenClaw for interpretation
+9. **Session management**: Select different OpenClaw sessions (currently "main" only)
+10. **Code cleanup**: Refactor Program.cs and other files
+11. **Cross-platform testing**: Verify Linux/macOS compatibility
+12. **Exit handling**: Fix Ctrl+C during config setup
+
+## Contributing
+
+Found a bug? Have a feature request? Open an issue or submit a pull request.
 
 ---
 
-*Simple voice control for AI assistants. Press a key, start talking.*
+*Voice control for OpenClaw AI assistants. Press Alt+=, start talking.*
