@@ -39,7 +39,7 @@ internal static class Program
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.WriteLine("  No configuration found — starting first-time setup.\n");
                 Console.ResetColor();
-                cfg = await cfgMgr.RunSetup(cancellationToken: cts.Token);
+                cfg = await cfgMgr.RunSetup();
                 cfgMgr.Save(cfg);
                 Console.ForegroundColor = ConsoleColor.Green;
                 Console.WriteLine("\n  ✓ Configuration saved.\n");
@@ -47,12 +47,13 @@ internal static class Program
             }
             else
             {
+                bool reconfigureFlag = args.Contains("--reconfigure") || args.Contains("-r");
                 if (reconfigureFlag)
                 {
                     Console.ForegroundColor = ConsoleColor.Yellow;
                     Console.WriteLine("  Reconfigure flag set — starting setup wizard.\n");
                     Console.ResetColor();
-                    cfg = await cfgMgr.RunSetup(cfg, cts.Token);
+                    cfg = await cfgMgr.RunSetup(cfg);
                     cfgMgr.Save(cfg);
                     Console.ForegroundColor = ConsoleColor.Green;
                     Console.WriteLine("\n  ✓ Configuration updated.\n");
@@ -70,7 +71,7 @@ internal static class Program
                             Console.WriteLine($"    • {i}");
                         Console.WriteLine();
 
-                        cfg = await cfgMgr.RunSetup(cfg, cts.Token);
+                        cfg = await cfgMgr.RunSetup(cfg);
                         cfgMgr.Save(cfg);
                     }
                     else
@@ -81,7 +82,7 @@ internal static class Program
                             Console.ForegroundColor = ConsoleColor.Yellow;
                             Console.WriteLine("  Starting setup wizard...\n");
                             Console.ResetColor();
-                            cfg = await cfgMgr.RunSetup(cfg, cts.Token);
+                            cfg = await cfgMgr.RunSetup(cfg);
                             cfgMgr.Save(cfg);
                             Console.ForegroundColor = ConsoleColor.Green;
                             Console.WriteLine("\n  ✓ Configuration updated.\n");
@@ -179,20 +180,29 @@ internal static class Program
 
     private static bool ShouldReconfigure()
     {
-        Console.Write("  Press R to reconfigure, any other key to continue... ");
-        var timeout = TimeSpan.FromSeconds(3);
-        var start = DateTime.Now;
-        while (DateTime.Now - start < timeout)
+        try
         {
-            if (Console.KeyAvailable)
+            Console.Write("  Press R to reconfigure, any other key to continue... ");
+            var timeout = TimeSpan.FromSeconds(3);
+            var start = DateTime.Now;
+            while (DateTime.Now - start < timeout)
             {
-                var key = Console.ReadKey(intercept: true);
-                return key.Key == ConsoleKey.R;
+                if (Console.KeyAvailable)
+                {
+                    var key = Console.ReadKey(intercept: true);
+                    return key.Key == ConsoleKey.R;
+                }
+                Thread.Sleep(100);
             }
-            Thread.Sleep(100);
+            Console.WriteLine();
+            return false;
         }
-        Console.WriteLine();
-        return false;
+        catch (InvalidOperationException)
+        {
+            // No console available, just continue
+            Console.WriteLine("  No console input available, continuing...");
+            return false;
+        }
     }
 
     // ─── PTT loop ───────────────────────────────────────────────────
