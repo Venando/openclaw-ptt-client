@@ -32,3 +32,7 @@ logs/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Project documentation (generated/workspace-specific)
+PROJECT-INDEX.md
+projects/

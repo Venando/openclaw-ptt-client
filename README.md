@@ -1,97 +1,79 @@
-# OpenClaw Push-to-Talk Console Client
+# Voice Control for AI Assistant
 
-A cross-platform C# console application for voice interaction with OpenClaw agents via push-to-talk.
+A simple desktop app that lets you talk to an AI assistant using push-to-talk. Speak into your microphone, get intelligent responses in real-time.
 
-(READ me needs rework)
+**For everyone** — no need to know what "OpenClaw" is. Just install, press a key, and talk.
+
+## What It Does
+
+1. **Push-to-talk**: Hold a key (like Space), speak, release — your voice is sent for processing
+2. **AI responses**: Get answers from an AI assistant displayed in your console
+3. **Real-time streaming**: See responses word-by-word as they're generated
+4. **Works anywhere**: Windows, macOS, Linux — just needs a microphone
+
+## Quick Start
+
+```bash
+# Clone and run
+git clone https://github.com/Venando/openclaw-ptt-client
+cd openclaw-ptt-client
+dotnet run
+```
+
+First run asks for:
+- **Gateway URL** (default: `ws://localhost:18789`)
+- **API key** (for speech-to-text)
+- **Audio settings** (usually just press Enter)
+
+## Controls
+
+| Key | Action |
+|-----|--------|
+| **Space** | Push-to-talk (hold to record, release to send) |
+| **T** | Type a text message instead |
+| **Q** | Quit the application |
 
 ## Features
 
-- **Push-to-talk voice recording** (Space/R key)
-- **Text message fallback** (T key)
-- **Cross-platform audio capture**:
-  - Windows: NAudio
-  - macOS/Linux: sox or arecord fallback
-- **Full Gateway v3 protocol** with device identity (ECDSA P-256)
-- **Auto-approval** for exec requests
-- **Persistent configuration** with setup wizard
+- **Voice commands**: Natural conversation with AI assistant
+- **Clean console UI**: Color-coded responses with proper formatting
+- **Cross-platform**: Works on Windows, macOS, and Linux
+- **No complex setup**: Guided configuration wizard
+- **Persistent settings**: Saves your preferences automatically
+
+## Technical Details
+
+- **Language**: C# (.NET 8)
+- **Audio**: System audio APIs + Groq Whisper for transcription
+- **Communication**: WebSocket connection to AI gateway
+- **Storage**: Config in `~/.openclaw-ptt/config.json`
 
 ## Project Structure
 
 ```
-openclaw-ptt/
-├── OpenClawPTT.csproj          # .NET 8 project file
-├── README.md                   # This file
-└── src/
-    ├── AppConfig.cs            # Configuration model
-    ├── ConfigManager.cs        # Load/save/validate config
-    ├── DeviceIdentity.cs       # ECDSA keypair & signing
-    ├── GatewayClient.cs        # WebSocket + protocol
-    ├── AudioRecorder.cs        # NAudio + CLI recording
-    └── Program.cs              # Entry point + PTT loop
+src/
+├── Program.cs              # Main application loop
+├── GatewayClient.cs        # AI communication
+├── AudioRecorder.cs        # Microphone handling
+├── GroqTranscriber.cs      # Speech-to-text
+├── ConfigManager.cs        # Settings management
+└── AppConfig.cs           # Configuration model
 ```
-
-## Requirements
-
-- **.NET 8 SDK**
-- **Audio recording**:
-  - Windows: NAudio (auto-installed via NuGet)
-  - macOS: `brew install sox`
-  - Linux: `apt install sox` or `arecord` (ALSA)
 
 ## Building
 
 ```bash
-cd openclaw-ptt
 dotnet build
-dotnet publish -c Release -r win-x64 --self-contained false
+# Or create standalone executable:
+dotnet publish -c Release -r win-x64 --self-contained
 ```
 
-## Running
+## Need Help?
 
-```bash
-cd openclaw-ptt
-dotnet run
-```
+- Check that your microphone works in other apps
+- Ensure you have .NET 8 SDK installed
+- The setup wizard guides you through configuration
 
-First run will prompt for:
-- Gateway URL (default: `ws://localhost:4440`)
-- Auth token (or device token)
-- Audio settings (sample rate, max recording seconds)
+---
 
-## Controls
-
-```
-╔══════════════════════════════════════════╗
-║  Push-to-Talk ready                      ║
-╠══════════════════════════════════════════╣
-║  [Alt + "="]  Toggle recording           ║
-║  [T]        Type a text message          ║
-║  [Q]        Quit                         ║
-╚══════════════════════════════════════════╝
-```
-
-## Configuration
-
-Stored in `~/.openclaw-ptt/config.json`:
-
-```json
-{
-  "gatewayUrl": "ws://localhost:4440",
-  "authToken": "your_token_here",
-  "deviceToken": "auto-populated",
-  "locale": "en-US",
-  "sampleRate": 16000,
-  "channels": 1,
-  "bitsPerSample": 16,
-  "maxRecordSeconds": 120
-}
-```
-
-## Device Identity
-
-Generates a persistent ECDSA P-256 keypair at `~/.openclaw-ptt/device.key`.  
-Used for Gateway v3 authentication — device token is saved after first connection.
-
-## License
-
-OpenClaw project — see OpenClaw repository for license details.
+*Simple voice control for AI assistants. Press a key, start talking.*
