@@ -39,7 +39,7 @@ internal static class Program
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.WriteLine("  No configuration found — starting first-time setup.\n");
                 Console.ResetColor();
-                cfg = await cfgMgr.RunSetup();
+                cfg = await cfgMgr.RunSetup(cancellationToken: cts.Token);
                 cfgMgr.Save(cfg);
                 Console.ForegroundColor = ConsoleColor.Green;
                 Console.WriteLine("\n  ✓ Configuration saved.\n");
