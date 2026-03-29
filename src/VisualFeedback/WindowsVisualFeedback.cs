@@ -2,6 +2,9 @@ using System;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Threading;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 
 namespace OpenClawPTT.VisualFeedback;
 
@@ -16,9 +19,13 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
     private readonly string _className = $"OpenClawPTT_VisualFeedback_{Guid.NewGuid():N}";
     private static readonly User32.WndProc _staticWndProc = StaticWndProc;
     private static readonly IntPtr _staticWndProcPtr = Marshal.GetFunctionPointerForDelegate(_staticWndProc);
+    private readonly int _visualMode;
 
-    public WindowsVisualFeedback()
+    public WindowsVisualFeedback(AppConfig config)
     {
+        int mode = config?.VisualMode ?? 0;
+        if (mode < 0 || mode > 2) mode = 0;
+        _visualMode = mode;
         _uiThread = new Thread(WindowThread)
         {
             IsBackground = true,
@@ -102,12 +109,20 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         GCHandle handle = GCHandle.Alloc(this);
         User32.SetWindowLongPtr(_hwnd, User32.GWLP_USERDATA, GCHandle.ToIntPtr(handle));
 
-        // Set layered window attributes: transparency color key to magenta (RGB(255,0,255))
-        User32.SetLayeredWindowAttributes(_hwnd, 0x00FF00FF, 255, User32.LWA_COLORKEY);
+        if (_visualMode == 0)
+        {
+            // Set layered window attributes: transparency color key to magenta (RGB(255,0,255))
+            User32.SetLayeredWindowAttributes(_hwnd, 0x00FF00FF, 255, User32.LWA_COLORKEY);
 
-        // Set window region to a circle
-        IntPtr hRgn = Gdi32.CreateEllipticRgn(0, 0, DotSize, DotSize);
-        User32.SetWindowRgn(_hwnd, hRgn, true);
+            // Set window region to a circle
+            IntPtr hRgn = Gdi32.CreateEllipticRgn(0, 0, DotSize, DotSize);
+            User32.SetWindowRgn(_hwnd, hRgn, true);
+        }
+        else
+        {
+            // For advanced visual modes, we'll use per-pixel alpha via UpdateLayeredWindow
+            UpdateLayeredWindowWithBitmap();
+        }
 
         _windowReady.Set();
 
@@ -160,6 +175,9 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
 
     private void Paint(IntPtr hWnd)
     {
+        // For advanced visual modes, we don't use GDI painting
+        if (_visualMode != 0) return;
+
         User32.PAINTSTRUCT ps;
         IntPtr hdc = User32.BeginPaint(hWnd, out ps);
         if (hdc == IntPtr.Zero) return;
@@ -173,6 +191,74 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         Gdi32.DeleteObject(hBrush);
 
         User32.EndPaint(hWnd, ref ps);
+    }
+
+    private void UpdateLayeredWindowWithBitmap()
+    {
+        if (_hwnd == IntPtr.Zero) return;
+
+        var size = new Size(DotSize, DotSize);
+        using (var bitmap = new Bitmap(size.Width, size.Height, PixelFormat.Format32bppArgb))
+        using (var graphics = Graphics.FromImage(bitmap))
+        {
+            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            graphics.CompositingQuality = CompositingQuality.HighQuality;
+
+            switch (_visualMode)
+            {
+                case 0:
+                    // Default mode handled by WM_PAINT
+                    return;
+                case 1:
+                    // Anti-aliased solid red circle
+                    using (var brush = new SolidBrush(Color.Red))
+                    {
+                        graphics.FillEllipse(brush, 0, 0, DotSize, DotSize);
+                    }
+                    break;
+                case 2:
+                    // Glow effect: radial gradient from red to transparent
+                    var path = new GraphicsPath();
+                    path.AddEllipse(0, 0, DotSize, DotSize);
+                    using (var pathBrush = new PathGradientBrush(path))
+                    {
+                        pathBrush.CenterColor = Color.Red;
+                        pathBrush.SurroundColors = new[] { Color.FromArgb(0, Color.Red) };
+                        graphics.FillEllipse(pathBrush, 0, 0, DotSize, DotSize);
+                    }
+                    break;
+                default:
+                    // Fallback to mode 0
+                    return;
+            }
+
+            // Get HBITMAP from the bitmap
+            IntPtr hBitmap = bitmap.GetHbitmap(Color.FromArgb(0));
+            IntPtr hdcScreen = Gdi32.CreateCompatibleDC(IntPtr.Zero);
+            IntPtr hOldBitmap = Gdi32.SelectObject(hdcScreen, hBitmap);
+
+            try
+            {
+                var blend = new User32.BLENDFUNCTION
+                {
+                    BlendOp = User32.AC_SRC_OVER,
+                    BlendFlags = 0,
+                    SourceConstantAlpha = 255,
+                    AlphaFormat = User32.AC_SRC_ALPHA
+                };
+                var srcPos = new User32.POINT { x = 0, y = 0 };
+                var dstPos = new User32.POINT { x = 0, y = 0 };
+                var winSize = new User32.SIZE { cx = DotSize, cy = DotSize };
+                User32.UpdateLayeredWindow(_hwnd, IntPtr.Zero, ref dstPos, ref winSize,
+                    hdcScreen, ref srcPos, 0, ref blend, User32.ULW_ALPHA);
+            }
+            finally
+            {
+                Gdi32.SelectObject(hdcScreen, hOldBitmap);
+                Gdi32.DeleteObject(hBitmap);
+                Gdi32.DeleteDC(hdcScreen);
+            }
+        }
     }
 
     private static class User32
@@ -193,6 +279,10 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         public const int SM_CYSCREEN = 1;
         public const int GWLP_USERDATA = -21;
         public const int LWA_COLORKEY = 0x00000001;
+        public const int LWA_ALPHA = 0x00000002;
+        public const int ULW_ALPHA = 0x00000002;
+        public const int AC_SRC_OVER = 0x00;
+        public const int AC_SRC_ALPHA = 0x01;
 
         // Structs
         [StructLayout(LayoutKind.Sequential)]
@@ -249,6 +339,22 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
             public int x, y;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        public struct SIZE
+        {
+            public int cx;
+            public int cy;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BLENDFUNCTION
+        {
+            public byte BlendOp;
+            public byte BlendFlags;
+            public byte SourceConstantAlpha;
+            public byte AlphaFormat;
+        }
+
         // Delegates
         public delegate IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
@@ -291,6 +397,11 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         public static extern IntPtr DefWindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
         [DllImport("user32.dll")]
         public static extern void PostQuitMessage(int nExitCode);
+
+        // Layered window functions
+        [DllImport("user32.dll")]
+        public static extern bool UpdateLayeredWindow(IntPtr hwnd, IntPtr hdcDst, ref POINT pptDst, ref SIZE psize,
+            IntPtr hdcSrc, ref POINT pptSrc, uint crKey, ref BLENDFUNCTION pblend, uint dwFlags);
     }
 
     private static class Gdi32
@@ -305,6 +416,10 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         public static extern bool Ellipse(IntPtr hdc, int left, int top, int right, int bottom);
         [DllImport("gdi32.dll")]
         public static extern IntPtr CreateEllipticRgn(int x1, int y1, int x2, int y2);
+        [DllImport("gdi32.dll")]
+        public static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+        [DllImport("gdi32.dll")]
+        public static extern bool DeleteDC(IntPtr hdc);
     }
 
     private static class Kernel32
