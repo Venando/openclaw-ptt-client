@@ -6,11 +6,13 @@ A desktop app for voice-controlled interaction with **OpenClaw** — an open-sou
 
 ## What It Does
 
-1. **Push-to-talk toggle**: Press Alt+= to start recording, press again to stop — your voice is transcribed and sent to OpenClaw
+1. **Push-to-talk**: Use your configured hotkey (default: Alt+=) to start/stop recording — your voice is transcribed and sent to OpenClaw
 2. **AI responses**: Get answers from OpenClaw agents displayed in your console
 3. **Real-time streaming**: See responses word-by-word as they're generated
-4. **Groq integration**: Uses Groq's Whisper API for accurate speech-to-text
+4. **Groq integration**: Uses Groq's Whisper API for accurate speech-to-text with automatic retry on errors
 5. **Cross-platform**: Windows, macOS, Linux — just needs a microphone
+6. **Connection resilience**: Automatically reconnects if gateway server disconnects
+7. **Visual feedback**: Windows shows red dot overlay when recording is active
 
 ## Quick Start
 
@@ -39,12 +41,12 @@ The existing configuration will be used as default values; device identity and t
 
 | Key | Action |
 |-----|--------|
-| **Customizable Hotkey** | Toggle or hold-to-talk recording (default: Alt+=) |
+| **Configured Hotkey** | Toggle or hold-to-talk recording (customizable during setup, default: Alt+=) |
 | **T** | Type a text message instead |
 | **Q** | Quit the application |
-| **Alt+R** | Reconfigure settings |
+| **Alt+R** | Reconfigure settings (anytime) |
 
-**Hotkey Configuration:** You can now customize your push-to-talk shortcut during setup. Choose any key combination (e.g., Ctrl+Shift+Space) and select between toggle mode or hold-to-talk mode.
+**Hotkey Configuration:** During initial setup or reconfiguration (Alt+R), you can customize your push-to-talk shortcut. Choose any key combination (e.g., Ctrl+Shift+Space) and select between toggle mode or hold-to-talk mode.
 
 ## Features
 
@@ -73,15 +75,32 @@ src/
 ├── Program.cs              # Main application loop
 ├── GatewayClient.cs        # AI communication
 ├── AudioRecorder.cs        # Microphone handling
-├── GroqTranscriber.cs      # Speech-to-text
+├── GroqTranscriber.cs      # Speech-to-text with retry logic
 ├── ConfigManager.cs        # Settings management
-└── AppConfig.cs           # Configuration model
+├── AppConfig.cs           # Configuration model
+├── ConsoleUi.cs           # Console output formatting
+├── Services/              # Service classes
+│   ├── ConfigurationService.cs
+│   ├── GatewayService.cs
+│   ├── AudioService.cs
+│   └── InputHandler.cs
+├── VisualFeedback/        # Windows visual feedback
+│   ├── IVisualFeedback.cs
+│   ├── WindowsVisualFeedback.cs
+│   ├── NoVisualFeedback.cs
+│   └── VisualFeedbackFactory.cs
+└── KeyboardListening/     # Platform-specific hotkey handling
+    ├── IGlobalHotkeyHook.cs
+    ├── GlobalHotkeyHookFactory.cs
+    ├── WindowsHotkeyHook.cs
+    ├── LinuxEvdevHotkeyHook.cs
+    └── MacOsHotkeyHook.cs
 ```
 
 ## Building
 
 ```bash
-dotnet build
+dotnet build openclaw-ptt.sln
 # Or create standalone executable:
 dotnet publish -c Release -r win-x64 --self-contained
 ```
@@ -92,6 +111,8 @@ dotnet publish -c Release -r win-x64 --self-contained
 - Ensure you have .NET 8 SDK installed
 - The setup wizard guides you through configuration
 - Verify your OpenClaw gateway is running
+- Check GitHub issues or pull requests for known solutions
+- Connection issues? The app automatically reconnects with visible attempts in console
 
 ## Recent Improvements (Implemented)
 
