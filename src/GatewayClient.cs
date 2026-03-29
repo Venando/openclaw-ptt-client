@@ -276,21 +276,17 @@ public sealed class GatewayClient : IDisposable
 
     private async Task HandleDisconnectionAsync(CancellationToken ct)
     {
-        await _reconnectLock.WaitAsync(ct);
         try
         {
-            if (_isReconnecting) return;
-            _isReconnecting = true;
+            // Clean up existing connection
+            await DisconnectInternalAsync(ct);
+            // Schedule reconnect (fire-and-forget)
+            _ = ScheduleReconnectAsync(ct);
         }
-        finally
+        catch (Exception ex)
         {
-            _reconnectLock.Release();
+            LogError("gateway", $"Error during disconnection handling: {ex.Message}");
         }
-
-        // Clean up existing connection
-        await DisconnectInternalAsync(ct);
-        // Schedule reconnect (fire-and-forget)
-        _ = ScheduleReconnectAsync(ct);
     }
 
     private async Task ScheduleReconnectAsync(CancellationToken ct)
@@ -301,21 +297,27 @@ public sealed class GatewayClient : IDisposable
         {
             if (_isReconnecting) return;
             _isReconnecting = true;
+            Log("gateway", "Starting reconnection loop...");
+            _reconnectTask = ReconnectLoopAsync(ct);
         }
         finally
         {
             _reconnectLock.Release();
         }
+    }
 
+    private async Task ReconnectLoopAsync(CancellationToken ct)
+    {
         while (!ct.IsCancellationRequested)
         {
+            // Wait for configured delay before attempting reconnect
+            var delayMs = (int)(_cfg.ReconnectDelaySeconds * 1000);
+            Log("gateway", $"Waiting {_cfg.ReconnectDelaySeconds}s before reconnection attempt...");
+            await Task.Delay(delayMs, ct);
+            
+            Log("gateway", "Attempting to reconnect...");
             try
             {
-                // Wait for configured delay before attempting reconnect
-                var delayMs = (int)(_cfg.ReconnectDelaySeconds * 1000);
-                await Task.Delay(delayMs, ct);
-                
-                Log("gateway", "Attempting to reconnect...");
                 await ConnectAsync(ct);
                 LogOk("gateway", "Reconnected successfully.");
                 break; // success
@@ -331,12 +333,13 @@ public sealed class GatewayClient : IDisposable
                 // Continue loop to retry after next delay
             }
         }
-
+        
         // Clear reconnection flag only if we are no longer trying
         await _reconnectLock.WaitAsync(ct);
         try
         {
             _isReconnecting = false;
+            // Keep _reconnectTask as completed task (still referenced)
         }
         finally
         {
