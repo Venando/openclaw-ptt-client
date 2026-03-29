@@ -5,19 +5,21 @@ using System.Collections.Generic;
 
 /// <summary>
 /// Improvements:
-/// 1. Shortcut settings: any keys, hold/toggle option
-/// 2. Config reconfigure option
+/// ✅ 1. Shortcut settings: any keys, hold/toggle option (Implemented)
+/// ✅ 2. Config reconfigure option (Implemented: Alt+R)
 /// 3. Transcriber platform selection
 /// 4. Start transcribing in chunk if talking for long ??? (Not sure might be buggy)
-/// 5. Option to show show graphics outside of terminal when recording (for example red dot)
+/// ✅ 5. Option to show show graphics outside of terminal when recording (for example red dot) (Windows implemented)
 /// 6. Option to minimize app to the tray when folded
 /// 7. Text to speach agent reply (through openclaw or no)
 /// 8. Figure out how to send raw audio to openclaw and let it interpret it
 /// 9. Remove SessionKey and SessionKey from config
-/// 10. Refactor/Clean up Program.cs and other files
+/// ✅ 10. Refactor/Clean up Program.cs and other files (Implemented with service classes)
 /// 11. Check if works on linux/macos
 /// 12. Add session selection (Currently attaches to "main")
 /// 13. Fix: Ctrl + C, not working during config setup
+/// ✅ 14. Connection resilience: Better handling for gateway restarts (Implemented with retry logic)
+/// ✅ 15. Groq error handling: Prevent crashes with retry logic (Implemented)
 /// </summary>
 
 internal static class Program

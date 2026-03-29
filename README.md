@@ -39,19 +39,25 @@ The existing configuration will be used as default values; device identity and t
 
 | Key | Action |
 |-----|--------|
-| **Alt+=** | Toggle recording (press to start, press again to stop) |
+| **Customizable Hotkey** | Toggle or hold-to-talk recording (default: Alt+=) |
 | **T** | Type a text message instead |
 | **Q** | Quit the application |
+| **Alt+R** | Reconfigure settings |
+
+**Hotkey Configuration:** You can now customize your push-to-talk shortcut during setup. Choose any key combination (e.g., Ctrl+Shift+Space) and select between toggle mode or hold-to-talk mode.
 
 ## Features
 
 - **OpenClaw integration**: Connects to your local OpenClaw gateway
-- **Groq Whisper API**: High-quality speech-to-text transcription
+- **Groq Whisper API**: High-quality speech-to-text transcription with error retry
 - **Voice commands**: Natural conversation with AI agents
 - **Clean console UI**: Color-coded responses with proper formatting
 - **Cross-platform**: Windows, macOS, and Linux support
 - **Guided setup**: Configuration wizard for easy onboarding
 - **Persistent settings**: Saves preferences in `~/.openclaw-ptt/`
+- **Customizable shortcuts**: Configure any hotkey with toggle or hold-to-talk mode
+- **Connection resilience**: Automatic reconnection with configurable retry delay
+- **Windows visual feedback**: Red dot overlay shows when recording is active
 
 ## Technical Details
 
@@ -87,23 +93,26 @@ dotnet publish -c Release -r win-x64 --self-contained
 - The setup wizard guides you through configuration
 - Verify your OpenClaw gateway is running
 
+## Recent Improvements (Implemented)
+
+1. ✅ **Shortcut settings**: Customizable hotkeys with hold-to-talk option
+2. ✅ **Connection resilience**: Automatic reconnection with configurable retry delay (default: 1.5s)
+3. ✅ **Visual feedback**: Windows-only red dot overlay when recording is active
+4. ✅ **Groq error handling**: Retry logic for API failures with exponential backoff
+5. ✅ **Code cleanup**: Refactored Program.cs into service classes for better architecture
+
 ## Planned Improvements
 
 From the code comments (`Program.cs`):
 
-1. **Shortcut settings**: Customizable hotkeys, add hold-to-talk option (currently toggle-only)
-2. **Config reconfigure** (implemented): Option to re-run setup without deleting config
-3. **Transcriber selection**: Choose between different speech-to-text services
-4. **Long speech handling**: Chunked transcription for extended recordings
-5. **Visual feedback**: Recording indicator outside terminal (e.g., red dot)
-6. **System tray**: Minimize to tray when not in use
-7. **Text-to-speech**: Voice responses from agent (optional)
-8. **Raw audio streaming**: Send audio directly to OpenClaw for interpretation
-9. **Session management**: Select different OpenClaw sessions (currently "main" only)
-10. **Code cleanup**: Refactor Program.cs and other files
-11. **Cross-platform testing**: Verify Linux/macOS compatibility
-12. **Exit handling**: Fix Ctrl+C during config setup
-13. **Connection resilience**: Better handling for gateway restarts (currently stops application)
+1. **Transcriber selection**: Choose between different speech-to-text services
+2. **Long speech handling**: Chunked transcription for extended recordings
+3. **System tray**: Minimize to tray when not in use
+4. **Text-to-speech**: Voice responses from agent (optional)
+5. **Raw audio streaming**: Send audio directly to OpenClaw for interpretation
+6. **Session management**: Select different OpenClaw sessions (currently "main" only)
+7. **Cross-platform testing**: Verify Linux/macOS compatibility
+8. **Exit handling**: Fix Ctrl+C during config setup
 
 ## Contributing
 
@@ -111,4 +120,4 @@ Found a bug? Have a feature request? Open an issue or submit a pull request.
 
 ---
 
-*Voice control for OpenClaw AI assistants. Press Alt+= to start recording, press again to send.*
+*Voice control for OpenClaw AI assistants. Configure your preferred hotkey for push-to-talk.*
