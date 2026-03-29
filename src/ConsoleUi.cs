@@ -1,5 +1,6 @@
 using System;
 using System.Threading;
+using System.Text;
 
 namespace OpenClawPTT;
 
@@ -96,6 +97,34 @@ public static class ConsoleUi
     public static void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix)
     {
         Console.Write(delta.Replace("\n", "\n" + newlineSuffix));
+    }
+    
+    /// <summary>
+    /// Creates a formatter for streaming agent replies with word wrap and right margin indent.
+    /// </summary>
+    public static AgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
+    {
+        return new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted);
+    }
+    
+    /// <summary>
+    /// Prints agent reply delta with word wrapping and right margin indent based on configuration.
+    /// </summary>
+    public static void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix, AppConfig config)
+    {
+        if (config.EnableWordWrap)
+        {
+            // Use formatter for wrapped output
+            // Since delta may be chunked, we need stateful formatter; caller should manage formatter lifetime.
+            // For backward compatibility, we fall back to old behavior when word wrap is disabled.
+            // This overload is provided for convenience but it's recommended to use CreateAgentReplyFormatter
+            // for streaming deltas within a single reply.
+            throw new InvalidOperationException("Use CreateAgentReplyFormatter for word-wrapped streaming.");
+        }
+        else
+        {
+            PrintAgentReplyDelta(prefix, delta, newlineSuffix);
+        }
     }
     
     public static void PrintGatewayError(string message, string? detailCode = null, string? recommendedStep = null)

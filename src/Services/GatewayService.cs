@@ -63,24 +63,47 @@ public sealed class GatewayService : IDisposable
             AgentReplyFull?.Invoke(body);
         };
         
+        AgentReplyFormatter? formatter = null;
+        
         client.AgentReplyDeltaStart += () =>
         {
             Console.WriteLine();
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.Write(agentReplayPrefix);
             Console.ResetColor();
+            
+            if (_config.EnableWordWrap)
+            {
+                formatter = ConsoleUi.CreateAgentReplyFormatter(agentReplayPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true);
+            }
+            
             AgentReplyDeltaStart?.Invoke();
         };
         
         client.AgentReplyDelta += delta =>
         {
-            ConsoleUi.PrintAgentReplyDelta(agentReplayPrefix, delta, newlineSuffix);
+            if (formatter != null)
+            {
+                formatter.ProcessDelta(delta);
+            }
+            else
+            {
+                ConsoleUi.PrintAgentReplyDelta(agentReplayPrefix, delta, newlineSuffix);
+            }
             AgentReplyDelta?.Invoke(delta);
         };
         
         client.AgentReplyDeltaEnd += () =>
         {
-            Console.WriteLine();
+            if (formatter != null)
+            {
+                formatter.Finish();
+                formatter = null;
+            }
+            else
+            {
+                Console.WriteLine();
+            }
             AgentReplyDeltaEnd?.Invoke();
         };
         

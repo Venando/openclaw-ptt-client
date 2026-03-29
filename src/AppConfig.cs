@@ -26,6 +26,10 @@ public sealed class AppConfig
     public string HotkeyCombination { get; set; } = "Alt+=";
     public bool HoldToTalk { get; set; } = false;
 
+    // Text formatting
+    public int RightMarginIndent { get; set; } = 5; // Minimum right margin indent in characters
+    public bool EnableWordWrap { get; set; } = true; // Enable word wrapping and margin indent
+
     [JsonIgnore]
     public string? SessionKey { get; set; }
 
