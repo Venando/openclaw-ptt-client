@@ -51,6 +51,9 @@ public sealed class ConfigManager
         if (cfg.SampleRate is < 8000 or > 48000)
             issues.Add("Sample rate must be between 8000 and 48000.");
 
+        if (cfg.ReconnectDelaySeconds <= 0)
+            issues.Add("Reconnect delay must be positive.");
+
         return issues;
     }
 
@@ -103,6 +106,28 @@ public sealed class ConfigManager
         cfg.RealTimeReplyOutput = bool.Parse(Prompt(
             "Real-time reply output",
             cfg.RealTimeReplyOutput.ToString(),
+            v => bool.TryParse(v, out _)));
+
+        // Shortcut settings
+        cfg.HotkeyCombination = Prompt(
+            "Hotkey combination (e.g., Alt+=, Ctrl+Shift+Space)",
+            cfg.HotkeyCombination,
+            v =>
+            {
+                try
+                {
+                    HotkeyMapping.Parse(v);
+                    return true;
+                }
+                catch
+                {
+                    return false;
+                }
+            });
+        
+        cfg.HoldToTalk = bool.Parse(Prompt(
+            "Hold-to-talk mode (true/false)",
+            cfg.HoldToTalk.ToString(),
             v => bool.TryParse(v, out _)));
 
         await Task.CompletedTask;

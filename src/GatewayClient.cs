@@ -20,6 +20,10 @@ public sealed class GatewayClient : IDisposable
     private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonElement>> _eventWaiters = new();
 
     private int _idCounter;
+    private readonly SemaphoreSlim _reconnectLock = new SemaphoreSlim(1, 1);
+    private bool _isReconnecting = false;
+    private readonly CancellationTokenSource _disposeCts = new CancellationTokenSource();
+    private Task? _reconnectTask = null;
 
     /// <summary>Fires for every inbound event (event name, payload).</summary>
     public event Action<string, JsonElement>? EventReceived;
@@ -42,6 +46,26 @@ public sealed class GatewayClient : IDisposable
 
     public async Task ConnectAsync(CancellationToken ct)
     {
+        // Clean up any existing connection before reconnecting
+        if (_ws != null)
+        {
+            // Stop tick task
+            _tickCts?.Cancel();
+            _tickCts?.Dispose();
+            _tickCts = null;
+            
+            // Close socket if open
+            if (_ws.State == WebSocketState.Open)
+            {
+                try { await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "reconnect", ct); }
+                catch { }
+            }
+            _ws.Dispose();
+            _ws = null!;
+        }
+        
+        ClearPendingRequests();
+        
         _ws = new ClientWebSocket();
         _ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
@@ -209,6 +233,120 @@ public sealed class GatewayClient : IDisposable
         return $"{value[..4]}...{value[^4..]}";
     }
 
+    // ─── connection resilience ──────────────────────────────────────
+
+    private async Task DisconnectInternalAsync(CancellationToken ct)
+    {
+        // Cancel tick task
+        _tickCts?.Cancel();
+        _tickCts?.Dispose();
+        _tickCts = null;
+        
+        // Close WebSocket if open
+        if (_ws.State == WebSocketState.Open)
+        {
+            try
+            {
+                await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "disconnect", ct);
+            }
+            catch { /* ignore */ }
+        }
+        
+        // Clear pending requests and event waiters
+        ClearPendingRequests();
+        
+        // Ensure receive loop is stopped (it will exit due to socket closure or cancellation)
+        // No need to cancel _recvTask as it uses the same ct.
+    }
+
+    private void ClearPendingRequests()
+    {
+        foreach (var kvp in _pending)
+        {
+            kvp.Value.TrySetCanceled();
+        }
+        _pending.Clear();
+        
+        foreach (var kvp in _eventWaiters)
+        {
+            kvp.Value.TrySetCanceled();
+        }
+        _eventWaiters.Clear();
+    }
+
+    private async Task HandleDisconnectionAsync(CancellationToken ct)
+    {
+        try
+        {
+            // Clean up existing connection
+            await DisconnectInternalAsync(ct);
+            // Schedule reconnect (fire-and-forget)
+            _ = ScheduleReconnectAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            LogError("gateway", $"Error during disconnection handling: {ex.Message}");
+        }
+    }
+
+    private async Task ScheduleReconnectAsync(CancellationToken ct)
+    {
+        // Ensure only one reconnection attempt at a time
+        await _reconnectLock.WaitAsync(ct);
+        try
+        {
+            if (_isReconnecting) return;
+            _isReconnecting = true;
+            Log("gateway", "Starting reconnection loop...");
+            _reconnectTask = ReconnectLoopAsync(ct);
+        }
+        finally
+        {
+            _reconnectLock.Release();
+        }
+    }
+
+    private async Task ReconnectLoopAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            // Wait for configured delay before attempting reconnect
+            var delayMs = (int)(_cfg.ReconnectDelaySeconds * 1000);
+            Log("gateway", $"Waiting {_cfg.ReconnectDelaySeconds}s before reconnection attempt...");
+            await Task.Delay(delayMs, ct);
+            
+            Log("gateway", "Attempting to reconnect...");
+            try
+            {
+                await ConnectAsync(ct);
+                LogOk("gateway", "Reconnected successfully.");
+                break; // success
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // Shutdown requested, exit loop
+                break;
+            }
+            catch (Exception ex)
+            {
+                LogError("gateway", $"Reconnection failed: {ex.Message}");
+                // Continue loop to retry after next delay
+            }
+        }
+        
+        // Clear reconnection flag only if we are no longer trying
+        await _reconnectLock.WaitAsync(ct);
+        try
+        {
+            _isReconnecting = false;
+            // Keep _reconnectTask as completed task (still referenced)
+        }
+        finally
+        {
+            _reconnectLock.Release();
+        }
+    }
+
     // ─── send audio ─────────────────────────────────────────────────
 
     /// <summary>
@@ -345,6 +483,8 @@ public sealed class GatewayClient : IDisposable
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
                         Log("gateway", "Server closed connection.");
+                        // Schedule reconnection
+                        _ = HandleDisconnectionAsync(ct);
                         return;
                     }
                     ms.Write(buf, 0, result.Count);
@@ -358,6 +498,8 @@ public sealed class GatewayClient : IDisposable
         catch (WebSocketException ex)
         {
             LogError("gateway", $"WebSocket error: {ex.Message}");
+            // Schedule reconnection
+            _ = HandleDisconnectionAsync(ct);
         }
     }
 
@@ -579,6 +721,9 @@ public sealed class GatewayClient : IDisposable
 
     public void Dispose()
     {
+        _disposeCts.Cancel();
+        _reconnectTask?.Wait(TimeSpan.FromSeconds(5));
+        
         _tickCts?.Cancel();
         _tickCts?.Dispose();
 
@@ -588,6 +733,9 @@ public sealed class GatewayClient : IDisposable
             catch { /* best effort */ }
         }
         _ws.Dispose();
+        
+        _reconnectLock.Dispose();
+        _disposeCts.Dispose();
     }
 }
 

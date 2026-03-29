@@ -1,27 +1,31 @@
 namespace OpenClawPTT;
 
 using OpenClawPTT.Services;
+using System.Collections.Generic;
 
 /// <summary>
 /// Improvements:
-/// 1. Shortcut settings: any keys, hold/toggle option
-/// 2. Config reconfigure option
+/// ✅ 1. Shortcut settings: any keys, hold/toggle option (Implemented)
+/// ✅ 2. Config reconfigure option (Implemented: Alt+R)
 /// 3. Transcriber platform selection
 /// 4. Start transcribing in chunk if talking for long ??? (Not sure might be buggy)
-/// 5. Option to show show graphics outside of terminal when recording (for example red dot)
+/// ✅ 5. Option to show show graphics outside of terminal when recording (for example red dot) (Windows implemented)
 /// 6. Option to minimize app to the tray when folded
 /// 7. Text to speach agent reply (through openclaw or no)
 /// 8. Figure out how to send raw audio to openclaw and let it interpret it
 /// 9. Remove SessionKey and SessionKey from config
-/// 10. Refactor/Clean up Program.cs and other files
+/// ✅ 10. Refactor/Clean up Program.cs and other files (Implemented with service classes)
 /// 11. Check if works on linux/macos
 /// 12. Add session selection (Currently attaches to "main")
 /// 13. Fix: Ctrl + C, not working during config setup
+/// ✅ 14. Connection resilience: Better handling for gateway restarts (Implemented with retry logic)
+/// ✅ 15. Groq error handling: Prevent crashes with retry logic (Implemented)
 /// </summary>
 
 internal static class Program
 {
-    private static volatile bool _hotkeyFired;
+    private static volatile bool _hotkeyPressed;
+    private static volatile bool _hotkeyReleased;
 
     private static async Task<int> Main(string[] args)
     {
@@ -94,14 +98,41 @@ internal static class Program
 
     private static async Task<int> RunPttLoop(GatewayService gateway, AppConfig cfg, CancellationToken ct)
     {
-        using var audioService = new AudioService(
-            cfg.SampleRate, cfg.Channels, cfg.BitsPerSample, cfg.MaxRecordSeconds, cfg.GroqApiKey);
+        using var audioService = new AudioService(cfg);
         using var hotkeyHook = GlobalHotkeyHookFactory.Create();
 
-        hotkeyHook.HotkeyPressed += () => _hotkeyFired = true;
+        // Parse hotkey configuration
+        Hotkey hotkey;
+        try
+        {
+            hotkey = HotkeyMapping.Parse(cfg.HotkeyCombination);
+        }
+        catch (Exception ex)
+        {
+            ConsoleUi.PrintError($"Invalid hotkey combination '{cfg.HotkeyCombination}': {ex.Message}");
+            ConsoleUi.PrintWarning("Falling back to default 'Alt+='.");
+            hotkey = HotkeyMapping.Parse("Alt+=");
+        }
+        
+        hotkeyHook.SetHotkey(hotkey);
+        
+        bool holdToTalk = cfg.HoldToTalk;
+        
+        // Subscribe to events based on mode
+        if (holdToTalk)
+        {
+            hotkeyHook.HotkeyPressed += () => _hotkeyPressed = true;
+            hotkeyHook.HotkeyReleased += () => _hotkeyReleased = true;
+        }
+        else
+        {
+            // Toggle mode: only use pressed event
+            hotkeyHook.HotkeyPressed += () => _hotkeyPressed = true;
+        }
+        
         hotkeyHook.Start();
 
-        ConsoleUi.PrintHelpMenu();
+        ConsoleUi.PrintHelpMenu(cfg.HotkeyCombination, cfg.HoldToTalk);
         
         var configService = new ConfigurationService();
         var inputHandler = new InputHandler(gateway, audioService, configService);
@@ -109,11 +140,35 @@ internal static class Program
         while (!ct.IsCancellationRequested)
         {
             // ── global hotkey ─────────────────────────────────────────
-            if (_hotkeyFired)
+            if (_hotkeyPressed)
             {
-                _hotkeyFired = false;
-                await ToggleRecordingAsync(audioService, gateway, ct);
-                continue;
+                _hotkeyPressed = false;
+                if (holdToTalk)
+                {
+                    // Start recording on press
+                    if (!audioService.IsRecording)
+                        audioService.StartRecording();
+                }
+                else
+                {
+                    // Toggle recording
+                    await ToggleRecordingAsync(audioService, gateway, ct);
+                }
+            }
+            if (_hotkeyReleased)
+            {
+                _hotkeyReleased = false;
+                if (holdToTalk && audioService.IsRecording)
+                {
+                    // Stop recording on release
+                    var transcribed = await audioService.StopAndTranscribeAsync(ct);
+                    if (transcribed != null)
+                    {
+                        await SendTextToGatewayAsync(gateway,
+                            "[The following text is a raw speech-to-text transcription]: " + transcribed, ct);
+                        ConsoleUi.PrintInfo("Waiting for agent…");
+                    }
+                }
             }
 
             var result = await inputHandler.HandleInputAsync(ct);
@@ -156,4 +211,3 @@ internal static class Program
         }
     }
 }
-
