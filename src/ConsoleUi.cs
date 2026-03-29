@@ -24,13 +24,30 @@ public static class ConsoleUi
         Console.WriteLine("  ╔══════════════════════════════════════════╗");
         Console.WriteLine("  ║  Push-to-Talk ready                      ║");
         Console.WriteLine("  ╠══════════════════════════════════════════╣");
-        Console.WriteLine($"  ║  [{hotkeyCombination}]  {modeDescription,-18} ║");
-        Console.WriteLine("  ║  [Alt+R]  Reconfigure settings           ║");
-        Console.WriteLine("  ║  [T]        Type a text message          ║");
-        Console.WriteLine("  ║  [Q]        Quit                         ║");
+        Console.WriteLine(FormatMenuLine($"[{hotkeyCombination}]", modeDescription));
+        Console.WriteLine(FormatMenuLine("[Alt+R]", "Reconfigure settings"));
+        Console.WriteLine(FormatMenuLine("[T]", "Type a text message"));
+        Console.WriteLine(FormatMenuLine("[Q]", "Quit"));
         Console.WriteLine("  ╚══════════════════════════════════════════╝");
         Console.ResetColor();
         Console.WriteLine();
+    }
+    
+    private static string FormatMenuLine(string leftText, string rightText)
+    {
+        const int totalWidth = 38;
+        const int leftPadding = 2; // Space after "║  "
+        const int middlePadding = 2; // Space between left and right text
+        
+        int leftLength = leftText.Length;
+        int rightLength = rightText.Length;
+        int totalContentLength = leftLength + middlePadding + rightLength;
+        int rightPadding = totalWidth - leftPadding - totalContentLength;
+        
+        // Ensure we have at least 1 space padding on the right
+        if (rightPadding < 1) rightPadding = 1;
+        
+        return $"  ║  {leftText}{new string(' ', middlePadding)}{rightText}{new string(' ', rightPadding)}║";
     }
     
     public static void PrintRecordingIndicator(bool isRecording, string hotkeyCombination, bool holdToTalk)
