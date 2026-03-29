@@ -19,6 +19,10 @@ public sealed class AppConfig
     public bool RealTimeReplyOutput { get; set; } = false;
     public double ReconnectDelaySeconds { get; set; } = 1.5;
 
+    // Shortcut settings
+    public string HotkeyCombination { get; set; } = "Alt+=";
+    public bool HoldToTalk { get; set; } = false;
+
     [JsonIgnore]
     public string? SessionKey { get; set; }
 
