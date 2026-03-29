@@ -20,33 +20,41 @@ A desktop app for voice-controlled interaction with **OpenClaw** — an open-sou
 # Clone and run
 git clone https://github.com/Venando/openclaw-ptt-client
 cd openclaw-ptt-client
+dotnet build openclaw-ptt.sln
 dotnet run
+
+# Or create standalone executable:
+dotnet publish -c Release -r win-x64 --self-contained
 ```
 
 First run asks for:
 - **Gateway URL** (default: `ws://localhost:18789`) — your OpenClaw gateway
 - **Groq API key** (for speech-to-text) — get from [groq.com](https://console.groq.com)
 - **Audio settings** (usually just press Enter)
+- **Hotkey configuration** — choose your push-to-talk shortcut and mode (toggle/hold-to-talk)
 
 ### Reconfiguration
 
-If you need to update your configuration (e.g., change Gateway URL or Groq API key), you can:
-
-- Run the application with `--reconfigure` flag: `dotnet run -- --reconfigure`
-- Or press `R` when the application starts (within 3 seconds) to enter setup wizard.
-
-The existing configuration will be used as default values; device identity and tokens are preserved unless explicitly changed.
+To update your configuration (change Gateway URL, Groq API key, or hotkey settings):
+- Press **Alt+R** while the application is running to enter reconfiguration mode
+- The setup wizard will restart with your current settings as defaults
 
 ## Controls
 
-| Key | Action |
-|-----|--------|
-| **Configured Hotkey** | Toggle or hold-to-talk recording (customizable during setup, default: Alt+=) |
-| **T** | Type a text message instead |
-| **Q** | Quit the application |
-| **Alt+R** | Reconfigure settings (anytime) |
+**Important Window Focus Behavior:**
+- **Push-to-talk hotkey**: Works globally from any window (system-wide)
+- **Other shortcuts (T, Q, Alt+R)**: Only work when terminal console is focused
+
+| Key | Action | Window Focus Required |
+|-----|--------|----------------------|
+| **Configured Hotkey** | Toggle or hold-to-talk recording (customizable, default: Alt+=) | **Any window** (global) |
+| **T** | Type a text message instead | Terminal only |
+| **Q** | Quit the application | Terminal only |
+| **Alt+R** | Reconfigure settings | Terminal only |
 
 **Hotkey Configuration:** During initial setup or reconfiguration (Alt+R), you can customize your push-to-talk shortcut. Choose any key combination (e.g., Ctrl+Shift+Space) and select between toggle mode or hold-to-talk mode.
+
+**Design Note:** The push-to-talk hotkey works globally so you can use voice commands from any application. Other controls require terminal focus to prevent accidental interruptions of the application.
 
 ## Features
 
@@ -97,13 +105,7 @@ src/
     └── MacOsHotkeyHook.cs
 ```
 
-## Building
 
-```bash
-dotnet build openclaw-ptt.sln
-# Or create standalone executable:
-dotnet publish -c Release -r win-x64 --self-contained
-```
 
 ## Need Help?
 
