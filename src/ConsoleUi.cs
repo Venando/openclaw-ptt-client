@@ -16,13 +16,15 @@ public static class ConsoleUi
         Console.WriteLine();
     }
     
-    public static void PrintHelpMenu()
+    public static void PrintHelpMenu(string hotkeyCombination, bool holdToTalk)
     {
+        var modeDescription = holdToTalk ? "Hold-to-talk" : "Toggle recording";
+        
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("  ╔══════════════════════════════════════════╗");
         Console.WriteLine("  ║  Push-to-Talk ready                      ║");
         Console.WriteLine("  ╠══════════════════════════════════════════╣");
-        Console.WriteLine("  ║  [Alt+=]  Toggle recording               ║");
+        Console.WriteLine($"  ║  [{hotkeyCombination}]  {modeDescription,-18} ║");
         Console.WriteLine("  ║  [Alt+R]  Reconfigure settings           ║");
         Console.WriteLine("  ║  [T]        Type a text message          ║");
         Console.WriteLine("  ║  [Q]        Quit                         ║");
@@ -31,12 +33,19 @@ public static class ConsoleUi
         Console.WriteLine();
     }
     
-    public static void PrintRecordingIndicator(bool isRecording)
+    public static void PrintRecordingIndicator(bool isRecording, string hotkeyCombination, bool holdToTalk)
     {
         if (isRecording)
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.Write("  ● REC — press Alt+= again to stop ");
+            if (holdToTalk)
+            {
+                Console.Write($"  ● REC — release {hotkeyCombination} to stop ");
+            }
+            else
+            {
+                Console.Write($"  ● REC — press {hotkeyCombination} again to stop ");
+            }
             Console.ResetColor();
         }
     }

@@ -132,7 +132,7 @@ internal static class Program
         
         hotkeyHook.Start();
 
-        ConsoleUi.PrintHelpMenu();
+        ConsoleUi.PrintHelpMenu(cfg.HotkeyCombination, cfg.HoldToTalk);
         
         var configService = new ConfigurationService();
         var inputHandler = new InputHandler(gateway, audioService, configService);
