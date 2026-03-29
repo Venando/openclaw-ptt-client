@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using OpenClawPTT;
 using OpenClawPTT.VisualFeedback;
 
 namespace OpenClawPTT.Services;
@@ -12,10 +13,13 @@ public sealed class AudioService : IDisposable
     private readonly IVisualFeedback _visualFeedback;
     private bool _disposed;
     
-    public AudioService(int sampleRate, int channels, int bitsPerSample, int maxRecordSeconds, string groqApiKey)
+    public AudioService(AppConfig config)
     {
-        _recorder = new AudioRecorder(sampleRate, channels, bitsPerSample, maxRecordSeconds);
-        _transcriber = new GroqTranscriber(groqApiKey);
+        _recorder = new AudioRecorder(config.SampleRate, config.Channels, config.BitsPerSample, config.MaxRecordSeconds);
+        _transcriber = new GroqTranscriber(config.GroqApiKey, 
+            retryCount: config.GroqRetryCount, 
+            retryDelayMs: config.GroqRetryDelayMs, 
+            retryBackoffFactor: config.GroqRetryBackoffFactor);
         _visualFeedback = VisualFeedbackFactory.Create();
     }
     

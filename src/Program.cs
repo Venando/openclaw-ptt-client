@@ -96,8 +96,7 @@ internal static class Program
 
     private static async Task<int> RunPttLoop(GatewayService gateway, AppConfig cfg, CancellationToken ct)
     {
-        using var audioService = new AudioService(
-            cfg.SampleRate, cfg.Channels, cfg.BitsPerSample, cfg.MaxRecordSeconds, cfg.GroqApiKey);
+        using var audioService = new AudioService(cfg);
         using var hotkeyHook = GlobalHotkeyHookFactory.Create();
 
         // Parse hotkey configuration
