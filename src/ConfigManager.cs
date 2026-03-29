@@ -64,6 +64,9 @@ public sealed class ConfigManager
         if (cfg.ReconnectDelaySeconds <= 0)
             issues.Add("Reconnect delay must be positive.");
 
+        if (cfg.VisualMode < 0 || cfg.VisualMode > 3)
+            issues.Add("VisualMode must be between 0 and 3.");
+
         return issues;
     }
 
