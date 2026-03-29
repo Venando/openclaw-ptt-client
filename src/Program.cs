@@ -16,6 +16,7 @@ namespace OpenClawPTT;
 /// 12. Add session selection (Currently attaches to "main")
 /// 13. Fix: Ctrl + C, not working during config setup
 /// </summary>
+
 internal static class Program
 {
     private static volatile bool _hotkeyFired;
@@ -47,12 +48,17 @@ internal static class Program
             }
             else
             {
-                bool reconfigureFlag = args.Contains("--reconfigure") || args.Contains("-r");
-                if (reconfigureFlag)
+                var issues = cfgMgr.Validate(cfg);
+                if (issues.Count > 0)
                 {
                     Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine("  Reconfigure flag set — starting setup wizard.\n");
+                    Console.WriteLine("  Configuration issues detected:");
                     Console.ResetColor();
+                    foreach (var i in issues)
+                        Console.WriteLine($"    • {i}");
+                    Console.WriteLine();
+                    
+                    Console.WriteLine("  Starting setup wizard to fix missing/invalid fields...\n");
                     cfg = await cfgMgr.RunSetup(cfg);
                     cfgMgr.Save(cfg);
                     Console.ForegroundColor = ConsoleColor.Green;
@@ -61,92 +67,41 @@ internal static class Program
                 }
                 else
                 {
-                    var issues = cfgMgr.Validate(cfg);
-                    if (issues.Count > 0)
+                    Console.WriteLine($"  Config loaded: {cfg.GatewayUrl}");
+                    if (ShouldReconfigure())
                     {
                         Console.ForegroundColor = ConsoleColor.Yellow;
-                        Console.WriteLine("  Configuration issues:");
+                        Console.WriteLine("  Starting setup wizard...\n");
                         Console.ResetColor();
-                        foreach (var i in issues)
-                            Console.WriteLine($"    • {i}");
-                        Console.WriteLine();
-
                         cfg = await cfgMgr.RunSetup(cfg);
                         cfgMgr.Save(cfg);
-                    }
-                    else
-                    {
-                        Console.WriteLine($"  Config loaded: {cfg.GatewayUrl}");
-                        if (ShouldReconfigure())
-                        {
-                            Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine("  Starting setup wizard...\n");
-                            Console.ResetColor();
-                            cfg = await cfgMgr.RunSetup(cfg);
-                            cfgMgr.Save(cfg);
-                            Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine("\n  ✓ Configuration updated.\n");
-                            Console.ResetColor();
-                        }
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine("\n  ✓ Configuration updated.\n");
+                        Console.ResetColor();
                     }
                 }
             }
 
-            // ── 2. Device identity ──────────────────────────────────
-            var device = new DeviceIdentity(cfg.DataDir);
-            device.EnsureKeypair();
-            Console.WriteLine($"  Device ID: {device.DeviceId[..16]}…");
-            Console.WriteLine();
-
-            // ── 3. Gateway handshake ────────────────────────────────
-            using var gw = new GatewayClient(cfg, device);
-
-            const string agentReplayPrefix = "  🤖 Agent: ";
-
-            var prefixLenght = agentReplayPrefix.Length;
-            var newlineSuffix = new string(' ', prefixLenght);
-
-            // wire up agent reply display before connecting
-            gw.AgentReplyFull += body =>
+            // Main loop that can restart when config changes
+            int result;
+            do
             {
-                Console.WriteLine();
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.Write(agentReplayPrefix);
-                Console.ResetColor();
-                Console.WriteLine(body);
-                Console.WriteLine();
-            };
-
-            gw.AgentReplyDeltaStart += () =>
-            {
-                Console.WriteLine();
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.Write(agentReplayPrefix);
-                Console.ResetColor();
-            };
-
-            gw.AgentReplyDelta += delta =>
-            {
-                Console.Write(delta.Replace("\n", "\n" + newlineSuffix));
-            };
-
-            gw.AgentReplyDeltaEnd += Console.WriteLine; 
-
-            gw.EventReceived += (name, json) =>
-            {
-                // health and tick events not sure what to do with them
-                return;
-                Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.WriteLine($"[event]: " + name);
-                Console.ResetColor();
-            };
-
-            await gw.ConnectAsync(cts.Token);
-
-
-            // ── 4. Push-to-talk ─────────────────────────────────────
-            Console.WriteLine();
-            return await RunPttLoop(gw, cfg, cts.Token);
+                result = await RunMainLoop(cfg, cts.Token);
+                if (result == 100) // Restart code - config was updated
+                {
+                    // Reload config from file for next iteration
+                    cfg = cfgMgr.Load();
+                    if (cfg == null)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine("  Failed to reload config after update.");
+                        Console.ResetColor();
+                        return 1;
+                    }
+                }
+            } while (result == 100);
+            
+            return result;
         }
         catch (OperationCanceledException)
         {
@@ -205,6 +160,66 @@ internal static class Program
         }
     }
 
+    // ─── Main loop (steps 2-4) that can be restarted ────────────────
+
+    private static async Task<int> RunMainLoop(AppConfig cfg, CancellationToken ct)
+    {
+        // ── 2. Device identity ──────────────────────────────────
+        var device = new DeviceIdentity(cfg.DataDir);
+        device.EnsureKeypair();
+        Console.WriteLine($"  Device ID: {device.DeviceId[..16]}…");
+        Console.WriteLine();
+
+        // ── 3. Gateway handshake ────────────────────────────────
+        using var gw = new GatewayClient(cfg, device);
+
+        const string agentReplayPrefix = "  🤖 Agent: ";
+
+        var prefixLenght = agentReplayPrefix.Length;
+        var newlineSuffix = new string(' ', prefixLenght);
+
+        // wire up agent reply display before connecting
+        gw.AgentReplyFull += body =>
+        {
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write(agentReplayPrefix);
+            Console.ResetColor();
+            Console.WriteLine(body);
+            Console.WriteLine();
+        };
+
+        gw.AgentReplyDeltaStart += () =>
+        {
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write(agentReplayPrefix);
+            Console.ResetColor();
+        };
+
+        gw.AgentReplyDelta += delta =>
+        {
+            Console.Write(delta.Replace("\n", "\n" + newlineSuffix));
+        };
+
+        gw.AgentReplyDeltaEnd += Console.WriteLine; 
+
+        gw.EventReceived += (name, json) =>
+        {
+            // health and tick events not sure what to do with them
+            return;
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine($"[event]: " + name);
+            Console.ResetColor();
+        };
+
+        await gw.ConnectAsync(ct);
+
+        // ── 4. Push-to-talk ─────────────────────────────────────
+        Console.WriteLine();
+        return await RunPttLoop(gw, cfg, ct);
+    }
+
     // ─── PTT loop ───────────────────────────────────────────────────
 
     private static async Task<int> RunPttLoop(GatewayClient gw, AppConfig cfg, CancellationToken ct)
@@ -221,6 +236,7 @@ internal static class Program
         Console.WriteLine("  ║  Push-to-Talk ready                      ║");
         Console.WriteLine("  ╠══════════════════════════════════════════╣");
         Console.WriteLine("  ║  [Alt+=]  Toggle recording               ║");
+        Console.WriteLine("  ║  [Alt+R]  Reconfigure settings           ║");
         Console.WriteLine("  ║  [T]        Type a text message          ║");
         Console.WriteLine("  ║  [Q]        Quit                         ║");
         Console.WriteLine("  ╚══════════════════════════════════════════╝");
@@ -258,6 +274,31 @@ internal static class Program
                 var text = Console.ReadLine()?.Trim();
                 if (!string.IsNullOrEmpty(text))
                     await SendTextAsync(gw, text, ct);
+            }
+            
+            // Alt+R for reconfiguration
+            if (key.Key == ConsoleKey.R && (key.Modifiers & ConsoleModifiers.Alt) != 0)
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine("\n  Starting reconfiguration wizard...\n");
+                Console.ResetColor();
+                
+                // Run setup wizard with current config
+                var cfgMgr = new ConfigManager();
+                var currentCfg = cfgMgr.Load();
+                if (currentCfg != null)
+                {
+                    var newCfg = await cfgMgr.RunSetup(currentCfg);
+                    cfgMgr.Save(newCfg);
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine("\n  ✓ Configuration updated. Reconnecting...\n");
+                    Console.ResetColor();
+                    
+                    // Recreate GatewayClient with new config (same device)
+                    // Need to get device from somewhere... Actually we can recreate it
+                    // For now, just exit PTT loop with restart code
+                    return 100; // Restart code
+                }
             }
         }
 
