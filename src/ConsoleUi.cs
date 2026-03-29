@@ -16,27 +16,37 @@ public static class ConsoleUi
         Console.WriteLine();
     }
     
-    public static void PrintHelpMenu()
+    public static void PrintHelpMenu(string hotkeyCombination = "Alt+=")
     {
         Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine("  ╔══════════════════════════════════════════╗");
-        Console.WriteLine("  ║  Push-to-Talk ready                      ║");
-        Console.WriteLine("  ╠══════════════════════════════════════════╣");
-        Console.WriteLine("  ║  [Alt+=]  Toggle recording               ║");
-        Console.WriteLine("  ║  [Alt+R]  Reconfigure settings           ║");
-        Console.WriteLine("  ║  [T]        Type a text message          ║");
-        Console.WriteLine("  ║  [Q]        Quit                         ║");
-        Console.WriteLine("  ╚══════════════════════════════════════════╝");
+        
+        // Calculate dynamic border width based on hotkey length
+        int hotkeyDisplayLength = hotkeyCombination.Length + 2; // +2 for brackets []
+        int baseWidth = 42; // Original width
+        int extraWidth = Math.Max(0, hotkeyDisplayLength - 7); // "Alt+=" is 5 + 2 = 7
+        
+        int totalWidth = baseWidth + extraWidth;
+        string borderLine = new string('═', totalWidth);
+        
+        Console.WriteLine($"  ╔{borderLine}╗");
+        Console.WriteLine($"  ║  Push-to-Talk ready{new string(' ', totalWidth - 22)}║");
+        Console.WriteLine($"  ╠{borderLine}╣");
+        Console.WriteLine($"  ║  [{hotkeyCombination}]  Toggle recording{new string(' ', totalWidth - hotkeyDisplayLength - 24)}║");
+        Console.WriteLine($"  ║  [Alt+R]  Reconfigure settings{new string(' ', totalWidth - 33)}║");
+        Console.WriteLine($"  ║  [T]        Type a text message{new string(' ', totalWidth - 33)}║");
+        Console.WriteLine($"  ║  [Q]        Quit{new string(' ', totalWidth - 20)}║");
+        Console.WriteLine($"  ╚{borderLine}╝");
+        
         Console.ResetColor();
         Console.WriteLine();
     }
     
-    public static void PrintRecordingIndicator(bool isRecording)
+    public static void PrintRecordingIndicator(bool isRecording, string hotkeyCombination = "Alt+=")
     {
         if (isRecording)
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.Write("  ● REC — press Alt+= again to stop ");
+            Console.Write($"  ● REC — press {hotkeyCombination} again to stop ");
             Console.ResetColor();
         }
     }

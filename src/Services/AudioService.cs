@@ -13,8 +13,11 @@ public sealed class AudioService : IDisposable
     private readonly IVisualFeedback _visualFeedback;
     private bool _disposed;
     
+    private readonly AppConfig _config;
+    
     public AudioService(AppConfig config)
     {
+        _config = config;
         _recorder = new AudioRecorder(config.SampleRate, config.Channels, config.BitsPerSample, config.MaxRecordSeconds);
         _transcriber = new GroqTranscriber(config.GroqApiKey, 
             retryCount: config.GroqRetryCount, 
@@ -30,7 +33,7 @@ public sealed class AudioService : IDisposable
         if (_disposed) throw new ObjectDisposedException(nameof(AudioService));
         
         _recorder.StartRecording();
-        ConsoleUi.PrintRecordingIndicator(true);
+        ConsoleUi.PrintRecordingIndicator(true, _config.HotkeyCombination);
         _visualFeedback.Show();
     }
     
