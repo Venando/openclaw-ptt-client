@@ -51,6 +51,9 @@ public sealed class ConfigManager
         if (cfg.SampleRate is < 8000 or > 48000)
             issues.Add("Sample rate must be between 8000 and 48000.");
 
+        if (cfg.ReconnectDelaySeconds <= 0)
+            issues.Add("Reconnect delay must be positive.");
+
         return issues;
     }
 
