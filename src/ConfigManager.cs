@@ -105,6 +105,28 @@ public sealed class ConfigManager
             cfg.RealTimeReplyOutput.ToString(),
             v => bool.TryParse(v, out _)));
 
+        // Shortcut settings
+        cfg.HotkeyCombination = Prompt(
+            "Hotkey combination (e.g., Alt+=, Ctrl+Shift+Space)",
+            cfg.HotkeyCombination,
+            v =>
+            {
+                try
+                {
+                    HotkeyMapping.Parse(v);
+                    return true;
+                }
+                catch
+                {
+                    return false;
+                }
+            });
+        
+        cfg.HoldToTalk = bool.Parse(Prompt(
+            "Hold-to-talk mode (true/false)",
+            cfg.HoldToTalk.ToString(),
+            v => bool.TryParse(v, out _)));
+
         await Task.CompletedTask;
         return cfg;
     }

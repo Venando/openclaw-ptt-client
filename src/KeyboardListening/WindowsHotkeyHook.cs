@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
@@ -8,19 +10,35 @@ namespace OpenClawPTT;
 internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
 {
     public event Action? HotkeyPressed;
+    public event Action? HotkeyReleased;
 
     private readonly Thread _thread;
     private volatile IntPtr _hookHandle = IntPtr.Zero;
     private volatile bool _disposed;
-    private bool _altDown;
+    
+    // Hotkey configuration
+    private Hotkey? _hotkey;
+    private int _hotkeyKeyCode;
+    private HashSet<Modifier> _modifiers = new();
+    private Dictionary<Modifier, List<int>> _modifierKeyCodes = new();
+    private Dictionary<Modifier, bool> _modifierDown = new();
+    private bool _hotkeyKeyDown;
 
     private const int WH_KEYBOARD_LL = 13;
     private const int WM_KEYDOWN = 0x0100;
     private const int WM_SYSKEYDOWN = 0x0104;
     private const int WM_KEYUP = 0x0101;
     private const int WM_SYSKEYUP = 0x0105;
-    private const int VK_MENU = 0x12;   // Alt
-    private const int VK_OEM_PLUS = 0xBB;   // '=' / '+'
+
+    // Virtual key codes
+    private const int VK_LMENU = 0xA4;      // Left Alt
+    private const int VK_RMENU = 0xA5;      // Right Alt
+    private const int VK_LCONTROL = 0xA2;   // Left Ctrl
+    private const int VK_RCONTROL = 0xA3;   // Right Ctrl
+    private const int VK_LSHIFT = 0xA0;     // Left Shift
+    private const int VK_RSHIFT = 0xA1;     // Right Shift
+    private const int VK_LWIN = 0x5B;       // Left Windows
+    private const int VK_RWIN = 0x5C;       // Right Windows
 
     public WindowsHotkeyHook()
     {
@@ -30,34 +48,85 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
             Name = "WinHotkeyLoop"
         };
         _thread.SetApartmentState(ApartmentState.STA);
+        
+        // Initialize modifier mapping
+        _modifierKeyCodes[Modifier.Alt] = new List<int> { VK_LMENU, VK_RMENU };
+        _modifierKeyCodes[Modifier.Ctrl] = new List<int> { VK_LCONTROL, VK_RCONTROL };
+        _modifierKeyCodes[Modifier.Shift] = new List<int> { VK_LSHIFT, VK_RSHIFT };
+        _modifierKeyCodes[Modifier.Win] = new List<int> { VK_LWIN, VK_RWIN };
+        foreach (var mod in Enum.GetValues<Modifier>())
+            _modifierDown[mod] = false;
+    }
+
+    public void SetHotkey(Hotkey hotkey)
+    {
+        _hotkey = hotkey;
+        _hotkeyKeyCode = HotkeyMapping.GetPlatformKeyCode(hotkey.Key);
+        _modifiers = hotkey.Modifiers;
+        // Reset states
+        foreach (var mod in Enum.GetValues<Modifier>())
+            _modifierDown[mod] = false;
+        _hotkeyKeyDown = false;
     }
 
     public void Start() => _thread.Start();
 
     private IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0)
+        if (nCode >= 0 && _hotkey != null)
         {
             var info = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
             int msg = wParam.ToInt32();
 
             bool isDown = msg is WM_KEYDOWN or WM_SYSKEYDOWN;
+            bool isUp = msg is WM_KEYUP or WM_SYSKEYUP;
 
-            // Use the flags field as the authoritative Alt indicator —
-            // bit 5 (0x20) is set by Windows when Alt is held for any key event
-            bool altHeld = (info.flags & 0x20) != 0;
-
-            if (info.vkCode == VK_MENU)
-                _altDown = isDown;
-
-            // Check BOTH our tracked state and the hardware flags field
-            if (isDown && info.vkCode == VK_OEM_PLUS && (_altDown || altHeld))
+            // Update modifier states
+            foreach (var (mod, vkList) in _modifierKeyCodes)
             {
-                ThreadPool.QueueUserWorkItem(_ => HotkeyPressed?.Invoke());
+                if (vkList.Contains((int)info.vkCode))
+                {
+                    _modifierDown[mod] = isDown;
+                    break;
+                }
+            }
+
+            // Check if this is the hotkey key
+            if (info.vkCode == _hotkeyKeyCode)
+            {
+                if (isDown && !_hotkeyKeyDown)
+                {
+                    // Verify modifiers match
+                    if (ModifiersMatch())
+                    {
+                        _hotkeyKeyDown = true;
+                        ThreadPool.QueueUserWorkItem(_ => HotkeyPressed?.Invoke());
+                    }
+                }
+                else if (isUp && _hotkeyKeyDown)
+                {
+                    _hotkeyKeyDown = false;
+                    ThreadPool.QueueUserWorkItem(_ => HotkeyReleased?.Invoke());
+                }
             }
         }
 
         return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
+    }
+
+    /// <summary>
+    /// Returns true if the currently pressed modifiers exactly match the configured modifiers.
+    /// </summary>
+    private bool ModifiersMatch()
+    {
+        foreach (var mod in Enum.GetValues<Modifier>())
+        {
+            bool shouldBePressed = _modifiers.Contains(mod);
+            bool isPressed = _modifierDown[mod];
+            if (shouldBePressed != isPressed)
+                return false;
+        }
+        return true;
     }
 
     private void MessageLoop()

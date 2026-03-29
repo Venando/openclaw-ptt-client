@@ -18,6 +18,10 @@ public sealed class AppConfig
     public string GroqApiKey { get; set; } = "gsk_";
     public bool RealTimeReplyOutput { get; set; } = false;
 
+    // Shortcut settings
+    public string HotkeyCombination { get; set; } = "Alt+=";
+    public bool HoldToTalk { get; set; } = false;
+
     [JsonIgnore]
     public string? SessionKey { get; set; }
 

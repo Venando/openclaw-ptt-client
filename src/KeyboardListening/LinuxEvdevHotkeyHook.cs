@@ -1,10 +1,12 @@
+using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
 namespace OpenClawPTT;
 
 /// <summary>
-/// Reads raw evdev events from /dev/input/event* to detect Alt+= globally.
+/// Reads raw evdev events from /dev/input/event* to detect global hotkeys.
 /// Works in TTY without X11/Wayland. Requires membership in the 'input' group:
 ///   sudo usermod -aG input $USER
 /// </summary>
@@ -12,22 +14,54 @@ namespace OpenClawPTT;
 internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
 {
     public event Action? HotkeyPressed;
+    public event Action? HotkeyReleased;
 
     private readonly CancellationTokenSource _cts = new();
     private Thread? _thread;
 
     // evdev constants
     private const ushort EV_KEY = 0x01;
-    private const ushort KEY_EQUAL = 13;   // physical '=' / '+' key
-    private const ushort KEY_LALT = 56;
-    private const ushort KEY_RALT = 100;
     private const int VALUE_DOWN = 1;
     private const int VALUE_REPEAT = 2;
+    private const int VALUE_UP = 0;
+
+    // Linux key codes for modifiers (left/right)
+    private const ushort KEY_LEFTALT = 56;
+    private const ushort KEY_RIGHTALT = 100;
+    private const ushort KEY_LEFTCTRL = 29;
+    private const ushort KEY_RIGHTCTRL = 97;
+    private const ushort KEY_LEFTSHIFT = 42;
+    private const ushort KEY_RIGHTSHIFT = 54;
+    private const ushort KEY_LEFTMETA = 125;  // Left Super/Windows
+    private const ushort KEY_RIGHTMETA = 126;
 
     // sizeof(struct input_event) on 64-bit Linux:
     //   struct timeval = 8+8, type = 2, code = 2, value = 4  →  24 bytes
     private const int EVENT_SIZE = 24;
+
+    // Hotkey configuration
+    private Hotkey? _hotkey;
+    private int _hotkeyKeyCode;
+    private HashSet<Modifier> _modifiers = new();
+    // Modifier down counts (for left/right variants)
     private int _altDownCount;
+    private int _ctrlDownCount;
+    private int _shiftDownCount;
+    private int _metaDownCount;
+    private bool _hotkeyKeyDown;
+
+    public void SetHotkey(Hotkey hotkey)
+    {
+        _hotkey = hotkey;
+        _hotkeyKeyCode = HotkeyMapping.GetPlatformKeyCode(hotkey.Key);
+        _modifiers = hotkey.Modifiers;
+        // Reset states
+        _altDownCount = 0;
+        _ctrlDownCount = 0;
+        _shiftDownCount = 0;
+        _metaDownCount = 0;
+        _hotkeyKeyDown = false;
+    }
 
     public void Start()
     {
@@ -51,13 +85,12 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
         }
 
         Console.ForegroundColor = ConsoleColor.DarkGray;
-        Console.WriteLine($"  [hotkey] Watching {devicePaths.Count} keyboard device(s) for Alt+=");
+        Console.WriteLine($"  [hotkey] Watching {devicePaths.Count} keyboard device(s) for hotkey");
         Console.ResetColor();
 
         var ct = _cts.Token;
 
-        // Spawn one reader task per device — they all share altDown via Interlocked
-        _altDownCount = 0; // > 0 means at least one Alt key is held
+        // Spawn one reader task per device — they all share modifier counts via Interlocked
         var tasks = devicePaths
             .Select(path => ReadDeviceAsync(path, ct))
             .ToArray();
@@ -106,17 +139,66 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
 
         if (type != EV_KEY) return;
 
-        if (code is KEY_LALT or KEY_RALT)
+        // Update modifier counts
+        switch (code)
         {
-            if (value == VALUE_DOWN)
-                Interlocked.Increment(ref _altDownCount);
-            else if (value == 0)
-                Interlocked.Decrement(ref _altDownCount);
-            return;
+            case KEY_LEFTALT:
+            case KEY_RIGHTALT:
+                if (value == VALUE_DOWN) Interlocked.Increment(ref _altDownCount);
+                else if (value == VALUE_UP) Interlocked.Decrement(ref _altDownCount);
+                break;
+            case KEY_LEFTCTRL:
+            case KEY_RIGHTCTRL:
+                if (value == VALUE_DOWN) Interlocked.Increment(ref _ctrlDownCount);
+                else if (value == VALUE_UP) Interlocked.Decrement(ref _ctrlDownCount);
+                break;
+            case KEY_LEFTSHIFT:
+            case KEY_RIGHTSHIFT:
+                if (value == VALUE_DOWN) Interlocked.Increment(ref _shiftDownCount);
+                else if (value == VALUE_UP) Interlocked.Decrement(ref _shiftDownCount);
+                break;
+            case KEY_LEFTMETA:
+            case KEY_RIGHTMETA:
+                if (value == VALUE_DOWN) Interlocked.Increment(ref _metaDownCount);
+                else if (value == VALUE_UP) Interlocked.Decrement(ref _metaDownCount);
+                break;
         }
 
-        if (code == KEY_EQUAL && value == VALUE_DOWN && Volatile.Read(ref _altDownCount) > 0)
-            ThreadPool.QueueUserWorkItem(_ => HotkeyPressed?.Invoke());
+        // Check hotkey key
+        if (code == _hotkeyKeyCode)
+        {
+            if (value == VALUE_DOWN && !_hotkeyKeyDown)
+            {
+                if (ModifiersMatch())
+                {
+                    _hotkeyKeyDown = true;
+                    ThreadPool.QueueUserWorkItem(_ => HotkeyPressed?.Invoke());
+                }
+            }
+            else if (value == VALUE_UP && _hotkeyKeyDown)
+            {
+                _hotkeyKeyDown = false;
+                ThreadPool.QueueUserWorkItem(_ => HotkeyReleased?.Invoke());
+            }
+        }
+    }
+
+    private bool ModifiersMatch()
+    {
+        bool altRequired = _modifiers.Contains(Modifier.Alt);
+        bool ctrlRequired = _modifiers.Contains(Modifier.Ctrl);
+        bool shiftRequired = _modifiers.Contains(Modifier.Shift);
+        bool winRequired = _modifiers.Contains(Modifier.Win);
+
+        bool altPressed = Volatile.Read(ref _altDownCount) > 0;
+        bool ctrlPressed = Volatile.Read(ref _ctrlDownCount) > 0;
+        bool shiftPressed = Volatile.Read(ref _shiftDownCount) > 0;
+        bool winPressed = Volatile.Read(ref _metaDownCount) > 0;
+
+        return altRequired == altPressed &&
+               ctrlRequired == ctrlPressed &&
+               shiftRequired == shiftPressed &&
+               winRequired == winPressed;
     }
 
     // ── device discovery ──────────────────────────────────────────────
@@ -139,10 +221,8 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
                 if (ioctl(fd, EVIOCGBIT(0, evBits.Length), evBits) < 0) continue;
                 if ((evBits[EV_KEY / 8] & (1 << (EV_KEY % 8))) == 0) continue;
 
-                // EVIOCGBIT(EV_KEY) over key codes — verify it has KEY_EQUAL
-                var keyBits = new byte[128];
-                if (ioctl(fd, EVIOCGBIT(EV_KEY, keyBits.Length), keyBits) < 0) continue;
-                if ((keyBits[KEY_EQUAL / 8] & (1 << (KEY_EQUAL % 8))) == 0) continue;
+                // We could verify the hotkey key exists, but skip for simplicity
+                // If the key doesn't exist on this device, it'll never trigger.
 
                 results.Add(path);
             }

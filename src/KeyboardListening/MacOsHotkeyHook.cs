@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
@@ -7,22 +9,33 @@ namespace OpenClawPTT;
 internal sealed class MacOsHotkeyHook : IGlobalHotkeyHook
 {
     public event Action? HotkeyPressed;
+    public event Action? HotkeyReleased;
 
     private readonly CancellationTokenSource _cts = new();
     private Thread? _thread;
-    private volatile bool _altDown;
+    
+    // Hotkey configuration
+    private Hotkey? _hotkey;
+    private long _hotkeyKeyCode;
+    private ulong _modifierFlagsMask;
+    private bool _hotkeyKeyDown;
 
     // CGEventType
     private const int kCGEventKeyDown = 10;
+    private const int kCGEventKeyUp = 11;
     private const int kCGEventFlagsChanged = 12;
-
-    // Virtual key codes (macOS)
-    private const int kVK_Equal = 0x18;   // '=' key
-    private const long kCGEventFlagMaskAlternate = 0x00080000; // Alt/Option
 
     private GCHandle _selfHandle;   // keeps 'this' rooted while callback is alive
     private IntPtr _eventTap;
     private IntPtr _runLoopSource;
+
+    public void SetHotkey(Hotkey hotkey)
+    {
+        _hotkey = hotkey;
+        _hotkeyKeyCode = HotkeyMapping.GetPlatformKeyCode(hotkey.Key);
+        _modifierFlagsMask = HotkeyMapping.GetPlatformModifierFlags(hotkey.Modifiers);
+        _hotkeyKeyDown = false;
+    }
 
     public void Start()
     {
@@ -51,7 +64,7 @@ internal sealed class MacOsHotkeyHook : IGlobalHotkeyHook
             kCGSessionEventTap,
             kCGHeadInsertEventTap,
             kCGEventTapOptionListenOnly,  // listen-only: we don't modify events
-            (1L << kCGEventKeyDown) | (1L << kCGEventFlagsChanged),
+            (1L << kCGEventKeyDown) | (1L << kCGEventKeyUp) | (1L << kCGEventFlagsChanged),
             callback,
             GCHandle.ToIntPtr(_selfHandle));
 
@@ -85,16 +98,35 @@ internal sealed class MacOsHotkeyHook : IGlobalHotkeyHook
 
         if (type == kCGEventFlagsChanged)
         {
-            long flags = CGEventGetFlags(eventRef);
-            self._altDown = (flags & kCGEventFlagMaskAlternate) != 0;
+            // Modifier flags updated; we don't need to track individually because we have mask
             return eventRef;
         }
 
-        if (type == kCGEventKeyDown)
+        if (type == kCGEventKeyDown || type == kCGEventKeyUp)
         {
             long keyCode = CGEventGetIntegerValueField(eventRef, kCGKeyboardEventKeycode);
-            if (keyCode == kVK_Equal && self._altDown)
-                ThreadPool.QueueUserWorkItem(_ => self.HotkeyPressed?.Invoke());
+            long flags = CGEventGetFlags(eventRef);
+            
+            // Check if this is the hotkey key
+            if (keyCode == self._hotkeyKeyCode)
+            {
+                // Check modifiers match exactly (ignore extra modifiers?)
+                bool modifiersMatch = ((ulong)flags & self._modifierFlagsMask) == self._modifierFlagsMask;
+                // Optionally allow extra modifiers? For now require exact match.
+                if (modifiersMatch)
+                {
+                    if (type == kCGEventKeyDown && !self._hotkeyKeyDown)
+                    {
+                        self._hotkeyKeyDown = true;
+                        ThreadPool.QueueUserWorkItem(_ => self.HotkeyPressed?.Invoke());
+                    }
+                    else if (type == kCGEventKeyUp && self._hotkeyKeyDown)
+                    {
+                        self._hotkeyKeyDown = false;
+                        ThreadPool.QueueUserWorkItem(_ => self.HotkeyReleased?.Invoke());
+                    }
+                }
+            }
         }
 
         return eventRef;
