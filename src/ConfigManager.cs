@@ -138,10 +138,12 @@ public sealed class ConfigManager
             cfg.VisualFeedbackEnabled.ToString(),
             v => bool.TryParse(v, out _)));
         
-        cfg.VisualFeedbackPosition = Prompt(
+        var positionInput = Prompt(
             "Visual feedback position (TopLeft, TopRight, BottomLeft, BottomRight)",
             cfg.VisualFeedbackPosition,
-            v => new[] { "TopLeft", "TopRight", "BottomLeft", "BottomRight" }.Contains(v));
+            v => new[] { "TopLeft", "TopRight", "BottomLeft", "BottomRight" }.Contains(v, StringComparer.OrdinalIgnoreCase));
+        cfg.VisualFeedbackPosition = new[] { "TopLeft", "TopRight", "BottomLeft", "BottomRight" }
+            .First(p => p.Equals(positionInput, StringComparison.OrdinalIgnoreCase));
         
         cfg.VisualFeedbackSize = int.Parse(Prompt(
             "Visual feedback dot size (pixels)",
