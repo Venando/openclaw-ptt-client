@@ -27,6 +27,13 @@ public sealed class AppConfig
     public string HotkeyCombination { get; set; } = "Alt+=";
     public bool HoldToTalk { get; set; } = false;
 
+    // Visual feedback settings
+    public bool VisualFeedbackEnabled { get; set; } = true;
+    public string VisualFeedbackPosition { get; set; } = "TopRight";
+    public int VisualFeedbackSize { get; set; } = 20;
+    public double VisualFeedbackOpacity { get; set; } = 1.0;
+    public string VisualFeedbackColor { get; set; } = "#FF0000";
+
     [JsonIgnore]
     public string? SessionKey { get; set; }
 

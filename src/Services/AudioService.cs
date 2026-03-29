@@ -22,7 +22,7 @@ public sealed class AudioService : IDisposable
             retryCount: config.GroqRetryCount, 
             retryDelayMs: config.GroqRetryDelayMs, 
             retryBackoffFactor: config.GroqRetryBackoffFactor);
-        _visualFeedback = VisualFeedbackFactory.Create();
+        _visualFeedback = VisualFeedbackFactory.Create(config);
         _hotkeyCombination = config.HotkeyCombination;
         _holdToTalk = config.HoldToTalk;
     }

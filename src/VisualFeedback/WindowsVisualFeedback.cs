@@ -1,7 +1,9 @@
 using System;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Threading;
+using OpenClawPTT;
 
 namespace OpenClawPTT.VisualFeedback;
 
@@ -12,13 +14,20 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
     private IntPtr _hwnd = IntPtr.Zero;
     private volatile bool _disposed;
     private readonly ManualResetEvent _windowReady = new ManualResetEvent(false);
-    private const int DotSize = 20;
+    private readonly AppConfig _config;
+    private readonly int _dotSize;
+    private readonly int _colorBgr;
+    private readonly byte _alpha;
     private readonly string _className = $"OpenClawPTT_VisualFeedback_{Guid.NewGuid():N}";
     private static readonly User32.WndProc _staticWndProc = StaticWndProc;
     private static readonly IntPtr _staticWndProcPtr = Marshal.GetFunctionPointerForDelegate(_staticWndProc);
 
-    public WindowsVisualFeedback()
+    public WindowsVisualFeedback(AppConfig config)
     {
+        _config = config ?? throw new ArgumentNullException(nameof(config));
+        _dotSize = Math.Max(1, config.VisualFeedbackSize);
+        _colorBgr = ParseColor(config.VisualFeedbackColor);
+        _alpha = (byte)(Math.Clamp(config.VisualFeedbackOpacity, 0.0, 1.0) * 255);
         _uiThread = new Thread(WindowThread)
         {
             IsBackground = true,
@@ -27,6 +36,20 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         _uiThread.SetApartmentState(ApartmentState.STA);
         _uiThread.Start();
         _windowReady.WaitOne(5000); // Wait up to 5 seconds for window creation
+    }
+
+    private static int ParseColor(string hexColor)
+    {
+        // Remove leading # if present
+        hexColor = hexColor.TrimStart('#');
+        if (hexColor.Length != 6)
+            throw new ArgumentException("Color must be in format #RRGGBB or RRGGBB");
+        // Parse RR GG BB
+        int r = int.Parse(hexColor.Substring(0, 2), NumberStyles.HexNumber);
+        int g = int.Parse(hexColor.Substring(2, 2), NumberStyles.HexNumber);
+        int b = int.Parse(hexColor.Substring(4, 2), NumberStyles.HexNumber);
+        // Convert to BGR format used by Windows GDI (0x00BBGGRR)
+        return (b << 16) | (g << 8) | r;
     }
 
     public void Show()
@@ -83,8 +106,27 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         // Get primary monitor dimensions
         int screenWidth = User32.GetSystemMetrics(User32.SM_CXSCREEN);
         int screenHeight = User32.GetSystemMetrics(User32.SM_CYSCREEN);
-        int x = screenWidth - DotSize - 10;
-        int y = 10;
+        
+        // Compute position based on config
+        (int x, int y) GetPosition(int width, int height, int size)
+        {
+            const int margin = 10;
+            switch (_config.VisualFeedbackPosition)
+            {
+                case "TopLeft":
+                    return (margin, margin);
+                case "TopRight":
+                    return (width - size - margin, margin);
+                case "BottomLeft":
+                    return (margin, height - size - margin);
+                case "BottomRight":
+                    return (width - size - margin, height - size - margin);
+                default:
+                    return (width - size - margin, margin);
+            }
+        }
+        
+        var (x, y) = GetPosition(screenWidth, screenHeight, _dotSize);
 
         // Create window
         _hwnd = User32.CreateWindowEx(
@@ -92,7 +134,7 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
             _className,
             "",
             User32.WS_POPUP,
-            x, y, DotSize, DotSize,
+            x, y, _dotSize, _dotSize,
             IntPtr.Zero, IntPtr.Zero, wc.hInstance, IntPtr.Zero);
 
         if (_hwnd == IntPtr.Zero)
@@ -102,11 +144,11 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         GCHandle handle = GCHandle.Alloc(this);
         User32.SetWindowLongPtr(_hwnd, User32.GWLP_USERDATA, GCHandle.ToIntPtr(handle));
 
-        // Set layered window attributes: transparency color key to magenta (RGB(255,0,255))
-        User32.SetLayeredWindowAttributes(_hwnd, 0x00FF00FF, 255, User32.LWA_COLORKEY);
+        // Set layered window attributes: transparency color key to magenta (RGB(255,0,255)) and alpha
+        User32.SetLayeredWindowAttributes(_hwnd, 0x00FF00FF, _alpha, User32.LWA_COLORKEY | User32.LWA_ALPHA);
 
         // Set window region to a circle
-        IntPtr hRgn = Gdi32.CreateEllipticRgn(0, 0, DotSize, DotSize);
+        IntPtr hRgn = Gdi32.CreateEllipticRgn(0, 0, _dotSize, _dotSize);
         User32.SetWindowRgn(_hwnd, hRgn, true);
 
         _windowReady.Set();
@@ -164,11 +206,11 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         IntPtr hdc = User32.BeginPaint(hWnd, out ps);
         if (hdc == IntPtr.Zero) return;
 
-        // Create a red brush and fill the entire client area as an ellipse
-        IntPtr hBrush = Gdi32.CreateSolidBrush(0x0000FF); // BGR format: RGB(255,0,0)
+        // Create brush with configured color
+        IntPtr hBrush = Gdi32.CreateSolidBrush(_colorBgr);
         IntPtr oldBrush = Gdi32.SelectObject(hdc, hBrush);
         // Draw filled ellipse covering the entire window (the window region clips it to a circle)
-        Gdi32.Ellipse(hdc, 0, 0, DotSize, DotSize);
+        Gdi32.Ellipse(hdc, 0, 0, _dotSize, _dotSize);
         Gdi32.SelectObject(hdc, oldBrush);
         Gdi32.DeleteObject(hBrush);
 
@@ -193,6 +235,7 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         public const int SM_CYSCREEN = 1;
         public const int GWLP_USERDATA = -21;
         public const int LWA_COLORKEY = 0x00000001;
+        public const int LWA_ALPHA = 0x00000002;
 
         // Structs
         [StructLayout(LayoutKind.Sequential)]

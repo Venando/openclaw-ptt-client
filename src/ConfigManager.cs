@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace OpenClawPTT;
 
@@ -129,6 +131,32 @@ public sealed class ConfigManager
             "Hold-to-talk mode (true/false)",
             cfg.HoldToTalk.ToString(),
             v => bool.TryParse(v, out _)));
+
+        // Visual feedback settings
+        cfg.VisualFeedbackEnabled = bool.Parse(Prompt(
+            "Visual feedback enabled (true/false)",
+            cfg.VisualFeedbackEnabled.ToString(),
+            v => bool.TryParse(v, out _)));
+        
+        cfg.VisualFeedbackPosition = Prompt(
+            "Visual feedback position (TopLeft, TopRight, BottomLeft, BottomRight)",
+            cfg.VisualFeedbackPosition,
+            v => new[] { "TopLeft", "TopRight", "BottomLeft", "BottomRight" }.Contains(v));
+        
+        cfg.VisualFeedbackSize = int.Parse(Prompt(
+            "Visual feedback dot size (pixels)",
+            cfg.VisualFeedbackSize.ToString(),
+            v => int.TryParse(v, out var n) && n > 0 && n <= 200));
+        
+        cfg.VisualFeedbackOpacity = double.Parse(Prompt(
+            "Visual feedback opacity (0.0 to 1.0)",
+            cfg.VisualFeedbackOpacity.ToString("F2"),
+            v => double.TryParse(v, out var d) && d >= 0.0 && d <= 1.0));
+        
+        cfg.VisualFeedbackColor = Prompt(
+            "Visual feedback color (hex #RRGGBB)",
+            cfg.VisualFeedbackColor,
+            v => System.Text.RegularExpressions.Regex.IsMatch(v, @"^#?([0-9A-Fa-f]{6})$"));
 
         await Task.CompletedTask;
         return cfg;
