@@ -13,8 +13,9 @@ public sealed class AppConfig
     public int Channels { get; set; } = 1;
     public int BitsPerSample { get; set; } = 16;
     public int MaxRecordSeconds { get; set; } = 120;
+    public bool LogConnect { get; set; } = false;
     public bool LogHello { get; set; } = false;
-    public bool LogSnapshot { get; set; } = true;
+    public bool LogSnapshot { get; set; } = false;
     public string GroqApiKey { get; set; } = "gsk_";
     public bool RealTimeReplyOutput { get; set; } = true;
     public int GroqRetryCount { get; set; } = 0;

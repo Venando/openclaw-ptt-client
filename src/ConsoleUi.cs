@@ -35,7 +35,7 @@ public static class ConsoleUi
     
     private static string FormatMenuLine(string leftText, string rightText)
     {
-        const int totalWidth = 38;
+        const int totalWidth = 42;
         const int leftPadding = 2; // Space after "║  "
         const int middlePadding = 2; // Space between left and right text
         
