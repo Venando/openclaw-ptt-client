@@ -33,7 +33,9 @@ internal static class Program
             // ── 1. Configuration ────────────────────────────────────
             var cfgMgr = new ConfigManager();
             var cfg = cfgMgr.Load();
+            bool reconfigureFlag = args.Contains("--reconfigure") || args.Contains("-r");
 
+            // 1. No config → first-time setup
             if (cfg is null)
             {
                 Console.ForegroundColor = ConsoleColor.Yellow;
@@ -45,49 +47,52 @@ internal static class Program
                 Console.WriteLine("\n  ✓ Configuration saved.\n");
                 Console.ResetColor();
             }
+            // 2. Config exists but has validation issues → fix required fields
             else
             {
-                bool reconfigureFlag = args.Contains("--reconfigure") || args.Contains("-r");
-                if (reconfigureFlag)
+                var issues = cfgMgr.Validate(cfg);
+                if (issues.Count > 0)
                 {
                     Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine("  Reconfigure flag set — starting setup wizard.\n");
+                    Console.WriteLine("  Configuration issues detected:");
                     Console.ResetColor();
+                    foreach (var i in issues)
+                        Console.WriteLine($"    • {i}");
+                    Console.WriteLine();
+                    
+                    Console.WriteLine("  Starting setup wizard to fix missing/invalid fields...\n");
                     cfg = await cfgMgr.RunSetup(cfg);
                     cfgMgr.Save(cfg);
                     Console.ForegroundColor = ConsoleColor.Green;
                     Console.WriteLine("\n  ✓ Configuration updated.\n");
                     Console.ResetColor();
                 }
+                // 3. Config is valid, check if user wants to reconfigure
                 else
                 {
-                    var issues = cfgMgr.Validate(cfg);
-                    if (issues.Count > 0)
+                    Console.WriteLine($"  Config loaded: {cfg.GatewayUrl}");
+                    
+                    if (reconfigureFlag)
                     {
                         Console.ForegroundColor = ConsoleColor.Yellow;
-                        Console.WriteLine("  Configuration issues:");
+                        Console.WriteLine("  Reconfigure flag set — starting setup wizard.\n");
                         Console.ResetColor();
-                        foreach (var i in issues)
-                            Console.WriteLine($"    • {i}");
-                        Console.WriteLine();
-
                         cfg = await cfgMgr.RunSetup(cfg);
                         cfgMgr.Save(cfg);
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine("\n  ✓ Configuration updated.\n");
+                        Console.ResetColor();
                     }
-                    else
+                    else if (ShouldReconfigure())
                     {
-                        Console.WriteLine($"  Config loaded: {cfg.GatewayUrl}");
-                        if (ShouldReconfigure())
-                        {
-                            Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine("  Starting setup wizard...\n");
-                            Console.ResetColor();
-                            cfg = await cfgMgr.RunSetup(cfg);
-                            cfgMgr.Save(cfg);
-                            Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine("\n  ✓ Configuration updated.\n");
-                            Console.ResetColor();
-                        }
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine("  Starting setup wizard...\n");
+                        Console.ResetColor();
+                        cfg = await cfgMgr.RunSetup(cfg);
+                        cfgMgr.Save(cfg);
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine("\n  ✓ Configuration updated.\n");
+                        Console.ResetColor();
                     }
                 }
             }
