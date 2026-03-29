@@ -87,10 +87,7 @@ public sealed class GatewayService : IDisposable
         client.EventReceived += (name, json) =>
         {
             // health and tick events not sure what to do with them
-            return;
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.WriteLine($"[event]: " + name);
-            Console.ResetColor();
+            // For now, just forward the event
             EventReceived?.Invoke(name, json);
         };
         
