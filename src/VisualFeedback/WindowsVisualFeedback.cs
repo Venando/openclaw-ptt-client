@@ -13,8 +13,9 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
     private volatile bool _disposed;
     private readonly ManualResetEvent _windowReady = new ManualResetEvent(false);
     private const int DotSize = 20;
-    private static User32.WndProc _staticWndProc = StaticWndProc;
-    private static IntPtr _staticWndProcPtr = Marshal.GetFunctionPointerForDelegate(_staticWndProc);
+    private readonly string _className = $"OpenClawPTT_VisualFeedback_{Guid.NewGuid():N}";
+    private static readonly User32.WndProc _staticWndProc = StaticWndProc;
+    private static readonly IntPtr _staticWndProcPtr = Marshal.GetFunctionPointerForDelegate(_staticWndProc);
 
     public WindowsVisualFeedback()
     {
@@ -71,13 +72,13 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
             hCursor = IntPtr.Zero,
             hbrBackground = IntPtr.Zero,
             lpszMenuName = null,
-            lpszClassName = "OpenClawPTT_VisualFeedback",
+            lpszClassName = _className,
             hIconSm = IntPtr.Zero
         };
 
         ushort atom = User32.RegisterClassEx(ref wc);
         if (atom == 0)
-            throw new InvalidOperationException("Failed to register window class");
+            throw new InvalidOperationException($"Failed to register window class (Win32 error: {Marshal.GetLastWin32Error()})");
 
         // Get primary monitor dimensions
         int screenWidth = User32.GetSystemMetrics(User32.SM_CXSCREEN);
@@ -88,14 +89,14 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         // Create window
         _hwnd = User32.CreateWindowEx(
             User32.WS_EX_TOPMOST | User32.WS_EX_TOOLWINDOW | User32.WS_EX_LAYERED | User32.WS_EX_NOACTIVATE,
-            wc.lpszClassName,
+            _className,
             "",
             User32.WS_POPUP,
             x, y, DotSize, DotSize,
             IntPtr.Zero, IntPtr.Zero, wc.hInstance, IntPtr.Zero);
 
         if (_hwnd == IntPtr.Zero)
-            throw new InvalidOperationException("Failed to create window");
+            throw new InvalidOperationException($"Failed to create window (Win32 error: {Marshal.GetLastWin32Error()})");
 
         // Store this instance in window's user data
         GCHandle handle = GCHandle.Alloc(this);
@@ -118,7 +119,7 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         }
 
         // Cleanup
-        User32.UnregisterClass(wc.lpszClassName, wc.hInstance);
+        User32.UnregisterClass(_className, wc.hInstance);
     }
 
     private static IntPtr StaticWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
@@ -163,10 +164,12 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         IntPtr hdc = User32.BeginPaint(hWnd, out ps);
         if (hdc == IntPtr.Zero) return;
 
-        // Create a red brush
-        IntPtr hBrush = Gdi32.CreateSolidBrush(0x0000FF); // RGB(255,0,0)
-        // Fill the ellipse region
-        Gdi32.FillRgn(hdc, User32.GetWindowRgn(hWnd), hBrush);
+        // Create a red brush and fill the entire client area as an ellipse
+        IntPtr hBrush = Gdi32.CreateSolidBrush(0x0000FF); // BGR format: RGB(255,0,0)
+        IntPtr oldBrush = Gdi32.SelectObject(hdc, hBrush);
+        // Draw filled ellipse covering the entire window (the window region clips it to a circle)
+        Gdi32.Ellipse(hdc, 0, 0, DotSize, DotSize);
+        Gdi32.SelectObject(hdc, oldBrush);
         Gdi32.DeleteObject(hBrush);
 
         User32.EndPaint(hWnd, ref ps);
@@ -250,9 +253,9 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         public delegate IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
         // Functions
-        [DllImport("user32.dll", SetLastError = true)]
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         public static extern ushort RegisterClassEx(ref WNDCLASSEX lpwcx);
-        [DllImport("user32.dll", SetLastError = true)]
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         public static extern IntPtr CreateWindowEx(int dwExStyle, string lpClassName, string lpWindowName,
             int dwStyle, int x, int y, int nWidth, int nHeight, IntPtr hWndParent, IntPtr hMenu,
             IntPtr hInstance, IntPtr lpParam);
@@ -268,8 +271,6 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
         [DllImport("user32.dll")]
         public static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool bRedraw);
-        [DllImport("user32.dll")]
-        public static extern IntPtr GetWindowRgn(IntPtr hWnd);
         [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr")]
         public static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
         [DllImport("user32.dll", EntryPoint = "GetWindowLongPtr")]
@@ -280,7 +281,7 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         public static extern bool TranslateMessage(ref MSG lpMsg);
         [DllImport("user32.dll")]
         public static extern IntPtr DispatchMessage(ref MSG lpMsg);
-        [DllImport("user32.dll")]
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
         public static extern bool UnregisterClass(string lpClassName, IntPtr hInstance);
         [DllImport("user32.dll")]
         public static extern IntPtr BeginPaint(IntPtr hWnd, out PAINTSTRUCT lpPaint);
@@ -297,9 +298,11 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         [DllImport("gdi32.dll")]
         public static extern IntPtr CreateSolidBrush(int crColor);
         [DllImport("gdi32.dll")]
-        public static extern bool FillRgn(IntPtr hdc, IntPtr hrgn, IntPtr hbr);
-        [DllImport("gdi32.dll")]
         public static extern bool DeleteObject(IntPtr hObject);
+        [DllImport("gdi32.dll")]
+        public static extern IntPtr SelectObject(IntPtr hdc, IntPtr h);
+        [DllImport("gdi32.dll")]
+        public static extern bool Ellipse(IntPtr hdc, int left, int top, int right, int bottom);
         [DllImport("gdi32.dll")]
         public static extern IntPtr CreateEllipticRgn(int x1, int y1, int x2, int y2);
     }
