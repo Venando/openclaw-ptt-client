@@ -171,11 +171,11 @@ internal static class Program
 
     private static async Task SendTextToGatewayAsync(GatewayService gateway, string text, CancellationToken ct)
     {
-        ConsoleUi.PrintInfo("Sending… ");
+        ConsoleUi.PrintInlineInfo("Sending… ");
         try
         {
             await gateway.SendTextAsync(text, ct);
-            ConsoleUi.PrintSuccess("sent.");
+            ConsoleUi.PrintInlineSuccess("sent.");
         }
         catch (Exception ex)
         {

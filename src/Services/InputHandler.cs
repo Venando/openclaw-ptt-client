@@ -74,11 +74,11 @@ public class InputHandler
     
     private static async Task SendTextAsync(GatewayService gateway, string text, CancellationToken ct)
     {
-        ConsoleUi.PrintInfo("Sending… ");
+        ConsoleUi.PrintInlineInfo("Sending… ");
         try
         {
             await gateway.SendTextAsync(text, ct);
-            ConsoleUi.PrintSuccess("sent.");
+            ConsoleUi.PrintInlineSuccess("sent.");
         }
         catch (Exception ex)
         {

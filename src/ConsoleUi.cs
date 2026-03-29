@@ -69,6 +69,20 @@ public static class ConsoleUi
         Console.ResetColor();
     }
     
+    public static void PrintInlineInfo(string message)
+    {
+        Console.ForegroundColor = ConsoleColor.DarkGray;
+        Console.Write($"  {message}");
+        Console.ResetColor();
+    }
+    
+    public static void PrintInlineSuccess(string message)
+    {
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine(message);
+        Console.ResetColor();
+    }
+    
     public static void PrintAgentReply(string prefix, string body)
     {
         Console.WriteLine();
