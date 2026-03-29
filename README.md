@@ -1,6 +1,6 @@
 # OpenClaw Push-to-Talk Client
 
-A desktop app for voice-controlled interaction with **OpenClaw** — an open-source AI assistant platform. Speak into your microphone using push-to-talk, get intelligent responses in real-time.
+A desktop app for voice-controlled interaction with **OpenClaw** — an open-source AI assistant platform. Built with **.NET 8**, it lets you speak into your microphone using push-to-talk and get intelligent responses in real-time.
 
 **Works with OpenClaw's AI agents** through your local gateway. Currently uses **Groq's Whisper API** for speech-to-text transcription.
 
@@ -71,7 +71,7 @@ To update your configuration (change Gateway URL, Groq API key, or hotkey settin
 
 ## Technical Details
 
-- **Language**: C# (.NET 8)
+- **Platform**: .NET 8 (C#)
 - **Audio**: System audio APIs + Groq Whisper for transcription
 - **Communication**: WebSocket connection to AI gateway
 - **Storage**: Config in `~/.openclaw-ptt/config.json`
