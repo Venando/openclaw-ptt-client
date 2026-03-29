@@ -27,6 +27,9 @@ public sealed class AppConfig
     public string HotkeyCombination { get; set; } = "Alt+=";
     public bool HoldToTalk { get; set; } = false;
 
+    // Visual feedback settings
+    public int VisualMode { get; set; } = 1; // 0 = none, 1 = red dot, 2 = green dot, 3 = blue dot
+
     [JsonIgnore]
     public string? SessionKey { get; set; }
 
