@@ -78,33 +78,6 @@ internal static class Program
         }
     }
 
-    private static bool ShouldReconfigure()
-    {
-        try
-        {
-            Console.Write("  Press R to reconfigure, any other key to continue... ");
-            var timeout = TimeSpan.FromSeconds(3);
-            var start = DateTime.Now;
-            while (DateTime.Now - start < timeout)
-            {
-                if (Console.KeyAvailable)
-                {
-                    var key = Console.ReadKey(intercept: true);
-                    return key.Key == ConsoleKey.R;
-                }
-                Thread.Sleep(100);
-            }
-            Console.WriteLine();
-            return false;
-        }
-        catch (InvalidOperationException)
-        {
-            // No console available, just continue
-            Console.WriteLine("  No console input available, continuing...");
-            return false;
-        }
-    }
-
     // ─── Main loop (steps 2-4) that can be restarted ────────────────
 
     private static async Task<int> RunMainLoop(AppConfig cfg, CancellationToken ct)
