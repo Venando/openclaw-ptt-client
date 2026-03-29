@@ -18,6 +18,9 @@ public sealed class GroqTranscriber : IDisposable
     // -----------------------------------------------------------------------
     private readonly HttpClient _http;
     private readonly string _model;
+    private readonly int _retryCount;
+    private readonly int _retryDelayMs;
+    private readonly double _retryBackoffFactor;
     private bool _disposed;
 
     // -----------------------------------------------------------------------
@@ -34,12 +37,24 @@ public sealed class GroqTranscriber : IDisposable
     /// <param name="model">
     ///   Whisper model to use. Defaults to <c>whisper-large-v3-turbo</c>.
     /// </param>
-    public GroqTranscriber(string apiKey, string model = DefaultModel)
+    /// <param name="retryCount">
+    ///   Number of retry attempts on transient failures. Default 0 (no retry).
+    /// </param>
+    /// <param name="retryDelayMs">
+    ///   Base delay between retries in milliseconds. Default 1000.
+    /// </param>
+    /// <param name="retryBackoffFactor">
+    ///   Multiplier applied to delay after each retry. Default 2.0 (exponential backoff).
+    /// </param>
+    public GroqTranscriber(string apiKey, string model = DefaultModel, int retryCount = 0, int retryDelayMs = 1000, double retryBackoffFactor = 2.0)
     {
         if (string.IsNullOrWhiteSpace(apiKey))
             throw new ArgumentNullException(nameof(apiKey), "Groq API key must not be null or empty.");
 
         _model = model ?? DefaultModel;
+        _retryCount = retryCount;
+        _retryDelayMs = retryDelayMs;
+        _retryBackoffFactor = retryBackoffFactor;
 
         _http = new HttpClient();
         _http.DefaultRequestHeaders.Authorization =
@@ -62,11 +77,16 @@ public sealed class GroqTranscriber : IDisposable
     ///   The transcription text, or <see cref="string.Empty"/> when Groq
     ///   returned no speech.
     /// </returns>
+    /// <remarks>
+    ///   If the <see cref="GroqTranscriber"/> was configured with retry settings,
+    ///   transient errors (network issues, server errors) will be retried up to the
+    ///   specified number of times with exponential backoff before throwing.
+    /// </remarks>
     /// <exception cref="ArgumentNullException">
     ///   Thrown when <paramref name="wavBytes"/> is null or empty.
     /// </exception>
     /// <exception cref="GroqTranscriberException">
-    ///   Thrown on any HTTP or JSON error from the Groq API.
+    ///   Thrown on any HTTP or JSON error from the Groq API after retries exhausted.
     /// </exception>
     public async Task<string> TranscribeAsync(byte[] wavBytes, string fileName = "audio.wav")
     {
@@ -75,37 +95,86 @@ public sealed class GroqTranscriber : IDisposable
 
         ThrowIfDisposed();
 
-        using var content = new MultipartFormDataContent();
-        using var audioStream = new MemoryStream(wavBytes);
+        int attempt = 0;
+        int maxAttempts = _retryCount + 1; // include initial attempt
+        TimeSpan delay = TimeSpan.FromMilliseconds(_retryDelayMs);
 
-        var fileContent = new StreamContent(audioStream);
-        fileContent.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
-
-        content.Add(fileContent, "file", fileName);
-        content.Add(new StringContent(_model), "model");
-        content.Add(new StringContent("text"), "response_format");  // plain text response
-
-        HttpResponseMessage response;
-        try
+        while (true)
         {
-            response = await _http.PostAsync(GroqApiUrl, content).ConfigureAwait(false);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new GroqTranscriberException("Network error while contacting Groq API.", ex);
-        }
+            attempt++;
+            bool isLastAttempt = attempt >= maxAttempts;
 
-        var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            try
+            {
+                using var content = new MultipartFormDataContent();
+                using var audioStream = new MemoryStream(wavBytes);
 
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new GroqTranscriberException(
-                $"Groq API returned HTTP {(int)response.StatusCode}: {body}");
+                var fileContent = new StreamContent(audioStream);
+                fileContent.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
+
+                content.Add(fileContent, "file", fileName);
+                content.Add(new StringContent(_model), "model");
+                content.Add(new StringContent("text"), "response_format");  // plain text response
+
+                HttpResponseMessage response;
+                try
+                {
+                    response = await _http.PostAsync(GroqApiUrl, content).ConfigureAwait(false);
+                }
+                catch (HttpRequestException ex)
+                {
+                    // Network error, maybe transient
+                    if (isLastAttempt || !IsTransientError(ex))
+                        throw new GroqTranscriberException("Network error while contacting Groq API.", ex);
+                    
+                    // Wait and retry
+                    await Task.Delay(delay).ConfigureAwait(false);
+                    delay = TimeSpan.FromMilliseconds(delay.TotalMilliseconds * _retryBackoffFactor);
+                    continue;
+                }
+
+                var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    // Check if status code is transient
+                    if (isLastAttempt || !IsTransientStatusCode(response.StatusCode))
+                    {
+                        throw new GroqTranscriberException(
+                            $"Groq API returned HTTP {(int)response.StatusCode}: {body}");
+                    }
+                    
+                    // Wait and retry
+                    await Task.Delay(delay).ConfigureAwait(false);
+                    delay = TimeSpan.FromMilliseconds(delay.TotalMilliseconds * _retryBackoffFactor);
+                    continue;
+                }
+
+                // When response_format=text the body IS the plain transcription string.
+                // When the API wraps it in JSON ({"text":"…"}), we handle that too.
+                return ExtractText(body);
+            }
+            catch (Exception ex) when (!isLastAttempt && IsTransientError(ex))
+            {
+                // This catch block is for any other transient exceptions we might have missed
+                // Wait and retry
+                await Task.Delay(delay).ConfigureAwait(false);
+                delay = TimeSpan.FromMilliseconds(delay.TotalMilliseconds * _retryBackoffFactor);
+            }
         }
+    }
 
-        // When response_format=text the body IS the plain transcription string.
-        // When the API wraps it in JSON ({"text":"…"}), we handle that too.
-        return ExtractText(body);
+    private static bool IsTransientError(Exception ex)
+    {
+        // Consider HttpRequestException as transient (network issues)
+        return ex is HttpRequestException;
+    }
+
+    private static bool IsTransientStatusCode(System.Net.HttpStatusCode statusCode)
+    {
+        int code = (int)statusCode;
+        // Retry on server errors (5xx) and too many requests (429)
+        return code == 429 || (code >= 500 && code <= 599);
     }
 
     // -----------------------------------------------------------------------

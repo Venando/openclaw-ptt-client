@@ -17,6 +17,9 @@ public sealed class AppConfig
     public bool LogSnapshot { get; set; } = true;
     public string GroqApiKey { get; set; } = "gsk_";
     public bool RealTimeReplyOutput { get; set; } = false;
+    public int GroqRetryCount { get; set; } = 0;
+    public int GroqRetryDelayMs { get; set; } = 1000;
+    public double GroqRetryBackoffFactor { get; set; } = 2.0;
 
     [JsonIgnore]
     public string? SessionKey { get; set; }
