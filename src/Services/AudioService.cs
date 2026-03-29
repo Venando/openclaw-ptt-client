@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using OpenClawPTT.VisualFeedback;
 
 namespace OpenClawPTT.Services;
 
@@ -8,12 +9,14 @@ public sealed class AudioService : IDisposable
 {
     private readonly AudioRecorder _recorder;
     private readonly GroqTranscriber _transcriber;
+    private readonly IVisualFeedback _visualFeedback;
     private bool _disposed;
     
     public AudioService(int sampleRate, int channels, int bitsPerSample, int maxRecordSeconds, string groqApiKey)
     {
         _recorder = new AudioRecorder(sampleRate, channels, bitsPerSample, maxRecordSeconds);
         _transcriber = new GroqTranscriber(groqApiKey);
+        _visualFeedback = VisualFeedbackFactory.Create();
     }
     
     public bool IsRecording => _recorder.IsRecording;
@@ -24,6 +27,7 @@ public sealed class AudioService : IDisposable
         
         _recorder.StartRecording();
         ConsoleUi.PrintRecordingIndicator(true);
+        _visualFeedback.Show();
     }
     
     public async Task<string?> StopAndTranscribeAsync(CancellationToken ct)
@@ -32,6 +36,7 @@ public sealed class AudioService : IDisposable
         if (!_recorder.IsRecording) return null;
         
         var wav = _recorder.StopRecording();
+        _visualFeedback.Hide();
         Console.WriteLine("■");
         
         if (wav.Length < 1024)
@@ -61,6 +66,7 @@ public sealed class AudioService : IDisposable
         {
             _recorder.Dispose();
             _transcriber.Dispose();
+            _visualFeedback.Dispose();
             _disposed = true;
         }
     }
