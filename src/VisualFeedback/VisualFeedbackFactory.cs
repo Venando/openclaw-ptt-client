@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using OpenClawPTT;
 
 namespace OpenClawPTT.VisualFeedback;
 
@@ -10,10 +11,14 @@ internal static class VisualFeedbackFactory
         if (config.VisualMode == 0)
             return new NoVisualFeedback();
 
+        // Check if visual feedback is enabled via config
+        if (!config.VisualFeedbackEnabled)
+            return new NoVisualFeedback(config);
+        
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return new WindowsVisualFeedback(config);
 
         // Non-Windows platforms get a no-op implementation
-        return new NoVisualFeedback();
+        return new NoVisualFeedback(config);
     }
 }

@@ -37,6 +37,13 @@ public sealed class AppConfig
     // Visual feedback settings
     public int VisualMode { get; set; } = 1; // 0 = none, 1 = red dot, 2 = green dot, 3 = blue dot
 
+    // Visual feedback settings
+    public bool VisualFeedbackEnabled { get; set; } = true;
+    public string VisualFeedbackPosition { get; set; } = "TopRight";
+    public int VisualFeedbackSize { get; set; } = 20;
+    public double VisualFeedbackOpacity { get; set; } = 1.0;
+    public string VisualFeedbackColor { get; set; } = "#FF0000";
+
     [JsonIgnore]
     public string? SessionKey { get; set; }
 
