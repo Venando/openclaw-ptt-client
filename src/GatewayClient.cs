@@ -36,6 +36,12 @@ public sealed class GatewayClient : IDisposable
     public event Action? AgentReplyDeltaStart;
     public event Action? AgentReplyDeltaEnd;
 
+    /// <summary>Fires when agent response contains [audio] marker with text for TTS.</summary>
+    public event Action<string>? AgentReplyAudio;
+
+    /// <summary>Fires when agent response contains [text] marker for explicit text.</summary>
+    public event Action<string>? AgentReplyText;
+
     public GatewayClient(AppConfig cfg, DeviceIdentity dev)
     {
         _cfg = cfg;
@@ -609,6 +615,21 @@ public sealed class GatewayClient : IDisposable
                 {
                     // Extract the full text from content array
                     string fullMessage = ExtractFullText(contentElement);
+                    
+                    // Extract [audio] and [text] marked content
+                    var (hasAudio, hasText, audioText, textContent) = ExtractMarkedContent(fullMessage);
+                    
+                    // Fire events based on markers
+                    if (hasAudio)
+                    {
+                        AgentReplyAudio?.Invoke(audioText);
+                    }
+                    if (hasText)
+                    {
+                        AgentReplyText?.Invoke(textContent);
+                    }
+                    
+                    // Fire the general full reply event as before
                     AgentReplyFull?.Invoke(fullMessage);
                 }
                 return;
@@ -638,6 +659,51 @@ public sealed class GatewayClient : IDisposable
             }
         }
         return string.Join("", textParts);
+    }
+
+    /// <summary>
+    /// Extracts content from [audio] and [text] markers in the message.
+    /// Returns (hasAudioContent, hasTextContent, audioText, textContent).
+    /// </summary>
+    private (bool hasAudio, bool hasText, string audioText, string textContent) ExtractMarkedContent(string fullMessage)
+    {
+        var audioText = string.Empty;
+        var textContent = string.Empty;
+
+        // Extract [audio] content
+        var audioMatch = System.Text.RegularExpressions.Regex.Match(fullMessage, @"\[audio\](.*?)\[/audio\]", System.Text.RegularExpressions.RegexOptions.Singleline);
+        if (audioMatch.Success)
+        {
+            audioText = audioMatch.Groups[1].Value.Trim();
+        }
+
+        // Extract [text] content
+        var textMatch = System.Text.RegularExpressions.Regex.Match(fullMessage, @"\[text\](.*?)\[/text\]", System.Text.RegularExpressions.RegexOptions.Singleline);
+        if (textMatch.Success)
+        {
+            textContent = textMatch.Groups[1].Value.Trim();
+        }
+
+        // If no markers found, treat the entire message as text content
+        if (string.IsNullOrEmpty(audioText) && string.IsNullOrEmpty(textContent) && !string.IsNullOrEmpty(fullMessage))
+        {
+            // Check if full message starts with either marker tag (without closing tag)
+            if (fullMessage.StartsWith("[audio]", StringComparison.OrdinalIgnoreCase))
+            {
+                audioText = fullMessage.Substring(7).Trim();
+            }
+            else if (fullMessage.StartsWith("[text]", StringComparison.OrdinalIgnoreCase))
+            {
+                textContent = fullMessage.Substring(6).Trim();
+            }
+            else
+            {
+                // Default: treat as text content
+                textContent = fullMessage;
+            }
+        }
+
+        return (!string.IsNullOrEmpty(audioText), !string.IsNullOrEmpty(textContent), audioText, textContent);
     }
 
     private void HandleApprovalRequest(JsonElement payload)

@@ -182,6 +182,27 @@ public sealed class ConfigManager
             cfg.VisualFeedbackColor,
             v => System.Text.RegularExpressions.Regex.IsMatch(v, @"^#?([0-9A-Fa-f]{6})$"));
 
+        // Audio response settings
+        cfg.AudioResponseMode = await Prompt(
+            "Audio response mode (text-only, audio-only, both)",
+            cfg.AudioResponseMode ?? "text-only",
+            v => new[] { "text-only", "audio-only", "both" }.Contains(v, StringComparer.OrdinalIgnoreCase));
+        cfg.AudioResponseMode = new[] { "text-only", "audio-only", "both" }
+            .First(m => string.Equals(m, cfg.AudioResponseMode, StringComparison.OrdinalIgnoreCase));
+        
+        cfg.TtsApiKey = await Prompt(
+            "ElevenLabs API key (optional, for audio responses)",
+            cfg.TtsApiKey ?? "",
+            _ => true,
+            cancellationToken);
+        if (string.IsNullOrWhiteSpace(cfg.TtsApiKey))
+            cfg.TtsApiKey = null;
+        
+        cfg.TtsVoiceId = await Prompt(
+            "ElevenLabs voice ID",
+            cfg.TtsVoiceId,
+            v => !string.IsNullOrWhiteSpace(v));
+
         await Task.CompletedTask;
         return cfg;
     }
