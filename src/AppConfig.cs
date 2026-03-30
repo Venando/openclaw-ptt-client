@@ -13,18 +13,19 @@ public sealed class AppConfig
     public int Channels { get; set; } = 1;
     public int BitsPerSample { get; set; } = 16;
     public int MaxRecordSeconds { get; set; } = 120;
+    public bool LogConnect { get; set; } = false;
     public bool LogHello { get; set; } = false;
-    public bool LogSnapshot { get; set; } = true;
+    public bool LogSnapshot { get; set; } = false;
     public string GroqApiKey { get; set; } = "gsk_";
-    public bool RealTimeReplyOutput { get; set; } = false;
-    public int GroqRetryCount { get; set; } = 0;
-    public int GroqRetryDelayMs { get; set; } = 1000;
-    public double GroqRetryBackoffFactor { get; set; } = 2.0;
-    public double ReconnectDelaySeconds { get; set; } = 1.5;
+    public bool RealTimeReplyOutput { get; set; } = true;
 
     // Shortcut settings
     public string HotkeyCombination { get; set; } = "Alt+=";
     public bool HoldToTalk { get; set; } = false;
+    public int GroqRetryCount { get; set; } = 0;
+    public int GroqRetryDelayMs { get; set; } = 1000;
+    public double GroqRetryBackoffFactor { get; set; } = 2.0;
+    public double ReconnectDelaySeconds { get; set; } = 1.5;
 
     // Text formatting
     public int RightMarginIndent { get; set; } = 5; // Minimum right margin indent in characters

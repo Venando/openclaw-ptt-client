@@ -14,15 +14,12 @@ public sealed class AgentReplyFormatter
     private readonly int _rightMarginIndent;
     private readonly StringBuilder _wordBuffer = new StringBuilder();
     private int _currentLineLength; // length of current line excluding prefix
-    private bool _isFirstLine = true;
-    private bool _prefixAlreadyPrinted;
     
     public AgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
     {
         _prefix = prefix;
         _newlineSuffix = new string(' ', prefix.Length);
         _rightMarginIndent = rightMarginIndent;
-        _prefixAlreadyPrinted = prefixAlreadyPrinted;
     }
     
     /// <summary>
@@ -60,8 +57,7 @@ public sealed class AgentReplyFormatter
                 FlushWordBuffer(availableWidth);
                 // Explicit newline: break line and start new line with appropriate suffix
                 Console.WriteLine();
-                Console.Write(_isFirstLine ? _prefix : _newlineSuffix);
-                _isFirstLine = false;
+                Console.Write(_newlineSuffix);
                 _currentLineLength = 0;
                 continue;
             }
@@ -157,16 +153,6 @@ public sealed class AgentReplyFormatter
     private void WriteNewLine()
     {
         Console.WriteLine();
-        if (_isFirstLine && _prefixAlreadyPrinted)
-        {
-            // Prefix already printed by caller, just reset flag for subsequent lines
-            _isFirstLine = false;
-            Console.Write(_newlineSuffix);
-        }
-        else
-        {
-            Console.Write(_isFirstLine ? _prefix : _newlineSuffix);
-            _isFirstLine = false;
-        }
+        Console.Write(_newlineSuffix);
     }
 }

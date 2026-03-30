@@ -11,6 +11,9 @@ public sealed class AudioService : IDisposable
     private readonly AudioRecorder _recorder;
     private readonly GroqTranscriber _transcriber;
     private readonly IVisualFeedback _visualFeedback;
+    
+    private readonly string _hotkeyCombination;
+    private readonly bool _holdToTalk;
     private bool _disposed;
     
     public AudioService(AppConfig config)
@@ -21,6 +24,8 @@ public sealed class AudioService : IDisposable
             retryDelayMs: config.GroqRetryDelayMs, 
             retryBackoffFactor: config.GroqRetryBackoffFactor);
         _visualFeedback = VisualFeedbackFactory.Create();
+        _hotkeyCombination = config.HotkeyCombination;
+        _holdToTalk = config.HoldToTalk;
     }
     
     public bool IsRecording => _recorder.IsRecording;
@@ -30,7 +35,7 @@ public sealed class AudioService : IDisposable
         if (_disposed) throw new ObjectDisposedException(nameof(AudioService));
         
         _recorder.StartRecording();
-        ConsoleUi.PrintRecordingIndicator(true);
+        ConsoleUi.PrintRecordingIndicator(true, _hotkeyCombination, _holdToTalk);
         _visualFeedback.Show();
     }
     

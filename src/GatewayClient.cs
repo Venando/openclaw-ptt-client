@@ -94,12 +94,15 @@ public sealed class GatewayClient : IDisposable
         var signedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         var sigPayload = _dev.BuildV3Payload(platform, deviceFamily, clientId, mode, "operator", scopes, signedAt, authToken, nonce);
-        
-        var redactedPayload = string.IsNullOrEmpty(authToken)
+
+
+        if (_cfg.LogConnect)
+        {
+            var redactedPayload = string.IsNullOrEmpty(authToken)
             ? sigPayload
             : sigPayload.Replace(authToken, "***REDACTED***");
-
-        Log("gateway", $"Signature payload: {redactedPayload}");
+            Log("gateway", $"Signature payload: {redactedPayload}");
+        }
 
         var signature = _dev.Sign(sigPayload);
 
@@ -136,8 +139,11 @@ public sealed class GatewayClient : IDisposable
                 ["nonce"] = nonce
             }
         };
-        
-        LogMessage(connectParams);
+
+        if (_cfg.LogConnect)
+        {
+            LogMessage(connectParams);
+        }
 
         Log("gateway", "Sending connect ...");
         JsonElement hello = await SendRequestAsync("connect", connectParams, ct);
