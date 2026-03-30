@@ -133,7 +133,7 @@ public sealed class ConfigManager
             cancellationToken));
 
         // Shortcut settings
-        cfg.HotkeyCombination = Prompt(
+        cfg.HotkeyCombination = await Prompt(
             "Hotkey combination (e.g., Alt+=, Ctrl+Shift+Space)",
             cfg.HotkeyCombination,
             v =>
@@ -149,35 +149,35 @@ public sealed class ConfigManager
                 }
             });
         
-        cfg.HoldToTalk = bool.Parse(Prompt(
+        cfg.HoldToTalk = bool.Parse(await Prompt(
             "Hold-to-talk mode (true/false)",
             cfg.HoldToTalk.ToString(),
             v => bool.TryParse(v, out _)));
 
         // Visual feedback settings
-        cfg.VisualFeedbackEnabled = bool.Parse(Prompt(
+        cfg.VisualFeedbackEnabled = bool.Parse(await Prompt(
             "Visual feedback enabled (true/false)",
             cfg.VisualFeedbackEnabled.ToString(),
             v => bool.TryParse(v, out _)));
         
-        var positionInput = Prompt(
+        var positionInput = await Prompt(
             "Visual feedback position (TopLeft, TopRight, BottomLeft, BottomRight)",
             cfg.VisualFeedbackPosition,
             v => new[] { "TopLeft", "TopRight", "BottomLeft", "BottomRight" }.Contains(v, StringComparer.OrdinalIgnoreCase));
         cfg.VisualFeedbackPosition = new[] { "TopLeft", "TopRight", "BottomLeft", "BottomRight" }
             .First(p => p.Equals(positionInput, StringComparison.OrdinalIgnoreCase));
         
-        cfg.VisualFeedbackSize = int.Parse(Prompt(
+        cfg.VisualFeedbackSize = int.Parse(await Prompt(
             "Visual feedback dot size (pixels)",
             cfg.VisualFeedbackSize.ToString(),
             v => int.TryParse(v, out var n) && n > 0 && n <= 200));
         
-        cfg.VisualFeedbackOpacity = double.Parse(Prompt(
+        cfg.VisualFeedbackOpacity = double.Parse(await Prompt(
             "Visual feedback opacity (0.0 to 1.0)",
             cfg.VisualFeedbackOpacity.ToString("F2"),
             v => double.TryParse(v, out var d) && d >= 0.0 && d <= 1.0));
         
-        cfg.VisualFeedbackColor = Prompt(
+        cfg.VisualFeedbackColor = await Prompt(
             "Visual feedback color (hex #RRGGBB)",
             cfg.VisualFeedbackColor,
             v => System.Text.RegularExpressions.Regex.IsMatch(v, @"^#?([0-9A-Fa-f]{6})$"));

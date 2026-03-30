@@ -166,13 +166,6 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
             UpdateLayeredWindowWithBitmap();
         }
 
-        // Also set layered window attributes from reddot-config
-        User32.SetLayeredWindowAttributes(_hwnd, 0x00FF00FF, _alpha, User32.LWA_COLORKEY | User32.LWA_ALPHA);
-
-        // Set window region to a circle
-        IntPtr hRgn = Gdi32.CreateEllipticRgn(0, 0, _dotSize, _dotSize);
-        User32.SetWindowRgn(_hwnd, hRgn, true);
-
         _windowReady.Set();
 
         // Message loop
@@ -273,7 +266,7 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
                     {
                         pathBrush.CenterColor = Color.FromArgb(_alpha, Color.FromArgb(_colorBgr));
                         pathBrush.SurroundColors = new[] { Color.FromArgb(0, Color.Red) };
-                        graphics.FillEllipse(pathBrush, 0, 0, DotSize, DotSize);
+                        graphics.FillEllipse(pathBrush, 0, 0, _dotSize, _dotSize);
                     }
                     break;
                 default:
@@ -297,7 +290,7 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
                 };
                 var srcPos = new User32.POINT { x = 0, y = 0 };
                 var dstPos = new User32.POINT { x = 0, y = 0 };
-                var winSize = new User32.SIZE { cx = DotSize, cy = DotSize };
+                var winSize = new User32.SIZE { cx = _dotSize, cy = _dotSize };
                 User32.UpdateLayeredWindow(_hwnd, IntPtr.Zero, ref dstPos, ref winSize,
                     hdcScreen, ref srcPos, 0, ref blend, User32.ULW_ALPHA);
             }
