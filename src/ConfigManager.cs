@@ -26,7 +26,17 @@ public sealed class ConfigManager
             return null;
 
         var json = File.ReadAllText(path);
-        return JsonSerializer.Deserialize<AppConfig>(json, JsonOpts);
+        var config = JsonSerializer.Deserialize<AppConfig>(json, JsonOpts);
+        if (config != null)
+        {
+            // Backward compatibility: if VisualMode is missing from JSON, default to 1 (red dot)
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("VisualMode", out _))
+            {
+                config.VisualMode = 1;
+            }
+        }
+        return config;
     }
 
     public void Save(AppConfig cfg)
@@ -56,6 +66,9 @@ public sealed class ConfigManager
 
         if (cfg.ReconnectDelaySeconds <= 0)
             issues.Add("Reconnect delay must be positive.");
+
+        if (cfg.VisualMode < 0 || cfg.VisualMode > 3)
+            issues.Add("VisualMode must be between 0 and 3.");
 
         return issues;
     }

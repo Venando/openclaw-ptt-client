@@ -12,7 +12,7 @@ A desktop app for voice-controlled interaction with **OpenClaw** — an open-sou
 4. **Groq integration**: Uses Groq's Whisper API for accurate speech-to-text with automatic retry on errors
 5. **Cross-platform**: Windows, macOS, Linux — just needs a microphone
 6. **Connection resilience**: Automatically reconnects if gateway server disconnects
-7. **Visual feedback**: Windows shows red dot overlay when recording is active
+7. **Visual feedback**: Windows shows colored dot overlay when recording is active (configurable via VisualMode: 0=none, 1=red, 2=green, 3=blue)
 
 ## Quick Start
 
@@ -67,7 +67,7 @@ To update your configuration (change Gateway URL, Groq API key, or hotkey settin
 - **Persistent settings**: Saves preferences in `~/.openclaw-ptt/`
 - **Customizable shortcuts**: Configure any hotkey with toggle or hold-to-talk mode
 - **Connection resilience**: Automatic reconnection with configurable retry delay
-- **Windows visual feedback**: Red dot overlay shows when recording is active
+- **Windows visual feedback**: Colored dot overlay shows when recording is active (configurable via VisualMode: 0=none, 1=red, 2=green, 3=blue)
 
 ## Technical Details
 
@@ -120,7 +120,7 @@ src/
 
 1. ✅ **Shortcut settings**: Customizable hotkeys with hold-to-talk option
 2. ✅ **Connection resilience**: Automatic reconnection with configurable retry delay (default: 1.5s)
-3. ✅ **Visual feedback**: Windows-only red dot overlay when recording is active
+3. ✅ **Visual feedback**: Windows-only colored dot overlay when recording is active (configurable via VisualMode: 0=none, 1=red, 2=green, 3=blue)
 4. ✅ **Groq error handling**: Retry logic for API failures with exponential backoff
 5. ✅ **Code cleanup**: Refactored Program.cs into service classes for better architecture
 

@@ -34,6 +34,9 @@ public sealed class AppConfig
     // Visual feedback settings
     public int VisualMode { get; set; } = 0;
 
+    // Visual feedback settings
+    public int VisualMode { get; set; } = 1; // 0 = none, 1 = red dot, 2 = green dot, 3 = blue dot
+
     [JsonIgnore]
     public string? SessionKey { get; set; }
 

@@ -21,6 +21,8 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
     private static readonly IntPtr _staticWndProcPtr = Marshal.GetFunctionPointerForDelegate(_staticWndProc);
     private readonly int _visualMode;
 
+    private readonly int _visualMode;
+
     public WindowsVisualFeedback(AppConfig config)
     {
         int mode = config?.VisualMode ?? 0;
@@ -182,8 +184,8 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         IntPtr hdc = User32.BeginPaint(hWnd, out ps);
         if (hdc == IntPtr.Zero) return;
 
-        // Create a red brush and fill the entire client area as an ellipse
-        IntPtr hBrush = Gdi32.CreateSolidBrush(0x0000FF); // BGR format: RGB(255,0,0)
+        // Create a colored brush based on VisualMode
+        IntPtr hBrush = Gdi32.CreateSolidBrush(_color); // BGR format
         IntPtr oldBrush = Gdi32.SelectObject(hdc, hBrush);
         // Draw filled ellipse covering the entire window (the window region clips it to a circle)
         Gdi32.Ellipse(hdc, 0, 0, DotSize, DotSize);
