@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT;
+using OpenClawPTT.Transcriber;
 using OpenClawPTT.VisualFeedback;
 
 namespace OpenClawPTT.Services;
@@ -9,7 +10,7 @@ namespace OpenClawPTT.Services;
 public sealed class AudioService : IDisposable
 {
     private readonly AudioRecorder _recorder;
-    private readonly GroqTranscriber _transcriber;
+    private readonly ITranscriber _transcriber;
     private readonly IVisualFeedback _visualFeedback;
     
     private readonly string _hotkeyCombination;
@@ -19,10 +20,7 @@ public sealed class AudioService : IDisposable
     public AudioService(AppConfig config)
     {
         _recorder = new AudioRecorder(config.SampleRate, config.Channels, config.BitsPerSample, config.MaxRecordSeconds);
-        _transcriber = new GroqTranscriber(config.GroqApiKey, 
-            retryCount: config.GroqRetryCount, 
-            retryDelayMs: config.GroqRetryDelayMs, 
-            retryBackoffFactor: config.GroqRetryBackoffFactor);
+        _transcriber = TranscriberFactory.Create(config);
         _visualFeedback = VisualFeedbackFactory.Create(config);
         _hotkeyCombination = config.HotkeyCombination;
         _holdToTalk = config.HoldToTalk;
@@ -58,7 +56,7 @@ public sealed class AudioService : IDisposable
         
         try
         {
-            var transcribed = await _transcriber.TranscribeAsync(wav);
+            var transcribed = await _transcriber.TranscribeAsync(wav, ct: ct);
             ConsoleUi.PrintSuccess($"Transcribed: {transcribed}");
             return transcribed;
         }
