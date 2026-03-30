@@ -31,6 +31,9 @@ public sealed class AppConfig
     public int RightMarginIndent { get; set; } = 5; // Minimum right margin indent in characters
     public bool EnableWordWrap { get; set; } = true; // Enable word wrapping and margin indent
 
+    // Visual feedback settings
+    public int VisualMode { get; set; } = 0;
+
     [JsonIgnore]
     public string? SessionKey { get; set; }
 
