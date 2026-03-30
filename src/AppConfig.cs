@@ -22,6 +22,7 @@ public sealed class AppConfig
     // Shortcut settings
     public string HotkeyCombination { get; set; } = "Alt+=";
     public bool HoldToTalk { get; set; } = false;
+    public bool ShowThinking { get; set; } = false;
     public int GroqRetryCount { get; set; } = 0;
     public int GroqRetryDelayMs { get; set; } = 1000;
     public double GroqRetryBackoffFactor { get; set; } = 2.0;

@@ -35,6 +35,7 @@ public sealed class GatewayClient : IDisposable
     public event Action<string>? AgentReplyDelta;
     public event Action? AgentReplyDeltaStart;
     public event Action? AgentReplyDeltaEnd;
+    public event Action<string>? AgentThinking;
 
     public GatewayClient(AppConfig cfg, DeviceIdentity dev)
     {
@@ -124,7 +125,7 @@ public sealed class GatewayClient : IDisposable
             },
             ["role"] = "operator",
             ["scopes"] = scopes,
-            ["caps"] = Array.Empty<string>(),
+            ["caps"] = new[] { "streaming", "stream.text", "agent.stream", "text.stream" },
             ["commands"] = Array.Empty<string>(),
             ["permissions"] = new Dictionary<string, object>(),
             ["auth"] = authDict,
@@ -147,6 +148,7 @@ public sealed class GatewayClient : IDisposable
 
         Log("gateway", "Sending connect ...");
         JsonElement hello = await SendRequestAsync("connect", connectParams, ct);
+        
 
         // ── 3. validate hello-ok ──
         var helloType = hello.TryGetProperty("type", out var htEl) ? htEl.GetString() : null;
@@ -204,6 +206,13 @@ public sealed class GatewayClient : IDisposable
 
         StartKeepalive(tickMs);
         Log("gateway", $"Keepalive every {tickMs}ms.");
+
+        var subscribeParams = new Dictionary<string, object?>
+        {
+            ["sessionKey"] = _cfg.SessionKey  // "agent:main:main"
+        };
+
+        await SendRequestAsync("sessions.subscribe", subscribeParams, ct);
     }//
 
     private void LogMessage(Dictionary<string, object?> parameters)
@@ -475,7 +484,7 @@ public sealed class GatewayClient : IDisposable
 
     private async Task ReceiveLoop(CancellationToken ct)
     {
-        var buf = new byte[64 * 1024];
+        var buf = new byte[256 * 1024]; // bump to 256KB
 
         try
         {
@@ -489,14 +498,22 @@ public sealed class GatewayClient : IDisposable
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
                         Log("gateway", "Server closed connection.");
-                        // Schedule reconnection
                         _ = HandleDisconnectionAsync(ct);
                         return;
                     }
                     ms.Write(buf, 0, result.Count);
+
+                    // ── DEBUG: warn if we're hitting buffer limits ──
+                    if (result.Count == buf.Length)
+                        LogError("gateway", $"WARNING: fragment filled buffer ({buf.Length} bytes) — consider increasing buffer size");
+
                 } while (!result.EndOfMessage);
 
                 var json = Encoding.UTF8.GetString(ms.ToArray());
+
+                // ── DEBUG: log size so you can correlate with missing messages ──
+                //Log("gateway", $"Frame received: {ms.Length} bytes, event preview: {json[..Math.Min(240, json.Length)]}");
+
                 ProcessFrame(json);
             }
         }
@@ -504,7 +521,11 @@ public sealed class GatewayClient : IDisposable
         catch (WebSocketException ex)
         {
             LogError("gateway", $"WebSocket error: {ex.Message}");
-            // Schedule reconnection
+            _ = HandleDisconnectionAsync(ct);
+        }
+        catch (Exception ex) // ← you're missing this entirely
+        {
+            LogError("gateway", $"ReceiveLoop unexpected error: {ex.GetType().Name}: {ex.Message}");
             _ = HandleDisconnectionAsync(ct);
         }
     }
@@ -557,69 +578,112 @@ public sealed class GatewayClient : IDisposable
         if (_eventWaiters.TryRemove(name, out var tcs))
             tcs.TrySetResult(payload);
 
-        var isFullReplay = name is "chat";
-        var isPartialReplay = name is "agent";
+        switch (name)
+        {
+            case "session.message":
+                HandleSessionMessage(payload);
+                return;
 
-        // if (isFullReplay || isPartialReplay)
-        // {
-        //     Console.WriteLine($"[{name}]: " + payload);
-        // }
+            case "agent":
+                HandleAgentStream(payload);
+                return;
+
+            case "chat":
+                HandleChatFinal(payload);
+                return;
+
+            default:
+                EventReceived?.Invoke(name, payload);
+                if (name == "exec.approval.requested")
+                    HandleApprovalRequest(payload);
+                return;
+        }
+    }
+
+    private void HandleSessionMessage(JsonElement payload)
+    {
+        if (!payload.TryGetProperty("message", out var messageEl)) return;
+        if (!messageEl.TryGetProperty("role", out var roleEl)) return;
+        if (roleEl.GetString() != "assistant") return;
+        if (!messageEl.TryGetProperty("content", out var contentEl)) return;
+        if (contentEl.ValueKind != JsonValueKind.Array) return;
+
+        bool startFired = false;
+
+        foreach (var block in contentEl.EnumerateArray())
+        {
+            if (!block.TryGetProperty("type", out var typeEl)) continue;
+            var type = typeEl.GetString();
+
+            if (type == "thinking" && block.TryGetProperty("thinking", out var thinkingEl))
+            {
+                var thinking = thinkingEl.GetString() ?? string.Empty;
+                if (!string.IsNullOrEmpty(thinking))
+                    AgentThinking?.Invoke(thinking);
+            }
+            else if (type == "text" && block.TryGetProperty("text", out var textEl))
+            {
+                var text = textEl.GetString() ?? string.Empty;
+                if (!string.IsNullOrEmpty(text))
+                {
+                    if (!startFired)
+                    {
+                        AgentReplyDeltaStart?.Invoke();
+                        startFired = true;
+                    }
+                    AgentReplyFull?.Invoke(text);
+                }
+            }
+        }
+
+        if (startFired)
+            AgentReplyDeltaEnd?.Invoke();
+    }
+
+    private void HandleAgentStream(JsonElement payload)
+    {
+        // Only relevant when RealTimeReplyOutput is on (DeepSeek / streaming models)
+        if (!_cfg.RealTimeReplyOutput) return;
+        if (!payload.TryGetProperty("data", out var data)) return;
+
+        if (data.TryGetProperty("phase", out var phase))
+        {
+            var phaseType = phase.GetString() ?? string.Empty;
+            if (phaseType == "start") AgentReplyDeltaStart?.Invoke();
+            if (phaseType == "end") AgentReplyDeltaEnd?.Invoke();
+        }
+
+        if (data.TryGetProperty("delta", out var delta))
+        {
+            var chunk = delta.GetString() ?? string.Empty;
+            if (!string.IsNullOrEmpty(chunk))
+                AgentReplyDelta?.Invoke(chunk);
+        }
+    }
+
+    private void HandleChatFinal(JsonElement payload)
+    {
+        if (!payload.TryGetProperty("state", out var state)) return;
+        if (state.GetString() != "final") return;
 
         if (_cfg.RealTimeReplyOutput)
         {
-            if (isPartialReplay)
-            {
-                if (payload.TryGetProperty("data", out var dataElement))
-                {
-                    if (dataElement.TryGetProperty("phase", out var phaseElement))
-                    {
-                        var phaseType = phaseElement.GetString() ?? string.Empty;
-                        if (phaseType == "start")
-                            AgentReplyDeltaStart?.Invoke();
-                    }
-
-                    if (dataElement.TryGetProperty("delta", out var deltaElement))
-                    {
-                        var newChunk = deltaElement.GetString() ?? string.Empty;
-                        AgentReplyDelta?.Invoke(newChunk);
-                    }
-                }
-                return;
-            }
-
-            if (isFullReplay)
-            {
-                // Check if this is the final message
-                if (payload.TryGetProperty("state", out var stateElement) &&
-                    stateElement.GetString() == "final")
-                {
-                    AgentReplyDeltaEnd?.Invoke();
-                }
-            }
+            // Streaming mode: deltas already fired, just close the turn
+            AgentReplyDeltaEnd?.Invoke();
+            return;
         }
-        else
+
+        // Non-streaming fallback (models that only send final chat event)
+        if (!payload.TryGetProperty("message", out var messageEl)) return;
+        if (!messageEl.TryGetProperty("content", out var contentEl)) return;
+
+        var text = ExtractFullText(contentEl);
+        if (!string.IsNullOrEmpty(text))
         {
-            if (isFullReplay)
-            {
-                // Only call AgentReplyFull for final state messages
-                if (payload.TryGetProperty("state", out var stateElement) &&
-                    stateElement.GetString() == "final" &&
-                    payload.TryGetProperty("message", out var messageElement) &&
-                    messageElement.TryGetProperty("content", out var contentElement))
-                {
-                    // Extract the full text from content array
-                    string fullMessage = ExtractFullText(contentElement);
-                    AgentReplyFull?.Invoke(fullMessage);
-                }
-                return;
-            }
+            AgentReplyDeltaStart?.Invoke();
+            AgentReplyFull?.Invoke(text);
+            AgentReplyDeltaEnd?.Invoke();
         }
-
-        EventReceived?.Invoke(name, payload);
-
-        // handle exec approvals inline
-        if (name == "exec.approval.requested")
-            HandleApprovalRequest(payload);
     }
 
     private string ExtractFullText(JsonElement contentElement)

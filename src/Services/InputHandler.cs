@@ -51,6 +51,7 @@ public class InputHandler
     
     private async Task HandleTypeMessageAsync(CancellationToken ct)
     {
+        Console.WriteLine();
         Console.Write("  ✏️  Type message: ");
         var text = Console.ReadLine()?.Trim();
         if (!string.IsNullOrEmpty(text))
