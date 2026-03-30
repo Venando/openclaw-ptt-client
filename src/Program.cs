@@ -2,6 +2,8 @@ namespace OpenClawPTT;
 
 using OpenClawPTT.Services;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 
 /// <summary>
 /// Improvements:
@@ -17,7 +19,7 @@ using System.Collections.Generic;
 /// ✅ 10. Refactor/Clean up Program.cs and other files (Implemented with service classes)
 /// 11. Check if works on linux/macos
 /// 12. Add session selection (Currently attaches to "main")
-/// 13. Fix: Ctrl + C, not working during config setup
+/// 13. Fix: Ctrl + C, not working during config setup (FIXED)
 /// ✅ 14. Connection resilience: Better handling for gateway restarts (Implemented with retry logic)
 /// ✅ 15. Groq error handling: Prevent crashes with retry logic (Implemented)
 /// </summary>
@@ -31,6 +33,8 @@ internal static class Program
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         ConsoleUi.PrintBanner();
+
+        bool reconfigureFlag = args.Contains("--reconfigure");
 
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
