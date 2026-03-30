@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using OpenClawPTT.TTS;
 
 namespace OpenClawPTT;
 
@@ -18,6 +19,14 @@ public sealed class AppConfig
     public bool LogSnapshot { get; set; } = false;
     public string GroqApiKey { get; set; } = "gsk_";
     public bool RealTimeReplyOutput { get; set; } = true;
+
+    // STT Provider configuration
+    public string? SttProvider { get; set; } // "groq", "openai", "whisper-cpp", null = default to groq
+    public string? OpenAiApiKey { get; set; }
+    public string? OpenAiModel { get; set; }
+    public string? WhisperCppPath { get; set; }
+    public string? WhisperCppModelPath { get; set; }
+    public string? GroqModel { get; set; }
 
     // Shortcut settings
     public string HotkeyCombination { get; set; } = "Alt+=";
@@ -40,6 +49,28 @@ public sealed class AppConfig
     public int VisualFeedbackSize { get; set; } = 20;
     public double VisualFeedbackOpacity { get; set; } = 1.0;
     public string VisualFeedbackColor { get; set; } = "#FF0000";
+
+    // TTS settings
+    public TtsProviderType TtsProvider { get; set; } = TtsProviderType.OpenAI;
+    public string? TtsOpenAiApiKey { get; set; }
+    public string? TtsSubscriptionKey { get; set; }
+    public string TtsRegion { get; set; } = "eastus";
+    public string TtsVoice { get; set; } = "alloy";  // Provider-specific voice name
+    public string TtsModel { get; set; } = "tts-1";  // Provider-specific model
+
+    // Coqui TTS settings
+    public string CoquiModelPath { get; set; } = "";
+    public string CoquiModelName { get; set; } = "tts_models/multilingual/mxtts/vits谈";
+
+    // Piper TTS settings
+    public string PiperPath { get; set; } = "piper";
+    public string PiperModelPath { get; set; } = "";
+    public string PiperVoice { get; set; } = "en_US-lessac";
+
+    // Audio response settings
+    public string AudioResponseMode { get; set; } = "text-only"; // text-only, audio-only, both
+    public string? TtsApiKey { get; set; } // Optional ElevenLabs API key
+    public string TtsVoiceId { get; set; } = "pNInz6obpgDQGcFmaJgB"; // Default ElevenLabs voice
 
     [JsonIgnore]
     public string? SessionKey { get; set; }
