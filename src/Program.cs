@@ -170,7 +170,6 @@ internal static class Program
                     {
                         await SendTextToGatewayAsync(gateway,
                             "[The following text is a raw speech-to-text transcription]: " + transcribed, ct);
-                        ConsoleUi.PrintInfo("Waiting for agent…");
                     }
                 }
             }
@@ -196,8 +195,6 @@ internal static class Program
         {
             await SendTextToGatewayAsync(gateway,
                 "[The following text is a raw speech-to-text transcription]: " + transcribed, ct);
-            
-            ConsoleUi.PrintInfo("Waiting for agent…");
         }
     }
 

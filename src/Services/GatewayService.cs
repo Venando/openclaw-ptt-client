@@ -12,11 +12,14 @@ public sealed class GatewayService : IDisposable
     private GatewayClient _gatewayClient;
     private AudioResponseHandler? _audioResponseHandler;
     private bool _disposed;
-    
+    private bool _prefixPrinted; 
+    private bool _isDeltaStarted;
+
     public event Action<string>? AgentReplyFull;
     public event Action? AgentReplyDeltaStart;
     public event Action<string>? AgentReplyDelta;
     public event Action? AgentReplyDeltaEnd;
+    public event Action<string>? AgentThinking;
     public event Action<string, JsonElement>? EventReceived;
     public event Action<string>? AgentReplyAudio;
     public event Action<string>? AgentReplyText;
@@ -66,31 +69,90 @@ public sealed class GatewayService : IDisposable
         var prefixLength = agentReplayPrefix.Length;
         var newlineSuffix = new string(' ', prefixLength);
         
+        AgentReplyFormatter? formatter = null;
+        AgentReplyFormatter? thinkingFormatter = null;
+        const string thinkingPrefix = "  💭 Thinking: ";
+        const string thinkingInfo = "  💭 Thinking… ";
+
         client.AgentReplyFull += body =>
         {
-            ConsoleUi.PrintAgentReply(agentReplayPrefix, body);
+            EnsurePrefixPrinted();
+            if (formatter != null)
+            {
+                formatter.ProcessDelta(body);
+                formatter.Finish();
+                formatter = null;
+            }
+            else
+            {
+                ConsoleUi.PrintAgentReply(agentReplayPrefix, body);
+            }
             AgentReplyFull?.Invoke(body);
         };
-        
-        AgentReplyFormatter? formatter = null;
-        
+
+        client.AgentThinking += thinking =>
+        {
+            if (_config.ShowThinking)
+            {
+                if (!_prefixPrinted)
+                {
+                    _prefixPrinted = true;
+                    Console.WriteLine();
+                    Console.ForegroundColor = ConsoleColor.DarkGray;
+                    Console.Write(thinkingPrefix);
+                    Console.ResetColor();
+                    if (_config.EnableWordWrap)
+                    {
+                        thinkingFormatter = new AgentReplyFormatter(thinkingPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true);
+                    }
+                }
+                if (thinkingFormatter != null)
+                {
+                    thinkingFormatter.ProcessDelta(thinking);
+                    thinkingFormatter.Finish();
+                    thinkingFormatter = null;
+                    _prefixPrinted = false;
+                    Console.WriteLine();
+                }
+                else
+                {
+                    Console.Write(thinking.TrimEnd());
+                }
+            }
+            else
+            {
+                Console.WriteLine();
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.WriteLine(thinkingInfo);
+                Console.ResetColor();
+                Console.WriteLine();
+                _prefixPrinted = false;
+            }
+            AgentThinking?.Invoke(thinking);
+        };
+
         client.AgentReplyDeltaStart += () =>
         {
-            Console.WriteLine();
+            _isDeltaStarted = true;
+            AgentReplyDeltaStart?.Invoke();
+        };
+
+        void EnsurePrefixPrinted()
+        {
+            if (_prefixPrinted) return;
+            _prefixPrinted = true;
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.Write(agentReplayPrefix);
             Console.ResetColor();
-            
             if (_config.EnableWordWrap)
             {
                 formatter = ConsoleUi.CreateAgentReplyFormatter(agentReplayPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true);
             }
-            
-            AgentReplyDeltaStart?.Invoke();
-        };
-        
+        }
+
         client.AgentReplyDelta += delta =>
         {
+            EnsurePrefixPrinted();
             if (formatter != null)
             {
                 formatter.ProcessDelta(delta);
@@ -104,15 +166,23 @@ public sealed class GatewayService : IDisposable
         
         client.AgentReplyDeltaEnd += () =>
         {
+            if (!_isDeltaStarted)
+            {
+                return;
+            }
+
+            _isDeltaStarted = false;
+            _prefixPrinted = false;
+
             if (formatter != null)
             {
                 formatter.Finish();
                 formatter = null;
             }
-            else
-            {
-                Console.WriteLine();
-            }
+            // else
+            // {
+            //     Console.WriteLine();
+            // }
             AgentReplyDeltaEnd?.Invoke();
         };
         

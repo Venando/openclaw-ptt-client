@@ -51,7 +51,8 @@ public sealed class AudioService : IDisposable
             ConsoleUi.PrintWarning("Too short (<1KB), skipped.");
             return null;
         }
-        
+
+        Console.WriteLine();
         ConsoleUi.PrintInfo($"Sending to Groq {wav.Length / 1024.0:F1} KB…");
         
         try
