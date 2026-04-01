@@ -212,7 +212,7 @@ public sealed class ConfigManager
         
         cfg.TtsVoiceId = await Prompt(
             "ElevenLabs voice ID",
-            cfg.TtsVoiceId,
+            cfg.TtsVoiceId ?? "",
             v => !string.IsNullOrWhiteSpace(v));
 
         await Task.CompletedTask;

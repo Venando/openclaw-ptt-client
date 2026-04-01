@@ -31,10 +31,10 @@ public sealed class TtsService : IDisposable
         _provider = _providerType switch
         {
             TtsProviderType.OpenAI => new Providers.OpenAiTtsProvider(config.TtsOpenAiApiKey ?? config.OpenAiApiKey ?? throw new InvalidOperationException("OpenAI API key not configured")),
-            TtsProviderType.Coqui => new Providers.CoquiTtsProvider(config.CoquiModelPath, config.CoquiModelName),
-            TtsProviderType.Piper => new Providers.PiperTtsProvider(config.PiperPath, config.PiperModelPath, config.PiperVoice),
-            TtsProviderType.Edge => config.TtsSubscriptionKey != null 
-                ? new Providers.EdgeTtsProvider(config.TtsSubscriptionKey, config.TtsRegion) 
+            TtsProviderType.Coqui => new Providers.CoquiTtsProvider(config.CoquiModelPath ?? "", config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits谈"),
+            TtsProviderType.Piper => new Providers.PiperTtsProvider(config.PiperPath ?? "piper", config.PiperModelPath ?? "", config.PiperVoice ?? "en_US-lessac"),
+            TtsProviderType.Edge => config.TtsSubscriptionKey != null
+                ? new Providers.EdgeTtsProvider(config.TtsSubscriptionKey, config.TtsRegion ?? "eastus")
                 : null,
             _ => null
         };
