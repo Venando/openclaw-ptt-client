@@ -37,6 +37,9 @@ public sealed class GatewayClient : IDisposable
     public event Action? AgentReplyDeltaEnd;
     public event Action<string>? AgentThinking;
 
+    /// <summary>Fires when the agent calls a tool (e.g. read, git, etc.).</summary>
+    public event Action<string, string>? AgentToolCall; // (toolName, arguments)
+
     /// <summary>Fires when agent response contains [audio] marker with text for TTS.</summary>
     public event Action<string>? AgentReplyAudio;
 
@@ -627,6 +630,13 @@ public sealed class GatewayClient : IDisposable
                 if (!string.IsNullOrEmpty(thinking))
                     AgentThinking?.Invoke(thinking);
             }
+            else if (type == "toolCall" && block.TryGetProperty("name", out var nameEl) && block.TryGetProperty("arguments", out var argsEl))
+            {
+                var toolName = nameEl.GetString() ?? string.Empty;
+                var args = argsEl.GetRawText();
+                if (_cfg.DebugToolCalls) Console.WriteLine($"[DEBUG] ToolCall: {toolName}({args})");
+                AgentToolCall?.Invoke(toolName, args);
+            }
             else if (type == "text" && block.TryGetProperty("text", out var textEl))
             {
                 var text = textEl.GetString() ?? string.Empty;
@@ -639,6 +649,11 @@ public sealed class GatewayClient : IDisposable
                     }
                     AgentReplyFull?.Invoke(text);
                 }
+            }
+            else
+            {
+                // Log unknown block type with its raw JSON
+                Console.WriteLine($"[DEBUG] Unknown block type=\"{type}\": {block}");
             }
         }
 

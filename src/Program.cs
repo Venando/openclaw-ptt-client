@@ -156,7 +156,7 @@ internal static class Program
                 else
                 {
                     // Toggle recording
-                    await ToggleRecordingAsync(audioService, gateway, ct);
+                    await ToggleRecordingAsync(audioService, gateway, cfg, ct);
                 }
             }
             if (_hotkeyReleased)
@@ -169,7 +169,7 @@ internal static class Program
                     if (transcribed != null)
                     {
                         await SendTextToGatewayAsync(gateway,
-                            "[The following text is a raw speech-to-text transcription]: " + transcribed, ct);
+                            cfg.TranscriptionPromptPrefix + transcribed, ct);
                     }
                 }
             }
@@ -182,7 +182,7 @@ internal static class Program
         return 0;
     }
 
-    private static async Task ToggleRecordingAsync(AudioService audioService, GatewayService gateway, CancellationToken ct)
+    private static async Task ToggleRecordingAsync(AudioService audioService, GatewayService gateway, AppConfig cfg, CancellationToken ct)
     {
         if (!audioService.IsRecording)
         {
@@ -194,7 +194,7 @@ internal static class Program
         if (transcribed != null)
         {
             await SendTextToGatewayAsync(gateway,
-                "[The following text is a raw speech-to-text transcription]: " + transcribed, ct);
+                cfg.TranscriptionPromptPrefix + transcribed, ct);
         }
     }
 

@@ -3,6 +3,12 @@ using OpenClawPTT.TTS;
 
 namespace OpenClawPTT;
 
+public enum VisualMode : int
+{
+    SolidDot = 1,
+    GlowDot = 2,
+}
+
 public sealed class AppConfig
 {
     public string GatewayUrl { get; set; } = "ws://localhost:18789";
@@ -32,6 +38,8 @@ public sealed class AppConfig
     public string HotkeyCombination { get; set; } = "Alt+=";
     public bool HoldToTalk { get; set; } = false;
     public bool ShowThinking { get; set; } = false;
+    public bool DebugToolCalls { get; set; } = false;
+    public string TranscriptionPromptPrefix { get; set; } = "[The following text is a raw speech-to-text transcription]: ";
     public int GroqRetryCount { get; set; } = 0;
     public int GroqRetryDelayMs { get; set; } = 1000;
     public double GroqRetryBackoffFactor { get; set; } = 2.0;
@@ -42,7 +50,7 @@ public sealed class AppConfig
     public bool EnableWordWrap { get; set; } = true; // Enable word wrapping and margin indent
 
     // Visual feedback settings
-    public int VisualMode { get; set; } = 1; // 0 = none, 1 = red dot, 2 = green dot, 3 = blue dot
+    public VisualMode VisualMode { get; set; } = VisualMode.SolidDot;
 
     // Visual feedback settings
     public bool VisualFeedbackEnabled { get; set; } = true;
@@ -50,28 +58,29 @@ public sealed class AppConfig
     public int VisualFeedbackSize { get; set; } = 20;
     public double VisualFeedbackOpacity { get; set; } = 1.0;
     public string VisualFeedbackColor { get; set; } = "#FF0000";
+    public int VisualFeedbackRimThickness { get; set; } = 8;
 
     // TTS settings
     public TtsProviderType TtsProvider { get; set; } = TtsProviderType.OpenAI;
     public string? TtsOpenAiApiKey { get; set; }
     public string? TtsSubscriptionKey { get; set; }
-    public string TtsRegion { get; set; } = "eastus";
-    public string TtsVoice { get; set; } = "alloy";  // Provider-specific voice name
-    public string TtsModel { get; set; } = "tts-1";  // Provider-specific model
+    public string? TtsRegion { get; set; }
+    public string? TtsVoice { get; set; }  // Provider-specific voice name
+    public string? TtsModel { get; set; }  // Provider-specific model
 
     // Coqui TTS settings
-    public string CoquiModelPath { get; set; } = "";
-    public string CoquiModelName { get; set; } = "tts_models/multilingual/mxtts/vits谈";
+    public string? CoquiModelPath { get; set; }
+    public string? CoquiModelName { get; set; }
 
     // Piper TTS settings
-    public string PiperPath { get; set; } = "piper";
-    public string PiperModelPath { get; set; } = "";
-    public string PiperVoice { get; set; } = "en_US-lessac";
+    public string? PiperPath { get; set; }
+    public string? PiperModelPath { get; set; }
+    public string? PiperVoice { get; set; }
 
     // Audio response settings
     public string AudioResponseMode { get; set; } = "text-only"; // text-only, audio-only, both
     public string? TtsApiKey { get; set; } // Optional ElevenLabs API key
-    public string TtsVoiceId { get; set; } = "pNInz6obpgDQGcFmaJgB"; // Default ElevenLabs voice
+    public string? TtsVoiceId { get; set; } // Default ElevenLabs voice
 
     [JsonIgnore]
     public string? SessionKey { get; set; }

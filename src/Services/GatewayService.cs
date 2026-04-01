@@ -20,6 +20,7 @@ public sealed class GatewayService : IDisposable
     public event Action<string>? AgentReplyDelta;
     public event Action? AgentReplyDeltaEnd;
     public event Action<string>? AgentThinking;
+    public event Action<string, string>? AgentToolCall; // (toolName, arguments)
     public event Action<string, JsonElement>? EventReceived;
     public event Action<string>? AgentReplyAudio;
     public event Action<string>? AgentReplyText;
@@ -129,6 +130,13 @@ public sealed class GatewayService : IDisposable
                 _prefixPrinted = false;
             }
             AgentThinking?.Invoke(thinking);
+        };
+
+        var toolDisplayHandler = new ToolDisplayHandler(_config.RightMarginIndent);
+        client.AgentToolCall += (toolName, arguments) =>
+        {
+            toolDisplayHandler.Handle(toolName, arguments);
+            AgentToolCall?.Invoke(toolName, arguments);
         };
 
         client.AgentReplyDeltaStart += () =>

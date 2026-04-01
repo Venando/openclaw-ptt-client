@@ -15,6 +15,7 @@ public sealed class AudioService : IDisposable
     
     private readonly string _hotkeyCombination;
     private readonly bool _holdToTalk;
+    private readonly int _rightMarginIndent;
     private bool _disposed;
     
     public AudioService(AppConfig config)
@@ -24,6 +25,7 @@ public sealed class AudioService : IDisposable
         _visualFeedback = VisualFeedbackFactory.Create(config);
         _hotkeyCombination = config.HotkeyCombination;
         _holdToTalk = config.HoldToTalk;
+        _rightMarginIndent = config.RightMarginIndent;
     }
     
     public bool IsRecording => _recorder.IsRecording;
@@ -58,7 +60,7 @@ public sealed class AudioService : IDisposable
         try
         {
             var transcribed = await _transcriber.TranscribeAsync(wav, ct: ct);
-            ConsoleUi.PrintSuccess($"Transcribed: {transcribed}");
+            ConsoleUi.PrintSuccessWordWrap("  ✓ Transcribed: ", transcribed, _rightMarginIndent);
             return transcribed;
         }
         catch (Exception ex)

@@ -13,7 +13,7 @@ public sealed class ConfigManager
     {
         WriteIndented = true,
         DefaultIgnoreCondition =
-            System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault
     };
 
     private string ConfigPath(AppConfig cfg) =>
@@ -31,11 +31,13 @@ public sealed class ConfigManager
         var config = JsonSerializer.Deserialize<AppConfig>(json, JsonOpts);
         if (config != null)
         {
-            // Backward compatibility: if VisualMode is missing from JSON, default to 1 (red dot)
             using var doc = JsonDocument.Parse(json);
-            if (!doc.RootElement.TryGetProperty("VisualMode", out _))
+
+            // Backward compatibility: if VisualMode is missing or was None (0), disable via VisualFeedbackEnabled
+            if (!doc.RootElement.TryGetProperty("VisualMode", out _) || config.VisualMode == 0)
             {
-                config.VisualMode = 1;
+                config.VisualFeedbackEnabled = false;
+                config.VisualMode = VisualMode.SolidDot;
             }
         }
         return config;
@@ -69,8 +71,8 @@ public sealed class ConfigManager
         if (cfg.ReconnectDelaySeconds <= 0)
             issues.Add("Reconnect delay must be positive.");
 
-        if (cfg.VisualMode < 0 || cfg.VisualMode > 3)
-            issues.Add("VisualMode must be between 0 and 3.");
+        if (cfg.VisualMode < VisualMode.SolidDot || cfg.VisualMode > VisualMode.GlowDot)
+            issues.Add("VisualMode must be 1 (SolidDot) or 2 (GlowDot).");
 
         return issues;
     }
@@ -154,6 +156,11 @@ public sealed class ConfigManager
             cfg.HoldToTalk.ToString(),
             v => bool.TryParse(v, out _)));
 
+        cfg.TranscriptionPromptPrefix = await Prompt(
+            "Transcription prompt prefix",
+            cfg.TranscriptionPromptPrefix,
+            v => !string.IsNullOrWhiteSpace(v));
+
         // Visual feedback settings
         cfg.VisualFeedbackEnabled = bool.Parse(await Prompt(
             "Visual feedback enabled (true/false)",
@@ -181,6 +188,11 @@ public sealed class ConfigManager
             "Visual feedback color (hex #RRGGBB)",
             cfg.VisualFeedbackColor,
             v => System.Text.RegularExpressions.Regex.IsMatch(v, @"^#?([0-9A-Fa-f]{6})$"));
+
+        cfg.VisualFeedbackRimThickness = int.Parse(await Prompt(
+            "Visual feedback rim thickness (0 = off, 1-50 pixels)",
+            cfg.VisualFeedbackRimThickness.ToString(),
+            v => int.TryParse(v, out var n) && n is >= 0 and <= 50));
 
         // Audio response settings
         cfg.AudioResponseMode = await Prompt(

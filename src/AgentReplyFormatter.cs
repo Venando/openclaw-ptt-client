@@ -14,18 +14,20 @@ public sealed class AgentReplyFormatter
     private readonly int _rightMarginIndent;
     private readonly StringBuilder _wordBuffer = new StringBuilder();
     private int _currentLineLength; // length of current line excluding prefix
-    
+    private readonly bool _prefixAlreadyPrinted;
+
     public AgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
     {
         _prefix = prefix;
         _newlineSuffix = new string(' ', prefix.Length);
         _rightMarginIndent = rightMarginIndent;
+        _prefixAlreadyPrinted = prefixAlreadyPrinted;
     }
-    
+
     /// <summary>
     /// Calculate available width for text based on current console window width.
     /// </summary>
-    private static int GetAvailableWidth(int prefixLength, int rightMarginIndent)
+    private int GetAvailableWidth()
     {
         int consoleWidth = 80;
         try
@@ -36,11 +38,21 @@ public sealed class AgentReplyFormatter
         {
             // fallback
         }
-        
-        // Right margin indent is at least 5 chars or 10% of console width, whichever is larger.
-        int effectiveRightMargin = Math.Max(rightMarginIndent, (int)(consoleWidth * 0.1));
-        int available = consoleWidth - prefixLength - effectiveRightMargin;
-        return available > 0 ? available : consoleWidth - prefixLength - 1;
+
+        // When prefix was already printed on current line, available width is from suffix to right margin
+        // When prefix not yet printed, available width is from prefix to right margin
+        int effectiveRightMargin = Math.Max(_rightMarginIndent, (int)(consoleWidth * 0.1));
+        int available;
+        if (_prefixAlreadyPrinted)
+        {
+            int suffixLength = _newlineSuffix.Length;
+            available = consoleWidth - suffixLength - effectiveRightMargin;
+        }
+        else
+        {
+            available = consoleWidth - _prefix.Length - effectiveRightMargin;
+        }
+        return available > 0 ? available : consoleWidth / 2;
     }
     
     /// <summary>
@@ -48,7 +60,7 @@ public sealed class AgentReplyFormatter
     /// </summary>
     public void ProcessDelta(string delta)
     {
-        int availableWidth = GetAvailableWidth(_prefix.Length, _rightMarginIndent);
+        int availableWidth = GetAvailableWidth();
         
         foreach (char c in delta)
         {
@@ -110,7 +122,7 @@ public sealed class AgentReplyFormatter
     /// </summary>
     public void Finish()
     {
-        int availableWidth = GetAvailableWidth(_prefix.Length, _rightMarginIndent);
+        int availableWidth = GetAvailableWidth();
         FlushWordBuffer(availableWidth);
         Console.WriteLine();
     }
