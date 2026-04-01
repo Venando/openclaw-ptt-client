@@ -34,10 +34,9 @@ internal sealed class ToolDisplayHandler
 
     public void Handle(string toolName, string arguments)
     {
-        Console.WriteLine();
         Console.ForegroundColor = ConsoleColor.Gray;
         string icon = Tools.TryGetValue(toolName, out var t) ? t.Icon : "🔧";
-        string toolPrefix = string.Equals(toolName, "exec", StringComparison.OrdinalIgnoreCase) ? "  " : " ";
+        string toolPrefix = " ";
         string displayName = string.Join(" ", toolName.Split('_').Select(w => char.ToUpper(w[0]) + w[1..]));
         Console.Write($"  {icon}{toolPrefix}{displayName}  ");
         Console.ResetColor();
