@@ -37,6 +37,15 @@ public sealed class GatewayClient : IDisposable
     public event Action? AgentReplyDeltaEnd;
     public event Action<string>? AgentThinking;
 
+    /// <summary>Fires when the agent calls a tool (e.g. read, git, etc.).</summary>
+    public event Action<string, string>? AgentToolCall; // (toolName, arguments)
+
+    /// <summary>Fires when agent response contains [audio] marker with text for TTS.</summary>
+    public event Action<string>? AgentReplyAudio;
+
+    /// <summary>Fires when agent response contains [text] marker for explicit text.</summary>
+    public event Action<string>? AgentReplyText;
+
     public GatewayClient(AppConfig cfg, DeviceIdentity dev)
     {
         _cfg = cfg;
@@ -621,6 +630,13 @@ public sealed class GatewayClient : IDisposable
                 if (!string.IsNullOrEmpty(thinking))
                     AgentThinking?.Invoke(thinking);
             }
+            else if (type == "toolCall" && block.TryGetProperty("name", out var nameEl) && block.TryGetProperty("arguments", out var argsEl))
+            {
+                var toolName = nameEl.GetString() ?? string.Empty;
+                var args = argsEl.GetRawText();
+                if (_cfg.DebugToolCalls) Console.WriteLine($"[DEBUG] ToolCall: {toolName}({args})");
+                AgentToolCall?.Invoke(toolName, args);
+            }
             else if (type == "text" && block.TryGetProperty("text", out var textEl))
             {
                 var text = textEl.GetString() ?? string.Empty;
@@ -633,6 +649,11 @@ public sealed class GatewayClient : IDisposable
                     }
                     AgentReplyFull?.Invoke(text);
                 }
+            }
+            else
+            {
+                // Log unknown block type with its raw JSON
+                Console.WriteLine($"[DEBUG] Unknown block type=\"{type}\": {block}");
             }
         }
 
@@ -702,6 +723,51 @@ public sealed class GatewayClient : IDisposable
             }
         }
         return string.Join("", textParts);
+    }
+
+    /// <summary>
+    /// Extracts content from [audio] and [text] markers in the message.
+    /// Returns (hasAudioContent, hasTextContent, audioText, textContent).
+    /// </summary>
+    private (bool hasAudio, bool hasText, string audioText, string textContent) ExtractMarkedContent(string fullMessage)
+    {
+        var audioText = string.Empty;
+        var textContent = string.Empty;
+
+        // Extract [audio] content
+        var audioMatch = System.Text.RegularExpressions.Regex.Match(fullMessage, @"\[audio\](.*?)\[/audio\]", System.Text.RegularExpressions.RegexOptions.Singleline);
+        if (audioMatch.Success)
+        {
+            audioText = audioMatch.Groups[1].Value.Trim();
+        }
+
+        // Extract [text] content
+        var textMatch = System.Text.RegularExpressions.Regex.Match(fullMessage, @"\[text\](.*?)\[/text\]", System.Text.RegularExpressions.RegexOptions.Singleline);
+        if (textMatch.Success)
+        {
+            textContent = textMatch.Groups[1].Value.Trim();
+        }
+
+        // If no markers found, treat the entire message as text content
+        if (string.IsNullOrEmpty(audioText) && string.IsNullOrEmpty(textContent) && !string.IsNullOrEmpty(fullMessage))
+        {
+            // Check if full message starts with either marker tag (without closing tag)
+            if (fullMessage.StartsWith("[audio]", StringComparison.OrdinalIgnoreCase))
+            {
+                audioText = fullMessage.Substring(7).Trim();
+            }
+            else if (fullMessage.StartsWith("[text]", StringComparison.OrdinalIgnoreCase))
+            {
+                textContent = fullMessage.Substring(6).Trim();
+            }
+            else
+            {
+                // Default: treat as text content
+                textContent = fullMessage;
+            }
+        }
+
+        return (!string.IsNullOrEmpty(audioText), !string.IsNullOrEmpty(textContent), audioText, textContent);
     }
 
     private void HandleApprovalRequest(JsonElement payload)

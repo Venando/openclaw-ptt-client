@@ -1,15 +1,18 @@
 using System.Runtime.InteropServices;
+using OpenClawPTT;
 
 namespace OpenClawPTT.VisualFeedback;
 
 internal static class VisualFeedbackFactory
 {
-    public static IVisualFeedback Create()
+    public static IVisualFeedback Create(AppConfig config)
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            return new WindowsVisualFeedback();
+        if (!config.VisualFeedbackEnabled)
+            return new NoVisualFeedback(config);
 
-        // Non-Windows platforms get a no-op implementation
-        return new NoVisualFeedback();
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return new WindowsVisualFeedback(config);
+
+        return new NoVisualFeedback(config);
     }
 }

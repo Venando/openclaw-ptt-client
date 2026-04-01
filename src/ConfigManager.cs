@@ -1,4 +1,9 @@
+using System;
+using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace OpenClawPTT;
 
@@ -8,7 +13,7 @@ public sealed class ConfigManager
     {
         WriteIndented = true,
         DefaultIgnoreCondition =
-            System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault
     };
 
     private string ConfigPath(AppConfig cfg) =>
@@ -23,7 +28,19 @@ public sealed class ConfigManager
             return null;
 
         var json = File.ReadAllText(path);
-        return JsonSerializer.Deserialize<AppConfig>(json, JsonOpts);
+        var config = JsonSerializer.Deserialize<AppConfig>(json, JsonOpts);
+        if (config != null)
+        {
+            using var doc = JsonDocument.Parse(json);
+
+            // Backward compatibility: if VisualMode is missing or was None (0), disable via VisualFeedbackEnabled
+            if (!doc.RootElement.TryGetProperty("VisualMode", out _) || config.VisualMode == 0)
+            {
+                config.VisualFeedbackEnabled = false;
+                config.VisualMode = VisualMode.SolidDot;
+            }
+        }
+        return config;
     }
 
     public void Save(AppConfig cfg)
@@ -54,23 +71,28 @@ public sealed class ConfigManager
         if (cfg.ReconnectDelaySeconds <= 0)
             issues.Add("Reconnect delay must be positive.");
 
+        if (cfg.VisualMode < VisualMode.SolidDot || cfg.VisualMode > VisualMode.GlowDot)
+            issues.Add("VisualMode must be 1 (SolidDot) or 2 (GlowDot).");
+
         return issues;
     }
 
-    public async Task<AppConfig> RunSetup(AppConfig? existing = null)
+    public async Task<AppConfig> RunSetup(AppConfig? existing = null, CancellationToken cancellationToken = default)
     {
         var cfg = existing ?? new AppConfig();
 
-        cfg.GatewayUrl = Prompt(
+        cfg.GatewayUrl = await Prompt(
             "Gateway URL",
             cfg.GatewayUrl,
             v => Uri.TryCreate(v, UriKind.Absolute, out var u)
-                 && (u.Scheme == "ws" || u.Scheme == "wss"));
+                 && (u.Scheme == "ws" || u.Scheme == "wss"),
+            cancellationToken);
 
-        cfg.AuthToken = Prompt(
+        cfg.AuthToken = await Prompt(
             "Auth token (OPENCLAW_GATEWAY_TOKEN)",
             cfg.AuthToken ?? Environment.GetEnvironmentVariable("OPENCLAW_GATEWAY_TOKEN") ?? "",
-            _ => true);
+            _ => true,
+            cancellationToken);
 
         if (string.IsNullOrWhiteSpace(cfg.AuthToken))
             cfg.AuthToken = null;
@@ -78,38 +100,42 @@ public sealed class ConfigManager
         var useTls = cfg.GatewayUrl.StartsWith("wss://", StringComparison.OrdinalIgnoreCase);
         if (useTls)
         {
-            cfg.TlsFingerprint = Prompt(
+            cfg.TlsFingerprint = await Prompt(
                 "TLS cert fingerprint (blank to skip pinning)",
                 cfg.TlsFingerprint ?? "",
-                _ => true);
+                _ => true,
+                cancellationToken);
 
             if (string.IsNullOrWhiteSpace(cfg.TlsFingerprint))
                 cfg.TlsFingerprint = null;
         }
 
-        cfg.GroqApiKey = Prompt(
+        cfg.GroqApiKey = await Prompt(
             "Groq API key",
             cfg.GroqApiKey,
-            value => value.StartsWith("gsk_")
-        );
+            value => value.StartsWith("gsk_"),
+            cancellationToken);
 
-        cfg.Locale = Prompt("Locale", cfg.Locale, v => v.Length >= 2);
+        cfg.Locale = await Prompt("Locale", cfg.Locale, v => v.Length >= 2, cancellationToken);
 
-        var rate = Prompt("Audio sample rate", cfg.SampleRate.ToString(),
-            v => int.TryParse(v, out var n) && n is >= 8000 and <= 48000);
+        var rate = await Prompt("Audio sample rate", cfg.SampleRate.ToString(),
+            v => int.TryParse(v, out var n) && n is >= 8000 and <= 48000,
+            cancellationToken);
         cfg.SampleRate = int.Parse(rate);
 
-        var maxSec = Prompt("Max recording seconds", cfg.MaxRecordSeconds.ToString(),
-            v => int.TryParse(v, out var n) && n is >= 5 and <= 600);
+        var maxSec = await Prompt("Max recording seconds", cfg.MaxRecordSeconds.ToString(),
+            v => int.TryParse(v, out var n) && n is >= 5 and <= 600,
+            cancellationToken);
         cfg.MaxRecordSeconds = int.Parse(maxSec);
 
-        cfg.RealTimeReplyOutput = bool.Parse(Prompt(
+        cfg.RealTimeReplyOutput = bool.Parse(await Prompt(
             "Real-time reply output",
             cfg.RealTimeReplyOutput.ToString(),
-            v => bool.TryParse(v, out _)));
+            v => bool.TryParse(v, out _),
+            cancellationToken));
 
         // Shortcut settings
-        cfg.HotkeyCombination = Prompt(
+        cfg.HotkeyCombination = await Prompt(
             "Hotkey combination (e.g., Alt+=, Ctrl+Shift+Space)",
             cfg.HotkeyCombination,
             v =>
@@ -125,22 +151,90 @@ public sealed class ConfigManager
                 }
             });
         
-        cfg.HoldToTalk = bool.Parse(Prompt(
+        cfg.HoldToTalk = bool.Parse(await Prompt(
             "Hold-to-talk mode (true/false)",
             cfg.HoldToTalk.ToString(),
             v => bool.TryParse(v, out _)));
+
+        cfg.TranscriptionPromptPrefix = await Prompt(
+            "Transcription prompt prefix",
+            cfg.TranscriptionPromptPrefix,
+            v => !string.IsNullOrWhiteSpace(v));
+
+        // Visual feedback settings
+        cfg.VisualFeedbackEnabled = bool.Parse(await Prompt(
+            "Visual feedback enabled (true/false)",
+            cfg.VisualFeedbackEnabled.ToString(),
+            v => bool.TryParse(v, out _)));
+        
+        var positionInput = await Prompt(
+            "Visual feedback position (TopLeft, TopRight, BottomLeft, BottomRight)",
+            cfg.VisualFeedbackPosition,
+            v => new[] { "TopLeft", "TopRight", "BottomLeft", "BottomRight" }.Contains(v, StringComparer.OrdinalIgnoreCase));
+        cfg.VisualFeedbackPosition = new[] { "TopLeft", "TopRight", "BottomLeft", "BottomRight" }
+            .First(p => p.Equals(positionInput, StringComparison.OrdinalIgnoreCase));
+        
+        cfg.VisualFeedbackSize = int.Parse(await Prompt(
+            "Visual feedback dot size (pixels)",
+            cfg.VisualFeedbackSize.ToString(),
+            v => int.TryParse(v, out var n) && n > 0 && n <= 200));
+        
+        cfg.VisualFeedbackOpacity = double.Parse(await Prompt(
+            "Visual feedback opacity (0.0 to 1.0)",
+            cfg.VisualFeedbackOpacity.ToString("F2"),
+            v => double.TryParse(v, out var d) && d >= 0.0 && d <= 1.0));
+        
+        cfg.VisualFeedbackColor = await Prompt(
+            "Visual feedback color (hex #RRGGBB)",
+            cfg.VisualFeedbackColor,
+            v => System.Text.RegularExpressions.Regex.IsMatch(v, @"^#?([0-9A-Fa-f]{6})$"));
+
+        cfg.VisualFeedbackRimThickness = int.Parse(await Prompt(
+            "Visual feedback rim thickness (0 = off, 1-50 pixels)",
+            cfg.VisualFeedbackRimThickness.ToString(),
+            v => int.TryParse(v, out var n) && n is >= 0 and <= 50));
+
+        // Audio response settings
+        cfg.AudioResponseMode = await Prompt(
+            "Audio response mode (text-only, audio-only, both)",
+            cfg.AudioResponseMode ?? "text-only",
+            v => new[] { "text-only", "audio-only", "both" }.Contains(v, StringComparer.OrdinalIgnoreCase));
+        cfg.AudioResponseMode = new[] { "text-only", "audio-only", "both" }
+            .First(m => string.Equals(m, cfg.AudioResponseMode, StringComparison.OrdinalIgnoreCase));
+        
+        cfg.TtsApiKey = await Prompt(
+            "ElevenLabs API key (optional, for audio responses)",
+            cfg.TtsApiKey ?? "",
+            _ => true,
+            cancellationToken);
+        if (string.IsNullOrWhiteSpace(cfg.TtsApiKey))
+            cfg.TtsApiKey = null;
+        
+        cfg.TtsVoiceId = await Prompt(
+            "ElevenLabs voice ID",
+            cfg.TtsVoiceId,
+            v => !string.IsNullOrWhiteSpace(v));
 
         await Task.CompletedTask;
         return cfg;
     }
 
-    private static string Prompt(string label, string defaultVal, Func<string, bool> validate)
+    private static async Task<string> Prompt(string label, string defaultVal, Func<string, bool> validate, CancellationToken cancellationToken = default)
     {
         while (true)
         {
             var def = string.IsNullOrEmpty(defaultVal) ? "" : $" [{defaultVal}]";
             Console.Write($"  {label}{def}: ");
-            var input = Console.ReadLine()?.Trim() ?? "";
+            string input;
+            try
+            {
+                input = (await Console.In.ReadLineAsync(cancellationToken))?.Trim() ?? "";
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine(); // move to new line after ^C
+                throw;
+            }
 
             if (string.IsNullOrEmpty(input) && !string.IsNullOrEmpty(defaultVal))
                 input = defaultVal;

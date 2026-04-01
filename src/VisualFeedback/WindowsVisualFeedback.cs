@@ -1,7 +1,12 @@
 using System;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Threading;
+using OpenClawPTT;
 
 namespace OpenClawPTT.VisualFeedback;
 
@@ -12,13 +17,33 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
     private IntPtr _hwnd = IntPtr.Zero;
     private volatile bool _disposed;
     private readonly ManualResetEvent _windowReady = new ManualResetEvent(false);
-    private const int DotSize = 20;
+    private readonly AppConfig _config;
+    private readonly int _dotSize;
+    private readonly int _rimThickness;
+    private int _screenWidth;
+    private int _screenHeight;
+    private int _dotX;
+    private int _dotY;
+    private readonly byte _alpha;
+    private readonly byte _colorR;
+    private readonly byte _colorG;
+    private readonly byte _colorB;
     private readonly string _className = $"OpenClawPTT_VisualFeedback_{Guid.NewGuid():N}";
     private static readonly User32.WndProc _staticWndProc = StaticWndProc;
     private static readonly IntPtr _staticWndProcPtr = Marshal.GetFunctionPointerForDelegate(_staticWndProc);
+    private readonly VisualMode _visualMode;
 
-    public WindowsVisualFeedback()
+    public WindowsVisualFeedback(AppConfig config)
     {
+        _config = config ?? throw new ArgumentNullException(nameof(config));
+        _visualMode = config.VisualMode;
+        _dotSize = Math.Max(1, config.VisualFeedbackSize);
+        _rimThickness = Math.Max(0, config.VisualFeedbackRimThickness);
+        var (r, g, b) = ParseColor(config.VisualFeedbackColor);
+        _colorR = r;
+        _colorG = g;
+        _colorB = b;
+        _alpha = (byte)(Math.Clamp(config.VisualFeedbackOpacity, 0.0, 1.0) * 255);
         _uiThread = new Thread(WindowThread)
         {
             IsBackground = true,
@@ -27,6 +52,19 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         _uiThread.SetApartmentState(ApartmentState.STA);
         _uiThread.Start();
         _windowReady.WaitOne(5000); // Wait up to 5 seconds for window creation
+    }
+
+    private static (byte r, byte g, byte b) ParseColor(string hexColor)
+    {
+        // Remove leading # if present
+        hexColor = hexColor.TrimStart('#');
+        if (hexColor.Length != 6)
+            throw new ArgumentException("Color must be in format #RRGGBB or RRGGBB");
+        // Parse RR GG BB
+        byte r = (byte)int.Parse(hexColor.Substring(0, 2), NumberStyles.HexNumber);
+        byte g = (byte)int.Parse(hexColor.Substring(2, 2), NumberStyles.HexNumber);
+        byte b = (byte)int.Parse(hexColor.Substring(4, 2), NumberStyles.HexNumber);
+        return (r, g, b);
     }
 
     public void Show()
@@ -81,18 +119,39 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
             throw new InvalidOperationException($"Failed to register window class (Win32 error: {Marshal.GetLastWin32Error()})");
 
         // Get primary monitor dimensions
-        int screenWidth = User32.GetSystemMetrics(User32.SM_CXSCREEN);
-        int screenHeight = User32.GetSystemMetrics(User32.SM_CYSCREEN);
-        int x = screenWidth - DotSize - 10;
-        int y = 10;
+        _screenWidth = User32.GetSystemMetrics(User32.SM_CXSCREEN);
+        _screenHeight = User32.GetSystemMetrics(User32.SM_CYSCREEN);
 
-        // Create window
+        // Compute dot position based on config
+        (int x, int y) GetDotPosition(int width, int height, int size)
+        {
+            const int margin = 10;
+            switch (_config.VisualFeedbackPosition)
+            {
+                case "TopLeft":
+                    return (margin, margin);
+                case "TopRight":
+                    return (width - size - margin, margin);
+                case "BottomLeft":
+                    return (margin, height - size - margin);
+                case "BottomRight":
+                    return (width - size - margin, height - size - margin);
+                default:
+                    return (width - size - margin, margin);
+            }
+        }
+
+        var (dotX, dotY) = GetDotPosition(_screenWidth, _screenHeight, _dotSize);
+        _dotX = dotX;
+        _dotY = dotY;
+
+        // Create fullscreen layered window
         _hwnd = User32.CreateWindowEx(
             User32.WS_EX_TOPMOST | User32.WS_EX_TOOLWINDOW | User32.WS_EX_LAYERED | User32.WS_EX_NOACTIVATE,
             _className,
             "",
             User32.WS_POPUP,
-            x, y, DotSize, DotSize,
+            0, 0, _screenWidth, _screenHeight,
             IntPtr.Zero, IntPtr.Zero, wc.hInstance, IntPtr.Zero);
 
         if (_hwnd == IntPtr.Zero)
@@ -102,12 +161,7 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         GCHandle handle = GCHandle.Alloc(this);
         User32.SetWindowLongPtr(_hwnd, User32.GWLP_USERDATA, GCHandle.ToIntPtr(handle));
 
-        // Set layered window attributes: transparency color key to magenta (RGB(255,0,255))
-        User32.SetLayeredWindowAttributes(_hwnd, 0x00FF00FF, 255, User32.LWA_COLORKEY);
-
-        // Set window region to a circle
-        IntPtr hRgn = Gdi32.CreateEllipticRgn(0, 0, DotSize, DotSize);
-        User32.SetWindowRgn(_hwnd, hRgn, true);
+        UpdateLayeredWindowWithBitmap();
 
         _windowReady.Set();
 
@@ -139,9 +193,6 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
     {
         switch (msg)
         {
-            case User32.WM_PAINT:
-                Paint(hWnd);
-                break;
             case User32.WM_ERASEBKGND:
                 return (IntPtr)1; // We handle background ourselves
             case User32.WM_DESTROY:
@@ -158,21 +209,78 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         return User32.DefWindowProc(hWnd, msg, wParam, lParam);
     }
 
-    private void Paint(IntPtr hWnd)
+    private void UpdateLayeredWindowWithBitmap()
     {
-        User32.PAINTSTRUCT ps;
-        IntPtr hdc = User32.BeginPaint(hWnd, out ps);
-        if (hdc == IntPtr.Zero) return;
+        if (_hwnd == IntPtr.Zero) return;
 
-        // Create a red brush and fill the entire client area as an ellipse
-        IntPtr hBrush = Gdi32.CreateSolidBrush(0x0000FF); // BGR format: RGB(255,0,0)
-        IntPtr oldBrush = Gdi32.SelectObject(hdc, hBrush);
-        // Draw filled ellipse covering the entire window (the window region clips it to a circle)
-        Gdi32.Ellipse(hdc, 0, 0, DotSize, DotSize);
-        Gdi32.SelectObject(hdc, oldBrush);
-        Gdi32.DeleteObject(hBrush);
+        using var bitmap = new Bitmap(_screenWidth, _screenHeight, PixelFormat.Format32bppArgb);
+        using var graphics = Graphics.FromImage(bitmap);
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        graphics.CompositingQuality = CompositingQuality.HighQuality;
 
-        User32.EndPaint(hWnd, ref ps);
+        var color = Color.FromArgb(_alpha, _colorR, _colorG, _colorB);
+
+        // Draw rim on all 4 edges
+        if (_rimThickness > 0)
+        {
+            using var pen = new Pen(color, _rimThickness);
+            // Top edge
+            graphics.DrawLine(pen, 0, _rimThickness / 2, _screenWidth, _rimThickness / 2);
+            // Bottom edge
+            graphics.DrawLine(pen, 0, _screenHeight - _rimThickness / 2 - 1, _screenWidth, _screenHeight - _rimThickness / 2 - 1);
+            // Left edge
+            graphics.DrawLine(pen, _rimThickness / 2, 0, _rimThickness / 2, _screenHeight);
+            // Right edge
+            graphics.DrawLine(pen, _screenWidth - _rimThickness / 2 - 1, 0, _screenWidth - _rimThickness / 2 - 1, _screenHeight);
+        }
+
+        // Draw dot at configured position
+        switch (_visualMode)
+        {
+            case VisualMode.SolidDot:
+                using (var brush = new SolidBrush(color))
+                {
+                    graphics.FillEllipse(brush, _dotX, _dotY, _dotSize, _dotSize);
+                }
+                break;
+            case VisualMode.GlowDot:
+                var path = new GraphicsPath();
+                path.AddEllipse(_dotX, _dotY, _dotSize, _dotSize);
+                using (var pathBrush = new PathGradientBrush(path))
+                {
+                    pathBrush.CenterColor = color;
+                    pathBrush.SurroundColors = new[] { Color.FromArgb(0, _colorR, _colorG, _colorB) };
+                    graphics.FillEllipse(pathBrush, _dotX, _dotY, _dotSize, _dotSize);
+                }
+                break;
+        }
+
+        // Upload to layered window
+        IntPtr hBitmap = bitmap.GetHbitmap(Color.FromArgb(0));
+        IntPtr hdcScreen = Gdi32.CreateCompatibleDC(IntPtr.Zero);
+        IntPtr hOldBitmap = Gdi32.SelectObject(hdcScreen, hBitmap);
+
+        try
+        {
+            var blend = new User32.BLENDFUNCTION
+            {
+                BlendOp = User32.AC_SRC_OVER,
+                BlendFlags = 0,
+                SourceConstantAlpha = 255,
+                AlphaFormat = User32.AC_SRC_ALPHA
+            };
+            var srcPos = new User32.POINT { x = 0, y = 0 };
+            var dstPos = new User32.POINT { x = 0, y = 0 };
+            var winSize = new User32.SIZE { cx = _screenWidth, cy = _screenHeight };
+            User32.UpdateLayeredWindow(_hwnd, IntPtr.Zero, ref dstPos, ref winSize,
+                hdcScreen, ref srcPos, 0, ref blend, User32.ULW_ALPHA);
+        }
+        finally
+        {
+            Gdi32.SelectObject(hdcScreen, hOldBitmap);
+            Gdi32.DeleteObject(hBitmap);
+            Gdi32.DeleteDC(hdcScreen);
+        }
     }
 
     private static class User32
@@ -193,6 +301,10 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         public const int SM_CYSCREEN = 1;
         public const int GWLP_USERDATA = -21;
         public const int LWA_COLORKEY = 0x00000001;
+        public const int LWA_ALPHA = 0x00000002;
+        public const int ULW_ALPHA = 0x00000002;
+        public const int AC_SRC_OVER = 0x00;
+        public const int AC_SRC_ALPHA = 0x01;
 
         // Structs
         [StructLayout(LayoutKind.Sequential)]
@@ -249,6 +361,22 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
             public int x, y;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        public struct SIZE
+        {
+            public int cx;
+            public int cy;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BLENDFUNCTION
+        {
+            public byte BlendOp;
+            public byte BlendFlags;
+            public byte SourceConstantAlpha;
+            public byte AlphaFormat;
+        }
+
         // Delegates
         public delegate IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
@@ -291,6 +419,11 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         public static extern IntPtr DefWindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
         [DllImport("user32.dll")]
         public static extern void PostQuitMessage(int nExitCode);
+
+        // Layered window functions
+        [DllImport("user32.dll")]
+        public static extern bool UpdateLayeredWindow(IntPtr hwnd, IntPtr hdcDst, ref POINT pptDst, ref SIZE psize,
+            IntPtr hdcSrc, ref POINT pptSrc, uint crKey, ref BLENDFUNCTION pblend, uint dwFlags);
     }
 
     private static class Gdi32
@@ -305,6 +438,10 @@ internal sealed class WindowsVisualFeedback : IVisualFeedback
         public static extern bool Ellipse(IntPtr hdc, int left, int top, int right, int bottom);
         [DllImport("gdi32.dll")]
         public static extern IntPtr CreateEllipticRgn(int x1, int y1, int x2, int y2);
+        [DllImport("gdi32.dll")]
+        public static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+        [DllImport("gdi32.dll")]
+        public static extern bool DeleteDC(IntPtr hdc);
     }
 
     private static class Kernel32

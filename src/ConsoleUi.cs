@@ -72,7 +72,17 @@ public static class ConsoleUi
     public static void PrintSuccess(string message)
     {
         Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine($"  ✓ {message}");
+        Console.Write($"  ✓ {message}");
+        Console.ResetColor();
+    }
+
+    public static void PrintSuccessWordWrap(string prefix, string message, int rightMarginIndent)
+    {
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.Write(prefix);
+        var formatter = new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted: true);
+        formatter.ProcessDelta(message);
+        formatter.Finish();
         Console.ResetColor();
     }
     

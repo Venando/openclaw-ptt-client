@@ -10,6 +10,7 @@ public sealed class GatewayService : IDisposable
     private readonly AppConfig _config;
     private readonly DeviceIdentity _device;
     private GatewayClient _gatewayClient;
+    private AudioResponseHandler? _audioResponseHandler;
     private bool _disposed;
     private bool _prefixPrinted; 
     private bool _isDeltaStarted;
@@ -19,7 +20,10 @@ public sealed class GatewayService : IDisposable
     public event Action<string>? AgentReplyDelta;
     public event Action? AgentReplyDeltaEnd;
     public event Action<string>? AgentThinking;
+    public event Action<string, string>? AgentToolCall; // (toolName, arguments)
     public event Action<string, JsonElement>? EventReceived;
+    public event Action<string>? AgentReplyAudio;
+    public event Action<string>? AgentReplyText;
     
     public GatewayService(AppConfig config)
     {
@@ -27,6 +31,12 @@ public sealed class GatewayService : IDisposable
         _device = new DeviceIdentity(config.DataDir);
         _device.EnsureKeypair();
         _gatewayClient = CreateGatewayClient();
+        
+        // Initialize audio response handler if audio mode is not text-only
+        if (config.AudioResponseMode?.ToLowerInvariant() != "text-only")
+        {
+            _audioResponseHandler = new AudioResponseHandler(config);
+        }
     }
     
     public string DeviceId => _device.DeviceId;
@@ -122,6 +132,13 @@ public sealed class GatewayService : IDisposable
             AgentThinking?.Invoke(thinking);
         };
 
+        var toolDisplayHandler = new ToolDisplayHandler(_config.RightMarginIndent);
+        client.AgentToolCall += (toolName, arguments) =>
+        {
+            toolDisplayHandler.Handle(toolName, arguments);
+            AgentToolCall?.Invoke(toolName, arguments);
+        };
+
         client.AgentReplyDeltaStart += () =>
         {
             _isDeltaStarted = true;
@@ -184,6 +201,23 @@ public sealed class GatewayService : IDisposable
             EventReceived?.Invoke(name, json);
         };
         
+        // Handle [audio] marker - synthesize and play TTS
+        client.AgentReplyAudio += async audioText =>
+        {
+            if (_audioResponseHandler != null)
+            {
+                await _audioResponseHandler.HandleAudioMarkerAsync(audioText);
+            }
+            AgentReplyAudio?.Invoke(audioText);
+        };
+        
+        // Handle [text] marker - explicit text handling
+        client.AgentReplyText += text =>
+        {
+            // Text is already printed via AgentReplyFull, but fire event for consistency
+            AgentReplyText?.Invoke(text);
+        };
+        
         return client;
     }
     
@@ -192,6 +226,7 @@ public sealed class GatewayService : IDisposable
         if (!_disposed)
         {
             _gatewayClient.Dispose();
+            _audioResponseHandler?.Dispose();
             _disposed = true;
         }
     }

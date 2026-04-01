@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT;
+using OpenClawPTT.Transcriber;
 using OpenClawPTT.VisualFeedback;
 
 namespace OpenClawPTT.Services;
@@ -9,23 +10,22 @@ namespace OpenClawPTT.Services;
 public sealed class AudioService : IDisposable
 {
     private readonly AudioRecorder _recorder;
-    private readonly GroqTranscriber _transcriber;
+    private readonly ITranscriber _transcriber;
     private readonly IVisualFeedback _visualFeedback;
     
     private readonly string _hotkeyCombination;
     private readonly bool _holdToTalk;
+    private readonly int _rightMarginIndent;
     private bool _disposed;
     
     public AudioService(AppConfig config)
     {
         _recorder = new AudioRecorder(config.SampleRate, config.Channels, config.BitsPerSample, config.MaxRecordSeconds);
-        _transcriber = new GroqTranscriber(config.GroqApiKey, 
-            retryCount: config.GroqRetryCount, 
-            retryDelayMs: config.GroqRetryDelayMs, 
-            retryBackoffFactor: config.GroqRetryBackoffFactor);
-        _visualFeedback = VisualFeedbackFactory.Create();
+        _transcriber = TranscriberFactory.Create(config);
+        _visualFeedback = VisualFeedbackFactory.Create(config);
         _hotkeyCombination = config.HotkeyCombination;
         _holdToTalk = config.HoldToTalk;
+        _rightMarginIndent = config.RightMarginIndent;
     }
     
     public bool IsRecording => _recorder.IsRecording;
@@ -59,9 +59,8 @@ public sealed class AudioService : IDisposable
         
         try
         {
-            var transcribed = await _transcriber.TranscribeAsync(wav);
-            Console.WriteLine();
-            ConsoleUi.PrintSuccess($"Transcribed: {transcribed}");
+            var transcribed = await _transcriber.TranscribeAsync(wav, ct: ct);
+            ConsoleUi.PrintSuccessWordWrap("  ✓ Transcribed: ", transcribed, _rightMarginIndent);
             return transcribed;
         }
         catch (Exception ex)
