@@ -13,6 +13,7 @@ publish/
 .vs/
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 
