@@ -32,6 +32,7 @@ await stream.CopyToAsync(file);
     */
     private static readonly string s_defaultScriptPath = Path.Combine(AppContext.BaseDirectory, "tts_service.py");
     private readonly string _espeakNgPath;
+    private readonly bool _debugLog;
 
     private Process? _process;
     private readonly SemaphoreSlim _sem = new(1, 1);
@@ -46,13 +47,14 @@ await stream.CopyToAsync(file);
 
     public IReadOnlyList<string> AvailableModels { get; } = Array.Empty<string>();
 
-    public PythonTtsProvider(string serviceScriptPath, string pythonPath, string modelPath, string modelName, string? espeakNgPath = null)
+    public PythonTtsProvider(string serviceScriptPath, string pythonPath, string modelPath, string modelName, string? espeakNgPath = null, bool debugLog = false)
     {
         _serviceScriptPath = !string.IsNullOrEmpty(serviceScriptPath) ? serviceScriptPath : s_defaultScriptPath;
         _pythonPath = pythonPath;
         _modelPath = modelPath;
         _modelName = modelName;
         _espeakNgPath = espeakNgPath ?? "";
+        _debugLog = debugLog;
     }
 
     public async Task InitializeAsync(CancellationToken ct = default)
@@ -249,8 +251,8 @@ await stream.CopyToAsync(file);
                     {
                         // Coqui internal prints (sentence splits, timing) — suppress
                     }
-                    // else
-                    //     Console.Error.WriteLine(line);
+                    else if (_debugLog)
+                        Console.Error.WriteLine(line);
                     continue;
                 }
 

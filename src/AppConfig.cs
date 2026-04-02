@@ -39,6 +39,7 @@ public sealed class AppConfig
     public bool HoldToTalk { get; set; } = false;
     public bool ShowThinking { get; set; } = false;
     public bool DebugToolCalls { get; set; } = false;
+    public string AgentName { get; set; } = "Agent";
     public string TranscriptionPromptPrefix { get; set; } = "[The following text is a raw speech-to-text transcription]: ";
     public string AudioWrapPrompt { get; set; } = "[Wrap spoken content in [audio]...[/audio] tags. Example: [audio]Hello[/audio] how [audio]are you[/audio]?]";
 
@@ -84,6 +85,9 @@ public sealed class AppConfig
 
     // eSpeak NG path for Coqui TTS (platform-specific default)
     public string? EspeakNgPath { get; set; }
+
+    // Python TTS debug settings
+    public bool PythonTtsDebugLog { get; set; } = false;
 
     // Audio response settings
     public string AudioResponseMode { get; set; } = "text-only"; // text-only, audio-only, both

@@ -64,9 +64,9 @@ public sealed class GatewayService : IDisposable
     {
         var client = new GatewayClient(_config, _device);
         
-        const string agentReplayPrefix = "  🤖 Agent: ";
-        const string agentReplayPrefixWithAudio = "  🤖🔊 Agent: ";
-        const string agentReplayPrefixTextMode = "  🤖✍️ Agent: ";
+        string agentReplayPrefix = $"  🤖 {_config.AgentName}: ";
+        string agentReplayPrefixWithAudio = $"  🤖🔊 {_config.AgentName}: ";
+        string agentReplayPrefixTextMode = $"  🤖✍️ {_config.AgentName}: ";
         int prefixLength = agentReplayPrefix.Length;
         string newlineSuffix = new string(' ', prefixLength);
         string currentPrefix = agentReplayPrefix;
