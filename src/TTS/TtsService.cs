@@ -11,7 +11,8 @@ public enum TtsProviderType
     OpenAI,
     Edge,
     Coqui,
-    Piper
+    Piper,
+    Python
 }
 
 /// <summary>
@@ -39,6 +40,11 @@ public sealed class TtsService : IDisposable
             TtsProviderType.Edge => config.TtsSubscriptionKey != null
                 ? new Providers.EdgeTtsProvider(config.TtsSubscriptionKey, config.TtsRegion ?? "eastus")
                 : null,
+            TtsProviderType.Python => new Providers.PythonTtsProvider(
+                config.TtsServiceScriptPath ?? throw new InvalidOperationException("tts_service.py path not configured"),
+                config.PythonPath ?? "",
+                config.CoquiModelPath ?? "",
+                config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits"),
             _ => null
         };
 
@@ -95,7 +101,10 @@ public sealed class TtsService : IDisposable
     {
         if (!_disposed)
         {
-            (_provider as IDisposable)?.Dispose();
+            if (_provider is IAsyncDisposable asyncDisposable)
+                asyncDisposable.DisposeAsync().Preserve();
+            else
+                (_provider as IDisposable)?.Dispose();
             _disposed = true;
         }
     }
