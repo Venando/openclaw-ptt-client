@@ -15,6 +15,24 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
     private readonly string _modelName;
     private readonly string _serviceScriptPath;
 
+    /*
+    
+    TODO: LOAD from memory
+
+If you want extra confidence, just embed the script as a resource instead of a loose file:
+xml<ItemGroup>
+  <EmbeddedResource Include="tts_service.py" />
+</ItemGroup>
+Then extract and run it from memory:
+csharpvar asm = Assembly.GetExecutingAssembly();
+using var stream = asm.GetManifestResourceStream("OpenClawPTT.tts_service.py")!;
+var tempPath = Path.Combine(Path.GetTempPath(), "tts_service.py");
+using var file = File.Create(tempPath);
+await stream.CopyToAsync(file);
+    */
+    private static readonly string s_defaultScriptPath = Path.Combine(AppContext.BaseDirectory, "tts_service.py");
+    private readonly string _espeakNgPath;
+
     private Process? _process;
     private readonly SemaphoreSlim _sem = new(1, 1);
     private readonly ConcurrentDictionary<string, TaskCompletionSource<string>> _pending = new();
@@ -28,12 +46,28 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
 
     public IReadOnlyList<string> AvailableModels { get; } = Array.Empty<string>();
 
-    public PythonTtsProvider(string serviceScriptPath, string pythonPath, string modelPath, string modelName)
+    public PythonTtsProvider(string serviceScriptPath, string pythonPath, string modelPath, string modelName, string? espeakNgPath = null)
     {
-        _serviceScriptPath = serviceScriptPath;
+        _serviceScriptPath = !string.IsNullOrEmpty(serviceScriptPath) ? serviceScriptPath : s_defaultScriptPath;
         _pythonPath = pythonPath;
         _modelPath = modelPath;
         _modelName = modelName;
+        _espeakNgPath = espeakNgPath ?? "";
+    }
+
+    public async Task InitializeAsync(CancellationToken ct = default)
+    {
+        ConsoleUi.Log("python_tts_provider", "Loading TTS model...");
+
+        await _sem.WaitAsync(ct);
+        try
+        {
+            await EnsureRunningAsync(ct);
+        }
+        finally
+        {
+            _sem.Release();
+        }
     }
 
     public async Task<byte[]> SynthesizeAsync(string text, string? voice = null, string? model = null, CancellationToken ct = default)
@@ -44,8 +78,6 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
         await _sem.WaitAsync(ct);
         try
         {
-            await EnsureRunningAsync(ct);
-
             var id = Guid.NewGuid().ToString("N");
             var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             _pending[id] = tcs;
@@ -54,6 +86,7 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
             {
                 var request = new { text, id };
                 var line = JsonSerializer.Serialize(request) + "\n";
+                var textPreview = text?.Substring(0, Math.Min(50, text.Length)) ?? "(null)";
                 await _process!.StandardInput.WriteAsync(line);
                 await _process.StandardInput.FlushAsync();
             }
@@ -113,39 +146,51 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
         _readCts = new CancellationTokenSource();
 
         var pythonExe = ResolvePython();
-        var args = $"\"{_serviceScriptPath}\" --model_path \"{_modelPath}\" --model_name \"{_modelName}\"";
 
         var psi = new ProcessStartInfo
         {
             FileName = pythonExe,
-            Arguments = args,
+            Arguments = $"-u \"{_serviceScriptPath}\"",
             UseShellExecute = false,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true,
             StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8
         };
+        if (!string.IsNullOrEmpty(_espeakNgPath))
+            psi.Environment["PATH"] = _espeakNgPath + ";" + psi.Environment["PATH"];
+        if (!string.IsNullOrEmpty(_modelName))
+            psi.Environment["TTS_MODEL"] = _modelName;
 
         _process = new Process { StartInfo = psi, EnableRaisingEvents = true };
         _process.Exited += OnProcessExited;
 
         _process.Start();
 
-        // Wait for READY
+        // Wait for READY — loop until we find READY, skipping any other stdout lines
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
-        var readyLine = await ReadLineAsync(_process.StandardOutput, linked.Token);
-        if (readyLine == null || !readyLine.Trim().Equals("READY", StringComparison.OrdinalIgnoreCase))
+        string? readyLine = null;
+        while (!linked.Token.IsCancellationRequested)
         {
-            var err = await _process.StandardError.ReadToEndAsync(ct);
-            _process.Kill(true);
-            throw new InvalidOperationException($"Python TTS failed to start. Expected READY, got: {readyLine}\n{err}");
+            readyLine = await ReadLineAsync(_process.StandardOutput, linked.Token);
+            if (readyLine == null) break;
+            if (readyLine.Trim().Equals("READY", StringComparison.OrdinalIgnoreCase))
+                break;
         }
 
-        _ = ReadLoopAsync(_process.StandardOutput, _readCts.Token);
+        if (readyLine == null || !readyLine.Trim().Equals("READY", StringComparison.OrdinalIgnoreCase))
+        {
+            _process.Kill(true);
+            throw new InvalidOperationException($"Python TTS failed to start. Expected READY, got: {readyLine}");
+        }
+
+        ConsoleUi.Log("python_tts_provider", "Ready");
+
+        _ = ReadLoopAsync(_process.StandardError, isErrorStream: true, _readCts.Token);
+        _ = ReadLoopAsync(_process.StandardOutput, isErrorStream: false, _readCts.Token);
     }
 
     private async Task<string?> ReadLineAsync(StreamReader reader, CancellationToken ct)
@@ -156,9 +201,9 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
             var bufLen = 0;
             while (true)
             {
-                var ch = (char)reader.Read();
+                var ch = reader.Read();
                 if (ch == -1) return null;
-                buf.Append(ch);
+                buf.Append((char)ch);
                 bufLen++;
                 if (ch == '\n' || bufLen >= 4096)
                     break;
@@ -167,29 +212,65 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
         }, ct);
     }
 
-    private async Task ReadLoopAsync(StreamReader reader, CancellationToken ct)
+    private async Task ReadLoopAsync(StreamReader reader, bool isErrorStream, CancellationToken ct)
     {
         try
         {
-            while (!ct.IsCancellationRequested && _process != null && !_process.HasExited)
+            while (!ct.IsCancellationRequested && _process is { HasExited: false })
             {
                 var line = await ReadLineAsync(reader, ct);
                 if (line == null) break;
+
                 line = line.Trim();
                 if (string.IsNullOrEmpty(line)) continue;
 
+                // Stderr lines: only care about warnings/fallback signals
+                if (isErrorStream)
+                {
+                    if (line.Contains("FALLBACK_REASON"))
+                        ConsoleUi.PrintWarning($"TTS Performance Alert: {line}");
+                    else if (line.Contains("\"perf\":true"))
+                    {
+                        var jsonStart = line.IndexOf('{');
+                        if (jsonStart >= 0)
+                        {
+                            try
+                            {
+                                using var doc = JsonDocument.Parse(line[jsonStart..]);
+                                var root = doc.RootElement;
+                                var secs = root.GetProperty("time").GetDouble();
+                                var bytes = root.GetProperty("bytes").GetInt64();
+                                ConsoleUi.Log("audio processing:", $"time: {secs:F2}s, {bytes / 1024.0:F1}KB");
+                            }
+                            catch { Console.Error.WriteLine(line); }
+                        }
+                    }
+                    else if (line.StartsWith(">") || line.StartsWith("['") || line.StartsWith("[\""))
+                    {
+                        // Coqui internal prints (sentence splits, timing) — suppress
+                    }
+                    // else
+                    //     Console.Error.WriteLine(line);
+                    continue;
+                }
+
+                // Stdout lines below:
+
+                // Skip the handshake sentinel — EnsureRunningAsync already acted on it
                 if (line.Equals("READY", StringComparison.OrdinalIgnoreCase))
                     continue;
 
+                // Error completion: DONE:<id>
                 if (line.StartsWith("DONE:", StringComparison.OrdinalIgnoreCase))
                 {
                     var id = line.Substring(5).Trim();
                     if (_pending.TryRemove(id, out var tcs))
-                        tcs.TrySetException(new InvalidOperationException($"Python TTS request {id} completed with error."));
+                        tcs.TrySetException(new InvalidOperationException(
+                            $"Python TTS request '{id}' completed with error."));
                     continue;
                 }
 
-                // JSON response: { "id": "...", "path": "..." }
+                // Success completion: { "id": "...", "path": "..." }
                 if (line.StartsWith("{"))
                 {
                     try
@@ -200,15 +281,32 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
                         if (!string.IsNullOrEmpty(id) && _pending.TryRemove(id, out var tcs))
                         {
                             var path = root.GetProperty("path").GetString();
-                            tcs.TrySetResult(path ?? "");
+                            tcs.TrySetResult(path ?? string.Empty);
                         }
                     }
                     catch { /* ignore malformed JSON */ }
+                    continue;
                 }
+
+                // Python debug lines
+                if (line.StartsWith("[TTS-PY]"))
+                {
+                    //TODO: Write correct logs
+                    continue;
+                    Console.Error.WriteLine(line);
+                    continue;
+                }
+
+                // Catch-all: forward anything unrecognised so nothing is silently swallowed
+                Console.Error.WriteLine($"[TTS-PY?] {line}");
             }
         }
         catch (OperationCanceledException) { }
-        catch { FailPendingRequests(new InvalidOperationException("Python TTS read loop crashed.")); }
+        catch (Exception ex)
+        {
+            FailPendingRequests(new InvalidOperationException(
+                $"Python TTS {(isErrorStream ? "stderr" : "stdout")} read loop crashed: {ex.Message}"));
+        }
     }
 
     private void OnProcessExited(object? sender, EventArgs e)

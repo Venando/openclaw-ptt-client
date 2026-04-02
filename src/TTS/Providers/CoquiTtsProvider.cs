@@ -63,6 +63,11 @@ public sealed class CoquiTtsProvider : ITextToSpeech
                     "(e.g. C:/Users/eldve/AppData/Local/Programs/Python/Python311).");
             }
 
+            Console.Error.WriteLine($"[CoquiTtsProvider] START ttsExe={ttsExe}");
+            Console.Error.WriteLine($"[CoquiTtsProvider] args={args}");
+            Console.Error.WriteLine($"[CoquiTtsProvider] espeakNgPath={_espeakNgPath}");
+            Console.Error.WriteLine($"[CoquiTtsProvider] PATH env will include: {_espeakNgPath}");
+
             var psi = new ProcessStartInfo
             {
                 FileName = ttsExe,
@@ -79,11 +84,14 @@ public sealed class CoquiTtsProvider : ITextToSpeech
                 "Failed to start Coqui TTS process. Check EspeakNgPath in config " +
                 $"(currently: '{_espeakNgPath ?? "(not set)"}'). Ensure espeak-ng is installed and the path is correct.");
 
+            Console.Error.WriteLine($"[CoquiTtsProvider] process started, pid={process.Id}");
             await process.WaitForExitAsync(ct);
+            Console.Error.WriteLine($"[CoquiTtsProvider] process exited with code={process.ExitCode}");
 
             if (process.ExitCode != 0)
             {
                 var error = await process.StandardError.ReadToEndAsync(ct);
+                Console.Error.WriteLine($"[CoquiTtsProvider] stderr: {error}");
 
                 // Provide actionable hints based on error content
                 if (error.Contains("espeak", StringComparison.OrdinalIgnoreCase) ||
@@ -116,7 +124,9 @@ public sealed class CoquiTtsProvider : ITextToSpeech
                 throw new InvalidOperationException("Coqui TTS did not produce output file.");
             }
 
+            Console.Error.WriteLine($"[CoquiTtsProvider] reading output file size={new FileInfo(tempOutput).Length}");
             var audio = await File.ReadAllBytesAsync(tempOutput, ct);
+            Console.Error.WriteLine($"[CoquiTtsProvider] returning {audio.Length} bytes");
             return audio;
         }
         finally

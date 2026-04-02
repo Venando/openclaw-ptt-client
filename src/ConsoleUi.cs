@@ -170,10 +170,34 @@ public static class ConsoleUi
         Console.ForegroundColor = ConsoleColor.Red;
         Console.WriteLine($"\n  Gateway error: {message}");
         Console.ResetColor();
-        
+
         if (detailCode != null)
             Console.WriteLine($"  Detail code : {detailCode}");
         if (recommendedStep != null)
             Console.WriteLine($"  Recommended : {recommendedStep}");
+    }
+
+    public static void Log(string tag, string msg)
+    {
+        Console.ForegroundColor = ConsoleColor.DarkGray;
+        Console.Write($"  [{tag}] ");
+        Console.ResetColor();
+        Console.WriteLine(msg);
+    }
+
+    public static void LogOk(string tag, string msg)
+    {
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.Write($"  [{tag}] ");
+        Console.ResetColor();
+        Console.WriteLine(msg);
+    }
+
+    public static void LogError(string tag, string msg)
+    {
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.Write($"  [{tag}] ");
+        Console.ResetColor();
+        Console.WriteLine(msg);
     }
 }

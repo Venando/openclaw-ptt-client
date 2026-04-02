@@ -43,9 +43,6 @@ public sealed class GatewayService : IDisposable
     
     public async Task ConnectAsync(CancellationToken ct)
     {
-        Console.WriteLine($"  Device ID: {_device.DeviceId[..16]}…");
-        Console.WriteLine();
-        
         await _gatewayClient.ConnectAsync(ct);
     }
     

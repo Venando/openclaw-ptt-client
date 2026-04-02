@@ -22,7 +22,10 @@ public sealed class TtsService : IDisposable
 {
     private readonly ITextToSpeech? _provider;
     private readonly TtsProviderType _providerType;
+    private readonly CancellationTokenSource _cts = new();
     private bool _disposed;
+
+    public CancellationToken CancellationToken => _cts.Token;
     
     public TtsProviderType ProviderType => _providerType;
     public ITextToSpeech? Provider => _provider;
@@ -35,13 +38,18 @@ public sealed class TtsService : IDisposable
         _provider = _providerType switch
         {
             TtsProviderType.OpenAI => new Providers.OpenAiTtsProvider(config.TtsOpenAiApiKey ?? config.OpenAiApiKey ?? throw new InvalidOperationException("OpenAI API key not configured")),
-            TtsProviderType.Coqui => new Providers.CoquiTtsProvider(config.CoquiModelPath ?? "", config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits", config.PythonPath, config.EspeakNgPath),
+            TtsProviderType.Coqui => new Providers.PythonTtsProvider(
+                "",
+                config.PythonPath ?? "",
+                config.CoquiModelPath ?? "",
+                config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits",
+                config.EspeakNgPath),
             TtsProviderType.Piper => new Providers.PiperTtsProvider(config.PiperPath ?? "piper", config.PiperModelPath ?? "", config.PiperVoice ?? "en_US-lessac"),
             TtsProviderType.Edge => config.TtsSubscriptionKey != null
                 ? new Providers.EdgeTtsProvider(config.TtsSubscriptionKey, config.TtsRegion ?? "eastus")
                 : null,
             TtsProviderType.Python => new Providers.PythonTtsProvider(
-                config.TtsServiceScriptPath ?? throw new InvalidOperationException("tts_service.py path not configured"),
+                "",
                 config.PythonPath ?? "",
                 config.CoquiModelPath ?? "",
                 config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits"),
@@ -52,6 +60,9 @@ public sealed class TtsService : IDisposable
         {
             throw new InvalidOperationException($"Failed to initialize TTS provider: {_providerType}");
         }
+
+        if (_provider is Providers.PythonTtsProvider pythonProvider)
+            pythonProvider.InitializeAsync(_cts.Token).GetAwaiter().GetResult();
     }
 
     /// <summary>
@@ -101,6 +112,8 @@ public sealed class TtsService : IDisposable
     {
         if (!_disposed)
         {
+            _cts.Cancel();
+            _cts.Dispose();
             if (_provider is IAsyncDisposable asyncDisposable)
                 asyncDisposable.DisposeAsync().Preserve();
             else

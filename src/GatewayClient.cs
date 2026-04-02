@@ -80,18 +80,18 @@ public sealed class GatewayClient : IDisposable
         _ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
         var uri = new Uri(_cfg.GatewayUrl);
-        Log("gateway", $"Connecting to {uri} ...");
+        ConsoleUi.Log("gateway", $"Connecting to {uri} ...");
         await _ws.ConnectAsync(uri, ct);
-        Log("gateway", "WebSocket open.");
+        ConsoleUi.Log("gateway", "WebSocket open.");
 
         // start receive pump
         _recvTask = Task.Run(() => ReceiveLoop(ct), ct);
 
         // ── 1. wait for connect.challenge ──
-        Log("gateway", "Waiting for connect.challenge ...");
+        ConsoleUi.Log("gateway", "Waiting for connect.challenge ...");
         var challenge = await WaitForEventAsync("connect.challenge", TimeSpan.FromSeconds(10), ct);
         var nonce = challenge.GetProperty("nonce").GetString()!;
-        Log("gateway", $"Challenge nonce: {nonce[..12]}...");
+        ConsoleUi.Log("gateway", $"Challenge nonce: {nonce[..12]}...");
 
         // ── 2. build + sign connect request ──
         var authToken = _cfg.AuthToken ?? "";
@@ -111,7 +111,7 @@ public sealed class GatewayClient : IDisposable
             var redactedPayload = string.IsNullOrEmpty(authToken)
             ? sigPayload
             : sigPayload.Replace(authToken, "***REDACTED***");
-            Log("gateway", $"Signature payload: {redactedPayload}");
+            ConsoleUi.Log("gateway", $"Signature payload: {redactedPayload}");
         }
 
         var signature = _dev.Sign(sigPayload);
@@ -155,7 +155,7 @@ public sealed class GatewayClient : IDisposable
             LogMessage(connectParams);
         }
 
-        Log("gateway", "Sending connect ...");
+        ConsoleUi.Log("gateway", "Sending connect ...");
         JsonElement hello = await SendRequestAsync("connect", connectParams, ct);
         
 
@@ -164,7 +164,7 @@ public sealed class GatewayClient : IDisposable
         if (helloType != "hello-ok")
             throw new Exception($"Handshake rejected: {hello}");
 
-        LogOk("gateway", "Authenticated — hello-ok received.");
+        ConsoleUi.LogOk("gateway", "Authenticated — hello-ok received.");
 
         var options = new JsonSerializerOptions { WriteIndented = true };
         if (_cfg.LogHello)
@@ -184,7 +184,7 @@ public sealed class GatewayClient : IDisposable
         {
             _cfg.DeviceToken = dtEl.GetString();
             new ConfigManager().Save(_cfg);
-            Log("gateway", "Device token persisted.");
+            ConsoleUi.Log("gateway", "Device token persisted.");
         }
 
         if (hello.TryGetProperty("snapshot", out var snapshot))
@@ -203,7 +203,7 @@ public sealed class GatewayClient : IDisposable
                 && defaults.TryGetProperty("mainSessionKey", out var keyEl))
             {
                 _cfg.SessionKey = keyEl.GetString();
-                Log("gateway", $"Session initialized: {_cfg.SessionKey}");
+                ConsoleUi.Log("gateway", $"Session initialized: {_cfg.SessionKey}");
             }
         }
 
@@ -214,7 +214,7 @@ public sealed class GatewayClient : IDisposable
             tickMs = tEl.GetInt32();
 
         StartKeepalive(tickMs);
-        Log("gateway", $"Keepalive every {tickMs}ms.");
+        ConsoleUi.Log("gateway", $"Keepalive every {tickMs}ms.");
 
         var subscribeParams = new Dictionary<string, object?>
         {
@@ -248,7 +248,7 @@ public sealed class GatewayClient : IDisposable
         }
 
         var options = new JsonSerializerOptions { WriteIndented = true };
-        Log("gateway", $"Sending request:\n{JsonSerializer.Serialize(loggableParams, options)}");
+        ConsoleUi.Log("gateway", $"Sending request:\n{JsonSerializer.Serialize(loggableParams, options)}");
     }
 
     private static string Redact(string value)
@@ -309,7 +309,7 @@ public sealed class GatewayClient : IDisposable
         }
         catch (Exception ex)
         {
-            LogError("gateway", $"Error during disconnection handling: {ex.Message}");
+            ConsoleUi.LogError("gateway", $"Error during disconnection handling: {ex.Message}");
         }
     }
 
@@ -321,7 +321,7 @@ public sealed class GatewayClient : IDisposable
         {
             if (_isReconnecting) return;
             _isReconnecting = true;
-            Log("gateway", "Starting reconnection loop...");
+            ConsoleUi.Log("gateway", "Starting reconnection loop...");
             _reconnectTask = ReconnectLoopAsync(ct);
         }
         finally
@@ -336,14 +336,14 @@ public sealed class GatewayClient : IDisposable
         {
             // Wait for configured delay before attempting reconnect
             var delayMs = (int)(_cfg.ReconnectDelaySeconds * 1000);
-            Log("gateway", $"Waiting {_cfg.ReconnectDelaySeconds}s before reconnection attempt...");
+            ConsoleUi.Log("gateway", $"Waiting {_cfg.ReconnectDelaySeconds}s before reconnection attempt...");
             await Task.Delay(delayMs, ct);
             
-            Log("gateway", "Attempting to reconnect...");
+            ConsoleUi.Log("gateway", "Attempting to reconnect...");
             try
             {
                 await ConnectAsync(ct);
-                LogOk("gateway", "Reconnected successfully.");
+                ConsoleUi.LogOk("gateway", "Reconnected successfully.");
                 break; // success
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -353,7 +353,7 @@ public sealed class GatewayClient : IDisposable
             }
             catch (Exception ex)
             {
-                LogError("gateway", $"Reconnection failed: {ex.Message}");
+                ConsoleUi.LogError("gateway", $"Reconnection failed: {ex.Message}");
                 // Continue loop to retry after next delay
             }
         }
@@ -506,7 +506,7 @@ public sealed class GatewayClient : IDisposable
                     result = await _ws.ReceiveAsync(buf, ct);
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        Log("gateway", "Server closed connection.");
+                        ConsoleUi.Log("gateway", "Server closed connection.");
                         _ = HandleDisconnectionAsync(ct);
                         return;
                     }
@@ -514,7 +514,7 @@ public sealed class GatewayClient : IDisposable
 
                     // ── DEBUG: warn if we're hitting buffer limits ──
                     if (result.Count == buf.Length)
-                        LogError("gateway", $"WARNING: fragment filled buffer ({buf.Length} bytes) — consider increasing buffer size");
+                        ConsoleUi.LogError("gateway", $"WARNING: fragment filled buffer ({buf.Length} bytes) — consider increasing buffer size");
 
                 } while (!result.EndOfMessage);
 
@@ -529,12 +529,12 @@ public sealed class GatewayClient : IDisposable
         catch (OperationCanceledException) { }
         catch (WebSocketException ex)
         {
-            LogError("gateway", $"WebSocket error: {ex.Message}");
+            ConsoleUi.LogError("gateway", $"WebSocket error: {ex.Message}");
             _ = HandleDisconnectionAsync(ct);
         }
         catch (Exception ex) // ← you're missing this entirely
         {
-            LogError("gateway", $"ReceiveLoop unexpected error: {ex.GetType().Name}: {ex.Message}");
+            ConsoleUi.LogError("gateway", $"ReceiveLoop unexpected error: {ex.GetType().Name}: {ex.Message}");
             _ = HandleDisconnectionAsync(ct);
         }
     }
@@ -833,7 +833,7 @@ public sealed class GatewayClient : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    LogError("approval", ex.Message);
+                    ConsoleUi.LogError("approval", ex.Message);
                 }
             });
         }
@@ -860,32 +860,6 @@ public sealed class GatewayClient : IDisposable
                 catch { /* swallow tick failures */ }
             }
         }, ct);
-    }
-
-    // ─── helpers ────────────────────────────────────────────────────
-
-    private static void Log(string tag, string msg)
-    {
-        Console.ForegroundColor = ConsoleColor.DarkGray;
-        Console.Write($"  [{tag}] ");
-        Console.ResetColor();
-        Console.WriteLine(msg);
-    }
-
-    private static void LogOk(string tag, string msg)
-    {
-        Console.ForegroundColor = ConsoleColor.Green;
-        Console.Write($"  [{tag}] ");
-        Console.ResetColor();
-        Console.WriteLine(msg);
-    }
-
-    private static void LogError(string tag, string msg)
-    {
-        Console.ForegroundColor = ConsoleColor.Red;
-        Console.Write($"  [{tag}] ");
-        Console.ResetColor();
-        Console.WriteLine(msg);
     }
 
     public void Dispose()
