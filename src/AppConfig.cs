@@ -69,6 +69,7 @@ public sealed class AppConfig
     public string? TtsOpenAiApiKey { get; set; }
     public string? TtsSubscriptionKey { get; set; }
     public string? TtsRegion { get; set; }
+    public string? TtsServiceScriptPath { get; set; }
     public string? TtsVoice { get; set; }  // Provider-specific voice name
     public string? TtsModel { get; set; }  // Provider-specific model
 
