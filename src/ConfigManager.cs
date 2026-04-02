@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -38,6 +38,16 @@ public sealed class ConfigManager
             {
                 config.VisualFeedbackEnabled = false;
                 config.VisualMode = VisualMode.SolidDot;
+            }
+
+            // Set platform-specific default for EspeakNgPath if not configured
+            if (string.IsNullOrEmpty(config.EspeakNgPath))
+            {
+                config.EspeakNgPath = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                    ? @"C:\Program Files\eSpeak NG"
+                    : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+                        ? "/opt/homebrew/bin/espeak-ng"
+                        : "/usr/bin/espeak-ng";
             }
         }
         return config;

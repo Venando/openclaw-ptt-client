@@ -642,12 +642,31 @@ public sealed class GatewayClient : IDisposable
                 var text = textEl.GetString() ?? string.Empty;
                 if (!string.IsNullOrEmpty(text))
                 {
+                    var (hasAudio, hasText, audioText, textContent) = ExtractMarkedContent(text);
+                    if (hasAudio)
+                        AgentReplyAudio?.Invoke(audioText);
                     if (!startFired)
                     {
                         AgentReplyDeltaStart?.Invoke();
                         startFired = true;
                     }
-                    AgentReplyFull?.Invoke(text);
+                    if (hasText)
+                        AgentReplyFull?.Invoke(textContent);
+                    else if (hasAudio)
+                        AgentReplyFull?.Invoke(StripAudioTags(text));
+                }
+            }
+            else if (type == "audio" && block.TryGetProperty("audio", out var audioEl))
+            {
+                var audioText = audioEl.GetString() ?? string.Empty;
+                if (!string.IsNullOrEmpty(audioText))
+                {
+                    if (!startFired)
+                    {
+                        AgentReplyDeltaStart?.Invoke();
+                        startFired = true;
+                    }
+                    AgentReplyAudio?.Invoke(audioText);
                 }
             }
             else
@@ -728,46 +747,60 @@ public sealed class GatewayClient : IDisposable
     /// <summary>
     /// Extracts content from [audio] and [text] markers in the message.
     /// Returns (hasAudioContent, hasTextContent, audioText, textContent).
+    /// Handles partial tags: if [audio] has no closing tag, treats everything after it as audio content.
     /// </summary>
     private (bool hasAudio, bool hasText, string audioText, string textContent) ExtractMarkedContent(string fullMessage)
     {
         var audioText = string.Empty;
         var textContent = string.Empty;
 
-        // Extract [audio] content
+        // Extract [audio] content — require closing tag
         var audioMatch = System.Text.RegularExpressions.Regex.Match(fullMessage, @"\[audio\](.*?)\[/audio\]", System.Text.RegularExpressions.RegexOptions.Singleline);
         if (audioMatch.Success)
         {
             audioText = audioMatch.Groups[1].Value.Trim();
         }
+        else
+        {
+            // No closing tag — treat everything from [audio] onwards as audio content
+            var openTagIndex = fullMessage.IndexOf("[audio]", StringComparison.OrdinalIgnoreCase);
+            if (openTagIndex >= 0)
+            {
+                audioText = fullMessage.Substring(openTagIndex + 7).Trim();
+            }
+        }
 
-        // Extract [text] content
+        // Extract [text] content — require closing tag
         var textMatch = System.Text.RegularExpressions.Regex.Match(fullMessage, @"\[text\](.*?)\[/text\]", System.Text.RegularExpressions.RegexOptions.Singleline);
         if (textMatch.Success)
         {
             textContent = textMatch.Groups[1].Value.Trim();
         }
+        else
+        {
+            // No closing tag — treat everything from [text] onwards as text content
+            var openTagIndex = fullMessage.IndexOf("[text]", StringComparison.OrdinalIgnoreCase);
+            if (openTagIndex >= 0)
+            {
+                textContent = fullMessage.Substring(openTagIndex + 6).Trim();
+            }
+        }
 
         // If no markers found, treat the entire message as text content
         if (string.IsNullOrEmpty(audioText) && string.IsNullOrEmpty(textContent) && !string.IsNullOrEmpty(fullMessage))
         {
-            // Check if full message starts with either marker tag (without closing tag)
-            if (fullMessage.StartsWith("[audio]", StringComparison.OrdinalIgnoreCase))
-            {
-                audioText = fullMessage.Substring(7).Trim();
-            }
-            else if (fullMessage.StartsWith("[text]", StringComparison.OrdinalIgnoreCase))
-            {
-                textContent = fullMessage.Substring(6).Trim();
-            }
-            else
-            {
-                // Default: treat as text content
-                textContent = fullMessage;
-            }
+            textContent = fullMessage;
         }
 
         return (!string.IsNullOrEmpty(audioText), !string.IsNullOrEmpty(textContent), audioText, textContent);
+    }
+
+    /// <summary>
+    /// Strips [audio]...[/audio] tags from text for display purposes, replacing them with the audio content.
+    /// </summary>
+    private static string StripAudioTags(string text)
+    {
+        return System.Text.RegularExpressions.Regex.Replace(text, @"\[audio\](.*?)\[/audio\]", "$1", System.Text.RegularExpressions.RegexOptions.Singleline).Trim();
     }
 
     private void HandleApprovalRequest(JsonElement payload)

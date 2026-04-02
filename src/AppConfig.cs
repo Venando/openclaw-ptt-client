@@ -40,6 +40,10 @@ public sealed class AppConfig
     public bool ShowThinking { get; set; } = false;
     public bool DebugToolCalls { get; set; } = false;
     public string TranscriptionPromptPrefix { get; set; } = "[The following text is a raw speech-to-text transcription]: ";
+    public string AudioWrapPrompt { get; set; } = "[Wrap spoken content in [audio]...[/audio] tags. Example: [audio]Hello[/audio] how [audio]are you[/audio]?]";
+
+    [JsonIgnore]
+    public bool IsAudioEnabled => AudioResponseMode?.ToLowerInvariant() != "text-only";
     public int GroqRetryCount { get; set; } = 0;
     public int GroqRetryDelayMs { get; set; } = 1000;
     public double GroqRetryBackoffFactor { get; set; } = 2.0;
@@ -71,11 +75,15 @@ public sealed class AppConfig
     // Coqui TTS settings
     public string? CoquiModelPath { get; set; }
     public string? CoquiModelName { get; set; }
+    public string? PythonPath { get; set; }
 
     // Piper TTS settings
     public string? PiperPath { get; set; }
     public string? PiperModelPath { get; set; }
     public string? PiperVoice { get; set; }
+
+    // eSpeak NG path for Coqui TTS (platform-specific default)
+    public string? EspeakNgPath { get; set; }
 
     // Audio response settings
     public string AudioResponseMode { get; set; } = "text-only"; // text-only, audio-only, both

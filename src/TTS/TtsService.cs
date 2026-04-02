@@ -1,8 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace OpenClawPTT.TTS;
 
 /// <summary>
 /// TTS provider types
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum TtsProviderType
 {
     OpenAI,
@@ -19,7 +22,7 @@ public sealed class TtsService : IDisposable
     private readonly ITextToSpeech? _provider;
     private readonly TtsProviderType _providerType;
     private bool _disposed;
-
+    
     public TtsProviderType ProviderType => _providerType;
     public ITextToSpeech? Provider => _provider;
     public bool IsConfigured => _provider != null;
@@ -31,7 +34,7 @@ public sealed class TtsService : IDisposable
         _provider = _providerType switch
         {
             TtsProviderType.OpenAI => new Providers.OpenAiTtsProvider(config.TtsOpenAiApiKey ?? config.OpenAiApiKey ?? throw new InvalidOperationException("OpenAI API key not configured")),
-            TtsProviderType.Coqui => new Providers.CoquiTtsProvider(config.CoquiModelPath ?? "", config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits谈"),
+            TtsProviderType.Coqui => new Providers.CoquiTtsProvider(config.CoquiModelPath ?? "", config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits", config.PythonPath, config.EspeakNgPath),
             TtsProviderType.Piper => new Providers.PiperTtsProvider(config.PiperPath ?? "piper", config.PiperModelPath ?? "", config.PiperVoice ?? "en_US-lessac"),
             TtsProviderType.Edge => config.TtsSubscriptionKey != null
                 ? new Providers.EdgeTtsProvider(config.TtsSubscriptionKey, config.TtsRegion ?? "eastus")

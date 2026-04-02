@@ -168,7 +168,7 @@ internal static class Program
                     var transcribed = await audioService.StopAndTranscribeAsync(ct);
                     if (transcribed != null)
                     {
-                        await SendTextToGatewayAsync(gateway,
+                        await SendTextToGatewayAsync(gateway, cfg,
                             cfg.TranscriptionPromptPrefix + transcribed, ct);
                     }
                 }
@@ -193,13 +193,19 @@ internal static class Program
         var transcribed = await audioService.StopAndTranscribeAsync(ct);
         if (transcribed != null)
         {
-            await SendTextToGatewayAsync(gateway,
+            await SendTextToGatewayAsync(gateway, cfg,
                 cfg.TranscriptionPromptPrefix + transcribed, ct);
         }
     }
 
-    private static async Task SendTextToGatewayAsync(GatewayService gateway, string text, CancellationToken ct)
+    private static async Task SendTextToGatewayAsync(GatewayService gateway, AppConfig cfg, string text, CancellationToken ct)
     {
+        // Prepend audio wrap prompt when TTS is enabled
+        if (cfg.IsAudioEnabled && !string.IsNullOrEmpty(cfg.AudioWrapPrompt))
+        {
+            text = cfg.AudioWrapPrompt + "\n\n" + text;
+        }
+
         ConsoleUi.PrintInlineInfo("Sending… ");
         try
         {
