@@ -68,3 +68,16 @@ class TestCoquiTTSEngine:
         except Exception:
             pass  # May fail if TTS not installed, but _load should have been called
         engine._load.assert_called_once()
+
+    def test_tts_to_file_passes_voice_to_underlying_tts(self, mock_clock, mock_log):
+        """Verify voice is forwarded as speaker_wav to the underlying TTS library."""
+        from engine import CoquiTTSEngine
+        mock_tts_instance = MagicMock()
+        engine = CoquiTTSEngine("test_model", mock_clock, mock_log)
+        engine._tts = mock_tts_instance
+        engine.tts_to_file("hello", "/tmp/test.wav", voice="/path/to/ref.wav")
+        mock_tts_instance.tts_to_file.assert_called_once_with(
+            text="hello",
+            file_path="/tmp/test.wav",
+            speaker_wav="/path/to/ref.wav",
+        )

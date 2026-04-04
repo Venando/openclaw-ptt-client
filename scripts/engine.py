@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 # ── TTS Engine abstraction ──────────────────────────────────────────────────────
 class TTSEngine(ABC):
     @abstractmethod
-    def tts_to_file(self, text: str, file_path: str) -> None:
+    def tts_to_file(self, text: str, file_path: str, voice: str | None = None, model: str | None = None) -> None:
         ...
 
     @abstractmethod
@@ -64,11 +64,14 @@ class CoquiTTSEngine(TTSEngine):
 
         self._log.info(f"Model loaded successfully: {self._model_name}")
 
-    def tts_to_file(self, text: str, file_path: str) -> None:
+    def tts_to_file(self, text: str, file_path: str, voice: str | None = None, model: str | None = None) -> None:
         self._load()
         if self._tts is None:
             raise RuntimeError("No TTS model loaded")
-        self._tts.tts_to_file(text=text, file_path=file_path)
+        # voice maps to speaker_wav for multi-speaker models (e.g. xtts);
+        # model param is available for future runtime switching but requires
+        # reloading the engine, so for now it is accepted but ignored here.
+        self._tts.tts_to_file(text=text, file_path=file_path, speaker_wav=voice)
 
     def ensure_ready(self) -> None:
         """Load the model and raise on failure. Safe to call multiple times."""

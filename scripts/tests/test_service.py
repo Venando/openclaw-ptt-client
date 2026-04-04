@@ -92,6 +92,35 @@ class TestHandleRequest:
             service.handle_request({"id": "test789", "text": "Hello world"})
             mock_tts.tts_to_file.assert_called_once()
 
+    def test_valid_request_forwards_voice_and_model(self, mock_env, mock_fs, mock_clock, mock_stream, mock_log):
+        """Verify voice and model from the request are forwarded to tts_to_file."""
+        mock_tts = MagicMock()
+        # mock_fs generates temp paths like temp_1.wav, temp_2.wav internally
+        mock_fs._temp_dir = "/tmp"
+        expected_path = "/tmp/temp_1.wav"
+        mock_fs._files[expected_path] = b"fake audio data"
+
+        mock_temp_file = MagicMock()
+        mock_temp_file.name = expected_path
+        mock_temp_file.__enter__ = MagicMock(return_value=mock_temp_file)
+        mock_temp_file.__exit__ = MagicMock(return_value=False)
+
+        with patch.object(service, "env", mock_env), \
+             patch.object(service, "fs", mock_fs), \
+             patch.object(service, "clock", mock_clock), \
+             patch.object(service, "io", mock_stream), \
+             patch.object(service, "log", mock_log), \
+             patch.object(service, "tts", mock_tts), \
+             patch("tempfile.NamedTemporaryFile", return_value=mock_temp_file):
+
+            service.handle_request({"id": "req_voice", "text": "Hello", "voice": "/path/to/ref.wav", "model": "my_model"})
+            mock_tts.tts_to_file.assert_called_once_with(
+                text="Hello",
+                file_path=expected_path,
+                voice="/path/to/ref.wav",
+                model="my_model",
+            )
+
 
 class TestStart:
     """Tests for start function."""

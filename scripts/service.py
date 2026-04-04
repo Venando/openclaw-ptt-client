@@ -57,6 +57,8 @@ def start() -> None:
 def handle_request(data: dict) -> None:
     req_id = data.get("id", "unknown")
     text = data.get("text")
+    voice = data.get("voice")
+    model = data.get("model")
 
     if not text:
         sendProtocol({"type": "error", "id": req_id, "msg": "Missing required field: text"})
@@ -72,7 +74,7 @@ def handle_request(data: dict) -> None:
 
         t0 = clock.monotonic()
         with _stdout_to_stderr():
-            tts.tts_to_file(text=text, file_path=out_path)
+            tts.tts_to_file(text=text, file_path=out_path, voice=voice, model=model)
 
         file_size = fs.getsize(out_path)
         elapsed = clock.monotonic() - t0

@@ -14,6 +14,7 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
     private readonly string? _serviceScriptPathOverride;
     private readonly PythonEnvironment _environment;
     private readonly bool _debugLog;
+    private readonly TimeSpan _synthesisTimeout;
 
     private Process? _process;
     private readonly SemaphoreSlim _sem = new(1, 1);
@@ -28,11 +29,12 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
 
     public IReadOnlyList<string> AvailableModels { get; } = Array.Empty<string>();
 
-    public PythonTtsProvider(string? serviceScriptPathOverride, string pythonPath, string modelPath, string modelName, string? espeakNgPath = null, bool debugLog = false)
+    public PythonTtsProvider(string? serviceScriptPathOverride, string pythonPath, string modelPath, string modelName, string? espeakNgPath = null, bool debugLog = false, TimeSpan? requestTimeout = null)
     {
         _serviceScriptPathOverride = serviceScriptPathOverride;
         _environment = new PythonEnvironment(pythonPath, modelName, espeakNgPath);
         _debugLog = debugLog;
+        _synthesisTimeout = requestTimeout ?? TimeSpan.FromSeconds(30);
     }
 
     public async Task InitializeAsync(CancellationToken ct = default)
@@ -64,7 +66,7 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
 
             try
             {
-                var request = new { text, id };
+                var request = new { text, id, voice, model };
                 var line = JsonSerializer.Serialize(request) + "\n";
                 var textPreview = text?.Substring(0, Math.Min(50, text.Length)) ?? "(null)";
                 await _process!.StandardInput.WriteAsync(line);
@@ -79,7 +81,7 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
             string audioPath;
             try
             {
-                audioPath = await tcs.Task.WaitAsync(ct);
+                audioPath = await tcs.Task.WaitAsync(_synthesisTimeout, ct);
             }
             catch (TaskCanceledException)
             {
@@ -142,12 +144,6 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
             readyLine = await ReadLineAsync(_process.StandardOutput, linked.Token);
             if (IsReadyLine(readyLine ?? ""))
                 break;
-        }
-
-        if (linked.Token.IsCancellationRequested)
-        {
-            // Is it correct exit?
-            return;
         }
 
         if (readyLine == null || !IsReadyLine(readyLine))
