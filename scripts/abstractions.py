@@ -116,6 +116,14 @@ def send(obj: dict) -> None:
     io.write_json(obj)
 
 
+def sendProtocol(msg: dict) -> None:
+    """Send a structured JSON protocol message to stdout.
+    All protocol messages (ready, done, ok) use this to ensure
+    C# can dispatch by the 'type' field without string heuristics.
+    """
+    io.write_json(msg)
+
+
 @contextlib.contextmanager
 def _stdout_to_stderr():
     """Redirect stdout to stderr during TTS synthesis.

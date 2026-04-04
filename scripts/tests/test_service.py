@@ -2,8 +2,8 @@
 Tests for service.py — request handling and main loop.
 
 Covered:
-- handle_request with missing text → error response + DONE
-- handle_request with no TTS model loaded → error response + DONE
+- handle_request with missing text → sendProtocol({"type": "error", ...})
+- handle_request with no TTS model loaded → sendProtocol({"type": "error", ...})
 - handle_request with valid request → calls tts.tts_to_file()
 - start() sets _started flag and loads CoquiTTSEngine once (idempotent)
 - run() main loop: processes JSON lines, handles invalid JSON, stops on EXIT
@@ -21,6 +21,7 @@ Key design decisions:
 - patching sys.stdin directly for run() tests bypasses pytest's stdin capture.
 - abstractions.io._stdout is patched directly because StreamIO stores the reference
   at instantiation time — patching sys.stdout does not affect an already-created StreamIO.
+- All protocol messages now use sendProtocol({"type": "..."}) — the "type" field drives C# dispatch.
 """
 
 import pytest
@@ -36,21 +37,22 @@ import service
 class TestHandleRequest:
     """Tests for handle_request function."""
 
-    def test_missing_text_returns_error_and_done(self, mock_env, mock_fs, mock_clock, mock_stream, mock_log):
+    def test_missing_text_returns_error(self, mock_env, mock_fs, mock_clock, mock_stream, mock_log):
         with patch.object(service, "env", mock_env), \
              patch.object(service, "fs", mock_fs), \
              patch.object(service, "clock", mock_clock), \
              patch.object(service, "io", mock_stream), \
              patch.object(service, "log", mock_log), \
              patch.object(service, "tts", None), \
-             patch.object(service, "send") as mock_send:
+             patch.object(service, "sendProtocol") as mock_sendProtocol:
 
             service.handle_request({"id": "test123"})
 
-            assert mock_send.called
-            call_args = mock_send.call_args[0][0]
+            mock_sendProtocol.assert_called_once()
+            call_args = mock_sendProtocol.call_args[0][0]
+            assert call_args["type"] == "error"
             assert call_args["id"] == "test123"
-            assert "error" in call_args
+            assert "text" in call_args["msg"].lower()
 
     def test_no_tts_model_returns_error(self, mock_env, mock_fs, mock_clock, mock_stream, mock_log):
         with patch.object(service, "env", mock_env), \
@@ -59,14 +61,14 @@ class TestHandleRequest:
              patch.object(service, "io", mock_stream), \
              patch.object(service, "log", mock_log), \
              patch.object(service, "tts", None), \
-             patch.object(service, "send") as mock_send:
+             patch.object(service, "sendProtocol") as mock_sendProtocol:
 
             service.handle_request({"id": "test456", "text": "Hello world"})
 
-            assert mock_send.called
-            call_args = mock_send.call_args[0][0]
+            mock_sendProtocol.assert_called_once()
+            call_args = mock_sendProtocol.call_args[0][0]
+            assert call_args["type"] == "error"
             assert call_args["id"] == "test456"
-            assert "error" in call_args
 
     def test_valid_request_calls_tts(self, mock_env, mock_fs, mock_clock, mock_stream, mock_log, tmp_path):
         mock_tts = MagicMock()
@@ -144,6 +146,12 @@ class TestRun:
         service.tts = MagicMock()
 
         test_input = StringIO('{"id": "req1", "text": "Hello"}\n{"id": "req2", "text": "World"}\nEXIT\n')
+        captured_stdout = StringIO()
+
+        # sendProtocol uses abstractions.io (captured at import time), not service.io.
+        # Patch abstractions.io._stdout directly so print() output goes to our buffer.
+        import abstractions
+        orig_stdout = abstractions.io._stdout
 
         with patch.object(service, "env", mock_env), \
              patch.object(service, "fs", mock_fs), \
@@ -152,11 +160,17 @@ class TestRun:
              patch.object(service, "log", mock_log), \
              patch.object(sys, "stdin", test_input):
 
-            service.run()
+            abstractions.io._stdout = captured_stdout
+            try:
+                service.run()
+            finally:
+                abstractions.io._stdout = orig_stdout
 
-            output = mock_stream.get_stdout()
-            assert "DONE:req1" in output
-            assert "DONE:req2" in output
+            # Protocol now uses sendProtocol({"type": "ok", "id": "...", "path": "..."})
+            output = captured_stdout.getvalue()
+            assert '"type": "ok"' in output
+            assert '"id": "req1"' in output
+            assert '"id": "req2"' in output
 
     def test_run_handles_invalid_json(self, mock_env, mock_fs, mock_clock, mock_stream, mock_log):
         service._started = True
@@ -191,6 +205,10 @@ class TestRun:
         service.tts = MagicMock()
 
         test_input = StringIO('{"id": "req1", "text": "Hello"}\nEXIT\n{"id": "req2", "text": "Should not process"}\n')
+        captured_stdout = StringIO()
+
+        import abstractions
+        orig_stdout = abstractions.io._stdout
 
         with patch.object(service, "env", mock_env), \
              patch.object(service, "fs", mock_fs), \
@@ -199,9 +217,14 @@ class TestRun:
              patch.object(service, "log", mock_log), \
              patch.object(sys, "stdin", test_input):
 
-            service.run()
+            abstractions.io._stdout = captured_stdout
+            try:
+                service.run()
+            finally:
+                abstractions.io._stdout = orig_stdout
 
-            output = mock_stream.get_stdout()
-            assert "DONE:req1" in output
+            # Protocol now uses sendProtocol({"type": "ok", ...})
+            output = captured_stdout.getvalue()
+            assert '"id": "req1"' in output
             # req2 should not be processed (EXIT stops the loop)
             assert "req2" not in output

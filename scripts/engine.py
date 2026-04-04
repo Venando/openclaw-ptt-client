@@ -51,7 +51,7 @@ class CoquiTTSEngine(TTSEngine):
             self._log.info(f"TTS loaded on CUDA in {self._clock.monotonic() - t0:.1f}s")
 
         except Exception as cuda_err:
-            self._log.warning(f"FALLBACK_REASON: CUDA initialization failed ({cuda_err}). Switching to CPU.")
+            self._log.warning("CUDA unavailable, using CPU")
             if can_use_cuda:
                 try:
                     torch.cuda.empty_cache()

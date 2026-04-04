@@ -7,7 +7,7 @@ import sys
 from datetime import datetime
 
 from abstractions import (
-    log, env, fs, clock, io, send, _stdout_to_stderr,
+    log, env, fs, clock, io, send, sendProtocol, _stdout_to_stderr,
 )
 from engine import CoquiTTSEngine
 
@@ -46,7 +46,7 @@ def start() -> None:
         try:
             engine.ensure_ready()
             tts = engine
-            io.write_raw("READY")
+            sendProtocol({"type": "ready"})
         except Exception as e:
             log.exception(f"Critical failure: could not load TTS model on GPU or CPU: {e}")
             send({"error": f"Failed to load TTS model: {e}"})
@@ -59,13 +59,11 @@ def handle_request(data: dict) -> None:
     text = data.get("text")
 
     if not text:
-        send({"id": req_id, "error": "Missing required field: text"})
-        io.write_raw(f"DONE:{req_id}")
+        sendProtocol({"type": "error", "id": req_id, "msg": "Missing required field: text"})
         return
 
     if tts is None:
-        send({"id": req_id, "error": "No TTS model loaded"})
-        io.write_raw(f"DONE:{req_id}")
+        sendProtocol({"type": "error", "id": req_id, "msg": "No TTS model loaded"})
         return
 
     try:
@@ -79,13 +77,11 @@ def handle_request(data: dict) -> None:
         file_size = fs.getsize(out_path)
         elapsed = clock.monotonic() - t0
         log.info(__import__('json').dumps({"perf": True, "id": req_id, "bytes": file_size, "time": round(elapsed, 2)}))
-        send({"id": req_id, "path": out_path})
-        io.write_raw(f"DONE:{req_id}")
+        sendProtocol({"type": "ok", "id": req_id, "path": out_path})
 
     except Exception:
         log.exception(f"Request {req_id} failed")
-        send({"id": req_id, "error": "TTS synthesis failed"})
-        io.write_raw(f"DONE:{req_id}")
+        sendProtocol({"type": "error", "id": req_id, "msg": "TTS synthesis failed"})
 
 
 # ── Main stdin loop ────────────────────────────────────────────────────────────
@@ -104,5 +100,4 @@ def run() -> None:
                 req_id = __import__('json').loads(line[:256]).get("id", "unknown")
             except Exception:
                 req_id = "unknown"
-            send({"id": req_id, "error": f"Invalid JSON: {line[:100]}"})
-            io.write_raw(f"DONE:{req_id}")
+            sendProtocol({"type": "error", "id": req_id, "msg": f"Invalid JSON: {line[:100]}"})
