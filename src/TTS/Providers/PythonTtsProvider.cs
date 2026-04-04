@@ -10,28 +10,8 @@ namespace OpenClawPTT.TTS.Providers;
 /// </summary>
 public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
 {
-    private readonly string _pythonPath;
-    private readonly string _modelPath;
-    private readonly string _modelName;
-    private readonly string _serviceScriptPath;
-
-    /*
-    
-    TODO: LOAD from memory
-
-If you want extra confidence, just embed the script as a resource instead of a loose file:
-xml<ItemGroup>
-  <EmbeddedResource Include="tts_service.py" />
-</ItemGroup>
-Then extract and run it from memory:
-csharpvar asm = Assembly.GetExecutingAssembly();
-using var stream = asm.GetManifestResourceStream("OpenClawPTT.tts_service.py")!;
-var tempPath = Path.Combine(Path.GetTempPath(), "tts_service.py");
-using var file = File.Create(tempPath);
-await stream.CopyToAsync(file);
-    */
-    private static readonly string s_defaultScriptPath = Path.Combine(AppContext.BaseDirectory, "tts_service.py");
-    private readonly string _espeakNgPath;
+    private readonly string? _serviceScriptPathOverride;
+    private readonly PythonEnvironment _environment;
     private readonly bool _debugLog;
 
     private Process? _process;
@@ -40,6 +20,7 @@ await stream.CopyToAsync(file);
     private CancellationTokenSource? _readCts;
     private readonly object _lock = new();
     private bool _disposed;
+    private string? _pendingError;
 
     public string ProviderName => "Python TTS";
 
@@ -47,13 +28,10 @@ await stream.CopyToAsync(file);
 
     public IReadOnlyList<string> AvailableModels { get; } = Array.Empty<string>();
 
-    public PythonTtsProvider(string serviceScriptPath, string pythonPath, string modelPath, string modelName, string? espeakNgPath = null, bool debugLog = false)
+    public PythonTtsProvider(string? serviceScriptPathOverride, string pythonPath, string modelPath, string modelName, string? espeakNgPath = null, bool debugLog = false)
     {
-        _serviceScriptPath = !string.IsNullOrEmpty(serviceScriptPath) ? serviceScriptPath : s_defaultScriptPath;
-        _pythonPath = pythonPath;
-        _modelPath = modelPath;
-        _modelName = modelName;
-        _espeakNgPath = espeakNgPath ?? "";
+        _serviceScriptPathOverride = serviceScriptPathOverride;
+        _environment = new PythonEnvironment(pythonPath, modelName, espeakNgPath);
         _debugLog = debugLog;
     }
 
@@ -147,23 +125,7 @@ await stream.CopyToAsync(file);
         _readCts?.Dispose();
         _readCts = new CancellationTokenSource();
 
-        var pythonExe = ResolvePython();
-
-        var psi = new ProcessStartInfo
-        {
-            FileName = pythonExe,
-            Arguments = $"-u \"{_serviceScriptPath}\"",
-            UseShellExecute = false,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8,
-        };
-        if (!string.IsNullOrEmpty(_espeakNgPath))
-            psi.Environment["PATH"] = _espeakNgPath + ";" + psi.Environment["PATH"];
-        if (!string.IsNullOrEmpty(_modelName))
-            psi.Environment["TTS_MODEL"] = _modelName;
+        var psi = _environment.CreateProcessStartInfo(_serviceScriptPathOverride);
 
         _process = new Process { StartInfo = psi, EnableRaisingEvents = true };
         _process.Exited += OnProcessExited;
@@ -229,9 +191,7 @@ await stream.CopyToAsync(file);
                 // Stderr lines: only care about warnings/fallback signals
                 if (isErrorStream)
                 {
-                    if (line.Contains("FALLBACK_REASON"))
-                        ConsoleUi.PrintWarning($"TTS Performance Alert: {line}");
-                    else if (line.Contains("\"perf\":true"))
+                    if (line.Contains("\"perf\":true"))
                     {
                         var jsonStart = line.IndexOf('{');
                         if (jsonStart >= 0)
@@ -246,6 +206,21 @@ await stream.CopyToAsync(file);
                             }
                             catch { Console.Error.WriteLine(line); }
                         }
+                        continue;
+                    }
+                    else if (line.Contains("FALLBACK_REASON"))
+                    {
+                        // Strip Python's "WARNING: " prefix to avoid doubling
+                        var colon = line.IndexOf(": ");
+                        var stripped = colon >= 0 ? line[(colon + 2)..] : line;
+                        ConsoleUi.PrintWarning($"TTS Performance Alert: {stripped}");
+                        continue;
+                    }
+                    else if (line.StartsWith("INFO:"))
+                    {
+                        // Python startup/config INFO lines — suppress unless debug logging
+                        if (_debugLog) Console.Error.WriteLine(line);
+                        continue;
                     }
                     else if (line.StartsWith(">") || line.StartsWith("['") || line.StartsWith("[\""))
                     {
@@ -253,6 +228,18 @@ await stream.CopyToAsync(file);
                     }
                     else if (_debugLog)
                         Console.Error.WriteLine(line);
+
+                    // Not Coqui noise — fall through to the error accumulator
+                    if (!string.IsNullOrEmpty(_pendingError))
+                        _pendingError += "\n" + line;
+                    else
+                        _pendingError = line;
+
+                    if (line[^1] == '.' || line[^1] == ':' || !char.IsLetter(line[^1]))
+                    {
+                        ConsoleUi.PrintError(_pendingError);
+                        _pendingError = null;
+                    }
                     continue;
                 }
 
@@ -290,17 +277,31 @@ await stream.CopyToAsync(file);
                     continue;
                 }
 
-                // Python debug lines
-                if (line.StartsWith("[TTS-PY]"))
+                // Python debug/error lines (stderr)
+                if (line.StartsWith("ERROR:") || line.StartsWith("CRITICAL:"))
                 {
-                    //TODO: Write correct logs
-                    continue;
-                    Console.Error.WriteLine(line);
+                    _pendingError = line;
                     continue;
                 }
-
-                // Catch-all: forward anything unrecognised so nothing is silently swallowed
-                Console.Error.WriteLine($"[TTS-PY?] {line}");
+                if (_pendingError != null)
+                {
+                    _pendingError += "\n" + line;
+                    if (line[^1] == '.' || !char.IsLetter(line[^1]))
+                    {
+                        ConsoleUi.PrintError(_pendingError);
+                        _pendingError = null;
+                    }
+                    continue;
+                }
+                if (line.StartsWith("WARNING:"))
+                {
+                    ConsoleUi.PrintWarning(line);
+                }
+                else if (_debugLog || line.StartsWith("INFO:"))
+                {
+                    ConsoleUi.Log("python_tts", line);
+                }
+                continue;
             }
         }
         catch (OperationCanceledException) { }
@@ -320,29 +321,6 @@ await stream.CopyToAsync(file);
     {
         foreach (var kvp in _pending)
             kvp.Value.TrySetException(ex);
-    }
-
-    private string ResolvePython()
-    {
-        if (!string.IsNullOrEmpty(_pythonPath))
-        {
-            var pythonExe = Path.Combine(_pythonPath, "python.exe");
-            if (File.Exists(pythonExe))
-                return pythonExe;
-            pythonExe = Path.Combine(_pythonPath, "Scripts", "python.exe");
-            if (File.Exists(pythonExe))
-                return pythonExe;
-        }
-
-        var envPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-        foreach (var dir in envPath.Split(Path.PathSeparator))
-        {
-            var exe = Path.Combine(dir, "python.exe");
-            if (File.Exists(exe))
-                return exe;
-        }
-
-        return "python";
     }
 
     public async ValueTask DisposeAsync()
