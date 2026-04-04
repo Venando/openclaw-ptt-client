@@ -11,16 +11,20 @@ public sealed class PythonEnvironment
 {
     private readonly string _pythonPath;
     private readonly string _modelName;
+    private readonly string? _modelPath;
+    private readonly string? _ttsConfigPath;
     private readonly string? _espeakNgPath;
 
     private static bool s_extracted;
     private static readonly string s_scriptFolder = Path.Combine(Path.GetTempPath(), "openclaw-ptt-tts", "scripts");
     private static readonly string s_mainScript = Path.Combine(s_scriptFolder, "tts_service.py");
 
-    public PythonEnvironment(string pythonPath, string modelName, string? espeakNgPath)
+    public PythonEnvironment(string pythonPath, string modelName, string? modelPath, string? ttsConfigPath, string? espeakNgPath)
     {
         _pythonPath = pythonPath;
         _modelName = modelName;
+        _modelPath = modelPath;
+        _ttsConfigPath = ttsConfigPath;
         _espeakNgPath = espeakNgPath;
     }
 
@@ -91,6 +95,10 @@ public sealed class PythonEnvironment
             psi.Environment["PATH"] = _espeakNgPath + ";" + psi.Environment["PATH"];
         if (!string.IsNullOrEmpty(_modelName))
             psi.Environment["TTS_MODEL"] = _modelName;
+        if (!string.IsNullOrEmpty(_modelPath))
+            psi.Environment["TTS_MODEL_PATH"] = _modelPath;
+        if (!string.IsNullOrEmpty(_ttsConfigPath))
+            psi.Environment["TTS_CONFIG_PATH"] = _ttsConfigPath;
     }
 
     private static void ExtractAllScripts()

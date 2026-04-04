@@ -76,6 +76,7 @@ public sealed class AppConfig
     // Coqui TTS settings
     public string? CoquiModelPath { get; set; }
     public string? CoquiModelName { get; set; }
+    public string? CoquiConfigPath { get; set; }
     public string? PythonPath { get; set; }
 
     // Piper TTS settings

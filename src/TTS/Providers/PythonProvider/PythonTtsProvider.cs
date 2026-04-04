@@ -29,10 +29,10 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
 
     public IReadOnlyList<string> AvailableModels { get; } = Array.Empty<string>();
 
-    public PythonTtsProvider(string? serviceScriptPathOverride, string pythonPath, string modelPath, string modelName, string? espeakNgPath = null, bool debugLog = false, TimeSpan? requestTimeout = null)
+    public PythonTtsProvider(string? serviceScriptPathOverride, string pythonPath, string modelPath, string modelName, string? coquiConfigPath, string? espeakNgPath = null, bool debugLog = false, TimeSpan? requestTimeout = null)
     {
         _serviceScriptPathOverride = serviceScriptPathOverride;
-        _environment = new PythonEnvironment(pythonPath, modelName, espeakNgPath);
+        _environment = new PythonEnvironment(pythonPath, modelName, modelPath, coquiConfigPath, espeakNgPath);
         _debugLog = debugLog;
         _synthesisTimeout = requestTimeout ?? TimeSpan.FromSeconds(30);
     }
@@ -144,6 +144,15 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
             readyLine = await ReadLineAsync(_process.StandardOutput, linked.Token);
             if (IsReadyLine(readyLine ?? ""))
                 break;
+            // Detect startup errors before READY to avoid hanging on model load failures
+            if (JsonHelper.TryParseJson(readyLine ?? "", out var jsonDoc, out var msgType) &&
+                msgType == MessageType.Error)
+            {
+                var errMsg = jsonDoc.RootElement.GetProperty("msg").GetString();
+                jsonDoc.Dispose();
+                _process.Kill(true);
+                throw new InvalidOperationException($"Python TTS startup failed: {errMsg}");
+            }
         }
 
         if (readyLine == null || !IsReadyLine(readyLine))

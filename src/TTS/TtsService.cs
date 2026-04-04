@@ -43,6 +43,7 @@ public sealed class TtsService : IDisposable
                 config.PythonPath ?? "",
                 config.CoquiModelPath ?? "",
                 config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits",
+                config.CoquiConfigPath,
                 config.EspeakNgPath,
                 config.PythonTtsDebugLog),
             TtsProviderType.Piper => new Providers.PiperTtsProvider(config.PiperPath ?? "piper", config.PiperModelPath ?? "", config.PiperVoice ?? "en_US-lessac"),
@@ -54,6 +55,7 @@ public sealed class TtsService : IDisposable
                 config.PythonPath ?? "",
                 config.CoquiModelPath ?? "",
                 config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits",
+                config.CoquiConfigPath,
                 null,
                 config.PythonTtsDebugLog),
             _ => null

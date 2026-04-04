@@ -34,22 +34,27 @@ def start() -> None:
     log.addHandler(_file_handler)
 
     model_name = env.get("TTS_MODEL") or None
+    model_path = env.get("TTS_MODEL_PATH") or None
+    tts_config_path = env.get("TTS_CONFIG_PATH") or None
 
     log.info("=== TTS Service starting ===")
     log.info(f"Log file: {_log_file}")
     log.info(f"TTS_MODEL env: {model_name!r}")
+    log.info(f"TTS_MODEL_PATH env: {model_path!r}")
+    log.info(f"TTS_CONFIG_PATH env: {tts_config_path!r}")
     log.info(f"Python version: {sys.version}")
     log.info(f"Python executable: {sys.executable}")
 
-    if model_name:
-        engine = CoquiTTSEngine(model_name, clock, log)
+    if model_name or model_path:
+        engine = CoquiTTSEngine(model_name, model_path, tts_config_path, clock, log)
         try:
             engine.ensure_ready()
             tts = engine
             sendProtocol({"type": "ready"})
         except Exception as e:
             log.exception(f"Critical failure: could not load TTS model on GPU or CPU: {e}")
-            send({"error": f"Failed to load TTS model: {e}"})
+            sendProtocol({"type": "error", "id": "startup", "msg": str(e)})
+            sys.stdout.flush()
             sys.exit(1)
 
 
