@@ -40,8 +40,8 @@ public sealed class AppConfig
     public bool ShowThinking { get; set; } = false;
     public bool DebugToolCalls { get; set; } = false;
     public string AgentName { get; set; } = "Agent";
-    public string TranscriptionPromptPrefix { get; set; } = "[The following text is a raw speech-to-text transcription]: ";
-    public string AudioWrapPrompt { get; set; } = "[Wrap spoken content in [audio]...[/audio] tags. Example: [audio]Hello[/audio] how [audio]are you[/audio]?]";
+    public string TranscriptionPromptPrefix { get; set; } = "[It's a raw speech-to-text transcription]: ";
+    public string AudioWrapPrompt { get; set; } = "[Wrap spoken in [audio]...[/audio] tags. But be more concise, also can separate written and spoken parts]";
 
     [JsonIgnore]
     public bool IsAudioEnabled => AudioResponseMode?.ToLowerInvariant() != "text-only";

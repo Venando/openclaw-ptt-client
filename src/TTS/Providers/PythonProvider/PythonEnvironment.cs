@@ -74,7 +74,7 @@ public sealed class PythonEnvironment
         var psi = new ProcessStartInfo
         {
             FileName = pythonExe,
-            Arguments = $"-B -u \"{GetScriptPath(scriptPathOverride)}\"",
+            Arguments = $"-u \"{GetScriptPath(scriptPathOverride)}\"",
             UseShellExecute = false,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
@@ -91,6 +91,8 @@ public sealed class PythonEnvironment
     /// </summary>
     private void ApplyEnvironmentVariables(ProcessStartInfo psi)
     {
+        // Force CPU-only mode — avoids CUDA initialization overhead and potential driver issues
+        psi.Environment["CUDA_VISIBLE_DEVICES"] = "";
         if (!string.IsNullOrEmpty(_espeakNgPath))
             psi.Environment["PATH"] = _espeakNgPath + ";" + psi.Environment["PATH"];
         if (!string.IsNullOrEmpty(_modelName))

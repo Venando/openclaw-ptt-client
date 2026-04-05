@@ -93,13 +93,13 @@ class CoquiTTSEngine(TTSEngine):
         # TTS 0.22.0 with local model_path: config.languages may not exist on
         # VitsConfig, and is_multi_lingual property getter crashes on that missing
         # attribute. Patch config.languages = [] to prevent the crash.
-        if not hasattr(self._tts.config, "languages"):
+        if self._tts.config is not None and not hasattr(self._tts.config, "languages"):
             object.__setattr__(self._tts.config, "languages", [])
 
         # TTS 0.22.0 with local model_path doesn't set is_multi_lingual
         # via the normal property path. Set it directly on the config object
         # so subsequent property access via self.config.languages works.
-        if not hasattr(self._tts, "is_multi_lingual"):
+        if self._tts.config is not None and not hasattr(self._tts, "is_multi_lingual"):
             object.__setattr__(self._tts, "is_multi_lingual", False)
 
         loaded_from = self._model_path if use_model_path else self._model_name

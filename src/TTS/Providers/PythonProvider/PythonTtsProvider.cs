@@ -221,8 +221,8 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
 
         // Stderr: structured log messages (perf, warn, info, error)
         // Stdout: structured protocol messages (ready, done, ok)
-        _ = ReadLoopAsync(_process.StandardError, DispatchLog, _readCts.Token);
-        _ = ReadLoopAsync(_process.StandardOutput, DispatchProtocol, _readCts.Token);
+        _ = Task.Run(() => ReadLoopAsync(_process.StandardError, DispatchLog, _readCts.Token), _readCts.Token);
+        _ = Task.Run(() => ReadLoopAsync(_process.StandardOutput, DispatchProtocol, _readCts.Token), _readCts.Token);
     }
 
     private async Task<string?> ReadLineAsync(StreamReader reader, CancellationToken ct)
@@ -254,7 +254,8 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
             while (!ct.IsCancellationRequested && _process is { HasExited: false })
             {
                 var line = await ReadLineAsync(reader, ct);
-                if (string.IsNullOrWhiteSpace(line)) break;
+                if (string.IsNullOrWhiteSpace(line))
+                    break;
                 onLine(line);
             }
         }
@@ -270,7 +271,6 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
     {
         if (!JsonHelper.TryParseJson(line, out JsonDocument? jsonDocument, out string? msgType))
         {
-            ConsoleUi.PrintWarning($"[python stderr] {line}");
             return;
         }
 
@@ -317,7 +317,6 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
     {
         if (!JsonHelper.TryParseJson(line, out JsonDocument? jsonDocument, out string? msgType))
         {
-            ConsoleUi.PrintWarning($"[python stderr] {line}");
             return;
         }
 

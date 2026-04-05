@@ -91,7 +91,6 @@ public sealed class GatewayClient : IDisposable
         ConsoleUi.Log("gateway", "Waiting for connect.challenge ...");
         var challenge = await WaitForEventAsync("connect.challenge", TimeSpan.FromSeconds(10), ct);
         var nonce = challenge.GetProperty("nonce").GetString()!;
-        ConsoleUi.Log("gateway", $"Challenge nonce: {nonce[..12]}...");
 
         // ── 2. build + sign connect request ──
         var authToken = _cfg.AuthToken ?? "";
@@ -184,7 +183,6 @@ public sealed class GatewayClient : IDisposable
         {
             _cfg.DeviceToken = dtEl.GetString();
             new ConfigManager().Save(_cfg);
-            ConsoleUi.Log("gateway", "Device token persisted.");
         }
 
         if (hello.TryGetProperty("snapshot", out var snapshot))
