@@ -35,6 +35,10 @@ public sealed class PythonTtsProvider : ITextToSpeech, IDisposable
     private bool _disposed;
     private bool _venvReady;
 
+    // Stored event handlers for proper unsubscribe on Dispose (fixes memory leak)
+    private readonly Action<string> _pythonEnvProgressHandler;
+    private readonly Action<string> _bootstrapperProgressHandler;
+
     public string ProviderName => "Python TTS (uv-managed)";
 
     public IReadOnlyList<string> AvailableVoices { get; } = new[] { "default" };
@@ -62,11 +66,14 @@ public sealed class PythonTtsProvider : ITextToSpeech, IDisposable
         _useUvManagement = useUvManagement;
         _ttsServiceScript = ttsServiceScript;
 
+        _pythonEnvProgressHandler = msg => ConsoleUi.PrintInfo($"[python-env] {msg}");
+        _bootstrapperProgressHandler = msg => ConsoleUi.PrintInfo($"[uv-bootstrapper] {msg}");
+
         if (_useUvManagement)
         {
             string uvPath = uvToolsPath ?? Path.Combine(baseDir, "tools", "uv.exe");
             _pythonEnv = new PythonEnvironment(uvPath, pythonVersion, baseDir, ".venv");
-            _pythonEnv.ProgressChanged += msg => ConsoleUi.PrintInfo($"[python-env] {msg}");
+            _pythonEnv.ProgressChanged += _pythonEnvProgressHandler;
         }
         else
         {
@@ -83,6 +90,9 @@ public sealed class PythonTtsProvider : ITextToSpeech, IDisposable
         _pythonPath = pythonPath ?? throw new ArgumentNullException(nameof(pythonPath));
         _ttsServiceScript = ttsServiceScript;
         _useUvManagement = false;
+        // These are unused in legacy mode but required for readonly field initialization
+        _pythonEnvProgressHandler = msg => ConsoleUi.PrintInfo($"[python-env] {msg}");
+        _bootstrapperProgressHandler = msg => ConsoleUi.PrintInfo($"[uv-bootstrapper] {msg}");
     }
 
     /// <summary>
@@ -95,16 +105,17 @@ public sealed class PythonTtsProvider : ITextToSpeech, IDisposable
         {
             // Step 1: Bootstrap uv
             var bootstrapper = new UvBootstrapper(Path.GetDirectoryName(_pythonEnv.VenvPath) ?? throw new InvalidOperationException("VenvPath has no directory"));
-            bootstrapper.ProgressChanged += msg => ConsoleUi.PrintInfo($"[uv-bootstrapper] {msg}");
+            bootstrapper.ProgressChanged += _bootstrapperProgressHandler;
 
             string uvPath = await bootstrapper.EnsureUvInstalledAsync(ct);
+            bootstrapper.ProgressChanged -= _bootstrapperProgressHandler;
             ConsoleUi.PrintSuccess($"uv ready at: {uvPath}");
 
             // Re-create PythonEnvironment with the resolved uv path
             var venvDir = Path.GetDirectoryName(_pythonEnv.VenvPath) ?? throw new InvalidOperationException("VenvPath has no directory");
             var venvName = Path.GetFileName(_pythonEnv.VenvPath);
             var pyEnv2 = new PythonEnvironment(uvPath, "3.11", venvDir, venvName);
-            pyEnv2.ProgressChanged += msg => ConsoleUi.PrintInfo($"[python-env] {msg}");
+            pyEnv2.ProgressChanged += _pythonEnvProgressHandler;
 
             // Step 2: Ensure venv exists with packages
             await pyEnv2.EnsureVenvExistsAsync(DefaultPackages, ct);
@@ -152,9 +163,6 @@ public sealed class PythonTtsProvider : ITextToSpeech, IDisposable
 
     public async Task<byte[]> SynthesizeAsync(string text, string? voice = null, string? model = null, CancellationToken ct = default)
     {
-        if (_ttsProcess == null || _ttsProcess.HasExited)
-            throw new InvalidOperationException("TTS process not running. Call InitializeAsync first.");
-
         // Write text to stdin, read audio from stdout
         // Protocol: write JSON with text/voice/model, read raw WAV bytes
         var request = new
@@ -166,16 +174,17 @@ public sealed class PythonTtsProvider : ITextToSpeech, IDisposable
 
         var json = System.Text.Json.JsonSerializer.Serialize(request);
 
+        // FIX: Keep process check + all I/O under the same lock to avoid race condition
+        // where the process exits between the check and the I/O operations.
         lock (_processLock)
         {
             if (_ttsProcess == null || _ttsProcess.HasExited)
-                throw new InvalidOperationException("TTS process has exited");
+                throw new InvalidOperationException("TTS process not running. Call InitializeAsync first.");
             _ttsProcess.StandardInput.WriteLine(json);
             _ttsProcess.StandardInput.Flush();
         }
 
-        // Read response — in a real implementation, read the audio bytes
-        // For now, read stderr for logging and return empty
+        // Read stderr for logging
         var error = await _ttsProcess.StandardError.ReadLineAsync(ct);
         if (!string.IsNullOrEmpty(error))
             ConsoleUi.PrintWarning($"[tts-service] {error}");
@@ -240,7 +249,11 @@ public sealed class PythonTtsProvider : ITextToSpeech, IDisposable
                     _ttsProcess = null;
                 }
             }
-            _pythonEnv?.Dispose();
+            if (_pythonEnv != null)
+            {
+                _pythonEnv.ProgressChanged -= _pythonEnvProgressHandler;
+                _pythonEnv.Dispose();
+            }
             _disposed = true;
         }
     }
