@@ -12,8 +12,9 @@ public sealed class GatewayService : IDisposable
     private GatewayClient _gatewayClient;
     private AudioResponseHandler? _audioResponseHandler;
     private bool _disposed;
-    private bool _prefixPrinted; 
+    private bool _prefixPrinted;
     private bool _isDeltaStarted;
+    private bool _hasAudioInCurrentMessage;
 
     public event Action<string>? AgentReplyFull;
     public event Action? AgentReplyDeltaStart;
@@ -43,9 +44,6 @@ public sealed class GatewayService : IDisposable
     
     public async Task ConnectAsync(CancellationToken ct)
     {
-        Console.WriteLine($"  Device ID: {_device.DeviceId[..16]}…");
-        Console.WriteLine();
-        
         await _gatewayClient.ConnectAsync(ct);
     }
     
@@ -66,9 +64,12 @@ public sealed class GatewayService : IDisposable
     {
         var client = new GatewayClient(_config, _device);
         
-        const string agentReplayPrefix = "  🤖 Agent: ";
-        var prefixLength = agentReplayPrefix.Length;
-        var newlineSuffix = new string(' ', prefixLength);
+        string agentReplayPrefix = $"  🤖 {_config.AgentName}: ";
+        string agentReplayPrefixWithAudio = $"  🤖🔊 {_config.AgentName}: ";
+        string agentReplayPrefixTextMode = $"  🤖✍️ {_config.AgentName}: ";
+        int prefixLength = agentReplayPrefix.Length;
+        string newlineSuffix = new string(' ', prefixLength);
+        string currentPrefix = agentReplayPrefix;
         
         AgentReplyFormatter? formatter = null;
         AgentReplyFormatter? thinkingFormatter = null;
@@ -86,7 +87,7 @@ public sealed class GatewayService : IDisposable
             }
             else
             {
-                ConsoleUi.PrintAgentReply(agentReplayPrefix, body);
+                ConsoleUi.PrintAgentReply(currentPrefix, body);
             }
             AgentReplyFull?.Invoke(body);
         };
@@ -142,6 +143,7 @@ public sealed class GatewayService : IDisposable
         client.AgentReplyDeltaStart += () =>
         {
             _isDeltaStarted = true;
+            formatter = null;
             AgentReplyDeltaStart?.Invoke();
         };
 
@@ -149,12 +151,29 @@ public sealed class GatewayService : IDisposable
         {
             if (_prefixPrinted) return;
             _prefixPrinted = true;
+
+            if (_config.IsAudioEnabled && _hasAudioInCurrentMessage)
+            {
+                currentPrefix = agentReplayPrefixWithAudio;
+            }
+            else if (_config.IsAudioEnabled)
+            {
+                currentPrefix = agentReplayPrefixTextMode;
+            }
+            else
+            {
+                currentPrefix = agentReplayPrefix;
+            }
+
+            prefixLength = currentPrefix.Length;
+            newlineSuffix = new string(' ', prefixLength);
+
             Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.Write(agentReplayPrefix);
+            Console.Write(currentPrefix);
             Console.ResetColor();
             if (_config.EnableWordWrap)
             {
-                formatter = ConsoleUi.CreateAgentReplyFormatter(agentReplayPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true);
+                formatter = ConsoleUi.CreateAgentReplyFormatter(currentPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true);
             }
         }
 
@@ -167,7 +186,7 @@ public sealed class GatewayService : IDisposable
             }
             else
             {
-                ConsoleUi.PrintAgentReplyDelta(agentReplayPrefix, delta, newlineSuffix);
+                ConsoleUi.PrintAgentReplyDelta(currentPrefix, delta, newlineSuffix);
             }
             AgentReplyDelta?.Invoke(delta);
         };
@@ -181,6 +200,7 @@ public sealed class GatewayService : IDisposable
 
             _isDeltaStarted = false;
             _prefixPrinted = false;
+            _hasAudioInCurrentMessage = false;
 
             if (formatter != null)
             {
@@ -204,6 +224,7 @@ public sealed class GatewayService : IDisposable
         // Handle [audio] marker - synthesize and play TTS
         client.AgentReplyAudio += async audioText =>
         {
+            _hasAudioInCurrentMessage = true;
             if (_audioResponseHandler != null)
             {
                 await _audioResponseHandler.HandleAudioMarkerAsync(audioText);

@@ -144,6 +144,12 @@ public sealed class ConfigManager
             v => bool.TryParse(v, out _),
             cancellationToken));
 
+        cfg.AgentName = await Prompt(
+            "Agent name (shown in reply prefix)",
+            cfg.AgentName,
+            v => !string.IsNullOrWhiteSpace(v),
+            cancellationToken);
+
         // Shortcut settings
         cfg.HotkeyCombination = await Prompt(
             "Hotkey combination (e.g., Alt+=, Ctrl+Shift+Space)",

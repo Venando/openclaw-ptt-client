@@ -69,11 +69,13 @@ internal static class Program
         catch (OperationCanceledException)
         {
             Console.WriteLine("\n  Shutting down.");
+            Console.ReadKey();
             return 0;
         }
         catch (GatewayException gex)
         {
             ConsoleUi.PrintGatewayError(gex.Message, gex.DetailCode, gex.RecommendedStep);
+            Console.ReadKey();
             return 1;
         }
         catch (Exception ex)
@@ -82,6 +84,7 @@ internal static class Program
 #if DEBUG
             Console.WriteLine(ex.StackTrace);
 #endif
+            Console.ReadKey();
             return 1;
         }
     }

@@ -18,6 +18,7 @@ internal sealed class ToolDisplayHandler
         ["exec"]          = new("▶️",   HandleExec),
         ["process"]       = new("⚙️",   HandleGenericKvp),
         ["web_search"]    = new("🔍",   HandleGenericKvp),
+        ["web_fetch"]      = new("🌐",   HandleWebFetch),
         ["sessions_list"] = new("📋",   HandleSessionsList),
         ["session_status"]= new("📋",   HandleSessionStatus),
         ["memory_search"] = new("📚",   HandleMemorySearch),
@@ -52,7 +53,7 @@ internal sealed class ToolDisplayHandler
             }
             else
             {
-                Console.Write(arguments);
+                HandleGenericKvp(doc);
             }
         }
         catch
@@ -183,6 +184,23 @@ internal sealed class ToolDisplayHandler
                 Console.ResetColor();
                 Console.Write(prop.Value.GetString());
             }
+        }
+    }
+
+    private static void HandleWebFetch(JsonDocument doc)
+    {
+        if (doc.RootElement.TryGetProperty("url", out var urlProp))
+        {
+            var url = urlProp.GetString() ?? "";
+            // Strip protocol prefix for cleaner display
+            url = url.Replace("https://", "").Replace("http://", "").Replace("www.", "");
+            Console.ForegroundColor = ConsoleColor.Gray;
+            Console.Write(url);
+        }
+        if (doc.RootElement.TryGetProperty("maxChars", out var maxCharsProp))
+        {
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.Write($" (max {maxCharsProp.GetInt32()} chars)");
         }
     }
 

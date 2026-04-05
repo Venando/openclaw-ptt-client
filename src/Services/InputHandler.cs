@@ -72,9 +72,16 @@ public class InputHandler
         
         return 0;
     }
-    
-    private static async Task SendTextAsync(GatewayService gateway, string text, CancellationToken ct)
+
+    private async Task SendTextAsync(GatewayService gateway, string text, CancellationToken ct)
     {
+        // Prepend audio wrap prompt when TTS is enabled
+        var cfg = _configService.Load();
+        if (cfg?.IsAudioEnabled == true && !string.IsNullOrEmpty(cfg.AudioWrapPrompt))
+        {
+            text = cfg.AudioWrapPrompt + "\n\n" + text;
+        }
+
         ConsoleUi.PrintInlineInfo("Sending… ");
         try
         {

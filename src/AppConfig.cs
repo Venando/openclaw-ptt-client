@@ -39,8 +39,9 @@ public sealed class AppConfig
     public bool HoldToTalk { get; set; } = false;
     public bool ShowThinking { get; set; } = false;
     public bool DebugToolCalls { get; set; } = false;
-    public string TranscriptionPromptPrefix { get; set; } = "[The following text is a raw speech-to-text transcription]: ";
-    public string AudioWrapPrompt { get; set; } = "[Wrap spoken content in [audio]...[/audio] tags. Example: [audio]Hello[/audio] how [audio]are you[/audio]?]";
+    public string AgentName { get; set; } = "Agent";
+    public string TranscriptionPromptPrefix { get; set; } = "[It's a raw speech-to-text transcription]: ";
+    public string AudioWrapPrompt { get; set; } = "[Wrap spoken in [audio]...[/audio] tags. But be more concise, also can separate written and spoken parts]";
 
     [JsonIgnore]
     public bool IsAudioEnabled => AudioResponseMode?.ToLowerInvariant() != "text-only";
@@ -75,6 +76,7 @@ public sealed class AppConfig
     // Coqui TTS settings
     public string? CoquiModelPath { get; set; }
     public string? CoquiModelName { get; set; }
+    public string? CoquiConfigPath { get; set; }
     public string? PythonPath { get; set; }
 
     // Piper TTS settings
@@ -84,6 +86,9 @@ public sealed class AppConfig
 
     // eSpeak NG path for Coqui TTS (platform-specific default)
     public string? EspeakNgPath { get; set; }
+
+    // Python TTS debug settings
+    public bool PythonTtsDebugLog { get; set; } = false;
 
     // Audio response settings
     public string AudioResponseMode { get; set; } = "text-only"; // text-only, audio-only, both
