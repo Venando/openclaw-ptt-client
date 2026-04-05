@@ -44,7 +44,7 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
         _environment = new PythonEnvironment(pythonPath, modelName, modelPath, coquiConfigPath, espeakNgPath);
         _debugLog = debugLog;
         _synthesisTimeout = requestTimeout ?? TimeSpan.FromSeconds(30);
-        _writeTimeout = TimeSpan.FromSeconds(5);q
+        _writeTimeout = TimeSpan.FromSeconds(5);
         _startupTimeout = startupTimeout ?? TimeSpan.FromSeconds(120);
     }
 
