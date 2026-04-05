@@ -119,6 +119,8 @@ public sealed class PythonTtsProvider : ITextToSpeech, IDisposable
 
             // Step 2: Ensure venv exists with packages
             await pyEnv2.EnsureVenvExistsAsync(DefaultPackages, ct);
+            pyEnv2.ProgressChanged -= _pythonEnvProgressHandler;
+            pyEnv2.Dispose();
             _venvReady = true;
 
             // Step 3: Start TTS subprocess
