@@ -8,7 +8,8 @@ public enum TtsProviderType
     OpenAI,
     Edge,
     Coqui,
-    Piper
+    Piper,
+    Python
 }
 
 /// <summary>
@@ -33,9 +34,19 @@ public sealed class TtsService : IDisposable
             TtsProviderType.OpenAI => new Providers.OpenAiTtsProvider(config.TtsOpenAiApiKey ?? config.OpenAiApiKey ?? throw new InvalidOperationException("OpenAI API key not configured")),
             TtsProviderType.Coqui => new Providers.CoquiTtsProvider(config.CoquiModelPath, config.CoquiModelName),
             TtsProviderType.Piper => new Providers.PiperTtsProvider(config.PiperPath, config.PiperModelPath, config.PiperVoice),
-            TtsProviderType.Edge => config.TtsSubscriptionKey != null 
-                ? new Providers.EdgeTtsProvider(config.TtsSubscriptionKey, config.TtsRegion) 
+            TtsProviderType.Edge => config.TtsSubscriptionKey != null
+                ? new Providers.EdgeTtsProvider(config.TtsSubscriptionKey, config.TtsRegion)
                 : null,
+            TtsProviderType.Python => config.UseUvPython
+                ? new Providers.PythonTtsProvider(
+                    config.DataDir,
+                    useUvManagement: true,
+                    uvToolsPath: config.UvToolsPath,
+                    pythonVersion: "3.11",
+                    ttsServiceScript: config.TtsServiceScriptPath)
+                : new Providers.PythonTtsProvider(
+                    "",
+                    config.TtsServiceScriptPath),
             _ => null
         };
 

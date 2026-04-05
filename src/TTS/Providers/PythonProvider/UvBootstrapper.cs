@@ -38,19 +38,48 @@ public sealed class UvBootstrapper
     /// </summary>
     public static string ResolveDownloadUrl()
     {
-        bool isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-        bool isArm64 = RuntimeInformation.OSArchitecture == Architecture.Arm64;
-        bool isX64 = RuntimeInformation.OSArchitecture == Architecture.X64;
+        string? detectedOS = null;
+        string? detectedArch = null;
 
-        string osSuffix = isWindows switch
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            true when isArm64 => "aarch64-pc-windows-msvc.zip",
-            true when isX64 => "x86_64-pc-windows-msvc.zip",
-            _ => null
-        } ?? throw new PlatformNotSupportedException(
-            $"Unsupported OS/arch: {RuntimeInformation.OSDescription}, {RuntimeInformation.OSArchitecture}");
+            detectedOS = "Windows";
+            detectedArch = RuntimeInformation.OSArchitecture switch
+            {
+                Architecture.X64 => "x86_64",
+                Architecture.Arm64 => "aarch64",
+                _ => null
+            };
+            if (detectedArch != null)
+                return $"{UvReleaseBaseUrl}/{detectedArch}-pc-windows-msvc.zip";
+        }
 
-        return $"{UvReleaseBaseUrl}/{osSuffix}";
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            detectedOS = "Linux";
+            detectedArch = RuntimeInformation.OSArchitecture switch
+            {
+                Architecture.X64 => "x86_64-unknown-linux-gnu.tar.gz",
+                Architecture.Arm64 => "aarch64-unknown-linux-gnu.tar.gz",
+                _ => null
+            };
+            if (detectedArch != null) return $"{UvReleaseBaseUrl}/{detectedArch}";
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            detectedOS = "macOS";
+            detectedArch = RuntimeInformation.OSArchitecture switch
+            {
+                Architecture.X64 => "x86_64-apple-darwin.tar.gz",
+                Architecture.Arm64 => "aarch64-apple-darwin.tar.gz",
+                _ => null
+            };
+            if (detectedArch != null) return $"{UvReleaseBaseUrl}/{detectedArch}";
+        }
+
+        throw new PlatformNotSupportedException(
+            $"Unsupported OS/arch: {detectedOS ?? "Unknown"}, {RuntimeInformation.OSArchitecture}");
     }
 
     /// <summary>
@@ -66,6 +95,15 @@ public sealed class UvBootstrapper
         // Sanity check existing binary (~15MB for uv)
         if (File.Exists(uvPath) && new FileInfo(uvPath).Length > 5_000_000)
             return uvPath;
+
+        // User prompt before downloading
+        if (!PromptUser("Python 3.11 and dependencies (~5GB) will be downloaded. Continue?"))
+            throw new InvalidOperationException("User declined Python download.");
+
+        // Check available disk space
+        const long estimatedBytes = 5L * 1024 * 1024 * 1024; // ~5GB
+        if (!HasEnoughSpace(_baseDir, estimatedBytes))
+            throw new InvalidOperationException("Insufficient disk space for Python download. Free up space and try again.");
 
         // Need to download
         string url = ResolveDownloadUrl();
