@@ -15,13 +15,22 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
     private readonly PythonEnvironment _environment;
     private readonly bool _debugLog;
     private readonly TimeSpan _synthesisTimeout;
+    private readonly TimeSpan _writeTimeout;
+    private readonly TimeSpan _startupTimeout;
 
     private Process? _process;
     private readonly SemaphoreSlim _sem = new(1, 1);
-    private readonly ConcurrentDictionary<string, TaskCompletionSource<string>> _pending = new();
+    private ConcurrentDictionary<string, TaskCompletionSource<string>> _pending = new();
     private CancellationTokenSource? _readCts;
-    private readonly object _lock = new();
     private bool _disposed;
+
+    // Restart tracking: prevents infinite restart loops when the Python process or environment is broken.
+    private int _consecutiveRestarts;
+    private const int MaxConsecutiveRestarts = 3;
+
+    // Exponential back-off delay between restart attempts (doubles each failure, capped at 32s).
+    private static readonly TimeSpan MinRestartDelay = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan MaxRestartDelay = TimeSpan.FromSeconds(32);
 
     public string ProviderName => "Python TTS";
 
@@ -29,12 +38,14 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
 
     public IReadOnlyList<string> AvailableModels { get; } = Array.Empty<string>();
 
-    public PythonTtsProvider(string? serviceScriptPathOverride, string pythonPath, string modelPath, string modelName, string? coquiConfigPath, string? espeakNgPath = null, bool debugLog = false, TimeSpan? requestTimeout = null)
+    public PythonTtsProvider(string? serviceScriptPathOverride, string pythonPath, string modelPath, string modelName, string? coquiConfigPath, string? espeakNgPath = null, bool debugLog = false, TimeSpan? requestTimeout = null, TimeSpan? startupTimeout = null)
     {
         _serviceScriptPathOverride = serviceScriptPathOverride;
         _environment = new PythonEnvironment(pythonPath, modelName, modelPath, coquiConfigPath, espeakNgPath);
         _debugLog = debugLog;
         _synthesisTimeout = requestTimeout ?? TimeSpan.FromSeconds(30);
+        _writeTimeout = TimeSpan.FromSeconds(5);q
+        _startupTimeout = startupTimeout ?? TimeSpan.FromSeconds(120);
     }
 
     public async Task InitializeAsync(CancellationToken ct = default)
@@ -68,9 +79,27 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
             {
                 var request = new { text, id, voice, model };
                 var line = JsonSerializer.Serialize(request) + "\n";
-                var textPreview = text?.Substring(0, Math.Min(50, text.Length)) ?? "(null)";
-                await _process!.StandardInput.WriteAsync(line);
-                await _process.StandardInput.FlushAsync();
+
+                // Timeout protection for the write path. WriteAsync buffers data and
+                // FlushAsync blocks when the OS pipe buffer is full. If Python is stuck
+                // in inference or the buffer is saturated, we would otherwise hang forever.
+                var flushTask = Task.Run(async () =>
+                {
+                    await _process!.StandardInput.WriteAsync(line);
+                    await _process.StandardInput.FlushAsync();
+                }, ct);
+
+                var timeoutTask = Task.Delay(_writeTimeout, ct);
+                var winner = await Task.WhenAny(flushTask, timeoutTask);
+
+                if (winner != flushTask)
+                {
+                    _process.Kill(true);
+                    _pending.TryRemove(id, out _);
+                    throw new TimeoutException("Python TTS stdin write timed out.");
+                }
+
+                await flushTask; // surface any exception from the write/flush itself
             }
             catch
             {
@@ -112,20 +141,38 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
     private async Task EnsureRunningAsync(CancellationToken ct)
     {
         if (_process != null && !_process.HasExited)
+        {
+            // Process is alive — but if we have been retrying, check the limit now.
+            if (_consecutiveRestarts >= MaxConsecutiveRestarts)
+                throw new InvalidOperationException(
+                    $"Python TTS failed to start after {MaxConsecutiveRestarts} attempts. Giving up.");
             return;
+        }
 
-        // Kill any zombie process
+        // Enforce restart limit on the restart path too.
+        if (_consecutiveRestarts >= MaxConsecutiveRestarts)
+            throw new InvalidOperationException(
+                $"Python TTS process died and has exceeded the restart limit ({MaxConsecutiveRestarts}). Giving up.");
+
+        // Kill any zombie process from the previous attempt.
         if (_process != null)
         {
             _process.Dispose();
             _process = null;
         }
 
-        FailPendingRequests(new InvalidOperationException("Python TTS process died. Restarting..."));
-
         _readCts?.Cancel();
         _readCts?.Dispose();
         _readCts = new CancellationTokenSource();
+
+        // Exponential back-off: delay before the next restart attempt.
+        if (_consecutiveRestarts > 0)
+        {
+            var delay = TimeSpan.FromTicks(Math.Min(
+                MinRestartDelay.Ticks << (_consecutiveRestarts - 1),
+                MaxRestartDelay.Ticks));
+            await Task.Delay(delay, ct);
+        }
 
         ProcessStartInfo psi = _environment.CreateProcessStartInfo(_serviceScriptPathOverride);
 
@@ -135,7 +182,7 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
         _process.Start();
 
         // Wait for READY — loop until we find {"type":"ready"} or plain "READY", logging all lines
-        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        using var timeoutCts = new CancellationTokenSource(_startupTimeout);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
         string? readyLine = null;
@@ -151,6 +198,9 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
                 var errMsg = jsonDoc.RootElement.GetProperty("msg").GetString();
                 jsonDoc.Dispose();
                 _process.Kill(true);
+                _process.Dispose();
+                _process = null;
+                _consecutiveRestarts++;
                 throw new InvalidOperationException($"Python TTS startup failed: {errMsg}");
             }
         }
@@ -158,8 +208,14 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
         if (readyLine == null || !IsReadyLine(readyLine))
         {
             _process.Kill(true);
+            _process.Dispose();
+            _process = null;
+            _consecutiveRestarts++;
             throw new InvalidOperationException($"Python TTS failed to start. Expected READY, got: {readyLine}");
         }
+
+        // Successfully reached READY — reset restart counter.
+        _consecutiveRestarts = 0;
 
         ConsoleUi.Log("python_tts_provider", "Ready");
 
@@ -173,11 +229,21 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
     {
         try
         {
-            return await reader.ReadLineAsync(ct);
+            // Poll HasExited to avoid blocking indefinitely if the process dies between the
+            // loop check in ReadLoopAsync and the actual read.
+            while (!reader.EndOfStream && _process is { HasExited: false })
+            {
+                if (ct.IsCancellationRequested)
+                    return null;
+                if (reader.Peek() != -1)
+                    return await reader.ReadLineAsync(ct);
+                await Task.Delay(500, ct);
+            }
+            return null;
         }
         catch (OperationCanceledException)
         {
-            return null; 
+            return null;
         }
     }
 
@@ -202,9 +268,9 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
 
     private void DispatchProtocol(string line)
     {
-        if (!JsonHelper.TryParseJson(line, out JsonDocument? jsonDocument, out string msgType))
+        if (!JsonHelper.TryParseJson(line, out JsonDocument? jsonDocument, out string? msgType))
         {
-            if (_debugLog) Console.Error.WriteLine(line);
+            ConsoleUi.PrintWarning($"[python stderr] {line}");
             return;
         }
 
@@ -250,7 +316,10 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
     private void DispatchLog(string line)
     {
         if (!JsonHelper.TryParseJson(line, out JsonDocument? jsonDocument, out string? msgType))
+        {
+            ConsoleUi.PrintWarning($"[python stderr] {line}");
             return;
+        }
 
         using (jsonDocument)
         {
@@ -292,7 +361,8 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
 
     private void FailPendingRequests(Exception ex)
     {
-        foreach (KeyValuePair<string, TaskCompletionSource<string>> kvp in _pending)
+        var pending = Interlocked.Exchange(ref _pending, new ConcurrentDictionary<string, TaskCompletionSource<string>>());
+        foreach (var kvp in pending)
             kvp.Value.TrySetException(ex);
     }
 
@@ -320,8 +390,20 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
             {
                 try
                 {
-                    await _process.StandardInput.WriteAsync("EXIT\n");
-                    await _process.StandardInput.FlushAsync();
+                    // Same timeout protection as the synthesis write path. If the EXIT
+                    // signal can't be written, fall through to Kill() — which is fine
+                    // since the process is shutting down anyway.
+                    var exitTask = Task.Run(async () =>
+                    {
+                        await _process.StandardInput.WriteAsync("EXIT\n");
+                        await _process.StandardInput.FlushAsync();
+                    });
+
+                    using var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    var timeoutTask = Task.Delay(2, exitCts.Token);
+                    var winner = await Task.WhenAny(exitTask, timeoutTask);
+                    if (winner != exitTask) { /* ignore — Kill() follows */ }
+                    else await exitTask;
                 }
                 catch { /* ignore */ }
 
