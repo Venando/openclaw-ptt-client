@@ -77,6 +77,10 @@ public sealed class AppConfig
     public string? CoquiModelPath { get; set; }
     public string? CoquiModelName { get; set; }
     public string? CoquiConfigPath { get; set; }
+    // Python TTS + uv bootstrap settings
+    public bool UseUvPython { get; set; } = false;
+    public string? UvToolsPath { get; set; }  // null = default to DataDir/tools/uv.exe
+    public string? TtsServiceScriptPath { get; set; }
     public string? PythonPath { get; set; }
 
     // Piper TTS settings

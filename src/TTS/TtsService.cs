@@ -26,7 +26,7 @@ public sealed class TtsService : IDisposable
     private bool _disposed;
 
     public CancellationToken CancellationToken => _cts.Token;
-    
+
     public TtsProviderType ProviderType => _providerType;
     public ITextToSpeech? Provider => _provider;
     public bool IsConfigured => _provider != null;
@@ -38,36 +38,34 @@ public sealed class TtsService : IDisposable
         _provider = _providerType switch
         {
             TtsProviderType.OpenAI => new Providers.OpenAiTtsProvider(config.TtsOpenAiApiKey ?? config.OpenAiApiKey ?? throw new InvalidOperationException("OpenAI API key not configured")),
-            TtsProviderType.Coqui => new Providers.PythonTtsProvider(
-                "",
-                config.PythonPath ?? "",
-                config.CoquiModelPath ?? "",
-                config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits",
-                config.CoquiConfigPath,
-                config.EspeakNgPath,
-                config.PythonTtsDebugLog),
+            TtsProviderType.Coqui => new Providers.CoquiTtsProvider(config.CoquiModelPath ?? "", config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits", null, null),
             TtsProviderType.Piper => new Providers.PiperTtsProvider(config.PiperPath ?? "piper", config.PiperModelPath ?? "", config.PiperVoice ?? "en_US-lessac"),
             TtsProviderType.Edge => config.TtsSubscriptionKey != null
                 ? new Providers.EdgeTtsProvider(config.TtsSubscriptionKey, config.TtsRegion ?? "eastus")
                 : null,
-            TtsProviderType.Python => new Providers.PythonTtsProvider(
-                "",
-                config.PythonPath ?? "",
-                config.CoquiModelPath ?? "",
-                config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits",
-                config.CoquiConfigPath,
-                null,
-                config.PythonTtsDebugLog),
+            TtsProviderType.Python => config.UseUvPython
+                ? new Providers.PythonTtsProvider(
+                    baseDir: config.DataDir,
+                    useUvManagement: true,
+                    uvToolsPath: config.UvToolsPath,
+                    pythonVersion: "3.11",
+                    ttsServiceScript: config.TtsServiceScriptPath)
+                : new Providers.PythonTtsProvider(
+                    config.TtsServiceScriptPath ?? "",
+                    config.PythonPath ?? ""),
             _ => null
         };
 
-        if (_provider == null && _providerType != TtsProviderType.Edge)
+        if (_provider == null && _providerType != TtsProviderType.Edge && _providerType != TtsProviderType.Python)
         {
             throw new InvalidOperationException($"Failed to initialize TTS provider: {_providerType}");
         }
 
+        // For uv-managed Python, defer InitializeAsync to avoid blocking the constructor
         if (_provider is Providers.PythonTtsProvider pythonProvider)
-            pythonProvider.InitializeAsync(_cts.Token).GetAwaiter().GetResult();
+        {
+            Task.Run(() => pythonProvider.InitializeAsync(_cts.Token), _cts.Token);
+        }
     }
 
     /// <summary>
@@ -81,9 +79,9 @@ public sealed class TtsService : IDisposable
         }
 
         return await _provider.SynthesizeAsync(
-            text, 
-            voice: null, 
-            model: null, 
+            text,
+            voice: null,
+            model: null,
             ct);
     }
 
