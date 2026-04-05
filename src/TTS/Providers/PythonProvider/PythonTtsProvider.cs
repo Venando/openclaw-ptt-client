@@ -33,7 +33,7 @@ public sealed class PythonTtsProvider : ITextToSpeech, IDisposable
     private Process? _ttsProcess;
     private readonly object _processLock = new();
     private bool _disposed;
-    private bool _venvReady;
+    private int _venvReady; // 0 = not ready, 1 = ready (int for Interlocked)
 
     public string ProviderName => "Python TTS (uv-managed)";
 
@@ -91,27 +91,31 @@ public sealed class PythonTtsProvider : ITextToSpeech, IDisposable
     /// </summary>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
-        if (_useUvManagement && _pythonEnv != null && !_venvReady)
+        if (_useUvManagement && _pythonEnv != null)
         {
-            // Step 1: Bootstrap uv
-            var bootstrapper = new UvBootstrapper(Path.GetDirectoryName(_pythonEnv.VenvPath) ?? throw new InvalidOperationException("VenvPath has no directory"));
-            bootstrapper.ProgressChanged += msg => ConsoleUi.PrintInfo($"[uv-bootstrapper] {msg}");
+            // Atomically claim initialization to prevent race between concurrent callers.
+            // Interlocked.CompareExchange returns the original value: 0 if we won the race, 1 otherwise.
+            if (Interlocked.CompareExchange(ref _venvReady, 1, 0) == 0)
+            {
+                // Step 1: Bootstrap uv
+                var bootstrapper = new UvBootstrapper(Path.GetDirectoryName(_pythonEnv.VenvPath) ?? throw new InvalidOperationException("VenvPath has no directory"));
+                bootstrapper.ProgressChanged += msg => ConsoleUi.PrintInfo($"[uv-bootstrapper] {msg}");
 
-            string uvPath = await bootstrapper.EnsureUvInstalledAsync(ct);
-            ConsoleUi.PrintSuccess($"uv ready at: {uvPath}");
+                string uvPath = await bootstrapper.EnsureUvInstalledAsync(ct);
+                ConsoleUi.PrintSuccess($"uv ready at: {uvPath}");
 
-            // Re-create PythonEnvironment with the resolved uv path
-            var venvDir = Path.GetDirectoryName(_pythonEnv.VenvPath) ?? throw new InvalidOperationException("VenvPath has no directory");
-            var venvName = Path.GetFileName(_pythonEnv.VenvPath);
-            var pyEnv2 = new PythonEnvironment(uvPath, "3.11", venvDir, venvName);
-            pyEnv2.ProgressChanged += msg => ConsoleUi.PrintInfo($"[python-env] {msg}");
+                // Re-create PythonEnvironment with the resolved uv path
+                var venvDir = Path.GetDirectoryName(_pythonEnv.VenvPath) ?? throw new InvalidOperationException("VenvPath has no directory");
+                var venvName = Path.GetFileName(_pythonEnv.VenvPath);
+                var pyEnv2 = new PythonEnvironment(uvPath, "3.11", venvDir, venvName);
+                pyEnv2.ProgressChanged += msg => ConsoleUi.PrintInfo($"[python-env] {msg}");
 
-            // Step 2: Ensure venv exists with packages
-            await pyEnv2.EnsureVenvExistsAsync(DefaultPackages, ct);
-            _venvReady = true;
+                // Step 2: Ensure venv exists with packages
+                await pyEnv2.EnsureVenvExistsAsync(DefaultPackages, ct);
 
-            // Step 3: Start TTS subprocess
-            StartTtsProcess(pyEnv2.PythonPath);
+                // Step 3: Start TTS subprocess
+                StartTtsProcess(pyEnv2.PythonPath);
+            }
         }
         else if (!_useUvManagement && _pythonPath != null)
         {

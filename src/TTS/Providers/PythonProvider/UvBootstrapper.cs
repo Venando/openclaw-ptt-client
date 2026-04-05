@@ -187,7 +187,7 @@ public sealed class UvBootstrapper
                 return;
             }
             catch (Exception ex) when (attempt < maxRetries - 1 &&
-                ((ex is HttpRequestException hex && (int)hex.StatusCode! >= 500) ||
+                (ex is HttpRequestException ||
                  ex is OperationCanceledException))
             {
                 attempt++;
