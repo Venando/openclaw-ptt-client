@@ -74,7 +74,7 @@ public sealed class PythonEnvironment
         var psi = new ProcessStartInfo
         {
             FileName = pythonExe,
-            Arguments = $"-u \"{GetScriptPath(scriptPathOverride)}\"",
+            Arguments = $"-B -u \"{GetScriptPath(scriptPathOverride)}\"",
             UseShellExecute = false,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
