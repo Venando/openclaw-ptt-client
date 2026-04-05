@@ -15,7 +15,6 @@ public sealed class AudioService : IDisposable
     
     private readonly string _hotkeyCombination;
     private readonly bool _holdToTalk;
-    private readonly int _rightMarginIndent;
     private bool _disposed;
     
     public AudioService(AppConfig config)
@@ -25,7 +24,6 @@ public sealed class AudioService : IDisposable
         _visualFeedback = VisualFeedbackFactory.Create(config);
         _hotkeyCombination = config.HotkeyCombination;
         _holdToTalk = config.HoldToTalk;
-        _rightMarginIndent = config.RightMarginIndent;
     }
     
     public bool IsRecording => _recorder.IsRecording;
@@ -53,14 +51,13 @@ public sealed class AudioService : IDisposable
             ConsoleUi.PrintWarning("Too short (<1KB), skipped.");
             return null;
         }
-
-        Console.WriteLine();
+        
         ConsoleUi.PrintInfo($"Sending to Groq {wav.Length / 1024.0:F1} KB…");
         
         try
         {
             var transcribed = await _transcriber.TranscribeAsync(wav, ct: ct);
-            ConsoleUi.PrintSuccessWordWrap("  ✓ Transcribed: ", transcribed, _rightMarginIndent);
+            ConsoleUi.PrintSuccess($"Transcribed: {transcribed}");
             return transcribed;
         }
         catch (Exception ex)

@@ -51,7 +51,6 @@ public class InputHandler
     
     private async Task HandleTypeMessageAsync(CancellationToken ct)
     {
-        Console.WriteLine();
         Console.Write("  ✏️  Type message: ");
         var text = Console.ReadLine()?.Trim();
         if (!string.IsNullOrEmpty(text))
@@ -72,16 +71,9 @@ public class InputHandler
         
         return 0;
     }
-
-    private async Task SendTextAsync(GatewayService gateway, string text, CancellationToken ct)
+    
+    private static async Task SendTextAsync(GatewayService gateway, string text, CancellationToken ct)
     {
-        // Prepend audio wrap prompt when TTS is enabled
-        var cfg = _configService.Load();
-        if (cfg?.IsAudioEnabled == true && !string.IsNullOrEmpty(cfg.AudioWrapPrompt))
-        {
-            text = cfg.AudioWrapPrompt + "\n\n" + text;
-        }
-
         ConsoleUi.PrintInlineInfo("Sending… ");
         try
         {

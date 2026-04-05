@@ -45,7 +45,7 @@ public class ConfigurationService
             return cfg;
         }
         
-        ConsoleUi.Log("configuration_service", $"Config loaded");
+        Console.WriteLine($"  Config loaded: {cfg.GatewayUrl}");
         
         if (forceReconfigure || ShouldReconfigure())
         {
@@ -96,8 +96,7 @@ public class ConfigurationService
     {
         try
         {
-            ConsoleUi.Log("configuration_service", "Press [R] to reconfigure");
-
+            Console.Write("  Press R to reconfigure, any other key to continue... ");
             var timeout = TimeSpan.FromSeconds(3);
             var start = DateTime.Now;
             while (DateTime.Now - start < timeout)

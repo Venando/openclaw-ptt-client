@@ -35,10 +35,6 @@ public sealed class GatewayClient : IDisposable
     public event Action<string>? AgentReplyDelta;
     public event Action? AgentReplyDeltaStart;
     public event Action? AgentReplyDeltaEnd;
-    public event Action<string>? AgentThinking;
-
-    /// <summary>Fires when the agent calls a tool (e.g. read, git, etc.).</summary>
-    public event Action<string, string>? AgentToolCall; // (toolName, arguments)
 
     /// <summary>Fires when agent response contains [audio] marker with text for TTS.</summary>
     public event Action<string>? AgentReplyAudio;
@@ -80,17 +76,18 @@ public sealed class GatewayClient : IDisposable
         _ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
         var uri = new Uri(_cfg.GatewayUrl);
-        ConsoleUi.Log("gateway", $"Connecting to {uri} ...");
+        Log("gateway", $"Connecting to {uri} ...");
         await _ws.ConnectAsync(uri, ct);
-        ConsoleUi.Log("gateway", "WebSocket open.");
+        Log("gateway", "WebSocket open.");
 
         // start receive pump
         _recvTask = Task.Run(() => ReceiveLoop(ct), ct);
 
         // ── 1. wait for connect.challenge ──
-        ConsoleUi.Log("gateway", "Waiting for connect.challenge ...");
+        Log("gateway", "Waiting for connect.challenge ...");
         var challenge = await WaitForEventAsync("connect.challenge", TimeSpan.FromSeconds(10), ct);
         var nonce = challenge.GetProperty("nonce").GetString()!;
+        Log("gateway", $"Challenge nonce: {nonce[..12]}...");
 
         // ── 2. build + sign connect request ──
         var authToken = _cfg.AuthToken ?? "";
@@ -110,7 +107,7 @@ public sealed class GatewayClient : IDisposable
             var redactedPayload = string.IsNullOrEmpty(authToken)
             ? sigPayload
             : sigPayload.Replace(authToken, "***REDACTED***");
-            ConsoleUi.Log("gateway", $"Signature payload: {redactedPayload}");
+            Log("gateway", $"Signature payload: {redactedPayload}");
         }
 
         var signature = _dev.Sign(sigPayload);
@@ -133,7 +130,7 @@ public sealed class GatewayClient : IDisposable
             },
             ["role"] = "operator",
             ["scopes"] = scopes,
-            ["caps"] = new[] { "streaming", "stream.text", "agent.stream", "text.stream" },
+            ["caps"] = Array.Empty<string>(),
             ["commands"] = Array.Empty<string>(),
             ["permissions"] = new Dictionary<string, object>(),
             ["auth"] = authDict,
@@ -154,16 +151,15 @@ public sealed class GatewayClient : IDisposable
             LogMessage(connectParams);
         }
 
-        ConsoleUi.Log("gateway", "Sending connect ...");
+        Log("gateway", "Sending connect ...");
         JsonElement hello = await SendRequestAsync("connect", connectParams, ct);
-        
 
         // ── 3. validate hello-ok ──
         var helloType = hello.TryGetProperty("type", out var htEl) ? htEl.GetString() : null;
         if (helloType != "hello-ok")
             throw new Exception($"Handshake rejected: {hello}");
 
-        ConsoleUi.LogOk("gateway", "Authenticated — hello-ok received.");
+        LogOk("gateway", "Authenticated — hello-ok received.");
 
         var options = new JsonSerializerOptions { WriteIndented = true };
         if (_cfg.LogHello)
@@ -183,6 +179,7 @@ public sealed class GatewayClient : IDisposable
         {
             _cfg.DeviceToken = dtEl.GetString();
             new ConfigManager().Save(_cfg);
+            Log("gateway", "Device token persisted.");
         }
 
         if (hello.TryGetProperty("snapshot", out var snapshot))
@@ -201,7 +198,7 @@ public sealed class GatewayClient : IDisposable
                 && defaults.TryGetProperty("mainSessionKey", out var keyEl))
             {
                 _cfg.SessionKey = keyEl.GetString();
-                ConsoleUi.Log("gateway", $"Session initialized: {_cfg.SessionKey}");
+                Log("gateway", $"Session initialized: {_cfg.SessionKey}");
             }
         }
 
@@ -212,14 +209,7 @@ public sealed class GatewayClient : IDisposable
             tickMs = tEl.GetInt32();
 
         StartKeepalive(tickMs);
-        ConsoleUi.Log("gateway", $"Keepalive every {tickMs}ms.");
-
-        var subscribeParams = new Dictionary<string, object?>
-        {
-            ["sessionKey"] = _cfg.SessionKey  // "agent:main:main"
-        };
-
-        await SendRequestAsync("sessions.subscribe", subscribeParams, ct);
+        Log("gateway", $"Keepalive every {tickMs}ms.");
     }//
 
     private void LogMessage(Dictionary<string, object?> parameters)
@@ -246,7 +236,7 @@ public sealed class GatewayClient : IDisposable
         }
 
         var options = new JsonSerializerOptions { WriteIndented = true };
-        ConsoleUi.Log("gateway", $"Sending request:\n{JsonSerializer.Serialize(loggableParams, options)}");
+        Log("gateway", $"Sending request:\n{JsonSerializer.Serialize(loggableParams, options)}");
     }
 
     private static string Redact(string value)
@@ -307,7 +297,7 @@ public sealed class GatewayClient : IDisposable
         }
         catch (Exception ex)
         {
-            ConsoleUi.LogError("gateway", $"Error during disconnection handling: {ex.Message}");
+            LogError("gateway", $"Error during disconnection handling: {ex.Message}");
         }
     }
 
@@ -319,7 +309,7 @@ public sealed class GatewayClient : IDisposable
         {
             if (_isReconnecting) return;
             _isReconnecting = true;
-            ConsoleUi.Log("gateway", "Starting reconnection loop...");
+            Log("gateway", "Starting reconnection loop...");
             _reconnectTask = ReconnectLoopAsync(ct);
         }
         finally
@@ -334,14 +324,14 @@ public sealed class GatewayClient : IDisposable
         {
             // Wait for configured delay before attempting reconnect
             var delayMs = (int)(_cfg.ReconnectDelaySeconds * 1000);
-            ConsoleUi.Log("gateway", $"Waiting {_cfg.ReconnectDelaySeconds}s before reconnection attempt...");
+            Log("gateway", $"Waiting {_cfg.ReconnectDelaySeconds}s before reconnection attempt...");
             await Task.Delay(delayMs, ct);
             
-            ConsoleUi.Log("gateway", "Attempting to reconnect...");
+            Log("gateway", "Attempting to reconnect...");
             try
             {
                 await ConnectAsync(ct);
-                ConsoleUi.LogOk("gateway", "Reconnected successfully.");
+                LogOk("gateway", "Reconnected successfully.");
                 break; // success
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -351,7 +341,7 @@ public sealed class GatewayClient : IDisposable
             }
             catch (Exception ex)
             {
-                ConsoleUi.LogError("gateway", $"Reconnection failed: {ex.Message}");
+                LogError("gateway", $"Reconnection failed: {ex.Message}");
                 // Continue loop to retry after next delay
             }
         }
@@ -491,7 +481,7 @@ public sealed class GatewayClient : IDisposable
 
     private async Task ReceiveLoop(CancellationToken ct)
     {
-        var buf = new byte[256 * 1024]; // bump to 256KB
+        var buf = new byte[64 * 1024];
 
         try
         {
@@ -504,35 +494,23 @@ public sealed class GatewayClient : IDisposable
                     result = await _ws.ReceiveAsync(buf, ct);
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        ConsoleUi.Log("gateway", "Server closed connection.");
+                        Log("gateway", "Server closed connection.");
+                        // Schedule reconnection
                         _ = HandleDisconnectionAsync(ct);
                         return;
                     }
                     ms.Write(buf, 0, result.Count);
-
-                    // ── DEBUG: warn if we're hitting buffer limits ──
-                    if (result.Count == buf.Length)
-                        ConsoleUi.LogError("gateway", $"WARNING: fragment filled buffer ({buf.Length} bytes) — consider increasing buffer size");
-
                 } while (!result.EndOfMessage);
 
                 var json = Encoding.UTF8.GetString(ms.ToArray());
-
-                // ── DEBUG: log size so you can correlate with missing messages ──
-                //Log("gateway", $"Frame received: {ms.Length} bytes, event preview: {json[..Math.Min(240, json.Length)]}");
-
                 ProcessFrame(json);
             }
         }
         catch (OperationCanceledException) { }
         catch (WebSocketException ex)
         {
-            ConsoleUi.LogError("gateway", $"WebSocket error: {ex.Message}");
-            _ = HandleDisconnectionAsync(ct);
-        }
-        catch (Exception ex) // ← you're missing this entirely
-        {
-            ConsoleUi.LogError("gateway", $"ReceiveLoop unexpected error: {ex.GetType().Name}: {ex.Message}");
+            LogError("gateway", $"WebSocket error: {ex.Message}");
+            // Schedule reconnection
             _ = HandleDisconnectionAsync(ct);
         }
     }
@@ -585,143 +563,84 @@ public sealed class GatewayClient : IDisposable
         if (_eventWaiters.TryRemove(name, out var tcs))
             tcs.TrySetResult(payload);
 
-        switch (name)
-        {
-            case "session.message":
-                HandleSessionMessage(payload);
-                return;
+        var isFullReplay = name is "chat";
+        var isPartialReplay = name is "agent";
 
-            case "agent":
-                HandleAgentStream(payload);
-                return;
-
-            case "chat":
-                HandleChatFinal(payload);
-                return;
-
-            default:
-                EventReceived?.Invoke(name, payload);
-                if (name == "exec.approval.requested")
-                    HandleApprovalRequest(payload);
-                return;
-        }
-    }
-
-    private void HandleSessionMessage(JsonElement payload)
-    {
-        if (!payload.TryGetProperty("message", out var messageEl)) return;
-        if (!messageEl.TryGetProperty("role", out var roleEl)) return;
-        if (roleEl.GetString() != "assistant") return;
-        if (!messageEl.TryGetProperty("content", out var contentEl)) return;
-        if (contentEl.ValueKind != JsonValueKind.Array) return;
-
-        bool startFired = false;
-
-        foreach (var block in contentEl.EnumerateArray())
-        {
-            if (!block.TryGetProperty("type", out var typeEl)) continue;
-            var type = typeEl.GetString();
-
-            if (type == "thinking" && block.TryGetProperty("thinking", out var thinkingEl))
-            {
-                var thinking = thinkingEl.GetString() ?? string.Empty;
-                if (!string.IsNullOrEmpty(thinking))
-                    AgentThinking?.Invoke(thinking);
-            }
-            else if (type == "toolCall" && block.TryGetProperty("name", out var nameEl) && block.TryGetProperty("arguments", out var argsEl))
-            {
-                var toolName = nameEl.GetString() ?? string.Empty;
-                var args = argsEl.GetRawText();
-                if (_cfg.DebugToolCalls) Console.WriteLine($"[DEBUG] ToolCall: {toolName}({args})");
-                AgentToolCall?.Invoke(toolName, args);
-            }
-            else if (type == "text" && block.TryGetProperty("text", out var textEl))
-            {
-                var text = textEl.GetString() ?? string.Empty;
-                if (!string.IsNullOrEmpty(text))
-                {
-                    var (hasAudio, hasText, audioText, textContent) = ExtractMarkedContent(text);
-                    if (hasAudio)
-                        AgentReplyAudio?.Invoke(audioText);
-                    if (!startFired)
-                    {
-                        AgentReplyDeltaStart?.Invoke();
-                        startFired = true;
-                    }
-                    if (hasText)
-                        AgentReplyFull?.Invoke(textContent);
-                    else if (hasAudio)
-                        AgentReplyFull?.Invoke(StripAudioTags(text));
-                }
-            }
-            else if (type == "audio" && block.TryGetProperty("audio", out var audioEl))
-            {
-                var audioText = audioEl.GetString() ?? string.Empty;
-                if (!string.IsNullOrEmpty(audioText))
-                {
-                    if (!startFired)
-                    {
-                        AgentReplyDeltaStart?.Invoke();
-                        startFired = true;
-                    }
-                    AgentReplyAudio?.Invoke(audioText);
-                }
-            }
-            else
-            {
-                // Log unknown block type with its raw JSON
-                Console.WriteLine($"[DEBUG] Unknown block type=\"{type}\": {block}");
-            }
-        }
-
-        if (startFired)
-            AgentReplyDeltaEnd?.Invoke();
-    }
-
-    private void HandleAgentStream(JsonElement payload)
-    {
-        // Only relevant when RealTimeReplyOutput is on (DeepSeek / streaming models)
-        if (!_cfg.RealTimeReplyOutput) return;
-        if (!payload.TryGetProperty("data", out var data)) return;
-
-        if (data.TryGetProperty("phase", out var phase))
-        {
-            var phaseType = phase.GetString() ?? string.Empty;
-            if (phaseType == "start") AgentReplyDeltaStart?.Invoke();
-            if (phaseType == "end") AgentReplyDeltaEnd?.Invoke();
-        }
-
-        if (data.TryGetProperty("delta", out var delta))
-        {
-            var chunk = delta.GetString() ?? string.Empty;
-            if (!string.IsNullOrEmpty(chunk))
-                AgentReplyDelta?.Invoke(chunk);
-        }
-    }
-
-    private void HandleChatFinal(JsonElement payload)
-    {
-        if (!payload.TryGetProperty("state", out var state)) return;
-        if (state.GetString() != "final") return;
+        // if (isFullReplay || isPartialReplay)
+        // {
+        //     Console.WriteLine($"[{name}]: " + payload);
+        // }
 
         if (_cfg.RealTimeReplyOutput)
         {
-            // Streaming mode: deltas already fired, just close the turn
-            AgentReplyDeltaEnd?.Invoke();
-            return;
+            if (isPartialReplay)
+            {
+                if (payload.TryGetProperty("data", out var dataElement))
+                {
+                    if (dataElement.TryGetProperty("phase", out var phaseElement))
+                    {
+                        var phaseType = phaseElement.GetString() ?? string.Empty;
+                        if (phaseType == "start")
+                            AgentReplyDeltaStart?.Invoke();
+                    }
+
+                    if (dataElement.TryGetProperty("delta", out var deltaElement))
+                    {
+                        var newChunk = deltaElement.GetString() ?? string.Empty;
+                        AgentReplyDelta?.Invoke(newChunk);
+                    }
+                }
+                return;
+            }
+
+            if (isFullReplay)
+            {
+                // Check if this is the final message
+                if (payload.TryGetProperty("state", out var stateElement) &&
+                    stateElement.GetString() == "final")
+                {
+                    AgentReplyDeltaEnd?.Invoke();
+                }
+            }
         }
-
-        // Non-streaming fallback (models that only send final chat event)
-        if (!payload.TryGetProperty("message", out var messageEl)) return;
-        if (!messageEl.TryGetProperty("content", out var contentEl)) return;
-
-        var text = ExtractFullText(contentEl);
-        if (!string.IsNullOrEmpty(text))
+        else
         {
-            AgentReplyDeltaStart?.Invoke();
-            AgentReplyFull?.Invoke(text);
-            AgentReplyDeltaEnd?.Invoke();
+            if (isFullReplay)
+            {
+                // Only call AgentReplyFull for final state messages
+                if (payload.TryGetProperty("state", out var stateElement) &&
+                    stateElement.GetString() == "final" &&
+                    payload.TryGetProperty("message", out var messageElement) &&
+                    messageElement.TryGetProperty("content", out var contentElement))
+                {
+                    // Extract the full text from content array
+                    string fullMessage = ExtractFullText(contentElement);
+                    
+                    // Extract [audio] and [text] marked content
+                    var (hasAudio, hasText, audioText, textContent) = ExtractMarkedContent(fullMessage);
+                    
+                    // Fire events based on markers
+                    if (hasAudio)
+                    {
+                        AgentReplyAudio?.Invoke(audioText);
+                    }
+                    if (hasText)
+                    {
+                        AgentReplyText?.Invoke(textContent);
+                    }
+                    
+                    // Fire the general full reply event as before
+                    AgentReplyFull?.Invoke(fullMessage);
+                }
+                return;
+            }
         }
+
+        EventReceived?.Invoke(name, payload);
+
+        // handle exec approvals inline
+        if (name == "exec.approval.requested")
+            HandleApprovalRequest(payload);
     }
 
     private string ExtractFullText(JsonElement contentElement)
@@ -745,60 +664,46 @@ public sealed class GatewayClient : IDisposable
     /// <summary>
     /// Extracts content from [audio] and [text] markers in the message.
     /// Returns (hasAudioContent, hasTextContent, audioText, textContent).
-    /// Handles partial tags: if [audio] has no closing tag, treats everything after it as audio content.
     /// </summary>
     private (bool hasAudio, bool hasText, string audioText, string textContent) ExtractMarkedContent(string fullMessage)
     {
         var audioText = string.Empty;
         var textContent = string.Empty;
 
-        // Extract [audio] content — require closing tag
+        // Extract [audio] content
         var audioMatch = System.Text.RegularExpressions.Regex.Match(fullMessage, @"\[audio\](.*?)\[/audio\]", System.Text.RegularExpressions.RegexOptions.Singleline);
         if (audioMatch.Success)
         {
             audioText = audioMatch.Groups[1].Value.Trim();
         }
-        else
-        {
-            // No closing tag — treat everything from [audio] onwards as audio content
-            var openTagIndex = fullMessage.IndexOf("[audio]", StringComparison.OrdinalIgnoreCase);
-            if (openTagIndex >= 0)
-            {
-                audioText = fullMessage.Substring(openTagIndex + 7).Trim();
-            }
-        }
 
-        // Extract [text] content — require closing tag
+        // Extract [text] content
         var textMatch = System.Text.RegularExpressions.Regex.Match(fullMessage, @"\[text\](.*?)\[/text\]", System.Text.RegularExpressions.RegexOptions.Singleline);
         if (textMatch.Success)
         {
             textContent = textMatch.Groups[1].Value.Trim();
         }
-        else
-        {
-            // No closing tag — treat everything from [text] onwards as text content
-            var openTagIndex = fullMessage.IndexOf("[text]", StringComparison.OrdinalIgnoreCase);
-            if (openTagIndex >= 0)
-            {
-                textContent = fullMessage.Substring(openTagIndex + 6).Trim();
-            }
-        }
 
         // If no markers found, treat the entire message as text content
         if (string.IsNullOrEmpty(audioText) && string.IsNullOrEmpty(textContent) && !string.IsNullOrEmpty(fullMessage))
         {
-            textContent = fullMessage;
+            // Check if full message starts with either marker tag (without closing tag)
+            if (fullMessage.StartsWith("[audio]", StringComparison.OrdinalIgnoreCase))
+            {
+                audioText = fullMessage.Substring(7).Trim();
+            }
+            else if (fullMessage.StartsWith("[text]", StringComparison.OrdinalIgnoreCase))
+            {
+                textContent = fullMessage.Substring(6).Trim();
+            }
+            else
+            {
+                // Default: treat as text content
+                textContent = fullMessage;
+            }
         }
 
         return (!string.IsNullOrEmpty(audioText), !string.IsNullOrEmpty(textContent), audioText, textContent);
-    }
-
-    /// <summary>
-    /// Strips [audio]...[/audio] tags from text for display purposes, replacing them with the audio content.
-    /// </summary>
-    private static string StripAudioTags(string text)
-    {
-        return System.Text.RegularExpressions.Regex.Replace(text, @"\[audio\](.*?)\[/audio\]", "$1", System.Text.RegularExpressions.RegexOptions.Singleline).Trim();
     }
 
     private void HandleApprovalRequest(JsonElement payload)
@@ -831,7 +736,7 @@ public sealed class GatewayClient : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    ConsoleUi.LogError("approval", ex.Message);
+                    LogError("approval", ex.Message);
                 }
             });
         }
@@ -858,6 +763,32 @@ public sealed class GatewayClient : IDisposable
                 catch { /* swallow tick failures */ }
             }
         }, ct);
+    }
+
+    // ─── helpers ────────────────────────────────────────────────────
+
+    private static void Log(string tag, string msg)
+    {
+        Console.ForegroundColor = ConsoleColor.DarkGray;
+        Console.Write($"  [{tag}] ");
+        Console.ResetColor();
+        Console.WriteLine(msg);
+    }
+
+    private static void LogOk(string tag, string msg)
+    {
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.Write($"  [{tag}] ");
+        Console.ResetColor();
+        Console.WriteLine(msg);
+    }
+
+    private static void LogError(string tag, string msg)
+    {
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.Write($"  [{tag}] ");
+        Console.ResetColor();
+        Console.WriteLine(msg);
     }
 
     public void Dispose()

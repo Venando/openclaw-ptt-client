@@ -12,16 +12,11 @@ public sealed class GatewayService : IDisposable
     private GatewayClient _gatewayClient;
     private AudioResponseHandler? _audioResponseHandler;
     private bool _disposed;
-    private bool _prefixPrinted;
-    private bool _isDeltaStarted;
-    private bool _hasAudioInCurrentMessage;
-
+    
     public event Action<string>? AgentReplyFull;
     public event Action? AgentReplyDeltaStart;
     public event Action<string>? AgentReplyDelta;
     public event Action? AgentReplyDeltaEnd;
-    public event Action<string>? AgentThinking;
-    public event Action<string, string>? AgentToolCall; // (toolName, arguments)
     public event Action<string, JsonElement>? EventReceived;
     public event Action<string>? AgentReplyAudio;
     public event Action<string>? AgentReplyText;
@@ -44,6 +39,9 @@ public sealed class GatewayService : IDisposable
     
     public async Task ConnectAsync(CancellationToken ct)
     {
+        Console.WriteLine($"  Device ID: {_device.DeviceId[..16]}…");
+        Console.WriteLine();
+        
         await _gatewayClient.ConnectAsync(ct);
     }
     
@@ -64,153 +62,57 @@ public sealed class GatewayService : IDisposable
     {
         var client = new GatewayClient(_config, _device);
         
-        string agentReplayPrefix = $"  🤖 {_config.AgentName}: ";
-        string agentReplayPrefixWithAudio = $"  🤖🔊 {_config.AgentName}: ";
-        string agentReplayPrefixTextMode = $"  🤖✍️ {_config.AgentName}: ";
-        int prefixLength = agentReplayPrefix.Length;
-        string newlineSuffix = new string(' ', prefixLength);
-        string currentPrefix = agentReplayPrefix;
+        const string agentReplayPrefix = "  🤖 Agent: ";
+        var prefixLength = agentReplayPrefix.Length;
+        var newlineSuffix = new string(' ', prefixLength);
         
-        AgentReplyFormatter? formatter = null;
-        AgentReplyFormatter? thinkingFormatter = null;
-        const string thinkingPrefix = "  💭 Thinking: ";
-        const string thinkingInfo = "  💭 Thinking… ";
-
         client.AgentReplyFull += body =>
         {
-            EnsurePrefixPrinted();
-            if (formatter != null)
-            {
-                formatter.ProcessDelta(body);
-                formatter.Finish();
-                formatter = null;
-            }
-            else
-            {
-                ConsoleUi.PrintAgentReply(currentPrefix, body);
-            }
+            ConsoleUi.PrintAgentReply(agentReplayPrefix, body);
             AgentReplyFull?.Invoke(body);
         };
-
-        client.AgentThinking += thinking =>
-        {
-            if (_config.ShowThinking)
-            {
-                if (!_prefixPrinted)
-                {
-                    _prefixPrinted = true;
-                    Console.WriteLine();
-                    Console.ForegroundColor = ConsoleColor.DarkGray;
-                    Console.Write(thinkingPrefix);
-                    Console.ResetColor();
-                    if (_config.EnableWordWrap)
-                    {
-                        thinkingFormatter = new AgentReplyFormatter(thinkingPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true);
-                    }
-                }
-                if (thinkingFormatter != null)
-                {
-                    thinkingFormatter.ProcessDelta(thinking);
-                    thinkingFormatter.Finish();
-                    thinkingFormatter = null;
-                    _prefixPrinted = false;
-                    Console.WriteLine();
-                }
-                else
-                {
-                    Console.Write(thinking.TrimEnd());
-                }
-            }
-            else
-            {
-                Console.WriteLine();
-                Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.WriteLine(thinkingInfo);
-                Console.ResetColor();
-                Console.WriteLine();
-                _prefixPrinted = false;
-            }
-            AgentThinking?.Invoke(thinking);
-        };
-
-        var toolDisplayHandler = new ToolDisplayHandler(_config.RightMarginIndent);
-        client.AgentToolCall += (toolName, arguments) =>
-        {
-            toolDisplayHandler.Handle(toolName, arguments);
-            AgentToolCall?.Invoke(toolName, arguments);
-        };
-
+        
+        AgentReplyFormatter? formatter = null;
+        
         client.AgentReplyDeltaStart += () =>
         {
-            _isDeltaStarted = true;
-            formatter = null;
-            AgentReplyDeltaStart?.Invoke();
-        };
-
-        void EnsurePrefixPrinted()
-        {
-            if (_prefixPrinted) return;
-            _prefixPrinted = true;
-
-            if (_config.IsAudioEnabled && _hasAudioInCurrentMessage)
-            {
-                currentPrefix = agentReplayPrefixWithAudio;
-            }
-            else if (_config.IsAudioEnabled)
-            {
-                currentPrefix = agentReplayPrefixTextMode;
-            }
-            else
-            {
-                currentPrefix = agentReplayPrefix;
-            }
-
-            prefixLength = currentPrefix.Length;
-            newlineSuffix = new string(' ', prefixLength);
-
+            Console.WriteLine();
             Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.Write(currentPrefix);
+            Console.Write(agentReplayPrefix);
             Console.ResetColor();
+            
             if (_config.EnableWordWrap)
             {
-                formatter = ConsoleUi.CreateAgentReplyFormatter(currentPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true);
+                formatter = ConsoleUi.CreateAgentReplyFormatter(agentReplayPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true);
             }
-        }
-
+            
+            AgentReplyDeltaStart?.Invoke();
+        };
+        
         client.AgentReplyDelta += delta =>
         {
-            EnsurePrefixPrinted();
             if (formatter != null)
             {
                 formatter.ProcessDelta(delta);
             }
             else
             {
-                ConsoleUi.PrintAgentReplyDelta(currentPrefix, delta, newlineSuffix);
+                ConsoleUi.PrintAgentReplyDelta(agentReplayPrefix, delta, newlineSuffix);
             }
             AgentReplyDelta?.Invoke(delta);
         };
         
         client.AgentReplyDeltaEnd += () =>
         {
-            if (!_isDeltaStarted)
-            {
-                return;
-            }
-
-            _isDeltaStarted = false;
-            _prefixPrinted = false;
-            _hasAudioInCurrentMessage = false;
-
             if (formatter != null)
             {
                 formatter.Finish();
                 formatter = null;
             }
-            // else
-            // {
-            //     Console.WriteLine();
-            // }
+            else
+            {
+                Console.WriteLine();
+            }
             AgentReplyDeltaEnd?.Invoke();
         };
         
@@ -224,7 +126,6 @@ public sealed class GatewayService : IDisposable
         // Handle [audio] marker - synthesize and play TTS
         client.AgentReplyAudio += async audioText =>
         {
-            _hasAudioInCurrentMessage = true;
             if (_audioResponseHandler != null)
             {
                 await _audioResponseHandler.HandleAudioMarkerAsync(audioText);
