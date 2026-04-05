@@ -65,6 +65,7 @@ public sealed class AppConfig
     // Python TTS + uv bootstrap settings
     public bool UseUvPython { get; set; } = false;
     public string? UvToolsPath { get; set; }  // null = default to DataDir/tools/uv.exe
+    public string? TtsServiceScriptPath { get; set; }
 
     // Piper TTS settings
     public string PiperPath { get; set; } = "piper";
