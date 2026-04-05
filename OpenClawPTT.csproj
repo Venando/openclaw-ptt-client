@@ -13,4 +13,10 @@
     <PackageReference Include="SharpCompress" Version="0.36.0" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
   </ItemGroup>
+  <!-- Exclude test projects from main compilation -->
+  <ItemGroup>
+    <Compile Remove="src/TTS/Providers/PythonProvider.Tests/**" />
+    <EmbeddedResource Remove="src/TTS/Providers/PythonProvider.Tests/**" />
+    <None Remove="src/TTS/Providers/PythonProvider.Tests/**" />
+  </ItemGroup>
 </Project>
