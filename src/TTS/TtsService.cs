@@ -50,14 +50,21 @@ public sealed class TtsService : IDisposable
             TtsProviderType.Edge => config.TtsSubscriptionKey != null
                 ? new Providers.EdgeTtsProvider(config.TtsSubscriptionKey, config.TtsRegion ?? "eastus")
                 : null,
-            TtsProviderType.Python => new Providers.PythonTtsProvider(
-                "",
-                config.PythonPath ?? "",
-                config.CoquiModelPath ?? "",
-                config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits",
-                config.CoquiConfigPath,
-                null,
-                config.PythonTtsDebugLog),
+            TtsProviderType.Python => config.UseUvPython
+                ? new Providers.PythonTtsProvider(
+                    config.DataDir,
+                    useUvManagement: true,
+                    uvToolsPath: config.UvToolsPath,
+                    pythonVersion: "3.11",
+                    ttsServiceScript: config.TtsServiceScriptPath)
+                : new Providers.PythonTtsProvider(
+                    "",
+                    config.PythonPath ?? "",
+                    config.CoquiModelPath ?? "",
+                    config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits",
+                    config.CoquiConfigPath,
+                    null,
+                    config.PythonTtsDebugLog),
             _ => null
         };
 

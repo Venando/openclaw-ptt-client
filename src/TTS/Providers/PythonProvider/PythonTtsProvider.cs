@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 
@@ -46,6 +47,79 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
         _synthesisTimeout = requestTimeout ?? TimeSpan.FromSeconds(30);
         _writeTimeout = TimeSpan.FromSeconds(5);
         _startupTimeout = startupTimeout ?? TimeSpan.FromSeconds(120);
+    }
+
+    /// <summary>
+    /// Creates a PythonTtsProvider with uv-managed Python environment.
+    /// uv will bootstrap a Python installation and a venv, then launch the TTS service.
+    /// </summary>
+    /// <param name="baseDir">Base directory for uv managed environment</param>
+    /// <param name="useUvManagement">Set to true to enable uv-managed Python</param>
+    /// <param name="uvToolsPath">Path to uv tools (can be null for auto-resolve)</param>
+    /// <param name="pythonVersion">Python version to install</param>
+    /// <param name="ttsServiceScript">Path to the TTS service script (can be null)</param>
+    public PythonTtsProvider(string baseDir, bool useUvManagement, string? uvToolsPath, string pythonVersion, string? ttsServiceScript)
+    {
+        _serviceScriptPathOverride = ttsServiceScript;
+        _environment = new PythonEnvironment(ResolveUvPython(uvToolsPath, baseDir), string.Empty, null, null, null);
+        _debugLog = false;
+        _synthesisTimeout = TimeSpan.FromSeconds(30);
+        _writeTimeout = TimeSpan.FromSeconds(5);
+        _startupTimeout = TimeSpan.FromSeconds(120);
+
+        if (useUvManagement)
+            BootstrapUvEnvironment(uvToolsPath, baseDir, pythonVersion);
+    }
+
+    private static string ResolveUvPython(string? uvToolsPath, string baseDir)
+    {
+        // If uv-tools path is provided, use the uv-managed Python directly
+        if (!string.IsNullOrEmpty(uvToolsPath))
+        {
+            var uvExe = Path.Combine(uvToolsPath, RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "uv.exe" : "uv");
+            var uvPython = Path.Combine(baseDir, ".venv", "Scripts", "python.exe");
+            if (File.Exists(uvPython))
+                return uvPython;
+        }
+        return "python";
+    }
+
+    private static void BootstrapUvEnvironment(string? uvToolsPath, string baseDir, string pythonVersion)
+    {
+        var uvExe = string.IsNullOrEmpty(uvToolsPath)
+            ? "uv"
+            : Path.Combine(uvToolsPath, RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "uv.exe" : "uv");
+
+        var venvDir = Path.Combine(baseDir, ".venv");
+
+        // Create venv if it doesn't exist
+        if (!Directory.Exists(venvDir))
+        {
+            var createPsi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = uvExe,
+                Arguments = $"venv \"{venvDir}\" --python {pythonVersion}",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            using var createProc = System.Diagnostics.Process.Start(createPsi);
+            createProc?.WaitForExit();
+        }
+
+        // Install TTS dependencies
+        var pipInstallPsi = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = uvExe,
+            Arguments = $"pip install torch torchaudio numpy espeakng \"TTS>=0.22.0\" --python \"{Path.Combine(venvDir, "Scripts", "python.exe")}\"",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        using var pipProc = System.Diagnostics.Process.Start(pipInstallPsi);
+        pipProc?.WaitForExit();
     }
 
     public async Task InitializeAsync(CancellationToken ct = default)
