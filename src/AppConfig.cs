@@ -62,6 +62,10 @@ public sealed class AppConfig
     public string CoquiModelPath { get; set; } = "";
     public string CoquiModelName { get; set; } = "tts_models/multilingual/mxtts/vits谈";
 
+    // Python TTS + uv bootstrap settings
+    public bool UseUvPython { get; set; } = false;
+    public string? UvToolsPath { get; set; }  // null = default to DataDir/tools/uv.exe
+
     // Piper TTS settings
     public string PiperPath { get; set; } = "piper";
     public string PiperModelPath { get; set; } = "";
