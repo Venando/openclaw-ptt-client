@@ -56,7 +56,6 @@ public static class ConsoleUi
         if (isRecording)
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine();
             if (holdToTalk)
             {
                 Console.Write($"  ● REC — release {hotkeyCombination} to stop ");
@@ -72,17 +71,7 @@ public static class ConsoleUi
     public static void PrintSuccess(string message)
     {
         Console.ForegroundColor = ConsoleColor.Green;
-        Console.Write($"  ✓ {message}");
-        Console.ResetColor();
-    }
-
-    public static void PrintSuccessWordWrap(string prefix, string message, int rightMarginIndent)
-    {
-        Console.ForegroundColor = ConsoleColor.Green;
-        Console.Write(prefix);
-        var formatter = new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted: true);
-        formatter.ProcessDelta(message);
-        formatter.Finish();
+        Console.WriteLine($"  ✓ {message}");
         Console.ResetColor();
     }
     
@@ -110,14 +99,13 @@ public static class ConsoleUi
     public static void PrintInlineInfo(string message)
     {
         Console.ForegroundColor = ConsoleColor.DarkGray;
-        Console.WriteLine();
         Console.Write($"  {message}");
         Console.ResetColor();
     }
     
     public static void PrintInlineSuccess(string message)
     {
-        Console.ForegroundColor = ConsoleColor.DarkGray;
+        Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine(message);
         Console.ResetColor();
     }

@@ -159,7 +159,7 @@ internal static class Program
                 else
                 {
                     // Toggle recording
-                    await ToggleRecordingAsync(audioService, gateway, cfg, ct);
+                    await ToggleRecordingAsync(audioService, gateway, ct);
                 }
             }
             if (_hotkeyReleased)
@@ -171,8 +171,9 @@ internal static class Program
                     var transcribed = await audioService.StopAndTranscribeAsync(ct);
                     if (transcribed != null)
                     {
-                        await SendTextToGatewayAsync(gateway, cfg,
-                            cfg.TranscriptionPromptPrefix + transcribed, ct);
+                        await SendTextToGatewayAsync(gateway,
+                            "[The following text is a raw speech-to-text transcription]: " + transcribed, ct);
+                        ConsoleUi.PrintInfo("Waiting for agent…");
                     }
                 }
             }
@@ -185,7 +186,7 @@ internal static class Program
         return 0;
     }
 
-    private static async Task ToggleRecordingAsync(AudioService audioService, GatewayService gateway, AppConfig cfg, CancellationToken ct)
+    private static async Task ToggleRecordingAsync(AudioService audioService, GatewayService gateway, CancellationToken ct)
     {
         if (!audioService.IsRecording)
         {
@@ -196,19 +197,15 @@ internal static class Program
         var transcribed = await audioService.StopAndTranscribeAsync(ct);
         if (transcribed != null)
         {
-            await SendTextToGatewayAsync(gateway, cfg,
-                cfg.TranscriptionPromptPrefix + transcribed, ct);
+            await SendTextToGatewayAsync(gateway,
+                "[The following text is a raw speech-to-text transcription]: " + transcribed, ct);
+            
+            ConsoleUi.PrintInfo("Waiting for agent…");
         }
     }
 
-    private static async Task SendTextToGatewayAsync(GatewayService gateway, AppConfig cfg, string text, CancellationToken ct)
+    private static async Task SendTextToGatewayAsync(GatewayService gateway, string text, CancellationToken ct)
     {
-        // Prepend audio wrap prompt when TTS is enabled
-        if (cfg.IsAudioEnabled && !string.IsNullOrEmpty(cfg.AudioWrapPrompt))
-        {
-            text = cfg.AudioWrapPrompt + "\n\n" + text;
-        }
-
         ConsoleUi.PrintInlineInfo("Sending… ");
         try
         {

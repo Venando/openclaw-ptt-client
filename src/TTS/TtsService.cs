@@ -1,11 +1,8 @@
-using System.Text.Json.Serialization;
-
 namespace OpenClawPTT.TTS;
 
 /// <summary>
 /// TTS provider types
 /// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum TtsProviderType
 {
     OpenAI,
@@ -22,11 +19,8 @@ public sealed class TtsService : IDisposable
 {
     private readonly ITextToSpeech? _provider;
     private readonly TtsProviderType _providerType;
-    private readonly CancellationTokenSource _cts = new();
     private bool _disposed;
 
-    public CancellationToken CancellationToken => _cts.Token;
-    
     public TtsProviderType ProviderType => _providerType;
     public ITextToSpeech? Provider => _provider;
     public bool IsConfigured => _provider != null;
@@ -38,26 +32,21 @@ public sealed class TtsService : IDisposable
         _provider = _providerType switch
         {
             TtsProviderType.OpenAI => new Providers.OpenAiTtsProvider(config.TtsOpenAiApiKey ?? config.OpenAiApiKey ?? throw new InvalidOperationException("OpenAI API key not configured")),
-            TtsProviderType.Coqui => new Providers.PythonTtsProvider(
-                "",
-                config.PythonPath ?? "",
-                config.CoquiModelPath ?? "",
-                config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits",
-                config.CoquiConfigPath,
-                config.EspeakNgPath,
-                config.PythonTtsDebugLog),
-            TtsProviderType.Piper => new Providers.PiperTtsProvider(config.PiperPath ?? "piper", config.PiperModelPath ?? "", config.PiperVoice ?? "en_US-lessac"),
+            TtsProviderType.Coqui => new Providers.CoquiTtsProvider(config.CoquiModelPath, config.CoquiModelName),
+            TtsProviderType.Piper => new Providers.PiperTtsProvider(config.PiperPath, config.PiperModelPath, config.PiperVoice),
             TtsProviderType.Edge => config.TtsSubscriptionKey != null
-                ? new Providers.EdgeTtsProvider(config.TtsSubscriptionKey, config.TtsRegion ?? "eastus")
+                ? new Providers.EdgeTtsProvider(config.TtsSubscriptionKey, config.TtsRegion)
                 : null,
-            TtsProviderType.Python => new Providers.PythonTtsProvider(
-                "",
-                config.PythonPath ?? "",
-                config.CoquiModelPath ?? "",
-                config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits",
-                config.CoquiConfigPath,
-                null,
-                config.PythonTtsDebugLog),
+            TtsProviderType.Python => config.UseUvPython
+                ? new Providers.PythonTtsProvider(
+                    config.DataDir,
+                    useUvManagement: true,
+                    uvToolsPath: config.UvToolsPath,
+                    pythonVersion: "3.11",
+                    ttsServiceScript: config.TtsServiceScriptPath)
+                : new Providers.PythonTtsProvider(
+                    "",
+                    config.TtsServiceScriptPath),
             _ => null
         };
 
@@ -65,9 +54,6 @@ public sealed class TtsService : IDisposable
         {
             throw new InvalidOperationException($"Failed to initialize TTS provider: {_providerType}");
         }
-
-        if (_provider is Providers.PythonTtsProvider pythonProvider)
-            pythonProvider.InitializeAsync(_cts.Token).GetAwaiter().GetResult();
     }
 
     /// <summary>
@@ -117,12 +103,7 @@ public sealed class TtsService : IDisposable
     {
         if (!_disposed)
         {
-            _cts.Cancel();
-            _cts.Dispose();
-            if (_provider is IAsyncDisposable asyncDisposable)
-                asyncDisposable.DisposeAsync().Preserve();
-            else
-                (_provider as IDisposable)?.Dispose();
+            (_provider as IDisposable)?.Dispose();
             _disposed = true;
         }
     }

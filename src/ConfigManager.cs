@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -13,7 +13,7 @@ public sealed class ConfigManager
     {
         WriteIndented = true,
         DefaultIgnoreCondition =
-            System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault
+            System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     };
 
     private string ConfigPath(AppConfig cfg) =>
@@ -31,23 +31,11 @@ public sealed class ConfigManager
         var config = JsonSerializer.Deserialize<AppConfig>(json, JsonOpts);
         if (config != null)
         {
+            // Backward compatibility: if VisualMode is missing from JSON, default to 1 (red dot)
             using var doc = JsonDocument.Parse(json);
-
-            // Backward compatibility: if VisualMode is missing or was None (0), disable via VisualFeedbackEnabled
-            if (!doc.RootElement.TryGetProperty("VisualMode", out _) || config.VisualMode == 0)
+            if (!doc.RootElement.TryGetProperty("VisualMode", out _))
             {
-                config.VisualFeedbackEnabled = false;
-                config.VisualMode = VisualMode.SolidDot;
-            }
-
-            // Set platform-specific default for EspeakNgPath if not configured
-            if (string.IsNullOrEmpty(config.EspeakNgPath))
-            {
-                config.EspeakNgPath = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                    ? @"C:\Program Files\eSpeak NG"
-                    : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
-                        ? "/opt/homebrew/bin/espeak-ng"
-                        : "/usr/bin/espeak-ng";
+                config.VisualMode = 1;
             }
         }
         return config;
@@ -81,8 +69,8 @@ public sealed class ConfigManager
         if (cfg.ReconnectDelaySeconds <= 0)
             issues.Add("Reconnect delay must be positive.");
 
-        if (cfg.VisualMode < VisualMode.SolidDot || cfg.VisualMode > VisualMode.GlowDot)
-            issues.Add("VisualMode must be 1 (SolidDot) or 2 (GlowDot).");
+        if (cfg.VisualMode < 0 || cfg.VisualMode > 3)
+            issues.Add("VisualMode must be between 0 and 3.");
 
         return issues;
     }
@@ -172,11 +160,6 @@ public sealed class ConfigManager
             cfg.HoldToTalk.ToString(),
             v => bool.TryParse(v, out _)));
 
-        cfg.TranscriptionPromptPrefix = await Prompt(
-            "Transcription prompt prefix",
-            cfg.TranscriptionPromptPrefix,
-            v => !string.IsNullOrWhiteSpace(v));
-
         // Visual feedback settings
         cfg.VisualFeedbackEnabled = bool.Parse(await Prompt(
             "Visual feedback enabled (true/false)",
@@ -205,11 +188,6 @@ public sealed class ConfigManager
             cfg.VisualFeedbackColor,
             v => System.Text.RegularExpressions.Regex.IsMatch(v, @"^#?([0-9A-Fa-f]{6})$"));
 
-        cfg.VisualFeedbackRimThickness = int.Parse(await Prompt(
-            "Visual feedback rim thickness (0 = off, 1-50 pixels)",
-            cfg.VisualFeedbackRimThickness.ToString(),
-            v => int.TryParse(v, out var n) && n is >= 0 and <= 50));
-
         // Audio response settings
         cfg.AudioResponseMode = await Prompt(
             "Audio response mode (text-only, audio-only, both)",
@@ -228,7 +206,7 @@ public sealed class ConfigManager
         
         cfg.TtsVoiceId = await Prompt(
             "ElevenLabs voice ID",
-            cfg.TtsVoiceId ?? "",
+            cfg.TtsVoiceId,
             v => !string.IsNullOrWhiteSpace(v));
 
         await Task.CompletedTask;

@@ -4,8 +4,6 @@ A desktop app for voice-controlled interaction with **OpenClaw** — an open-sou
 
 **Works with OpenClaw's AI agents** through your local gateway. Currently uses **Groq's Whisper API** for speech-to-text transcription.
 
-<img width="832" height="467" alt="image" src="https://github.com/user-attachments/assets/8f4e187e-5aa5-4f86-8488-0cd7f3dbced7" />
-
 ## What It Does
 
 1. **Push-to-talk**: Use your configured hotkey (default: Alt+=) to start/stop recording — your voice is transcribed and sent to OpenClaw

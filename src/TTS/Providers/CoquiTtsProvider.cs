@@ -11,8 +11,6 @@ public sealed class CoquiTtsProvider : ITextToSpeech
 {
     private readonly string _modelPath;
     private readonly string _modelName;
-    private readonly string _pythonPath;
-    private readonly string _espeakNgPath;
 
     public string ProviderName => "Coqui TTS";
 
@@ -25,7 +23,7 @@ public sealed class CoquiTtsProvider : ITextToSpeech
     // Popular Coqui TTS models
     public IReadOnlyList<string> AvailableModels { get; } = new[]
     {
-        "tts_models/multilingual/mxtts/vits",      // VITS multilingual
+        "tts_models/multilingual/mxtts/vits谈",     // VITS multilingual
         "tts_models/en/ljspeech/vits",              // English VITS
         "tts_models/en/vctk/vits",                  // English VCTK
         "tts_models/es/mai_speak/vits",             // Spanish
@@ -33,12 +31,10 @@ public sealed class CoquiTtsProvider : ITextToSpeech
         "tts_models/de/thorsten/vits",              // German
     };
 
-    public CoquiTtsProvider(string modelPath = "", string modelName = "tts_models/multilingual/mxtts/vits", string? pythonPath = null, string? espeakNgPath = null)
+    public CoquiTtsProvider(string modelPath = "", string modelName = "tts_models/multilingual/mxtts/vits谈")
     {
         _modelPath = modelPath;
         _modelName = modelName;
-        _pythonPath = pythonPath ?? "";
-        _espeakNgPath = espeakNgPath ?? "";
     }
 
     public async Task<byte[]> SynthesizeAsync(string text, string? voice = null, string? model = null, CancellationToken ct = default)
@@ -49,84 +45,41 @@ public sealed class CoquiTtsProvider : ITextToSpeech
         try
         {
             var args = new StringBuilder();
-            args.Append($" --model_name \"{selectedModel}\"");
-            args.Append($" --text \"{text}\"");
-            args.Append($" --out_path \"{tempOutput}\"");
+            args.Append($"--model_name \"{selectedModel}\"");
+            args.Append($"--text \"{text}\"");
+            args.Append($"--output_path \"{tempOutput}\"");
 
-            var ttsExe = Path.Combine(_pythonPath, "Scripts", "tts.exe");
-
-            if (!File.Exists(ttsExe))
+            if (!string.IsNullOrEmpty(_modelPath))
             {
-                throw new InvalidOperationException(
-                    $"Coqui TTS executable not found at: {ttsExe}. " +
-                    "Set PythonPath in config to your Python installation directory " +
-                    "(e.g. C:/Users/eldve/AppData/Local/Programs/Python/Python311).");
+                args.Append($"--model_dir \"{_modelPath}\"");
             }
-
-            Console.Error.WriteLine($"[CoquiTtsProvider] START ttsExe={ttsExe}");
-            Console.Error.WriteLine($"[CoquiTtsProvider] args={args}");
-            Console.Error.WriteLine($"[CoquiTtsProvider] espeakNgPath={_espeakNgPath}");
-            Console.Error.WriteLine($"[CoquiTtsProvider] PATH env will include: {_espeakNgPath}");
 
             var psi = new ProcessStartInfo
             {
-                FileName = ttsExe,
+                FileName = "tts",
                 Arguments = args.ToString(),
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 CreateNoWindow = true
             };
-            if (!string.IsNullOrEmpty(_espeakNgPath))
-                psi.Environment["PATH"] = _espeakNgPath + ";" + psi.Environment["PATH"];
 
-            using var process = Process.Start(psi) ?? throw new InvalidOperationException(
-                "Failed to start Coqui TTS process. Check EspeakNgPath in config " +
-                $"(currently: '{_espeakNgPath ?? "(not set)"}'). Ensure espeak-ng is installed and the path is correct.");
+            using var process = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start tts process");
 
-            Console.Error.WriteLine($"[CoquiTtsProvider] process started, pid={process.Id}");
             await process.WaitForExitAsync(ct);
-            Console.Error.WriteLine($"[CoquiTtsProvider] process exited with code={process.ExitCode}");
 
             if (process.ExitCode != 0)
             {
                 var error = await process.StandardError.ReadToEndAsync(ct);
-                Console.Error.WriteLine($"[CoquiTtsProvider] stderr: {error}");
-
-                // Provide actionable hints based on error content
-                if (error.Contains("espeak", StringComparison.OrdinalIgnoreCase) ||
-                    error.Contains("phonemizer", StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidOperationException(
-                        $"Coqui TTS failed: espeak-ng not found. " +
-                        "Install espeak-ng from https://github.com/espeak-ng/espeak-ng/releases " +
-                        "and ensure it's in your system PATH.");
-                }
-                else if (error.Contains("No module", StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidOperationException(
-                        $"Coqui TTS failed: Python module error. {error.Split('\n').LastOrDefault()?.Trim()}");
-                }
-                else if (error.Contains("model", StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidOperationException(
-                        $"Coqui TTS failed: model not found. Verify CoquiModelName in config is correct " +
-                        $"(e.g. tts_models/en/ljspeech/vits). Error: {error.Split('\n').FirstOrDefault()?.Trim()}");
-                }
-                else
-                {
-                    throw new InvalidOperationException($"Coqui TTS failed: {error.Split('\n').FirstOrDefault()?.Trim()}");
-                }
+                throw new InvalidOperationException($"Coqui TTS failed: {error}");
             }
 
             if (!File.Exists(tempOutput))
             {
-                throw new InvalidOperationException("Coqui TTS did not produce output file.");
+                throw new InvalidOperationException($"Coqui TTS did not produce output file: {tempOutput}");
             }
 
-            Console.Error.WriteLine($"[CoquiTtsProvider] reading output file size={new FileInfo(tempOutput).Length}");
             var audio = await File.ReadAllBytesAsync(tempOutput, ct);
-            Console.Error.WriteLine($"[CoquiTtsProvider] returning {audio.Length} bytes");
             return audio;
         }
         finally

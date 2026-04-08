@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh pr:*)",
+      "Bash(\"/c/Program Files/dotnet/dotnet.exe\" build f:/git/openclaw-ptt/openclaw-ptt.sln --no-restore)",
+      "Bash(\"/c/Program Files/dotnet/dotnet.exe\" build f:/git/openclaw-ptt/openclaw-ptt.sln --no-restore -o f:/git/openclaw-ptt/bin/release)",
+      "Bash(dotnet build:*)",
+      "Bash(\"C:/Program Files/dotnet/dotnet.exe\" build -o f:/git/openclaw-ptt/bin/release)",
+      "Bash(\"C:/Program Files/dotnet/dotnet.exe\" build openclaw-ptt.sln -o f:/git/openclaw-ptt/bin/release)",
+      "Bash(\"/c/Program Files/dotnet/dotnet.exe\" build OpenClawPTT.csproj --no-restore -o bin/release)",
+      "Bash(\"/c/Program Files/dotnet/dotnet.exe\" build OpenClawPTT.csproj --no-restore)",
+      "Bash(\"/c/Program Files/dotnet/dotnet.exe\" build OpenClawPTT.csproj --no-incremental)",
+      "Bash(\"/c/Program Files/dotnet/dotnet.exe\" build OpenClawPTT.csproj --no-restore -o f:/git/openclaw-ptt/bin/release)",
+      "Read(//c/Program Files/dotnet/**)"
+    ]
+  }
+}
