@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace OpenClawPTT.Services;
 
-internal sealed class ToolDisplayHandler
+public sealed class ToolDisplayHandler
 {
     private readonly int _rightMarginIndent;
 
