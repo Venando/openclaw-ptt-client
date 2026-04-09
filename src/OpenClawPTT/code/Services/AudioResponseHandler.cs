@@ -111,11 +111,11 @@ public sealed class AudioResponseHandler : IDisposable
     /// <summary>
     /// Handle [audio] marker specifically - synthesize and play.
     /// </summary>
-    public async Task HandleAudioMarkerAsync(string text, CancellationToken ct = default)
+    public Task HandleAudioMarkerAsync(string text, CancellationToken ct = default)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(AudioResponseHandler));
         
-        await PlayTtsAsync(text, ct);
+        return PlayTtsAsync(text, ct);
     }
     
     /// <summary>
