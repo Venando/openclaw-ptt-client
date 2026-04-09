@@ -362,12 +362,12 @@ public sealed class GatewayClient : IDisposable
         _tickCts?.Cancel();
         _tickCts?.Dispose();
 
-        if (_ws.State == WebSocketState.Open)
+        if (_ws != null && _ws.State == WebSocketState.Open)
         {
             try { _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None).Wait(3000); }
             catch { /* best effort */ }
+            _ws.Dispose();
         }
-        _ws.Dispose();
 
         _reconnectLock.Dispose();
         _disposeCts.Dispose();

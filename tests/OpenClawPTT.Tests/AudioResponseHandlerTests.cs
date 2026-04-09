@@ -1,0 +1,50 @@
+using OpenClawPTT.Services;
+using Xunit;
+
+namespace OpenClawPTT.Tests;
+
+/// <summary>
+/// Tests for AudioResponseHandler. Avoids real TTS/audio playback by using
+/// text-only config or catching initialization failures gracefully.
+/// </summary>
+public class AudioResponseHandlerTests
+{
+    [Fact]
+    public async Task HandleAudioMarkerAsync_TextOnlyConfig_DoesNothing()
+    {
+        // Arrange: text-only config — AudioResponseHandler should skip audio handling
+        var cfg = new AppConfig { AudioResponseMode = "text-only" };
+        var handler = new AudioResponseHandler(cfg);
+
+        // Act: should not throw (TTS not configured is handled gracefully)
+        await handler.HandleAudioMarkerAsync("Hello world");
+
+        // Assert: IsPlaying is false since no audio was started
+        Assert.False(handler.IsPlaying);
+    }
+
+    [Fact]
+    public async Task HandleAudioMarkerAsync_AudioEnabled_DoesNotThrow()
+    {
+        // Arrange: audio-enabled config without real API keys — will fail gracefully
+        var cfg = new AppConfig { AudioResponseMode = "audio-only" };
+        var handler = new AudioResponseHandler(cfg);
+
+        // Act: should not throw (TTS init failure is caught and logged)
+        await handler.HandleAudioMarkerAsync("Test audio text");
+
+        // Assert: handler is in valid state
+        Assert.False(handler.IsPlaying);
+    }
+
+    [Fact]
+    public void AudioResponseHandler_Dispose_DoesNotThrow()
+    {
+        var cfg = new AppConfig { AudioResponseMode = "text-only" };
+        var handler = new AudioResponseHandler(cfg);
+
+        handler.Dispose(); // should not throw
+
+        Assert.True(true); // reached here
+    }
+}
