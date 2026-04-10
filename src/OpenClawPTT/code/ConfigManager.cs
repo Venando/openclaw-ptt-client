@@ -11,9 +11,7 @@ public sealed class ConfigManager
 {
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
-        WriteIndented = true,
-        DefaultIgnoreCondition =
-            System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault
+        WriteIndented = true
     };
 
     private string ConfigPath(AppConfig cfg) =>

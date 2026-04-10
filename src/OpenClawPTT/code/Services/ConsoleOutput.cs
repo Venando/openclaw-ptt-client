@@ -29,6 +29,18 @@ public sealed class ConsoleOutput : IConsoleOutput
     public void PrintGatewayError(string message, string? detailCode, string? recommendedStep)
         => ConsoleUi.PrintGatewayError(message, detailCode, recommendedStep);
 
+    public void PrintAgentReply(string prefix, string body)
+        => ConsoleUi.PrintAgentReply(prefix, body);
+
+    public void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix)
+        => ConsoleUi.PrintAgentReplyDelta(prefix, delta, newlineSuffix);
+
+    public OpenClawPTT.AgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
+        => ConsoleUi.CreateAgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted);
+
+    public OpenClawPTT.AgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
+        => ConsoleUi.CreateAgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, consoleWidth);
+
     public void Log(string tag, string msg) => ConsoleUi.Log(tag, msg);
 
     public void LogOk(string tag, string msg) => ConsoleUi.LogOk(tag, msg);

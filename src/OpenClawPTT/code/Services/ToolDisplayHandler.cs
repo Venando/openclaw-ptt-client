@@ -4,28 +4,28 @@ using System.Text.Json;
 
 namespace OpenClawPTT.Services;
 
-internal sealed class ToolDisplayHandler
+public sealed class ToolDisplayHandler
 {
-    private static int _rightMarginIndent;
+    private readonly int _rightMarginIndent;
 
-    private record ToolInfo(string Icon, Action<JsonDocument> Handler);
+    private record ToolInfo(string Icon, Action<JsonDocument, int> Handler);
 
     private static readonly Dictionary<string, ToolInfo> Tools = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["read"]          = new("📄",   HandleRead),
-        ["write"]         = new("📝",   HandleWrite),
-        ["edit"]          = new("🪄",   HandleEdit),
-        ["exec"]          = new("▶️",   HandleExec),
-        ["process"]       = new("⚙️",   HandleGenericKvp),
-        ["web_search"]    = new("🔍",   HandleGenericKvp),
-        ["web_fetch"]      = new("🌐",   HandleWebFetch),
-        ["sessions_list"] = new("📋",   HandleSessionsList),
-        ["session_status"]= new("📋",   HandleSessionStatus),
-        ["memory_search"] = new("📚",   HandleMemorySearch),
-        ["memory_get"]    = new("📚",   HandleMemoryGet),
-        ["image_generate"]= new("🎨",   HandleGenericKvp),
-        ["subagents"]     = new("🎮🤖", HandleSubagents),
-        ["sessions_spawn"]= new("➕🤖",  HandleSessionsSpawn),
+        ["read"]          = new("📄",   (doc, _) => HandleRead(doc)),
+        ["write"]         = new("📝",   (doc, ri) => HandleWrite(doc, ri)),
+        ["edit"]          = new("🪄",   (doc, ri) => HandleEdit(doc, ri)),
+        ["exec"]          = new("▶️",   (doc, _) => HandleExec(doc)),
+        ["process"]       = new("⚙️",   (doc, _) => HandleGenericKvp(doc)),
+        ["web_search"]    = new("🔍",   (doc, _) => HandleGenericKvp(doc)),
+        ["web_fetch"]      = new("🌐",   (doc, _) => HandleWebFetch(doc)),
+        ["sessions_list"] = new("📋",   (doc, _) => HandleSessionsList(doc)),
+        ["session_status"]= new("📋",   (doc, _) => HandleSessionStatus(doc)),
+        ["memory_search"] = new("📚",   (doc, _) => HandleMemorySearch(doc)),
+        ["memory_get"]    = new("📚",   (doc, _) => HandleMemoryGet(doc)),
+        ["image_generate"]= new("🎨",   (doc, _) => HandleGenericKvp(doc)),
+        ["subagents"]     = new("🎮🤖", (doc, _) => HandleSubagents(doc)),
+        ["sessions_spawn"]= new("➕🤖",  (doc, ri) => HandleSessionsSpawn(doc, ri)),
     };
 
     public ToolDisplayHandler(int rightMarginIndent)
@@ -49,7 +49,7 @@ internal sealed class ToolDisplayHandler
             using var doc = JsonDocument.Parse(arguments);
             if (Tools.TryGetValue(toolName, out var tool) && tool.Handler != null)
             {
-                tool.Handler(doc);
+                tool.Handler(doc, _rightMarginIndent);
             }
             else
             {
@@ -62,11 +62,6 @@ internal sealed class ToolDisplayHandler
         }
 
         Console.WriteLine();
-    }
-
-    private static void TruncatedPrint(string text, string continuationPrefix, ConsoleColor contentColor = ConsoleColor.White)
-    {
-        TruncatedPrint(text, continuationPrefix, _rightMarginIndent, contentColor);
     }
 
     private static void TruncatedPrint(string text, string continuationPrefix, int rightMarginIndent, ConsoleColor contentColor = ConsoleColor.White)
@@ -111,7 +106,7 @@ internal sealed class ToolDisplayHandler
         }
     }
 
-    private static void HandleWrite(JsonDocument doc)
+    private static void HandleWrite(JsonDocument doc, int rightMarginIndent)
     {
         if (doc.RootElement.TryGetProperty("path", out var pathProp))
         {
@@ -126,11 +121,11 @@ internal sealed class ToolDisplayHandler
             Console.Write(contentPrefix);
             Console.ResetColor();
             var content = contentProp.GetString() ?? "";
-            TruncatedPrint(content, contentPrefix);
+            TruncatedPrint(content, contentPrefix, rightMarginIndent);
         }
     }
 
-    private static void HandleEdit(JsonDocument doc)
+    private static void HandleEdit(JsonDocument doc, int rightMarginIndent)
     {
         if (doc.RootElement.TryGetProperty("file_path", out var fileProp))
         {
@@ -144,7 +139,7 @@ internal sealed class ToolDisplayHandler
             const string oldPrefix = "  old: ";
             Console.Write(oldPrefix);
             Console.ResetColor();
-            TruncatedPrint(oldProp.GetString() ?? "", oldPrefix);
+            TruncatedPrint(oldProp.GetString() ?? "", oldPrefix, rightMarginIndent);
         }
         if (doc.RootElement.TryGetProperty("newString", out var newProp))
         {
@@ -153,7 +148,7 @@ internal sealed class ToolDisplayHandler
             const string newPrefix = "  new: ";
             Console.Write(newPrefix);
             Console.ResetColor();
-            TruncatedPrint(newProp.GetString() ?? "", newPrefix);
+            TruncatedPrint(newProp.GetString() ?? "", newPrefix, rightMarginIndent);
         }
     }
 
@@ -349,7 +344,7 @@ internal sealed class ToolDisplayHandler
         }
     }
 
-    private static void HandleSessionsSpawn(JsonDocument doc)
+    private static void HandleSessionsSpawn(JsonDocument doc, int rightMarginIndent)
     {
         if (doc.RootElement.TryGetProperty("label", out var labelProp))
         {
@@ -384,7 +379,7 @@ internal sealed class ToolDisplayHandler
             const string taskPrefix = "  Task: ";
             Console.Write(taskPrefix);
             Console.ResetColor();
-            TruncatedPrint(taskProp.GetString() ?? "", taskPrefix, ConsoleColor.Gray);
+            TruncatedPrint(taskProp.GetString() ?? "", taskPrefix, rightMarginIndent, ConsoleColor.Gray);
         }
     }
 }
