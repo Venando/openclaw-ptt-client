@@ -90,20 +90,25 @@ public sealed class GatewayClient : IDisposable
             try { await prevTask.WaitAsync(TimeSpan.FromSeconds(1)); } catch { /* best effort */ }
 
         _recvCts = new CancellationTokenSource();
-        _recvTask = Task.Run(() => ReceiveLoop(linkCts.Token), _recvCts.Token);
+        _recvTask = Task.Run(() => ReceiveLoop(_recvCts.Token), _recvCts.Token);
 
         // ── handshake ──
-        Console.WriteLine("[DEBUG] ConnectAsync: reached ExecuteAsync call");
+        // Use an independent CTS for the handshake so that _disposeCts cancellation
+        // (e.g. during reconnection) cannot abort ExecuteAsync mid-flight.
         int tickMs;
         string? sessionKey;
-        try {
-            Console.WriteLine("[DEBUG] ConnectAsync: about to call ExecuteAsync");
-            var handler = new HandshakeHandler(_cfg, _dev, _ws, SendRequestAsync, WaitForEventAsync, LogMessage);
-            (tickMs, sessionKey) = await handler.ExecuteAsync(ct);
-            Console.WriteLine($"[DEBUG] ConnectAsync: ExecuteAsync completed, tickMs={tickMs}");
-        } catch (Exception ex) {
-            Console.WriteLine($"[DEBUG] ConnectAsync EXCEPTION from ExecuteAsync: {ex.GetType().Name}: {ex.Message}");
-            throw;
+        using (var executeCts = new CancellationTokenSource())
+        {
+            try
+            {
+                var handler = new HandshakeHandler(_cfg, _dev, _ws, SendRequestAsync, WaitForEventAsync, LogMessage);
+                (tickMs, sessionKey) = await handler.ExecuteAsync(executeCts.Token);
+            }
+            catch
+            {
+                executeCts.Cancel();
+                throw;
+            }
         }
         _cfg.SessionKey = sessionKey ?? _cfg.SessionKey;
 
