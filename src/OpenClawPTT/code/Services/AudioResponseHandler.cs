@@ -45,6 +45,7 @@ public sealed class AudioResponseHandler : IDisposable
                     TtsProviderType.Coqui => "Verify PythonPath, CoquiModelName, and that Coqui TTS is installed (pip install TTS).",
                     TtsProviderType.Piper => "Verify PiperPath and that a voice model (.onnx file) is downloaded.",
                     TtsProviderType.Edge => "Set TtsSubscriptionKey (Azure API key) in config.",
+                    TtsProviderType.ElevenLabs => "Set TtsApiKey and TtsVoiceId for ElevenLabs in config.",
                     _ => "Check provider configuration."
                 };
                 ConsoleUi.PrintWarning($"TTS provider initialization failed: {ex.Message} — {hint}");
