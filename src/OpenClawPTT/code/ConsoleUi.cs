@@ -146,6 +146,14 @@ public static class ConsoleUi
     }
     
     /// <summary>
+    /// Creates a formatter with explicit console width for testability.
+    /// </summary>
+    public static AgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
+    {
+        return new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, consoleWidth);
+    }
+    
+    /// <summary>
     /// Prints agent reply delta with word wrapping and right margin indent based on configuration.
     /// </summary>
     public static void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix, AppConfig config)

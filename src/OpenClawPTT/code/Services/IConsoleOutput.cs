@@ -17,6 +17,7 @@ public interface IConsoleOutput
     void PrintAgentReply(string prefix, string body);
     void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix);
     OpenClawPTT.AgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false);
+    OpenClawPTT.AgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth);
     void Log(string tag, string msg);
     void LogOk(string tag, string msg);
     void LogError(string tag, string msg);
