@@ -11,6 +11,7 @@ namespace OpenClawPTT.Services;
 public sealed class UiEventAdapter : IDisposable
 {
     private readonly AppConfig _config;
+    private readonly IConsoleOutput _consoleOutput;
     private readonly ToolDisplayHandler _toolDisplayHandler;
     private readonly AudioResponseHandler? _audioResponseHandler;
 
@@ -30,9 +31,14 @@ public sealed class UiEventAdapter : IDisposable
     private string _newlineSuffix = "";
     private int _prefixLength;
 
-    public UiEventAdapter(AppConfig config)
+    public UiEventAdapter(AppConfig config) : this(config, new ConsoleOutput())
+    {
+    }
+
+    public UiEventAdapter(AppConfig config, IConsoleOutput consoleOutput)
     {
         _config = config;
+        _consoleOutput = consoleOutput;
         _agentReplayPrefix = $"  🤖 {_config.AgentName}: ";
         _agentReplayPrefixWithAudio = $"  🤖🔊 {_config.AgentName}: ";
         _agentReplayPrefixTextMode = $"  🤖✍️ {_config.AgentName}: ";
@@ -84,7 +90,7 @@ public sealed class UiEventAdapter : IDisposable
         }
         else
         {
-            ConsoleUi.PrintAgentReply(_currentPrefix, body);
+            _consoleOutput.PrintAgentReply(_currentPrefix, body);
         }
     }
 
@@ -148,7 +154,7 @@ public sealed class UiEventAdapter : IDisposable
         }
         else
         {
-            ConsoleUi.PrintAgentReplyDelta(_currentPrefix, delta, _newlineSuffix);
+            _consoleOutput.PrintAgentReplyDelta(_currentPrefix, delta, _newlineSuffix);
         }
     }
 
@@ -205,7 +211,7 @@ public sealed class UiEventAdapter : IDisposable
         Console.ResetColor();
         if (_config.EnableWordWrap)
         {
-            _formatter = ConsoleUi.CreateAgentReplyFormatter(_currentPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true);
+            _formatter = _consoleOutput.CreateAgentReplyFormatter(_currentPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true);
         }
     }
 

@@ -9,6 +9,7 @@ public sealed class GatewayService : IGatewayService
 {
     private readonly AppConfig _config;
     private readonly DeviceIdentity _device;
+    private readonly IConsoleOutput _consoleOutput;
     private GatewayClient _gatewayClient;
     private UiEventAdapter? _uiAdapter;
     private bool _disposed;
@@ -27,6 +28,7 @@ public sealed class GatewayService : IGatewayService
         _config = config;
         _device = new DeviceIdentity(config.DataDir);
         _device.EnsureKeypair();
+        _consoleOutput = new ConsoleOutput();
         _gatewayClient = CreateGatewayClient();
     }
 
@@ -51,7 +53,7 @@ public sealed class GatewayService : IGatewayService
 
     private GatewayClient CreateGatewayClient()
     {
-        _uiAdapter = new UiEventAdapter(_config);
+        _uiAdapter = new UiEventAdapter(_config, _consoleOutput);
         var client = new GatewayClient(_config, _device);
 
         // Wire domain events → UI adapter
