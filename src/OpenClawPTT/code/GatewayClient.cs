@@ -79,6 +79,8 @@ public sealed class GatewayClient : IDisposable
         ConsoleUi.Log("gateway", $"Connecting to {uri} ...");
         using var linkCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
         await _ws.ConnectAsync(uri, linkCts.Token);
+        ConsoleUi.Log("gateway", $"[DEBUG] WebSocket state after connect: {_ws.State}");
+        ConsoleUi.Log("gateway", $"[DEBUG] _disposeCts.IsCancellationRequested: {_disposeCts.IsCancellationRequested}");
         ConsoleUi.Log("gateway", "WebSocket open.");
 
         // Cancel and await any previous ReceiveLoop before launching a new one.
@@ -146,7 +148,7 @@ public sealed class GatewayClient : IDisposable
 
         await using (linked.Token.Register(() => tcs.TrySetCanceled()))
         {
-            try { return await tcs.Task; }
+            try { Console.WriteLine($"[DEBUG] WaitForEventAsync resolved: {eventName}"); return await tcs.Task; }
             finally { _eventWaiters.TryRemove(eventName, out _); }
         }
     }
@@ -352,6 +354,7 @@ public sealed class GatewayClient : IDisposable
                 } while (!result.EndOfMessage);
 
                 var json = Encoding.UTF8.GetString(ms.ToArray());
+                ConsoleUi.Log("gateway", $"[DEBUG] Frame received, json preview: {json[..Math.Min(200, json.Length)]}");
                 router.ProcessFrame(json);
             }
         }
@@ -485,6 +488,7 @@ public sealed class GatewayClient : IDisposable
             if (_cfg.LogConnect) _logMessage(connectParams);
 
             ConsoleUi.Log("gateway", "Sending connect ...");
+            Console.WriteLine($"[DEBUG] ExecuteAsync: about to send connect with nonce={nonce}, authToken prefix={authToken[..Math.Min(8, authToken.Length)]}");
             JsonElement hello = await _sendRequest("connect", connectParams, ct, null);
 
             // 3. validate hello-ok
@@ -568,6 +572,7 @@ public sealed class GatewayClient : IDisposable
 
         public void ProcessFrame(string json)
         {
+            Console.WriteLine($"[DEBUG] ProcessFrame: {json[..Math.Min(200, json.Length)]}");
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
             var type = root.GetProperty("type").GetString();
