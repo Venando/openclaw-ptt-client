@@ -79,8 +79,7 @@ public sealed class GatewayClient : IDisposable
         ConsoleUi.Log("gateway", $"Connecting to {uri} ...");
         using var linkCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
         await _ws.ConnectAsync(uri, linkCts.Token);
-        ConsoleUi.Log("gateway", $"[DEBUG] WebSocket state after connect: {_ws.State}");
-        ConsoleUi.Log("gateway", $"[DEBUG] _disposeCts.IsCancellationRequested: {_disposeCts.IsCancellationRequested}");
+
         ConsoleUi.Log("gateway", "WebSocket open.");
 
         // Cancel and await any previous ReceiveLoop before launching a new one.
@@ -163,7 +162,7 @@ public sealed class GatewayClient : IDisposable
 
         await using (linked.Token.Register(() => tcs.TrySetCanceled()))
         {
-            try { Console.WriteLine($"[DEBUG] WaitForEventAsync resolved: {eventName}"); return await tcs.Task; }
+            try { return await tcs.Task; }
             finally { _eventWaiters.TryRemove(eventName, out _); }
         }
     }
@@ -369,7 +368,7 @@ public sealed class GatewayClient : IDisposable
                 } while (!result.EndOfMessage);
 
                 var json = Encoding.UTF8.GetString(ms.ToArray());
-                ConsoleUi.Log("gateway", $"[DEBUG] Frame received, json preview: {json[..Math.Min(200, json.Length)]}");
+                ConsoleUi.Log("gateway", $"Frame received, json preview: {json[..Math.Min(200, json.Length)]}");
                 router.ProcessFrame(json);
             }
         }
@@ -444,11 +443,8 @@ public sealed class GatewayClient : IDisposable
         {
             // 1. wait for connect.challenge
             ConsoleUi.Log("gateway", "Waiting for connect.challenge ...");
-            Console.WriteLine("[DEBUG] ExecuteAsync: calling _waitForEvent for connect.challenge");
             var challenge = await _waitForEvent("connect.challenge", TimeSpan.FromSeconds(10), ct);
-            Console.WriteLine("[DEBUG] ExecuteAsync: _waitForEvent returned, about to extract nonce");
             var nonce = challenge.GetProperty("nonce").GetString()!;
-            Console.WriteLine($"[DEBUG] ExecuteAsync ENTRY, nonce={nonce}");
 
             // 2. build + sign connect request
             var authToken = _cfg.AuthToken ?? "";
@@ -458,7 +454,6 @@ public sealed class GatewayClient : IDisposable
             var clientId = "cli";
             var mode = "cli";
             var signedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            Console.WriteLine("[DEBUG] ExecuteAsync: about to build signature");
             var sigPayload = _dev.BuildV3Payload(platform, deviceFamily, clientId, mode, "operator", scopes, signedAt, authToken, nonce);
 
             if (_cfg.LogConnect)
@@ -507,7 +502,6 @@ public sealed class GatewayClient : IDisposable
             if (_cfg.LogConnect) _logMessage(connectParams);
 
             ConsoleUi.Log("gateway", "Sending connect ...");
-            Console.WriteLine($"[DEBUG] ExecuteAsync: about to send connect with nonce={nonce}, authToken prefix={authToken[..Math.Min(8, authToken.Length)]}");
             JsonElement hello = await _sendRequest("connect", connectParams, ct, null);
 
             // 3. validate hello-ok
@@ -591,7 +585,6 @@ public sealed class GatewayClient : IDisposable
 
         public void ProcessFrame(string json)
         {
-            Console.WriteLine($"[DEBUG] ProcessFrame: {json[..Math.Min(200, json.Length)]}");
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
             var type = root.GetProperty("type").GetString();
@@ -623,15 +616,10 @@ public sealed class GatewayClient : IDisposable
         private void HandleEvent(JsonElement root)
         {
             var name = root.GetProperty("event").GetString()!;
-            Console.WriteLine($"[DEBUG] HandleEvent ENTRY: {name}");
             var payload = root.TryGetProperty("payload", out var p) ? p.Clone() : default;
 
             if (_eventWaiters.TryRemove(name, out var tcs))
                 tcs.TrySetResult(payload);
-
-            Console.WriteLine($"[DEBUG] HANDLEEVENT {name}");
-            if (name == "connect.challenge")
-                Console.WriteLine($"[DEBUG] HANDLEEVENT connect.challenge nonce={payload.GetProperty("nonce").GetString()}");
 
             switch (name)
             {
@@ -707,7 +695,7 @@ public sealed class GatewayClient : IDisposable
                 }
                 else
                 {
-                    Console.WriteLine($"[DEBUG] Unknown block type=\"{type}\": {block}");
+                    // ignore unknown block types
                 }
             }
 
