@@ -90,6 +90,11 @@ public sealed class AppConfig
     // Python TTS debug settings
     public bool PythonTtsDebugLog { get; set; } = false;
 
+    // Python TTS uv-managed settings
+    public bool UseUvPython { get; set; } = false;
+    public string? UvToolsPath { get; set; }
+    public string? PythonTtsServiceScript { get; set; }
+
     // Audio response settings
     public string AudioResponseMode { get; set; } = "text-only"; // text-only, audio-only, both
     public string? TtsApiKey { get; set; } // Optional ElevenLabs API key
