@@ -11,6 +11,7 @@ public sealed class GatewayClient : IDisposable
     private readonly DeviceIdentity _dev;
     private ClientWebSocket _ws = null!;
     private CancellationTokenSource? _tickCts;
+    private CancellationTokenSource? _recvCts;
     private Task? _recvTask;
 
     // pending request → response futures
@@ -76,10 +77,18 @@ public sealed class GatewayClient : IDisposable
 
         var uri = new Uri(_cfg.GatewayUrl);
         ConsoleUi.Log("gateway", $"Connecting to {uri} ...");
-        await _ws.ConnectAsync(uri, ct);
+        using var linkCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
+        await _ws.ConnectAsync(uri, linkCts.Token);
         ConsoleUi.Log("gateway", "WebSocket open.");
 
-        _recvTask = Task.Run(() => ReceiveLoop(ct), ct);
+        // Cancel and await any previous ReceiveLoop before launching a new one.
+        var prevTask = _recvTask;
+        _recvCts?.Cancel();
+        if (prevTask != null)
+            try { await prevTask.WaitAsync(TimeSpan.FromSeconds(1)); } catch { /* best effort */ }
+
+        _recvCts = new CancellationTokenSource();
+        _recvTask = Task.Run(() => ReceiveLoop(linkCts.Token), _recvCts.Token);
 
         // ── handshake ──
         var handler = new HandshakeHandler(_cfg, _dev, _ws, SendRequestAsync, WaitForEventAsync, LogMessage);
@@ -183,6 +192,10 @@ public sealed class GatewayClient : IDisposable
         _tickCts?.Cancel();
         _tickCts?.Dispose();
         _tickCts = null;
+
+        _recvCts?.Cancel();
+        _recvCts?.Dispose();
+        _recvCts = null;
 
         if (_ws.State == WebSocketState.Open)
         {
@@ -365,6 +378,9 @@ public sealed class GatewayClient : IDisposable
 
         _tickCts?.Cancel();
         _tickCts?.Dispose();
+
+        _recvCts?.Cancel();
+        _recvCts?.Dispose();
 
         if (_ws != null && _ws.State == WebSocketState.Open)
         {
