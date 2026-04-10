@@ -13,8 +13,8 @@ public class ConfigManagerSerializationTests : IDisposable
     private readonly string _testDir;
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
-        WriteIndented = true,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault
+        WriteIndented = true
+        // NOTE: no DefaultIgnoreCondition.WhenWritingDefault — false bools must round-trip
     };
 
     public ConfigManagerSerializationTests()
@@ -67,6 +67,36 @@ public class ConfigManagerSerializationTests : IDisposable
         Assert.Equal(original.ReconnectDelaySeconds, loaded.ReconnectDelaySeconds);
     }
 
+    /// <summary>
+    /// Regression test: Ensure false-valued bools round-trip correctly.
+    /// ConfigManager no longer uses WhenWritingDefault so false values are preserved.
+    /// </summary>
+    [Fact]
+    public void JsonRoundTrip_FalseBools_Preserved()
+    {
+        var original = MinimalConfig();
+        // These are the three bool fields whose false values were lost
+        // when WhenWritingDefault was active (C# type default for bool is false).
+        original.RealTimeReplyOutput = false;
+        original.EnableWordWrap = false;
+        original.VisualFeedbackEnabled = false;
+
+        WriteConfig(original);
+        var json = File.ReadAllText(ConfigPath());
+
+        // Verify the JSON actually contains the false values
+        Assert.True(json.Contains("RealTimeReplyOutput"), "RealTimeReplyOutput should be in JSON");
+        Assert.True(json.Contains("EnableWordWrap"), "EnableWordWrap should be in JSON");
+        Assert.True(json.Contains("VisualFeedbackEnabled"), "VisualFeedbackEnabled should be in JSON");
+
+        // Verify they survive round-trip
+        var loaded = ReadConfig();
+        Assert.NotNull(loaded);
+        Assert.False(loaded!.RealTimeReplyOutput, "RealTimeReplyOutput=false should survive round-trip");
+        Assert.False(loaded.EnableWordWrap, "EnableWordWrap=false should survive round-trip");
+        Assert.False(loaded.VisualFeedbackEnabled, "VisualFeedbackEnabled=false should survive round-trip");
+    }
+
     [Fact]
     public void JsonRoundTrip_PreservesNewRefactorFields()
     {
@@ -81,13 +111,11 @@ public class ConfigManagerSerializationTests : IDisposable
         original.TranscriptionPromptPrefix = "[Custom prompt]";
         original.AudioWrapPrompt = "[custom audio wrap]";
         original.GroqModel = "whisper-1";
-        original.RealTimeReplyOutput = false; // NOTE: when false==type-default, WhenWritingDefault omits it; loads as true
-        original.VisualFeedbackEnabled = false; // same
+        original.RealTimeReplyOutput = false;
+        original.VisualFeedbackEnabled = false;
         // ... other fields ...
-        // Bool fields with non-class-default values that are type-defaults:
-        //   RealTimeReplyOutput=false (type default, so omits), EnableWordWrap=false (type default, so omits)
-        // This means loaded will have these as their AppConfig defaults (true).
-        // Assert only non-bool fields that survive WhenWritingDefault round-trip.
+        // Verify all bool fields round-trip correctly (no WhenWritingDefault):
+        // Assert only fields that survive round-trip.
         original.VisualFeedbackPosition = "BottomLeft";
         original.VisualFeedbackSize = 30;
         original.VisualFeedbackOpacity = 0.8;
@@ -224,28 +252,28 @@ public class ConfigManagerSerializationTests : IDisposable
     }
 
     [Fact]
-    public void JsonRoundTrip_DefaultValues_NotWritten()
+    public void JsonRoundTrip_DefaultBools_Written()
     {
         var original = MinimalConfig();
         WriteConfig(original);
         var json = File.ReadAllText(ConfigPath());
 
-        // Default bool values (false) should be omitted due to WhenWritingDefault
-        Assert.DoesNotContain(json, "LogConnect");
-        Assert.DoesNotContain(json, "LogHello");
-        Assert.DoesNotContain(json, "LogSnapshot");
+        // Without WhenWritingDefault, all bool values are written including C#-default false
+        Assert.True(json.Contains("LogConnect"), "LogConnect=false should be written");
+        Assert.True(json.Contains("LogHello"), "LogHello=false should be written");
+        Assert.True(json.Contains("LogSnapshot"), "LogSnapshot=false should be written");
     }
 
     [Fact]
     public void JsonRoundTrip_NonDefaultBool_Written()
     {
         var original = MinimalConfig();
-        original.RealTimeReplyOutput = true; // default is true, so should be omitted
+        original.RealTimeReplyOutput = true;
         WriteConfig(original);
         var json = File.ReadAllText(ConfigPath());
 
-        // true defaults are also omitted by WhenWritingDefault
-        Assert.DoesNotContain(json, "RealTimeReplyOutput");
+        // true != C# bool default (false), so it IS written without WhenWritingDefault
+        Assert.True(json.Contains("RealTimeReplyOutput"), "RealTimeReplyOutput should be in JSON");
     }
 
     [Fact]
@@ -256,10 +284,8 @@ public class ConfigManagerSerializationTests : IDisposable
         WriteConfig(original);
         var json = File.ReadAllText(ConfigPath());
 
-        // NOTE: WhenWritingDefault causes ALL bools to be omitted when they match the type's default,
-        // regardless of whether it's the class default. So ShowThinking=true is ALSO omitted.
-        // This is a limitation: non-default bools cannot be round-tripped with WhenWritingDefault.
-        Assert.DoesNotContain(json, "ShowThinking");
+        // Without WhenWritingDefault, ShowThinking=true is always written (true != C# bool default false)
+        Assert.True(json.Contains("ShowThinking"), "ShowThinking should be in JSON when set to true");
     }
 
     // ─── ConfigManager.Load edge cases ──────────────────────────────────────────
