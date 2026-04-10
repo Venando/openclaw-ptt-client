@@ -24,6 +24,7 @@ public sealed class GatewayClient : IDisposable
     private bool _isReconnecting = false;
     private readonly CancellationTokenSource _disposeCts = new CancellationTokenSource();
     private Task? _reconnectTask = null;
+    private bool _disposed = false;
 
     /// <summary>Fires for every inbound event (event name, payload).</summary>
     public event Action<string, JsonElement>? EventReceived;
@@ -356,6 +357,9 @@ public sealed class GatewayClient : IDisposable
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
+
         _disposeCts.Cancel();
         _reconnectTask?.Wait(TimeSpan.FromSeconds(5));
 
