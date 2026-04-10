@@ -431,6 +431,7 @@ public sealed class GatewayClient : IDisposable
             ConsoleUi.Log("gateway", "Waiting for connect.challenge ...");
             var challenge = await _waitForEvent("connect.challenge", TimeSpan.FromSeconds(10), ct);
             var nonce = challenge.GetProperty("nonce").GetString()!;
+            Console.WriteLine($"[DEBUG] ExecuteAsync ENTRY, nonce={nonce}");
 
             // 2. build + sign connect request
             var authToken = _cfg.AuthToken ?? "";
@@ -608,6 +609,10 @@ public sealed class GatewayClient : IDisposable
 
             if (_eventWaiters.TryRemove(name, out var tcs))
                 tcs.TrySetResult(payload);
+
+            Console.WriteLine($"[DEBUG] HANDLEEVENT {name}");
+            if (name == "connect.challenge")
+                Console.WriteLine($"[DEBUG] HANDLEEVENT connect.challenge nonce={payload.GetProperty("nonce").GetString()}");
 
             switch (name)
             {
