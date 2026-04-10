@@ -93,9 +93,18 @@ public sealed class GatewayClient : IDisposable
         _recvTask = Task.Run(() => ReceiveLoop(linkCts.Token), _recvCts.Token);
 
         // ── handshake ──
-        Console.WriteLine("[DEBUG] ConnectAsync: about to call ExecuteAsync");
-        var handler = new HandshakeHandler(_cfg, _dev, _ws, SendRequestAsync, WaitForEventAsync, LogMessage);
-        var (tickMs, sessionKey) = await handler.ExecuteAsync(ct);
+        Console.WriteLine("[DEBUG] ConnectAsync: reached ExecuteAsync call");
+        int tickMs;
+        string? sessionKey;
+        try {
+            Console.WriteLine("[DEBUG] ConnectAsync: about to call ExecuteAsync");
+            var handler = new HandshakeHandler(_cfg, _dev, _ws, SendRequestAsync, WaitForEventAsync, LogMessage);
+            (tickMs, sessionKey) = await handler.ExecuteAsync(ct);
+            Console.WriteLine($"[DEBUG] ConnectAsync: ExecuteAsync completed, tickMs={tickMs}");
+        } catch (Exception ex) {
+            Console.WriteLine($"[DEBUG] ConnectAsync EXCEPTION from ExecuteAsync: {ex.GetType().Name}: {ex.Message}");
+            throw;
+        }
         _cfg.SessionKey = sessionKey ?? _cfg.SessionKey;
 
         // ── keepalive ──
@@ -430,7 +439,9 @@ public sealed class GatewayClient : IDisposable
         {
             // 1. wait for connect.challenge
             ConsoleUi.Log("gateway", "Waiting for connect.challenge ...");
+            Console.WriteLine("[DEBUG] ExecuteAsync: calling _waitForEvent for connect.challenge");
             var challenge = await _waitForEvent("connect.challenge", TimeSpan.FromSeconds(10), ct);
+            Console.WriteLine("[DEBUG] ExecuteAsync: _waitForEvent returned, about to extract nonce");
             var nonce = challenge.GetProperty("nonce").GetString()!;
             Console.WriteLine($"[DEBUG] ExecuteAsync ENTRY, nonce={nonce}");
 
@@ -442,6 +453,7 @@ public sealed class GatewayClient : IDisposable
             var clientId = "cli";
             var mode = "cli";
             var signedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            Console.WriteLine("[DEBUG] ExecuteAsync: about to build signature");
             var sigPayload = _dev.BuildV3Payload(platform, deviceFamily, clientId, mode, "operator", scopes, signedAt, authToken, nonce);
 
             if (_cfg.LogConnect)
