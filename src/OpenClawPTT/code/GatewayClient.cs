@@ -93,6 +93,7 @@ public sealed class GatewayClient : IDisposable
         _recvTask = Task.Run(() => ReceiveLoop(linkCts.Token), _recvCts.Token);
 
         // ── handshake ──
+        Console.WriteLine("[DEBUG] ConnectAsync: about to call ExecuteAsync");
         var handler = new HandshakeHandler(_cfg, _dev, _ws, SendRequestAsync, WaitForEventAsync, LogMessage);
         var (tickMs, sessionKey) = await handler.ExecuteAsync(ct);
         _cfg.SessionKey = sessionKey ?? _cfg.SessionKey;
@@ -605,6 +606,7 @@ public sealed class GatewayClient : IDisposable
         private void HandleEvent(JsonElement root)
         {
             var name = root.GetProperty("event").GetString()!;
+            Console.WriteLine($"[DEBUG] HandleEvent ENTRY: {name}");
             var payload = root.TryGetProperty("payload", out var p) ? p.Clone() : default;
 
             if (_eventWaiters.TryRemove(name, out var tcs))
