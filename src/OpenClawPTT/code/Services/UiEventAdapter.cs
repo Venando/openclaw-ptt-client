@@ -147,6 +147,7 @@ public sealed class UiEventAdapter : IDisposable
 
     public void OnAgentReplyDelta(string delta)
     {
+        if (!_isDeltaStarted) return;
         EnsurePrefixPrinted();
         if (_formatter != null)
         {
