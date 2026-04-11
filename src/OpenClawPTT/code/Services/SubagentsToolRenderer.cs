@@ -4,6 +4,13 @@ namespace OpenClawPTT.Services;
 
 public sealed class SubagentsToolRenderer : IToolRenderer
 {
+    private readonly IToolOutput _output;
+
+    public SubagentsToolRenderer(IToolOutput output)
+    {
+        _output = output;
+    }
+
     public string ToolName => "subagents";
 
     public void Render(JsonElement args, int rightMarginIndent)
@@ -13,45 +20,38 @@ public sealed class SubagentsToolRenderer : IToolRenderer
 
         if (action == "list")
         {
-            Console.Write("list");
+            _output.Print("list", ConsoleColor.White);
             if (args.TryGetProperty("recentMinutes", out var rmProp) && rmProp.ValueKind == JsonValueKind.Number)
             {
-                Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.Write($", last {rmProp.GetInt32()} minutes");
+                _output.Print($", last {rmProp.GetInt32()} minutes", ConsoleColor.DarkGray);
             }
         }
         else if (action == "kill")
         {
-            Console.Write("kill");
+            _output.Print("kill", ConsoleColor.White);
             if (args.TryGetProperty("target", out var targetProp))
             {
-                Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.Write(", target: ");
-                Console.ResetColor();
-                Console.Write(targetProp.GetString());
+                _output.Print(", target: ", ConsoleColor.DarkGray);
+                _output.Print(targetProp.GetString() ?? "", ConsoleColor.White);
             }
         }
         else if (action == "steer")
         {
-            Console.Write("steer");
+            _output.Print("steer", ConsoleColor.White);
             if (args.TryGetProperty("target", out var targetProp))
             {
-                Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.Write(", target: ");
-                Console.ResetColor();
-                Console.Write(targetProp.GetString());
+                _output.Print(", target: ", ConsoleColor.DarkGray);
+                _output.Print(targetProp.GetString() ?? "", ConsoleColor.White);
             }
             if (args.TryGetProperty("message", out var msgProp))
             {
-                Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.Write(", message: ");
-                Console.ResetColor();
-                Console.Write(msgProp.GetString());
+                _output.Print(", message: ", ConsoleColor.DarkGray);
+                _output.Print(msgProp.GetString() ?? "", ConsoleColor.White);
             }
         }
         else
         {
-            Console.Write(action);
+            _output.Print(action, ConsoleColor.White);
         }
     }
 }

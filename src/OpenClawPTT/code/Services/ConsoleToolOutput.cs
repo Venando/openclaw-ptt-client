@@ -12,14 +12,12 @@ public sealed class ConsoleToolOutput : IToolOutput
     {
         Console.ForegroundColor = color;
         Console.Write(text);
-        Console.ResetColor();
     }
 
     public void PrintLine(string text, ConsoleColor color = ConsoleColor.White)
     {
         Console.ForegroundColor = color;
         Console.WriteLine(text);
-        Console.ResetColor();
     }
 
     public void PrintTruncated(string text, string continuationPrefix, int rightMarginIndent, ConsoleColor color = ConsoleColor.White)
@@ -44,4 +42,6 @@ public sealed class ConsoleToolOutput : IToolOutput
             Console.ResetColor();
         }
     }
+
+    public void ResetColor() => Console.ResetColor();
 }

@@ -48,17 +48,17 @@ public sealed class ToolDisplayHandler
 
     private static IEnumerable<IToolRenderer> BuildDefaultRenderers(IToolOutput output)
     {
-        yield return new ReadToolRenderer();
+        yield return new ReadToolRenderer(output);
         yield return new WriteToolRenderer(output);
         yield return new EditToolRenderer(output);
-        yield return new ExecToolRenderer();
-        yield return new GenericKvpToolRenderer(); // handles: process, web_search, image_generate
-        yield return new WebFetchToolRenderer();
-        yield return new SessionsListToolRenderer();
-        yield return new SessionStatusToolRenderer();
-        yield return new MemorySearchToolRenderer();
-        yield return new MemoryGetToolRenderer();
-        yield return new SubagentsToolRenderer();
+        yield return new ExecToolRenderer(output);
+        yield return new GenericKvpToolRenderer(output); // handles: process, web_search, image_generate
+        yield return new WebFetchToolRenderer(output);
+        yield return new SessionsListToolRenderer(output);
+        yield return new SessionStatusToolRenderer(output);
+        yield return new MemorySearchToolRenderer(output);
+        yield return new MemoryGetToolRenderer(output);
+        yield return new SubagentsToolRenderer(output);
         yield return new SessionsSpawnToolRenderer(output);
     }
 
@@ -87,7 +87,7 @@ public sealed class ToolDisplayHandler
             else
             {
                 // Fall back to generic KVP for unregistered tools
-                var generic = new GenericKvpToolRenderer();
+                var generic = new GenericKvpToolRenderer(_output);
                 generic.Render(doc.RootElement, _rightMarginIndent);
             }
         }

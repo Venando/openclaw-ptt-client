@@ -55,7 +55,7 @@ public sealed class UiEventAdapter : IDisposable
 
     public AudioResponseHandler? AudioResponseHandler => _audioResponseHandler;
 
-    public void AttachToService(GatewayService service)
+    public void AttachToService(IGatewayUIEvents service)
     {
         service.AgentReplyFull += OnAgentReplyFull;
         service.AgentThinking += OnAgentThinking;
@@ -66,7 +66,7 @@ public sealed class UiEventAdapter : IDisposable
         service.AgentReplyAudio += OnAgentReplyAudio;
     }
 
-    public void DetachFromService(GatewayService service)
+    public void DetachFromService(IGatewayUIEvents service)
     {
         service.AgentReplyFull -= OnAgentReplyFull;
         service.AgentThinking -= OnAgentThinking;

@@ -4,23 +4,26 @@ namespace OpenClawPTT.Services;
 
 public sealed class SessionStatusToolRenderer : IToolRenderer
 {
+    private readonly IToolOutput _output;
+
+    public SessionStatusToolRenderer(IToolOutput output)
+    {
+        _output = output;
+    }
+
     public string ToolName => "session_status";
 
     public void Render(JsonElement args, int rightMarginIndent)
     {
         if (args.TryGetProperty("sessionKey", out var keyProp))
         {
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.Write($"key: ");
-            Console.ResetColor();
-            Console.Write(keyProp.GetString());
+            _output.Print("key: ", ConsoleColor.DarkGray);
+            _output.Print(keyProp.GetString() ?? "", ConsoleColor.White);
         }
         if (args.TryGetProperty("model", out var modelProp))
         {
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.Write($", model: ");
-            Console.ResetColor();
-            Console.Write(modelProp.GetString());
+            _output.Print(", model: ", ConsoleColor.DarkGray);
+            _output.Print(modelProp.GetString() ?? "", ConsoleColor.White);
         }
     }
 }

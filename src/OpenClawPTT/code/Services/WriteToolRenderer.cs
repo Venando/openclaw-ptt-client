@@ -17,16 +17,13 @@ public sealed class WriteToolRenderer : IToolRenderer
     {
         if (args.TryGetProperty("path", out var pathProp))
         {
-            Console.ForegroundColor = ConsoleColor.Gray;
-            Console.Write(pathProp.GetString());
+            _output.Print(pathProp.GetString() ?? "", ConsoleColor.Gray);
         }
         if (args.TryGetProperty("content", out var contentProp))
         {
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.DarkGray;
+            _output.PrintLine("");
             const string contentPrefix = "Content:  ";
-            Console.Write(contentPrefix);
-            Console.ResetColor();
+            _output.Print(contentPrefix, ConsoleColor.DarkGray);
             var content = contentProp.GetString() ?? "";
             _output.PrintTruncated(content, contentPrefix, rightMarginIndent);
         }

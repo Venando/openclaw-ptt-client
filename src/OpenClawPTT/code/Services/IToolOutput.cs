@@ -9,4 +9,5 @@ public interface IToolOutput
     void Print(string text, ConsoleColor color = ConsoleColor.White);
     void PrintLine(string text, ConsoleColor color = ConsoleColor.White);
     void PrintTruncated(string text, string continuationPrefix, int rightMarginIndent, ConsoleColor color = ConsoleColor.White);
+    void ResetColor();
 }

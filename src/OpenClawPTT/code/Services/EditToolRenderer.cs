@@ -17,25 +17,20 @@ public sealed class EditToolRenderer : IToolRenderer
     {
         if (args.TryGetProperty("file_path", out var fileProp))
         {
-            Console.ForegroundColor = ConsoleColor.Gray;
-            Console.Write(fileProp.GetString());
+            _output.Print(fileProp.GetString() ?? "", ConsoleColor.Gray);
         }
         if (args.TryGetProperty("old_string", out var oldProp))
         {
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.DarkGray;
+            _output.PrintLine("");
             const string oldPrefix = "  old: ";
-            Console.Write(oldPrefix);
-            Console.ResetColor();
+            _output.Print(oldPrefix, ConsoleColor.DarkGray);
             _output.PrintTruncated(oldProp.GetString() ?? "", oldPrefix, rightMarginIndent);
         }
         if (args.TryGetProperty("newString", out var newProp))
         {
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.DarkGray;
+            _output.PrintLine("");
             const string newPrefix = "  new: ";
-            Console.Write(newPrefix);
-            Console.ResetColor();
+            _output.Print(newPrefix, ConsoleColor.DarkGray);
             _output.PrintTruncated(newProp.GetString() ?? "", newPrefix, rightMarginIndent);
         }
     }

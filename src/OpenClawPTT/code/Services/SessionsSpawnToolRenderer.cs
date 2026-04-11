@@ -17,37 +17,28 @@ public sealed class SessionsSpawnToolRenderer : IToolRenderer
     {
         if (args.TryGetProperty("label", out var labelProp))
         {
-            Console.ForegroundColor = ConsoleColor.Gray;
-            Console.Write(labelProp.GetString());
+            _output.Print(labelProp.GetString() ?? "", ConsoleColor.Gray);
         }
         if (args.TryGetProperty("runtime", out var runtimeProp))
         {
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.Write(", runtime: ");
-            Console.ResetColor();
-            Console.Write(runtimeProp.GetString());
+            _output.Print(", runtime: ", ConsoleColor.DarkGray);
+            _output.Print(runtimeProp.GetString() ?? "", ConsoleColor.White);
         }
         if (args.TryGetProperty("mode", out var modeProp))
         {
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.Write(", mode: ");
-            Console.ResetColor();
-            Console.Write(modeProp.GetString());
+            _output.Print(", mode: ", ConsoleColor.DarkGray);
+            _output.Print(modeProp.GetString() ?? "", ConsoleColor.White);
         }
         if (args.TryGetProperty("runTimeoutSeconds", out var timeoutProp))
         {
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.Write(", timeout: ");
-            Console.ResetColor();
-            Console.Write($"{timeoutProp.GetInt32()} seconds");
+            _output.Print(", timeout: ", ConsoleColor.DarkGray);
+            _output.Print($"{timeoutProp.GetInt32()} seconds", ConsoleColor.White);
         }
         if (args.TryGetProperty("task", out var taskProp))
         {
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.DarkGray;
+            _output.PrintLine("", ConsoleColor.DarkGray);
             const string taskPrefix = "  Task: ";
-            Console.Write(taskPrefix);
-            Console.ResetColor();
+            _output.Print(taskPrefix, ConsoleColor.DarkGray);
             _output.PrintTruncated(taskProp.GetString() ?? "", taskPrefix, rightMarginIndent, ConsoleColor.Gray);
         }
     }

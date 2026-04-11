@@ -4,28 +4,30 @@ namespace OpenClawPTT.Services;
 
 public sealed class MemorySearchToolRenderer : IToolRenderer
 {
+    private readonly IToolOutput _output;
+
+    public MemorySearchToolRenderer(IToolOutput output)
+    {
+        _output = output;
+    }
+
     public string ToolName => "memory_search";
 
     public void Render(JsonElement args, int rightMarginIndent)
     {
         if (args.TryGetProperty("query", out var queryProp))
         {
-            Console.ForegroundColor = ConsoleColor.Gray;
-            Console.Write(queryProp.GetString());
+            _output.Print(queryProp.GetString() ?? "", ConsoleColor.Gray);
         }
         if (args.TryGetProperty("maxResults", out var maxResultsProp))
         {
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.Write($", max results: ");
-            Console.ResetColor();
-            Console.Write($"{maxResultsProp.GetInt32()}");
+            _output.Print(", max results: ", ConsoleColor.DarkGray);
+            _output.Print($"{maxResultsProp.GetInt32()}", ConsoleColor.White);
         }
         if (args.TryGetProperty("minScore", out var minScoreProp))
         {
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.Write($", min score: ");
-            Console.ResetColor();
-            Console.Write($"{minScoreProp.GetDouble():F2}");
+            _output.Print(", min score: ", ConsoleColor.DarkGray);
+            _output.Print($"{minScoreProp.GetDouble():F2}", ConsoleColor.White);
         }
     }
 }

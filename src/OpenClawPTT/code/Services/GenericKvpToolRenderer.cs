@@ -7,6 +7,13 @@ namespace OpenClawPTT.Services;
 /// </summary>
 public sealed class GenericKvpToolRenderer : IToolRenderer
 {
+    private readonly IToolOutput _output;
+
+    public GenericKvpToolRenderer(IToolOutput output)
+    {
+        _output = output;
+    }
+
     public string ToolName => "generic_kvp";
 
     public void Render(JsonElement args, int rightMarginIndent)
@@ -16,16 +23,13 @@ public sealed class GenericKvpToolRenderer : IToolRenderer
         {
             if (first)
             {
-                Console.ForegroundColor = ConsoleColor.Gray;
-                Console.Write(prop.Value.GetString());
+                _output.Print(prop.Value.GetString() ?? "", ConsoleColor.Gray);
                 first = false;
             }
             else
             {
-                Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.Write($", {prop.Name}: ");
-                Console.ResetColor();
-                Console.Write(prop.Value.GetString());
+                _output.Print($", {prop.Name}: ", ConsoleColor.DarkGray);
+                _output.Print(prop.Value.GetString() ?? "", ConsoleColor.White);
             }
         }
     }

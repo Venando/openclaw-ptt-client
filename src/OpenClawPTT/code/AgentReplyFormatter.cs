@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using OpenClawPTT.Services;
 
 namespace OpenClawPTT;
 
@@ -16,9 +17,10 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     private int _currentLineLength; // length of current line excluding prefix
     private readonly bool _prefixAlreadyPrinted;
     private readonly int _consoleWidth;
+    private readonly ITextOutput _output;
 
     public AgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
-        : this(prefix, rightMarginIndent, prefixAlreadyPrinted, GetConsoleWidth())
+        : this(prefix, rightMarginIndent, prefixAlreadyPrinted, GetConsoleWidth(), null)
     {
     }
 
@@ -26,12 +28,21 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     /// Constructor with explicit console width for testability.
     /// </summary>
     public AgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
+        : this(prefix, rightMarginIndent, prefixAlreadyPrinted, consoleWidth, null)
+    {
+    }
+
+    /// <summary>
+    /// Constructor with explicit console width and text output abstraction for testability.
+    /// </summary>
+    public AgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth, ITextOutput? output)
     {
         _prefix = prefix;
         _newlineSuffix = new string(' ', prefix.Length);
         _rightMarginIndent = rightMarginIndent;
         _prefixAlreadyPrinted = prefixAlreadyPrinted;
         _consoleWidth = consoleWidth > 0 ? consoleWidth : 80;
+        _output = output ?? new ConsoleTextOutput();
     }
 
     private static int GetConsoleWidth()
@@ -82,8 +93,8 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
             {
                 FlushWordBuffer(availableWidth);
                 // Explicit newline: break line and start new line with appropriate suffix
-                Console.WriteLine();
-                Console.Write(_newlineSuffix);
+                _output.WriteLine();
+                _output.Write(_newlineSuffix);
                 _currentLineLength = 0;
                 continue;
             }
@@ -94,13 +105,13 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                 // Add whitespace to current line if it fits
                 if (_currentLineLength + 1 <= availableWidth)
                 {
-                    Console.Write(c);
+                    _output.Write(c.ToString());
                     _currentLineLength++;
                 }
                 else
                 {
                     WriteNewLine();
-                    Console.Write(c);
+                    _output.Write(c.ToString());
                     _currentLineLength = 1;
                 }
             }
@@ -115,7 +126,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                     if (charsThatFit > 0)
                     {
                         string part = _wordBuffer.ToString(0, charsThatFit);
-                        Console.Write(part);
+                        _output.Write(part);
                         _currentLineLength += charsThatFit;
                         _wordBuffer.Remove(0, charsThatFit);
                     }
@@ -138,7 +149,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     {
         int availableWidth = GetAvailableWidth();
         FlushWordBuffer(availableWidth);
-        Console.WriteLine();
+        _output.WriteLine();
     }
     
     private void FlushWordBuffer(int availableWidth)
@@ -151,7 +162,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
         // If word fits on current line, print it
         if (_currentLineLength + word.Length <= availableWidth)
         {
-            Console.Write(word);
+            _output.Write(word);
             _currentLineLength += word.Length;
         }
         else
@@ -167,7 +178,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                 int chunkLength = Math.Min(availableWidth, word.Length - start);
                 if (start > 0)
                     WriteNewLine();
-                Console.Write(word.Substring(start, chunkLength));
+                _output.Write(word.Substring(start, chunkLength));
                 start += chunkLength;
                 _currentLineLength = chunkLength;
             }
@@ -178,7 +189,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     
     private void WriteNewLine()
     {
-        Console.WriteLine();
-        Console.Write(_newlineSuffix);
+        _output.WriteLine();
+        _output.Write(_newlineSuffix);
     }
 }

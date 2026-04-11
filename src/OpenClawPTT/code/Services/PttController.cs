@@ -5,12 +5,13 @@ using OpenClawPTT.VisualFeedback;
 
 namespace OpenClawPTT.Services;
 
-public sealed class PttController : IPttController
+internal sealed class PttController : IPttController
 {
     private readonly IAudioService _audioService;
     private readonly IVisualFeedback _visualFeedback;
     private readonly string _hotkeyCombination;
     private readonly bool _holdToTalk;
+    private readonly IHotkeyHookFactory? _hotkeyHookFactory;
 
     private IGlobalHotkeyHook? _hotkeyHook;
     private bool _disposed;
@@ -18,12 +19,13 @@ public sealed class PttController : IPttController
     private volatile bool _hotkeyPressed;
     private volatile bool _hotkeyReleased;
 
-    public PttController(AppConfig config, IAudioService audioService)
+    public PttController(AppConfig config, IAudioService audioService, IHotkeyHookFactory? hotkeyHookFactory = null)
     {
         _audioService = audioService;
         _visualFeedback = VisualFeedbackFactory.Create(config);
         _hotkeyCombination = config.HotkeyCombination;
         _holdToTalk = config.HoldToTalk;
+        _hotkeyHookFactory = hotkeyHookFactory;
     }
 
     public bool IsRecording => _audioService.IsRecording;
@@ -31,10 +33,18 @@ public sealed class PttController : IPttController
     public void SetHotkey(string hotkeyCombination, bool holdToTalk)
     {
         _hotkeyHook?.Dispose();
-        _hotkeyHook = GlobalHotkeyHookFactory.Create();
 
-        var hotkey = HotkeyMapping.Parse(hotkeyCombination);
-        _hotkeyHook.SetHotkey(hotkey);
+        var mapping = HotkeyMapping.Parse(hotkeyCombination);
+
+        if (_hotkeyHookFactory != null)
+        {
+            _hotkeyHook = _hotkeyHookFactory.Create(mapping);
+        }
+        else
+        {
+            _hotkeyHook = GlobalHotkeyHookFactory.Create();
+            _hotkeyHook.SetHotkey(mapping);
+        }
 
         if (holdToTalk)
         {
