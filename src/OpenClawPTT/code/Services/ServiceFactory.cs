@@ -23,9 +23,9 @@ public sealed class ServiceFactory : IServiceFactory
         _composer = composer;
     }
 
-    public GatewayService CreateGatewayService(AppConfig cfg) => new(cfg);
+    public IGatewayService CreateGatewayService(AppConfig cfg) => new GatewayService(cfg);
 
-    public AudioService CreateAudioService(AppConfig cfg) => new(cfg);
+    public IAudioService CreateAudioService(AppConfig cfg) => new AudioService(cfg);
 
     public IPttController CreatePttController(AppConfig cfg, IAudioService audioService)
     {
@@ -41,10 +41,10 @@ public sealed class ServiceFactory : IServiceFactory
     public ITextMessageSender CreateTextMessageSender(IGatewayService gateway)
         => new TextMessageSender(gateway, _configService, _console, _composer);
 
-    public PttLoop CreatePttLoop(
+    public IPttLoop CreatePttLoop(
         AppConfig cfg,
-        GatewayService gateway,
-        AudioService audioService,
+        IGatewayService gateway,
+        IAudioService audioService,
         IPttController pttController,
         ITextMessageSender textSender,
         IInputHandler inputHandler)
