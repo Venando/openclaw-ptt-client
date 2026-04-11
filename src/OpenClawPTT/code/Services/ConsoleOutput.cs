@@ -35,10 +35,10 @@ public sealed class ConsoleOutput : IConsoleOutput
     public void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix)
         => ConsoleUi.PrintAgentReplyDelta(prefix, delta, newlineSuffix);
 
-    public OpenClawPTT.AgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
+    public OpenClawPTT.IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
         => ConsoleUi.CreateAgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted);
 
-    public OpenClawPTT.AgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
+    public OpenClawPTT.IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
         => ConsoleUi.CreateAgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, consoleWidth);
 
     public void Log(string tag, string msg) => ConsoleUi.Log(tag, msg);

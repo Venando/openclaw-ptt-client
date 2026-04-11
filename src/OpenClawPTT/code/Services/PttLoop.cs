@@ -69,8 +69,8 @@ public sealed class PttLoop : IPttLoop
 
             // Handle console input
             var inputResult = await _inputHandler.HandleInputAsync(ct);
-            if (inputResult == -1) return PttLoopExitCode.Ok;
-            if (inputResult == 100) return PttLoopExitCode.Restart;
+            if (inputResult == InputResult.Quit) return PttLoopExitCode.Ok;
+            if (inputResult == InputResult.Restart) return PttLoopExitCode.Restart;
         }
 
         return PttLoopExitCode.Ok;

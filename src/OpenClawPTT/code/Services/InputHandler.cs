@@ -17,13 +17,13 @@ public sealed class InputHandler : IInputHandler
         _console = console;
     }
     
-    public async Task<int> HandleInputAsync(CancellationToken ct)
+    public async Task<InputResult> HandleInputAsync(CancellationToken ct)
     {
         // non-blocking key poll
         if (!Console.KeyAvailable)
         {
             await Task.Delay(50, ct);
-            return 0; // Continue
+            return InputResult.Continue;
         }
 
         var key = Console.ReadKey(intercept: true);
@@ -31,13 +31,13 @@ public sealed class InputHandler : IInputHandler
         if (key.Key == ConsoleKey.Q)
         {
             Console.WriteLine("  Bye!");
-            return -1; // Quit
+            return InputResult.Quit;
         }
 
         if (key.Key == ConsoleKey.T)
         {
             await HandleTypeMessageAsync(ct);
-            return 0;
+            return InputResult.Continue;
         }
         
         // Alt+R for reconfiguration
@@ -46,7 +46,7 @@ public sealed class InputHandler : IInputHandler
             return await HandleReconfigurationAsync();
         }
         
-        return 0; // Continue
+        return InputResult.Continue;
     }
     
     private async Task HandleTypeMessageAsync(CancellationToken ct)
@@ -58,7 +58,7 @@ public sealed class InputHandler : IInputHandler
             await _textSender.SendAsync(text, ct);
     }
 
-    private async Task<int> HandleReconfigurationAsync()
+    private async Task<InputResult> HandleReconfigurationAsync()
     {
         _console.PrintWarning("\nStarting reconfiguration wizard...\n");
 
@@ -67,9 +67,9 @@ public sealed class InputHandler : IInputHandler
         {
             await _configService.ReconfigureAsync(currentCfg);
             _console.PrintSuccess("Configuration updated. Reconnecting...\n");
-            return 100; // Restart code
+            return InputResult.Restart;
         }
 
-        return 0;
+        return InputResult.Continue;
     }
 }

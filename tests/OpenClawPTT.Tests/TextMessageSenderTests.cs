@@ -8,6 +8,8 @@ namespace OpenClawPTT.Tests;
 
 public class TextMessageSenderTests
 {
+    private readonly MessageComposer _composer = new();
+
     [Fact]
     public async Task SendAsync_ComposesAndSendsText()
     {
@@ -17,7 +19,7 @@ public class TextMessageSenderTests
 
         mockConfig.Setup(x => x.Load()).Returns(new AppConfig());
 
-        var sender = new TextMessageSender(mockGateway.Object, mockConfig.Object, mockConsole.Object);
+        var sender = new TextMessageSender(mockGateway.Object, mockConfig.Object, mockConsole.Object, _composer);
         await sender.SendAsync("hello world", CancellationToken.None);
 
         mockGateway.Verify(x => x.SendTextAsync("hello world", It.IsAny<CancellationToken>()), Times.Once);
@@ -36,7 +38,7 @@ public class TextMessageSenderTests
             AudioWrapPrompt = "[Speak this]"
         });
 
-        var sender = new TextMessageSender(mockGateway.Object, mockConfig.Object, mockConsole.Object);
+        var sender = new TextMessageSender(mockGateway.Object, mockConfig.Object, mockConsole.Object, _composer);
         await sender.SendAsync("hello", CancellationToken.None);
 
         mockGateway.Verify(x => x.SendTextAsync(
@@ -58,7 +60,7 @@ public class TextMessageSenderTests
             AudioWrapPrompt = "[Should not appear]"
         });
 
-        var sender = new TextMessageSender(mockGateway.Object, mockConfig.Object, mockConsole.Object);
+        var sender = new TextMessageSender(mockGateway.Object, mockConfig.Object, mockConsole.Object, _composer);
         await sender.SendAsync("hello", CancellationToken.None);
 
         mockGateway.Verify(x => x.SendTextAsync("hello", It.IsAny<CancellationToken>()), Times.Once);
@@ -75,7 +77,7 @@ public class TextMessageSenderTests
         mockGateway.Setup(x => x.SendTextAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new System.IO.IOException("network error"));
 
-        var sender = new TextMessageSender(mockGateway.Object, mockConfig.Object, mockConsole.Object);
+        var sender = new TextMessageSender(mockGateway.Object, mockConfig.Object, mockConsole.Object, _composer);
 
         // Should not throw — error is swallowed and printed to console
         await sender.SendAsync("hello", CancellationToken.None);
@@ -96,9 +98,28 @@ public class TextMessageSenderTests
             AudioWrapPrompt = ""
         });
 
-        var sender = new TextMessageSender(mockGateway.Object, mockConfig.Object, mockConsole.Object);
+        var sender = new TextMessageSender(mockGateway.Object, mockConfig.Object, mockConsole.Object, _composer);
         await sender.SendAsync("hello", CancellationToken.None);
 
         mockGateway.Verify(x => x.SendTextAsync("hello", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SendAsync_UsesInjectedMessageComposer()
+    {
+        // Test that the injected IMessageComposer is used, enabling mocking
+        var mockGateway = new Mock<IGatewayService>();
+        var mockConfig = new Mock<IConfigurationService>();
+        var mockConsole = new Mock<IConsoleOutput>();
+        var mockComposer = new Mock<IMessageComposer>();
+
+        mockConfig.Setup(x => x.Load()).Returns(new AppConfig { AudioResponseMode = "text-only" });
+        mockComposer.Setup(x => x.ComposeOutgoing(It.IsAny<string>(), It.IsAny<AppConfig>()))
+            .Returns<string, AppConfig>((text, _) => "[MOCKED]" + text);
+
+        var sender = new TextMessageSender(mockGateway.Object, mockConfig.Object, mockConsole.Object, mockComposer.Object);
+        await sender.SendAsync("hello", CancellationToken.None);
+
+        mockGateway.Verify(x => x.SendTextAsync("[MOCKED]hello", It.IsAny<CancellationToken>()), Times.Once);
     }
 }

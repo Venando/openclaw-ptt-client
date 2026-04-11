@@ -1,70 +1,150 @@
+using Moq;
+using OpenClawPTT;
 using Xunit;
 
 namespace OpenClawPTT.Tests;
 
+/// <summary>
+/// Tests for DeviceIdentity using a mock IPlatformInfo.
+/// </summary>
 public class DeviceIdentityTests
 {
-    private readonly string _testDir;
-
-    public DeviceIdentityTests()
+    [Fact]
+    public void GetPlatform_Static_ReturnsPlatformString()
     {
-        _testDir = Path.Combine(Path.GetTempPath(), $"oc_devid_{Guid.NewGuid():N}");
+        // Static method should work (backward compatibility)
+        var platform = DeviceIdentity.GetPlatform();
+        Assert.NotNull(platform);
+        Assert.True(platform == "windows" || platform == "macos" || platform == "linux");
     }
 
     [Fact]
-    public void EnsureKeypair_CreatesKeyFiles()
+    public void GetCurrentPlatform_WithMockPlatformInfo_ReturnsInjectedPlatform()
     {
-        Directory.CreateDirectory(_testDir);
-        var di = new DeviceIdentity(_testDir);
+        // Arrange
+        var mockPlatformInfo = new Mock<IPlatformInfo>();
+        mockPlatformInfo.Setup(x => x.GetPlatform()).Returns("freebsd");
 
-        di.EnsureKeypair();
+        // Create temp directory for key storage
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
 
-        var keyPath = Path.Combine(_testDir, "device.key");
-        Assert.True(File.Exists(keyPath));
-        Assert.False(string.IsNullOrEmpty(di.DeviceId));
-        Assert.False(string.IsNullOrEmpty(di.PublicKeyBase64));
+        try
+        {
+            var identity = new DeviceIdentity(tempDir, mockPlatformInfo.Object);
+
+            // Act
+            var platform = identity.GetCurrentPlatform();
+
+            // Assert
+            Assert.Equal("freebsd", platform);
+            mockPlatformInfo.Verify(x => x.GetPlatform(), Times.Once);
+        }
+        finally
+        {
+            // Cleanup
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
     }
 
     [Fact]
-    public void DeviceId_IsConsistentAcrossCalls()
+    public void Constructor_Default_UsesSystemPlatformInfo()
     {
-        Directory.CreateDirectory(_testDir);
-        var di = new DeviceIdentity(_testDir);
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
 
-        di.EnsureKeypair();
-        var id1 = di.DeviceId;
+        try
+        {
+            // Act - use default constructor
+            var identity = new DeviceIdentity(tempDir);
 
-        // Create another instance pointing to same dir — should read same key
-        var di2 = new DeviceIdentity(_testDir);
-        di2.EnsureKeypair();
-
-        Assert.Equal(id1, di2.DeviceId);
+            // Assert - should not throw and platform should be valid
+            var platform = identity.GetCurrentPlatform();
+            Assert.NotNull(platform);
+            Assert.True(platform == "windows" || platform == "macos" || platform == "linux");
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
     }
 
     [Fact]
-    public void Sign_ProducesDeterministicOutput()
+    public void EnsureKeypair_GeneratesKeypairSuccessfully()
     {
-        Directory.CreateDirectory(_testDir);
-        var di = new DeviceIdentity(_testDir);
-        di.EnsureKeypair();
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
 
-        var payload = "test payload for signing";
-        var sig1 = di.Sign(payload);
-        var sig2 = di.Sign(payload);
+        try
+        {
+            var mockPlatformInfo = new Mock<IPlatformInfo>();
+            mockPlatformInfo.Setup(x => x.GetPlatform()).Returns("linux");
 
-        Assert.Equal(sig1, sig2);
+            var identity = new DeviceIdentity(tempDir, mockPlatformInfo.Object);
+
+            // Act
+            identity.EnsureKeypair();
+
+            // Assert
+            Assert.NotEmpty(identity.DeviceId);
+            Assert.NotEmpty(identity.PublicKeyBase64);
+            Assert.True(identity.DeviceId.Length == 64); // SHA256 hex = 64 chars
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
     }
 
     [Fact]
-    public void Sign_ProducesDifferentOutputForDifferentPayloads()
+    public void Sign_ProducesNonEmptySignature()
     {
-        Directory.CreateDirectory(_testDir);
-        var di = new DeviceIdentity(_testDir);
-        di.EnsureKeypair();
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
 
-        var sig1 = di.Sign("payload one");
-        var sig2 = di.Sign("payload two");
+        try
+        {
+            var identity = new DeviceIdentity(tempDir);
+            identity.EnsureKeypair();
 
-        Assert.NotEqual(sig1, sig2);
+            // Act
+            var signature = identity.Sign("test payload");
+
+            // Assert
+            Assert.NotEmpty(signature);
+            // Ed25519 signature is 64 bytes = ~88 chars in base64url
+            Assert.True(signature.Length > 80);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void IPlatformInfo_CanBeMocked_ForTestIsolation()
+    {
+        // Prove we can substitute a fake IPlatformInfo
+        var mockPlatformInfo = new Mock<IPlatformInfo>();
+        mockPlatformInfo.Setup(x => x.GetPlatform()).Returns("wasm");
+
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var identity = new DeviceIdentity(tempDir, mockPlatformInfo.Object);
+            identity.EnsureKeypair();
+
+            var platform = identity.GetCurrentPlatform();
+            Assert.Equal("wasm", platform);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
     }
 }

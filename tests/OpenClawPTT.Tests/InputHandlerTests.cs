@@ -23,10 +23,10 @@ public class InputHandlerTests
     }
 
     [Fact(Skip = "Requires console - Console.KeyAvailable throws in test environment")]
-    public async Task HandleInputAsync_NoKey_ReturnsZero()
+    public async Task HandleInputAsync_NoKey_ReturnsContinue()
     {
         var ct = new CancellationTokenSource(100).Token;
         var result = await _handler.HandleInputAsync(ct);
-        Assert.Equal(0, result);
+        Assert.Equal(InputResult.Continue, result);
     }
 }

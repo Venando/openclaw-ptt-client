@@ -56,13 +56,10 @@ public sealed class GatewayService : IGatewayService
         _uiAdapter = new UiEventAdapter(_config, _consoleOutput);
         var client = new GatewayClient(_config, _device);
 
-        // Wire domain events → UI adapter
-        client.AgentReplyFull += body =>
-        {
-            _uiAdapter.OnAgentReplyFull(body);
-            AgentReplyFull?.Invoke(body);
-        };
+        bool useDelta = _config.ReplyDisplayMode != ReplyDisplayMode.Full;
+        bool useFull = _config.ReplyDisplayMode != ReplyDisplayMode.Delta;
 
+        // Agent thinking, tool calls, and audio are always wired (not duplicated paths)
         client.AgentThinking += thinking =>
         {
             _uiAdapter.OnAgentThinking(thinking);
@@ -75,22 +72,10 @@ public sealed class GatewayService : IGatewayService
             AgentToolCall?.Invoke(toolName, arguments);
         };
 
-        client.AgentReplyDeltaStart += () =>
+        client.AgentReplyAudio += audioText =>
         {
-            _uiAdapter.OnAgentReplyDeltaStart();
-            AgentReplyDeltaStart?.Invoke();
-        };
-
-        client.AgentReplyDelta += delta =>
-        {
-            _uiAdapter.OnAgentReplyDelta(delta);
-            AgentReplyDelta?.Invoke(delta);
-        };
-
-        client.AgentReplyDeltaEnd += () =>
-        {
-            _uiAdapter.OnAgentReplyDeltaEnd();
-            AgentReplyDeltaEnd?.Invoke();
+            _uiAdapter.OnAgentReplyAudio(audioText);
+            AgentReplyAudio?.Invoke(audioText);
         };
 
         client.EventReceived += (name, json) =>
@@ -98,11 +83,37 @@ public sealed class GatewayService : IGatewayService
             EventReceived?.Invoke(name, json);
         };
 
-        client.AgentReplyAudio += audioText =>
+        // Wire delta path
+        if (useDelta)
         {
-            _uiAdapter.OnAgentReplyAudio(audioText);
-            AgentReplyAudio?.Invoke(audioText);
-        };
+            client.AgentReplyDeltaStart += () =>
+            {
+                _uiAdapter.OnAgentReplyDeltaStart();
+                AgentReplyDeltaStart?.Invoke();
+            };
+
+            client.AgentReplyDelta += delta =>
+            {
+                _uiAdapter.OnAgentReplyDelta(delta);
+                AgentReplyDelta?.Invoke(delta);
+            };
+
+            client.AgentReplyDeltaEnd += () =>
+            {
+                _uiAdapter.OnAgentReplyDeltaEnd();
+                AgentReplyDeltaEnd?.Invoke();
+            };
+        }
+
+        // Wire full reply path
+        if (useFull)
+        {
+            client.AgentReplyFull += body =>
+            {
+                _uiAdapter.OnAgentReplyFull(body);
+                AgentReplyFull?.Invoke(body);
+            };
+        }
 
         return client;
     }

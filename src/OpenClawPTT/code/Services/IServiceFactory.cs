@@ -10,13 +10,13 @@ public interface IServiceFactory
     GatewayService CreateGatewayService(AppConfig cfg);
     AudioService CreateAudioService(AppConfig cfg);
     IPttController CreatePttController(AppConfig cfg, IAudioService audioService);
-    IInputHandler CreateInputHandler(IGatewayService gateway, IAudioService audioService, TextMessageSender textSender);
-    TextMessageSender CreateTextMessageSender(IGatewayService gateway);
+    IInputHandler CreateInputHandler(IGatewayService gateway, IAudioService audioService, ITextMessageSender textSender);
+    ITextMessageSender CreateTextMessageSender(IGatewayService gateway);
     PttLoop CreatePttLoop(
         AppConfig cfg,
         GatewayService gateway,
         AudioService audioService,
         IPttController pttController,
-        TextMessageSender textSender,
+        ITextMessageSender textSender,
         IInputHandler inputHandler);
 }

@@ -18,7 +18,7 @@ public sealed class UiEventAdapter : IDisposable
     private bool _prefixPrinted;
     private bool _isDeltaStarted;
     private bool _hasAudioInCurrentMessage;
-    private AgentReplyFormatter? _formatter;
+    private IAgentReplyFormatter? _formatter;
     private bool _disposed;
 
     private readonly string _agentReplayPrefix;
@@ -26,7 +26,7 @@ public sealed class UiEventAdapter : IDisposable
     private readonly string _agentReplayPrefixTextMode;
     private readonly string _thinkingPrefix;
     private readonly string _thinkingInfo;
-    private AgentReplyFormatter? _thinkingFormatter;
+    private IAgentReplyFormatter? _thinkingFormatter;
     private string _currentPrefix = "";
     private string _newlineSuffix = "";
     private int _prefixLength;
@@ -49,13 +49,13 @@ public sealed class UiEventAdapter : IDisposable
 
         if (config.AudioResponseMode?.ToLowerInvariant() != "text-only")
         {
-            _audioResponseHandler = new AudioResponseHandler(config);
+            _audioResponseHandler = new AudioResponseHandler(config, _consoleOutput);
         }
     }
 
     public AudioResponseHandler? AudioResponseHandler => _audioResponseHandler;
 
-    public void AttachToService(GatewayService service)
+    public void AttachToService(IGatewayUIEvents service)
     {
         service.AgentReplyFull += OnAgentReplyFull;
         service.AgentThinking += OnAgentThinking;
@@ -66,7 +66,7 @@ public sealed class UiEventAdapter : IDisposable
         service.AgentReplyAudio += OnAgentReplyAudio;
     }
 
-    public void DetachFromService(GatewayService service)
+    public void DetachFromService(IGatewayUIEvents service)
     {
         service.AgentReplyFull -= OnAgentReplyFull;
         service.AgentThinking -= OnAgentThinking;
@@ -147,6 +147,7 @@ public sealed class UiEventAdapter : IDisposable
 
     public void OnAgentReplyDelta(string delta)
     {
+        if (!_isDeltaStarted) return;
         EnsurePrefixPrinted();
         if (_formatter != null)
         {

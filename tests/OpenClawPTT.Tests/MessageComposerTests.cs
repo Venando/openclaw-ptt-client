@@ -5,11 +5,13 @@ namespace OpenClawPTT.Tests;
 
 public class MessageComposerTests
 {
+    private readonly MessageComposer _composer = new();
+
     [Fact]
     public void ComposeOutgoing_TextOnlyConfig_ReturnsOriginalText()
     {
         var cfg = new AppConfig { AudioResponseMode = "text-only" };
-        var result = MessageComposer.ComposeOutgoing("hello", cfg);
+        var result = _composer.ComposeOutgoing("hello", cfg);
         Assert.Equal("hello", result);
     }
 
@@ -21,7 +23,7 @@ public class MessageComposerTests
             AudioResponseMode = "both",
             AudioWrapPrompt = "[Wrap spoken]"
         };
-        var result = MessageComposer.ComposeOutgoing("hello", cfg);
+        var result = _composer.ComposeOutgoing("hello", cfg);
         Assert.Equal("[Wrap spoken]\n\nhello", result);
     }
 
@@ -33,7 +35,7 @@ public class MessageComposerTests
             AudioResponseMode = "both",
             AudioWrapPrompt = ""
         };
-        var result = MessageComposer.ComposeOutgoing("hello", cfg);
+        var result = _composer.ComposeOutgoing("hello", cfg);
         Assert.Equal("hello", result);
     }
 
@@ -45,7 +47,7 @@ public class MessageComposerTests
             AudioResponseMode = "both",
             AudioWrapPrompt = default
         };
-        var result = MessageComposer.ComposeOutgoing("hello", cfg);
+        var result = _composer.ComposeOutgoing("hello", cfg);
         Assert.Equal("hello", result);
     }
 
@@ -58,7 +60,7 @@ public class MessageComposerTests
             AudioResponseMode = "text-only",
             AudioWrapPrompt = "[Should not be used]"
         };
-        var result = MessageComposer.ComposeOutgoing("hello", cfg);
+        var result = _composer.ComposeOutgoing("hello", cfg);
         Assert.Equal("hello", result);
     }
 
@@ -70,7 +72,17 @@ public class MessageComposerTests
             AudioResponseMode = "audio-only",
             AudioWrapPrompt = "[Speak this]"
         };
-        var result = MessageComposer.ComposeOutgoing("test message", cfg);
+        var result = _composer.ComposeOutgoing("test message", cfg);
         Assert.StartsWith("[Speak this]", result);
+    }
+
+    [Fact]
+    public void Interface_IMessageComposer_CanBeUsedForMocking()
+    {
+        // Verify the interface can be used for DI/mocking
+        IMessageComposer composer = new MessageComposer();
+        var cfg = new AppConfig { AudioResponseMode = "text-only" };
+        var result = composer.ComposeOutgoing("test", cfg);
+        Assert.Equal("test", result);
     }
 }
