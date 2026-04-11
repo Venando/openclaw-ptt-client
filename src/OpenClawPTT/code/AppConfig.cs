@@ -9,6 +9,16 @@ public enum VisualMode : int
     GlowDot = 2,
 }
 
+public enum ReplyDisplayMode
+{
+    /// <summary>Use streaming delta events only (AgentReplyDeltaStart/Delta/End). Suppresses AgentReplyFull.</summary>
+    Delta = 0,
+    /// <summary>Use full reply events only (AgentReplyFull). Suppresses delta events.</summary>
+    Full = 1,
+    /// <summary>Both delta and full reply fire (default). Use this if unsure.</summary>
+    Both = 2,
+}
+
 public sealed class AppConfig
 {
     public string GatewayUrl { get; set; } = "ws://localhost:18789";
@@ -25,6 +35,7 @@ public sealed class AppConfig
     public bool LogSnapshot { get; set; } = false;
     public string GroqApiKey { get; set; } = "gsk_";
     public bool RealTimeReplyOutput { get; set; } = true;
+    public ReplyDisplayMode ReplyDisplayMode { get; set; } = ReplyDisplayMode.Both;
 
     // STT Provider configuration
     public string? SttProvider { get; set; } // "groq", "openai", "whisper-cpp", null = default to groq
