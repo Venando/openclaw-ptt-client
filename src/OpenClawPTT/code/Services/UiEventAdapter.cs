@@ -18,7 +18,7 @@ public sealed class UiEventAdapter : IDisposable
     private bool _prefixPrinted;
     private bool _isDeltaStarted;
     private bool _hasAudioInCurrentMessage;
-    private AgentReplyFormatter? _formatter;
+    private IAgentReplyFormatter? _formatter;
     private bool _disposed;
 
     private readonly string _agentReplayPrefix;
@@ -26,7 +26,7 @@ public sealed class UiEventAdapter : IDisposable
     private readonly string _agentReplayPrefixTextMode;
     private readonly string _thinkingPrefix;
     private readonly string _thinkingInfo;
-    private AgentReplyFormatter? _thinkingFormatter;
+    private IAgentReplyFormatter? _thinkingFormatter;
     private string _currentPrefix = "";
     private string _newlineSuffix = "";
     private int _prefixLength;
@@ -49,7 +49,7 @@ public sealed class UiEventAdapter : IDisposable
 
         if (config.AudioResponseMode?.ToLowerInvariant() != "text-only")
         {
-            _audioResponseHandler = new AudioResponseHandler(config);
+            _audioResponseHandler = new AudioResponseHandler(config, _consoleOutput);
         }
     }
 

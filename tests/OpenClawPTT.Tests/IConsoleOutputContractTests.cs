@@ -12,10 +12,8 @@ public class IConsoleOutputContractTests
     [Fact]
     public void ConsoleUi_AllStaticMethodsHaveCorrespondingInterfaceMethod()
     {
-        // This test documents the known gap: PrintAgentReply, PrintAgentReplyDelta,
-        // and CreateAgentReplyFormatter are NOT part of IConsoleOutput.
-        // They are only callable via ConsoleUi statically.
-        // For testability, these should ideally be added to IConsoleOutput.
+        // This test documents the IConsoleOutput contract — it verifies that all
+        // core output methods are declared on the interface.
         var consoleOutput = new ConsoleOutput();
         
         // These should work (covered by IConsoleOutput):

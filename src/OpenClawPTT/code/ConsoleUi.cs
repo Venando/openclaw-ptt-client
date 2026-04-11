@@ -140,7 +140,7 @@ public static class ConsoleUi
     /// <summary>
     /// Creates a formatter for streaming agent replies with word wrap and right margin indent.
     /// </summary>
-    public static AgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
+    public static IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
     {
         return new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted);
     }
@@ -148,7 +148,7 @@ public static class ConsoleUi
     /// <summary>
     /// Creates a formatter with explicit console width for testability.
     /// </summary>
-    public static AgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
+    public static IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
     {
         return new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, consoleWidth);
     }

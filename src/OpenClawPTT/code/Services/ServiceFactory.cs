@@ -28,18 +28,18 @@ public sealed class ServiceFactory : IServiceFactory
         return controller;
     }
 
-    public IInputHandler CreateInputHandler(IGatewayService gateway, IAudioService audioService, TextMessageSender textSender)
+    public IInputHandler CreateInputHandler(IGatewayService gateway, IAudioService audioService, ITextMessageSender textSender)
         => new InputHandler(textSender, _configService, _console);
 
-    public TextMessageSender CreateTextMessageSender(IGatewayService gateway)
-        => new(gateway, _configService, _console);
+    public ITextMessageSender CreateTextMessageSender(IGatewayService gateway)
+        => new TextMessageSender(gateway, _configService, _console);
 
     public PttLoop CreatePttLoop(
         AppConfig cfg,
         GatewayService gateway,
         AudioService audioService,
         IPttController pttController,
-        TextMessageSender textSender,
+        ITextMessageSender textSender,
         IInputHandler inputHandler)
     {
         var stateMachine = new PttStateMachine();

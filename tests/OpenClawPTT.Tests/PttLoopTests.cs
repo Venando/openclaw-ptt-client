@@ -19,7 +19,7 @@ public class PttLoopTests
         var mockPttCtrl = new Mock<IPttController>();
 
         mockInput.Setup(x => x.HandleInputAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(-1); // Quit
+            .ReturnsAsync(InputResult.Quit);
 
         var cfg = new AppConfig { HoldToTalk = true };
         var loop = new PttLoop(
@@ -43,7 +43,7 @@ public class PttLoopTests
         var mockPttCtrl = new Mock<IPttController>();
 
         mockInput.Setup(x => x.HandleInputAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(100); // Restart
+            .ReturnsAsync(InputResult.Restart);
 
         var cfg = new AppConfig { HoldToTalk = true };
         var loop = new PttLoop(
@@ -82,7 +82,7 @@ public class PttLoopTests
             .Returns(async (CancellationToken ct) =>
             {
                 await Task.Delay(5, ct);
-                return -1;
+                return InputResult.Quit;
             });
 
         var cfg = new AppConfig { HoldToTalk = true };

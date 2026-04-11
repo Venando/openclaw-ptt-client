@@ -7,7 +7,7 @@ namespace OpenClawPTT;
 /// Formats streaming agent replies with word wrap and right margin indent.
 /// Maintains state across delta chunks within a single reply.
 /// </summary>
-public sealed class AgentReplyFormatter
+public sealed class AgentReplyFormatter : IAgentReplyFormatter
 {
     private readonly string _prefix;
     private readonly string _newlineSuffix;

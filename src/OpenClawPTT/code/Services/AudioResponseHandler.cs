@@ -20,6 +20,11 @@ public sealed class AudioResponseHandler : IDisposable
     private bool _disposed;
 
     public AudioResponseHandler(AppConfig config)
+        : this(config, null)
+    {
+    }
+
+    public AudioResponseHandler(AppConfig config, IConsoleOutput? console)
     {
         _config = config;
 
@@ -52,7 +57,7 @@ public sealed class AudioResponseHandler : IDisposable
             }
         }
 
-        _audioPlayer = new AudioPlayerService();
+        _audioPlayer = new AudioPlayerService(console);
     }
     
     /// <summary>
