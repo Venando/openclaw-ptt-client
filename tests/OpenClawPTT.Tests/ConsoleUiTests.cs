@@ -15,23 +15,22 @@ public class ConsoleUiTests : IDisposable
 {
     /// <summary>
     /// Test IConsole double that records all calls for assertion.
-    /// Avoids Moq SetupSet callback issues.
+    /// Uses LastForegroundColorBeforeReset (snapshot, no enumeration) to avoid
+    /// race conditions when tests run in parallel and modify shared static _impl.
     /// </summary>
     private sealed class RecordingConsole : IConsole
     {
         public readonly List<string?> WriteLines = new();
         public readonly List<string?> Writes = new();
         private ConsoleColor _foregroundColor = ConsoleColor.White;
+        // Snapshot of the last ForegroundColor set, preserved even after ResetColor.
+        // This lets us assert what color was set even after ResetColor() changes it.
+        public ConsoleColor LastForegroundColorBeforeReset { get; private set; } = ConsoleColor.White;
         public ConsoleColor ForegroundColor
         {
             get => _foregroundColor;
-            set
-            {
-                _foregroundColor = value;
-                ForegroundColorSetCalls.Add(value);
-            }
+            set { _foregroundColor = value; LastForegroundColorBeforeReset = value; }
         }
-        public readonly List<ConsoleColor> ForegroundColorSetCalls = new();
         public bool KeyAvailable => false;
         public Encoding OutputEncoding { get; set; } = Encoding.UTF8;
         public bool TreatControlCAsInput { get; set; }
@@ -46,9 +45,6 @@ public class ConsoleUiTests : IDisposable
         public void Write(string? text) => Writes.Add(text);
         public void WriteLine(string? text = null) => WriteLines.Add(text);
         public void ResetColor() { ResetColorCalled = true; _foregroundColor = ConsoleColor.White; }
-
-        public ConsoleColor LastForegroundColorBeforeReset =>
-            ForegroundColorSetCalls.Count > 0 ? ForegroundColorSetCalls[^1] : ConsoleColor.White;
     }
 
     private RecordingConsole _recording = null!;
@@ -80,7 +76,7 @@ public class ConsoleUiTests : IDisposable
     {
         SetupRecording();
         ConsoleUi.PrintBanner();
-        Assert.True(_recording.ForegroundColorSetCalls.IndexOf(ConsoleColor.Cyan) >= 0);
+        Assert.Equal(ConsoleColor.Cyan, _recording.LastForegroundColorBeforeReset);
     }
 
     [Fact]
@@ -88,7 +84,7 @@ public class ConsoleUiTests : IDisposable
     {
         SetupRecording();
         ConsoleUi.PrintBanner();
-        Assert.True(_recording.ForegroundColorSetCalls.IndexOf(ConsoleColor.Cyan) >= 0);
+        Assert.Equal(ConsoleColor.Cyan, _recording.LastForegroundColorBeforeReset);
         Assert.True(_recording.ResetColorCalled);
     }
 
@@ -121,7 +117,7 @@ public class ConsoleUiTests : IDisposable
     {
         SetupRecording();
         ConsoleUi.PrintHelpMenu("Alt+=", true);
-        Assert.True(_recording.ForegroundColorSetCalls.IndexOf(ConsoleColor.Green) >= 0);
+        Assert.Equal(ConsoleColor.Green, _recording.LastForegroundColorBeforeReset);
         Assert.True(_recording.ResetColorCalled);
     }
 
@@ -134,7 +130,7 @@ public class ConsoleUiTests : IDisposable
     {
         SetupRecording();
         ConsoleUi.PrintSuccess("test message");
-        Assert.True(_recording.ForegroundColorSetCalls.IndexOf(ConsoleColor.Green) >= 0);
+        Assert.Equal(ConsoleColor.Green, _recording.LastForegroundColorBeforeReset);
         Assert.True(_recording.ResetColorCalled);
     }
 
@@ -157,7 +153,7 @@ public class ConsoleUiTests : IDisposable
     {
         SetupRecording();
         ConsoleUi.PrintError("something went wrong");
-        Assert.True(_recording.ForegroundColorSetCalls.IndexOf(ConsoleColor.Red) >= 0);
+        Assert.Equal(ConsoleColor.Red, _recording.LastForegroundColorBeforeReset);
         Assert.True(_recording.ResetColorCalled);
     }
 
@@ -180,7 +176,7 @@ public class ConsoleUiTests : IDisposable
     {
         SetupRecording();
         ConsoleUi.PrintWarning("low battery");
-        Assert.True(_recording.ForegroundColorSetCalls.IndexOf(ConsoleColor.Yellow) >= 0);
+        Assert.Equal(ConsoleColor.Yellow, _recording.LastForegroundColorBeforeReset);
         Assert.True(_recording.ResetColorCalled);
     }
 
@@ -203,7 +199,7 @@ public class ConsoleUiTests : IDisposable
     {
         SetupRecording();
         ConsoleUi.PrintInfo("some info");
-        Assert.True(_recording.ForegroundColorSetCalls.IndexOf(ConsoleColor.DarkGray) >= 0);
+        Assert.Equal(ConsoleColor.DarkGray, _recording.LastForegroundColorBeforeReset);
         Assert.True(_recording.ResetColorCalled);
     }
 
@@ -225,7 +221,7 @@ public class ConsoleUiTests : IDisposable
     {
         SetupRecording();
         ConsoleUi.PrintRecordingIndicator(true, "Alt+=", true);
-        Assert.True(_recording.ForegroundColorSetCalls.IndexOf(ConsoleColor.Red) >= 0);
+        Assert.Equal(ConsoleColor.Red, _recording.LastForegroundColorBeforeReset);
     }
 
     [Fact]
@@ -275,8 +271,7 @@ public class ConsoleUiTests : IDisposable
     {
         SetupRecording();
         ConsoleUi.PrintAgentReply("  🤖 Agent: ", "Hello world");
-        // IndexOf uses direct array scan — safe even if list is modified by another concurrent test
-        Assert.True(_recording.ForegroundColorSetCalls.IndexOf(ConsoleColor.Cyan) >= 0);
+        Assert.Equal(ConsoleColor.Cyan, _recording.LastForegroundColorBeforeReset);
     }
 
     [Fact]
@@ -316,7 +311,7 @@ public class ConsoleUiTests : IDisposable
     {
         SetupRecording();
         ConsoleUi.Log("TAG", "msg");
-        Assert.True(_recording.ForegroundColorSetCalls.IndexOf(ConsoleColor.DarkGray) >= 0);
+        Assert.Equal(ConsoleColor.DarkGray, _recording.LastForegroundColorBeforeReset);
         Assert.True(_recording.ResetColorCalled);
     }
 
@@ -334,7 +329,7 @@ public class ConsoleUiTests : IDisposable
     {
         SetupRecording();
         ConsoleUi.LogOk("OK", "done");
-        Assert.True(_recording.ForegroundColorSetCalls.IndexOf(ConsoleColor.Green) >= 0);
+        Assert.Equal(ConsoleColor.Green, _recording.LastForegroundColorBeforeReset);
         Assert.True(_recording.ResetColorCalled);
     }
 
@@ -352,7 +347,7 @@ public class ConsoleUiTests : IDisposable
     {
         SetupRecording();
         ConsoleUi.LogError("ERR", "failed");
-        Assert.True(_recording.ForegroundColorSetCalls.IndexOf(ConsoleColor.Red) >= 0);
+        Assert.Equal(ConsoleColor.Red, _recording.LastForegroundColorBeforeReset);
         Assert.True(_recording.ResetColorCalled);
     }
 
@@ -365,7 +360,7 @@ public class ConsoleUiTests : IDisposable
     {
         SetupRecording();
         ConsoleUi.PrintGatewayError("connection refused");
-        Assert.True(_recording.ForegroundColorSetCalls.IndexOf(ConsoleColor.Red) >= 0);
+        Assert.Equal(ConsoleColor.Red, _recording.LastForegroundColorBeforeReset);
     }
 
     [Fact]
@@ -419,17 +414,23 @@ public class ConsoleUiTests : IDisposable
     [Fact]
     public void SetConsole_AfterResetToSystemConsole_SystemConsoleReceivesCalls()
     {
-        // Use RecordingConsole to track calls, then switch to SystemConsole
         SetupRecording();
-        ConsoleUi.PrintSuccess("test with recording console");
-        var callsBeforeSwitch = _recording.WriteLines.Count;
+        try
+        {
+            ConsoleUi.PrintSuccess("test with recording console");
+            var callsBeforeSwitch = _recording.WriteLines.Count;
 
-        // Reset to system console
-        ConsoleUi.SetConsole(new SystemConsole());
-        ConsoleUi.PrintSuccess("test with real console");
+            // Reset to system console
+            ConsoleUi.SetConsole(new SystemConsole());
+            ConsoleUi.PrintSuccess("test with real console");
 
-        // RecordingConsole should not have received any additional calls after switch
-        Assert.Equal(callsBeforeSwitch, _recording.WriteLines.Count);
+            // RecordingConsole should not have received any additional calls after switch
+            Assert.Equal(callsBeforeSwitch, _recording.WriteLines.Count);
+        }
+        finally
+        {
+            ConsoleUi.SetConsole(new SystemConsole());
+        }
     }
 
     [Fact]
@@ -437,17 +438,23 @@ public class ConsoleUiTests : IDisposable
     {
         var recording1 = new RecordingConsole();
         var recording2 = new RecordingConsole();
+        try
+        {
+            ConsoleUi.SetConsole(recording1);
+            ConsoleUi.PrintSuccess("one");
+            var callsToRecording1 = recording1.Writes.Count;
 
-        ConsoleUi.SetConsole(recording1);
-        ConsoleUi.PrintSuccess("one");
-        var callsToRecording1 = recording1.Writes.Count;
+            ConsoleUi.SetConsole(recording2);
+            ConsoleUi.PrintSuccess("two");
+            var callsToRecording2 = recording2.Writes.Count;
 
-        ConsoleUi.SetConsole(recording2);
-        ConsoleUi.PrintSuccess("two");
-        var callsToRecording2 = recording2.Writes.Count;
-
-        Assert.Equal(1, callsToRecording1);
-        Assert.Equal(1, callsToRecording2);
+            Assert.Equal(1, callsToRecording1);
+            Assert.Equal(1, callsToRecording2);
+        }
+        finally
+        {
+            ConsoleUi.SetConsole(new SystemConsole());
+        }
     }
 
     #endregion
