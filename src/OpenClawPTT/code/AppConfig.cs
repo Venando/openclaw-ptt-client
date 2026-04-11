@@ -35,7 +35,7 @@ public sealed class AppConfig
     public bool LogSnapshot { get; set; } = false;
     public string GroqApiKey { get; set; } = "gsk_";
     public bool RealTimeReplyOutput { get; set; } = true;
-    public ReplyDisplayMode ReplyDisplayMode { get; set; } = ReplyDisplayMode.Both;
+    public ReplyDisplayMode ReplyDisplayMode { get; set; } = ReplyDisplayMode.Full;
 
     // STT Provider configuration
     public string? SttProvider { get; set; } // "groq", "openai", "whisper-cpp", null = default to groq
