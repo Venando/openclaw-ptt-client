@@ -10,12 +10,14 @@ public sealed class TextMessageSender : ITextMessageSender
     private readonly IGatewayService _gateway;
     private readonly IConfigurationService _configService;
     private readonly IConsoleOutput _console;
+    private readonly IMessageComposer _composer;
 
-    public TextMessageSender(IGatewayService gateway, IConfigurationService configService, IConsoleOutput console)
+    public TextMessageSender(IGatewayService gateway, IConfigurationService configService, IConsoleOutput console, IMessageComposer composer)
     {
         _gateway = gateway;
         _configService = configService;
         _console = console;
+        _composer = composer;
     }
 
     public async Task SendAsync(string text, CancellationToken ct)
@@ -23,7 +25,7 @@ public sealed class TextMessageSender : ITextMessageSender
         var cfg = _configService.Load()
             ?? throw new InvalidOperationException("Configuration not loaded");
 
-        var composed = MessageComposer.ComposeOutgoing(text, cfg);
+        var composed = _composer.ComposeOutgoing(text, cfg);
         _console.PrintInlineInfo("Sending… ");
         try
         {

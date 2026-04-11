@@ -17,6 +17,7 @@ public sealed class AudioResponseHandler : IDisposable
     private readonly ITextToSpeech? _ttsProvider;
     private readonly AudioPlayerService _audioPlayer;
     private readonly OpenClawPTT.TTS.TtsService? _ttsService;
+    private readonly IConsoleOutput? _console;
     private bool _disposed;
 
     public AudioResponseHandler(AppConfig config)
@@ -27,6 +28,7 @@ public sealed class AudioResponseHandler : IDisposable
     public AudioResponseHandler(AppConfig config, IConsoleOutput? console)
     {
         _config = config;
+        _console = console;
 
         // Initialize TTS provider from config
         if (config.TtsProvider == TtsProviderType.OpenAI &&
@@ -53,7 +55,7 @@ public sealed class AudioResponseHandler : IDisposable
                     TtsProviderType.ElevenLabs => "Set TtsApiKey and TtsVoiceId for ElevenLabs in config.",
                     _ => "Check provider configuration."
                 };
-                ConsoleUi.PrintWarning($"TTS provider initialization failed: {ex.Message} — {hint}");
+                _console?.PrintWarning($"TTS provider initialization failed: {ex.Message} — {hint}");
             }
         }
 
@@ -139,7 +141,7 @@ public sealed class AudioResponseHandler : IDisposable
 
         if (_ttsProvider == null)
         {
-            ConsoleUi.PrintWarning("TTS not configured - set TtsProvider in settings to enable audio responses.");
+            _console?.PrintWarning("TTS not configured - set TtsProvider in settings to enable audio responses.");
             return Task.CompletedTask;
         }
 
@@ -156,7 +158,7 @@ public sealed class AudioResponseHandler : IDisposable
             }
             catch (Exception ex)
             {
-                ConsoleUi.PrintError($"TTS synthesis failed: {ex.Message}");
+                _console?.PrintError($"TTS synthesis failed: {ex.Message}");
             }
         });
 

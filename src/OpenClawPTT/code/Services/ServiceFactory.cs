@@ -9,11 +9,18 @@ public sealed class ServiceFactory : IServiceFactory
 {
     private readonly IConfigurationService _configService;
     private readonly IConsoleOutput _console;
+    private readonly IMessageComposer _composer;
 
     public ServiceFactory(IConfigurationService configService, IConsoleOutput console)
+        : this(configService, console, new MessageComposer())
+    {
+    }
+
+    public ServiceFactory(IConfigurationService configService, IConsoleOutput console, IMessageComposer composer)
     {
         _configService = configService;
         _console = console;
+        _composer = composer;
     }
 
     public GatewayService CreateGatewayService(AppConfig cfg) => new(cfg);
@@ -32,7 +39,7 @@ public sealed class ServiceFactory : IServiceFactory
         => new InputHandler(textSender, _configService, _console);
 
     public ITextMessageSender CreateTextMessageSender(IGatewayService gateway)
-        => new TextMessageSender(gateway, _configService, _console);
+        => new TextMessageSender(gateway, _configService, _console, _composer);
 
     public PttLoop CreatePttLoop(
         AppConfig cfg,
