@@ -243,8 +243,8 @@ public class ConsoleUiTests : IDisposable
     {
         SetupRecording();
         ConsoleUi.PrintRecordingIndicator(false, "Alt+=", true);
-        Assert.Equal(0, _recording.Writes.Count);
-        Assert.Equal(0, _recording.WriteLines.Count);
+        Assert.Empty(_recording.Writes);
+        Assert.Empty(_recording.WriteLines);
     }
 
     [Fact]
