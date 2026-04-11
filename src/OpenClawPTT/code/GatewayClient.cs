@@ -54,25 +54,10 @@ public sealed class GatewayClient : IDisposable
     public async Task ConnectAsync(CancellationToken ct)
     {
         // Clean up any existing connection before reconnecting
-        if (_ws != null)
-        {
-            // Stop tick task
-            _tickCts?.Cancel();
-            _tickCts?.Dispose();
-            _tickCts = null;
-            
-            // Close socket if open
-            if (_ws.State == WebSocketState.Open)
-            {
-                try { await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "reconnect", ct); }
-                catch { }
-            }
-            _ws.Dispose();
-            _ws = null!;
-        }
-        
+        await DisposeConnection(ct);
+
         ClearPendingRequests();
-        
+
         _ws = new ClientWebSocket();
         _ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
@@ -153,7 +138,7 @@ public sealed class GatewayClient : IDisposable
 
         ConsoleUi.Log("gateway", "Sending connect ...");
         JsonElement hello = await SendRequestAsync("connect", connectParams, ct);
-        
+
 
         // ── 3. validate hello-ok ──
         var helloType = hello.TryGetProperty("type", out var htEl) ? htEl.GetString() : null;
@@ -193,7 +178,7 @@ public sealed class GatewayClient : IDisposable
                 Console.WriteLine("----------------------------");
                 Console.ResetColor();
             }
-            
+
             if (snapshot.TryGetProperty("sessionDefaults", out var defaults)
                 && defaults.TryGetProperty("mainSessionKey", out var keyEl))
             {
@@ -218,6 +203,47 @@ public sealed class GatewayClient : IDisposable
 
         await SendRequestAsync("sessions.subscribe", subscribeParams, ct);
     }//
+
+
+    private async Task DisposeConnection(CancellationToken ct)
+    {
+        if (_ws == null) return;
+
+        try
+        {
+            // 1. Stop the heartbeat/tick task first
+            if (_tickCts != null)
+            {
+                await _tickCts.CancelAsync(); // Use CancelAsync in newer .NET versions
+                _tickCts.Dispose();
+                _tickCts = null;
+            }
+
+            // 2. Attempt a graceful close with a short timeout
+            if (_ws.State == WebSocketState.Open || _ws.State == WebSocketState.CloseReceived)
+            {
+                using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+
+                try
+                {
+                    // We use CloseAsync to complete the handshake
+                    await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", linkedCts.Token);
+                }
+                catch (Exception)
+                {
+                    // If the handshake fails or times out, we Abort to force-release resources
+                    _ws.Abort();
+                }
+            }
+        }
+        finally
+        {
+            // 3. Always Dispose and nullify
+            _ws.Dispose();
+            _ws = null!;
+        }
+    }
 
     private void LogMessage(Dictionary<string, object?> parameters)
     {
