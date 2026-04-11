@@ -39,12 +39,13 @@ public sealed class AudioRecorder : IDisposable
     public void StartRecording()
     {
         if (_recording) return;
-        _recording = true;
 
         if (OperatingSystem.IsWindows())
             StartNAudio();
         else
             StartCli();
+
+        _recording = true;
     }
 
     private void StartNAudio()

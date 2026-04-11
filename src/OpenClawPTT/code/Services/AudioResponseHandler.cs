@@ -45,6 +45,7 @@ public sealed class AudioResponseHandler : IDisposable
                     TtsProviderType.Coqui => "Verify PythonPath, CoquiModelName, and that Coqui TTS is installed (pip install TTS).",
                     TtsProviderType.Piper => "Verify PiperPath and that a voice model (.onnx file) is downloaded.",
                     TtsProviderType.Edge => "Set TtsSubscriptionKey (Azure API key) in config.",
+                    TtsProviderType.ElevenLabs => "Set TtsApiKey and TtsVoiceId for ElevenLabs in config.",
                     _ => "Check provider configuration."
                 };
                 ConsoleUi.PrintWarning($"TTS provider initialization failed: {ex.Message} — {hint}");
@@ -111,11 +112,11 @@ public sealed class AudioResponseHandler : IDisposable
     /// <summary>
     /// Handle [audio] marker specifically - synthesize and play.
     /// </summary>
-    public async Task HandleAudioMarkerAsync(string text, CancellationToken ct = default)
+    public Task HandleAudioMarkerAsync(string text, CancellationToken ct = default)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(AudioResponseHandler));
         
-        await PlayTtsAsync(text, ct);
+        return PlayTtsAsync(text, ct);
     }
     
     /// <summary>
@@ -125,16 +126,16 @@ public sealed class AudioResponseHandler : IDisposable
     {
         // Text handling is done by GatewayService - this is for completeness
     }
-    
-    private async Task PlayTtsAsync(string text, CancellationToken ct)
+
+    private Task PlayTtsAsync(string text, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(text))
-            return;
+            return Task.CompletedTask;
 
         if (_ttsProvider == null)
         {
             ConsoleUi.PrintWarning("TTS not configured - set TtsProvider in settings to enable audio responses.");
-            return;
+            return Task.CompletedTask;
         }
 
         // Fire and forget — synthesize in background, play when ready
@@ -153,6 +154,8 @@ public sealed class AudioResponseHandler : IDisposable
                 ConsoleUi.PrintError($"TTS synthesis failed: {ex.Message}");
             }
         });
+
+        return Task.CompletedTask;
     }
     
     /// <summary>

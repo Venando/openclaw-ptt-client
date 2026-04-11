@@ -14,6 +14,10 @@ public interface IConsoleOutput
     void PrintInlineInfo(string message);
     void PrintInlineSuccess(string message);
     void PrintGatewayError(string message, string? detailCode, string? recommendedStep);
+    void PrintAgentReply(string prefix, string body);
+    void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix);
+    OpenClawPTT.AgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false);
+    OpenClawPTT.AgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth);
     void Log(string tag, string msg);
     void LogOk(string tag, string msg);
     void LogError(string tag, string msg);

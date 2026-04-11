@@ -12,7 +12,8 @@ public enum TtsProviderType
     Edge,
     Coqui,
     Piper,
-    Python
+    Python,
+    ElevenLabs
 }
 
 /// <summary>
@@ -50,6 +51,7 @@ public sealed class TtsService : IDisposable
             TtsProviderType.Edge => config.TtsSubscriptionKey != null
                 ? new Providers.EdgeTtsProvider(config.TtsSubscriptionKey, config.TtsRegion ?? "eastus")
                 : null,
+            TtsProviderType.ElevenLabs => null,
             TtsProviderType.Python => new Providers.PythonTtsProvider(
                 "",
                 config.PythonPath ?? "",
@@ -61,7 +63,7 @@ public sealed class TtsService : IDisposable
             _ => null
         };
 
-        if (_provider == null && _providerType != TtsProviderType.Edge)
+        if (_provider == null && _providerType != TtsProviderType.Edge && _providerType != TtsProviderType.ElevenLabs)
         {
             throw new InvalidOperationException($"Failed to initialize TTS provider: {_providerType}");
         }

@@ -15,29 +15,43 @@ public sealed class AgentReplyFormatter
     private readonly StringBuilder _wordBuffer = new StringBuilder();
     private int _currentLineLength; // length of current line excluding prefix
     private readonly bool _prefixAlreadyPrinted;
+    private readonly int _consoleWidth;
 
     public AgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
+        : this(prefix, rightMarginIndent, prefixAlreadyPrinted, GetConsoleWidth())
+    {
+    }
+
+    /// <summary>
+    /// Constructor with explicit console width for testability.
+    /// </summary>
+    public AgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
     {
         _prefix = prefix;
         _newlineSuffix = new string(' ', prefix.Length);
         _rightMarginIndent = rightMarginIndent;
         _prefixAlreadyPrinted = prefixAlreadyPrinted;
+        _consoleWidth = consoleWidth > 0 ? consoleWidth : 80;
     }
 
-    /// <summary>
-    /// Calculate available width for text based on current console window width.
-    /// </summary>
-    private int GetAvailableWidth()
+    private static int GetConsoleWidth()
     {
-        int consoleWidth = 80;
         try
         {
-            consoleWidth = Console.WindowWidth;
+            return Console.WindowWidth;
         }
         catch
         {
-            // fallback
+            return 80;
         }
+    }
+
+    /// <summary>
+    /// Calculate available width for text based on configured console width.
+    /// </summary>
+    private int GetAvailableWidth()
+    {
+        int consoleWidth = _consoleWidth;
 
         // When prefix was already printed on current line, available width is from suffix to right margin
         // When prefix not yet printed, available width is from prefix to right margin
