@@ -4,42 +4,67 @@ using System.Text;
 namespace OpenClawPTT;
 
 /// <summary>
-/// Central UI output facade. Static methods delegate to the current IConsole implementation.
-/// Defaults to SystemConsole. Tests can swap via SetConsole() for output capture.
+/// Central UI output facade. All display methods are static and delegate to the
+/// current IConsole implementation via SetConsole().
 /// </summary>
 public static class ConsoleUi
 {
-    private static IConsole _console = new SystemConsole();
+    private static IConsole _impl = new SystemConsole();
+
+    // ── IConsole static surface ──────────────────────────────────
+
+    public static void Write(string? text) => _impl.Write(text);
+    public static void WriteLine(string? text = null) => _impl.WriteLine(text);
+    public static ConsoleColor ForegroundColor
+    {
+        get => _impl.ForegroundColor;
+        set => _impl.ForegroundColor = value;
+    }
+    public static void ResetColor() => _impl.ResetColor();
+    public static bool KeyAvailable => _impl.KeyAvailable;
+    public static ConsoleKeyInfo ReadKey(bool intercept = false) => _impl.ReadKey(intercept);
+    public static int WindowWidth => _impl.WindowWidth;
+    public static Encoding OutputEncoding
+    {
+        get => _impl.OutputEncoding;
+        set => _impl.OutputEncoding = value;
+    }
+    public static bool TreatControlCAsInput
+    {
+        get => _impl.TreatControlCAsInput;
+        set => _impl.TreatControlCAsInput = value;
+    }
+
 
     /// <summary>Swap the console implementation. Use a mock in tests.</summary>
-    public static void SetConsole(IConsole console) => _console = console;
+    public static void SetConsole(IConsole console) => _impl = console;
 
     public static void PrintBanner()
     {
-        _console.ForegroundColor = ConsoleColor.Cyan;
-        _console.WriteLine();
-        _console.WriteLine("  ╔═══════════════════════════════════════╗");
-        _console.WriteLine("  ║    🐾  OpenClaw Push-to-Talk  v1.0    ║");
-        _console.WriteLine("  ╚═══════════════════════════════════════╝");
-        _console.ResetColor();
-        _console.WriteLine();
+        _impl.ForegroundColor = ConsoleColor.Cyan;
+        _impl.WriteLine();
+        _impl.WriteLine("  ╔═══════════════════════════════════════╗");
+        _impl.WriteLine("  ║    🐾  OpenClaw Push-to-Talk  v1.0    ║");
+        _impl.WriteLine("  ╚═══════════════════════════════════════╝");
+        _impl.ResetColor();
+        _impl.WriteLine();
     }
 
     public static void PrintHelpMenu(string hotkeyCombination, bool holdToTalk)
     {
         var modeDescription = holdToTalk ? "Hold-to-talk" : "Toggle recording";
 
-        _console.ForegroundColor = ConsoleColor.Green;
-        _console.WriteLine("  ╔══════════════════════════════════════════╗");
-        _console.WriteLine("  ║  Push-to-Talk ready                      ║");
-        _console.WriteLine("  ╠══════════════════════════════════════════╣");
-        _console.WriteLine(FormatMenuLine($"[{hotkeyCombination}]", modeDescription));
-        _console.WriteLine(FormatMenuLine("[Alt+R]", "Reconfigure settings"));
-        _console.WriteLine(FormatMenuLine("[T]", "Type a text message"));
-        _console.WriteLine(FormatMenuLine("[Q]", "Quit"));
-        _console.WriteLine("  ╚══════════════════════════════════════════╝");
-        _console.ResetColor();
-        _console.WriteLine();
+        _impl.ForegroundColor = ConsoleColor.Green;
+        _impl.WriteLine("  ╔══════════════════════════════════════════╗");
+        _impl.WriteLine("  ║  Push-to-Talk ready                      ║");
+        _impl.WriteLine("  ╠══════════════════════════════════════════╣");
+        _impl.WriteLine(FormatMenuLine($"[{hotkeyCombination}]", modeDescription));
+        _impl.WriteLine(FormatMenuLine("[Alt+R]", "Reconfigure settings"));
+        _impl.WriteLine(FormatMenuLine("[T]", "Type a text message"));
+        _impl.WriteLine(FormatMenuLine("[Q]", "Quit"));
+        _impl.WriteLine("  ╚══════════════════════════════════════════╝");
+        _impl.ResetColor();
+        _impl.WriteLine();
     }
 
     private static string FormatMenuLine(string leftText, string rightText)
@@ -62,86 +87,86 @@ public static class ConsoleUi
     {
         if (isRecording)
         {
-            _console.ForegroundColor = ConsoleColor.Red;
-            _console.WriteLine();
+            _impl.ForegroundColor = ConsoleColor.Red;
+            _impl.WriteLine();
             if (holdToTalk)
             {
-                _console.Write($"  ● REC — release {hotkeyCombination} to stop ");
+                _impl.Write($"  ● REC — release {hotkeyCombination} to stop ");
             }
             else
             {
-                _console.Write($"  ● REC — press {hotkeyCombination} again to stop ");
+                _impl.Write($"  ● REC — press {hotkeyCombination} again to stop ");
             }
-            _console.ResetColor();
+            _impl.ResetColor();
         }
     }
 
     public static void PrintSuccess(string message)
     {
-        _console.ForegroundColor = ConsoleColor.Green;
-        _console.Write($"  ✓ {message}");
-        _console.ResetColor();
+        _impl.ForegroundColor = ConsoleColor.Green;
+        _impl.Write($"  ✓ {message}");
+        _impl.ResetColor();
     }
 
     public static void PrintSuccessWordWrap(string prefix, string message, int rightMarginIndent)
     {
-        _console.ForegroundColor = ConsoleColor.Green;
-        _console.Write(prefix);
+        _impl.ForegroundColor = ConsoleColor.Green;
+        _impl.Write(prefix);
         var formatter = new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted: true);
         formatter.ProcessDelta(message);
         formatter.Finish();
-        _console.ResetColor();
+        _impl.ResetColor();
     }
 
     public static void PrintWarning(string message)
     {
-        _console.ForegroundColor = ConsoleColor.Yellow;
-        _console.WriteLine($"  ⚠ {message}");
-        _console.ResetColor();
+        _impl.ForegroundColor = ConsoleColor.Yellow;
+        _impl.WriteLine($"  ⚠ {message}");
+        _impl.ResetColor();
     }
 
     public static void PrintError(string message)
     {
-        _console.ForegroundColor = ConsoleColor.Red;
-        _console.WriteLine($"  ✗ {message}");
-        _console.ResetColor();
+        _impl.ForegroundColor = ConsoleColor.Red;
+        _impl.WriteLine($"  ✗ {message}");
+        _impl.ResetColor();
     }
 
     public static void PrintInfo(string message)
     {
-        _console.ForegroundColor = ConsoleColor.DarkGray;
-        _console.WriteLine($"  {message}");
-        _console.ResetColor();
+        _impl.ForegroundColor = ConsoleColor.DarkGray;
+        _impl.WriteLine($"  {message}");
+        _impl.ResetColor();
     }
 
     public static void PrintInlineInfo(string message)
     {
-        _console.ForegroundColor = ConsoleColor.DarkGray;
-        _console.WriteLine();
-        _console.Write($"  {message}");
-        _console.ResetColor();
+        _impl.ForegroundColor = ConsoleColor.DarkGray;
+        _impl.WriteLine();
+        _impl.Write($"  {message}");
+        _impl.ResetColor();
     }
 
     public static void PrintInlineSuccess(string message)
     {
-        _console.ForegroundColor = ConsoleColor.DarkGray;
-        _console.WriteLine(message);
-        _console.ResetColor();
+        _impl.ForegroundColor = ConsoleColor.DarkGray;
+        _impl.WriteLine(message);
+        _impl.ResetColor();
     }
 
     public static void PrintAgentReply(string prefix, string body)
     {
-        _console.WriteLine();
-        _console.ForegroundColor = ConsoleColor.Cyan;
-        _console.Write(prefix);
-        _console.ResetColor();
-        _console.WriteLine(body);
-        _console.WriteLine();
+        _impl.WriteLine();
+        _impl.ForegroundColor = ConsoleColor.Cyan;
+        _impl.Write(prefix);
+        _impl.ResetColor();
+        _impl.WriteLine(body);
+        _impl.WriteLine();
     }
 
     public static void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix)
     {
-        _console.Write(delta.Replace("\n", "\n" + newlineSuffix));
+        _impl.Write(delta.Replace("\n", "\n" + newlineSuffix));
     }
 
     public static IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
@@ -164,37 +189,37 @@ public static class ConsoleUi
 
     public static void PrintGatewayError(string message, string? detailCode = null, string? recommendedStep = null)
     {
-        _console.ForegroundColor = ConsoleColor.Red;
-        _console.WriteLine($"\n  Gateway error: {message}");
-        _console.ResetColor();
+        _impl.ForegroundColor = ConsoleColor.Red;
+        _impl.WriteLine($"\n  Gateway error: {message}");
+        _impl.ResetColor();
 
         if (detailCode != null)
-            _console.WriteLine($"  Detail code : {detailCode}");
+            _impl.WriteLine($"  Detail code : {detailCode}");
         if (recommendedStep != null)
-            _console.WriteLine($"  Recommended : {recommendedStep}");
+            _impl.WriteLine($"  Recommended : {recommendedStep}");
     }
 
     public static void Log(string tag, string msg)
     {
-        _console.ForegroundColor = ConsoleColor.DarkGray;
-        _console.Write($"  [{tag}] ");
-        _console.ResetColor();
-        _console.WriteLine(msg);
+        _impl.ForegroundColor = ConsoleColor.DarkGray;
+        _impl.Write($"  [{tag}] ");
+        _impl.ResetColor();
+        _impl.WriteLine(msg);
     }
 
     public static void LogOk(string tag, string msg)
     {
-        _console.ForegroundColor = ConsoleColor.Green;
-        _console.Write($"  [{tag}] ");
-        _console.ResetColor();
-        _console.WriteLine(msg);
+        _impl.ForegroundColor = ConsoleColor.Green;
+        _impl.Write($"  [{tag}] ");
+        _impl.ResetColor();
+        _impl.WriteLine(msg);
     }
 
     public static void LogError(string tag, string msg)
     {
-        _console.ForegroundColor = ConsoleColor.Red;
-        _console.Write($"  [{tag}] ");
-        _console.ResetColor();
-        _console.WriteLine(msg);
+        _impl.ForegroundColor = ConsoleColor.Red;
+        _impl.Write($"  [{tag}] ");
+        _impl.ResetColor();
+        _impl.WriteLine(msg);
     }
 }

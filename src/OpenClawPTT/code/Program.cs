@@ -16,8 +16,7 @@ internal static class Program
         try
         {
             var configService = new ConfigurationService();
-            var console = new ConsoleOutput();
-            var factory = new ServiceFactory(configService, console);
+            var factory = new ServiceFactory(configService);
             var cfg = await configService.LoadOrSetupAsync();
 
             using var runner = new AppRunner(cfg, factory);

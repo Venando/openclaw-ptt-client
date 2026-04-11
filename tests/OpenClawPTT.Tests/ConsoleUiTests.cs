@@ -16,6 +16,13 @@ public class ConsoleUiTests : IDisposable
 
     private void SetupMock()
     {
+        // Dispose old mock before replacing to avoid Moq collection state issues
+        if (_mockConsole != null)
+        {
+            ConsoleUi.SetConsole(new SystemConsole());
+            _mockConsole.Object.Dispose();
+            _mockConsole = null;
+        }
         _mockConsole = new Mock<IConsole>();
         _mockConsole.Setup(x => x.WindowWidth).Returns(120);
         _mockConsole.Setup(x => x.OutputEncoding).Returns(Encoding.UTF8);

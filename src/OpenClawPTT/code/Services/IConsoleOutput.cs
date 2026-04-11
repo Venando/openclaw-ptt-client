@@ -1,7 +1,7 @@
 namespace OpenClawPTT.Services;
 
-/// <summary>Abstraction for console output operations, enabling testability.</summary>
-public interface IConsoleOutput
+/// <summary>Abstraction for console output operations, enabling testability. Extends IConsole.</summary>
+public interface IConsoleOutput : OpenClawPTT.IConsole
 {
     void PrintBanner();
     void PrintHelpMenu(string hotkeyCombination, bool holdToTalk);

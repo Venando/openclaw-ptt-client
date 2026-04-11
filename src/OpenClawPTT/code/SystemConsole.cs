@@ -29,4 +29,10 @@ public sealed class SystemConsole : IConsole
         get => Console.TreatControlCAsInput;
         set => Console.TreatControlCAsInput = value;
     }
+
+    public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
+        => new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted);
+
+    public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
+        => new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, consoleWidth);
 }

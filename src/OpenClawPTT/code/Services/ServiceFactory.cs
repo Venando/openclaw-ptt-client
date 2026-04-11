@@ -11,8 +11,8 @@ public sealed class ServiceFactory : IServiceFactory
     private readonly IConsoleOutput _console;
     private readonly IMessageComposer _composer;
 
-    public ServiceFactory(IConfigurationService configService, IConsoleOutput console)
-        : this(configService, console, new MessageComposer())
+    public ServiceFactory(IConfigurationService configService)
+        : this(configService, new ConsoleUiOutput(), new MessageComposer())
     {
     }
 
