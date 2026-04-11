@@ -25,19 +25,20 @@ internal static class Program
         }
         catch (OperationCanceledException)
         {
-            Console.WriteLine("\n  Shutting down.");
+            Console.WriteLine("\n    Shutting down. Press any button");
             Console.ReadKey();
             return 0;
         }
         catch (GatewayException gex)
         {
             ConsoleUi.PrintGatewayError(gex.Message, gex.DetailCode, gex.RecommendedStep);
+            Console.WriteLine("\n     Press any button");
             Console.ReadKey();
             return 1;
         }
         catch (Exception ex)
         {
-            ConsoleUi.PrintError($"Fatal: {ex.Message}");
+            ConsoleUi.PrintError($"Fatal: {ex.Message}. Press any button");
 #if DEBUG
             Console.WriteLine(ex.StackTrace);
 #endif
