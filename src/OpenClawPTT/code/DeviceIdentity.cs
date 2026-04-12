@@ -82,6 +82,9 @@ public sealed class DeviceIdentity
     /// <summary>Ed25519 sign, return base64url-encoded raw 64-byte signature.</summary>
     public string Sign(string payload)
     {
+        if (_privateKeySeed == null)
+            throw new InvalidOperationException("EnsureKeypair must be called before Sign");
+
         var data = Encoding.UTF8.GetBytes(payload);
         var privKey = new Ed25519PrivateKeyParameters(_privateKeySeed);
         var signer = new Ed25519Signer();
