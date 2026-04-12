@@ -68,6 +68,7 @@ public sealed class EdgeTtsProvider : ITextToSpeech
 
     private static string EscapeSsml(string text)
     {
+        if (text == null) return string.Empty;
         return text
             .Replace("&", "&amp;")
             .Replace("<", "&lt;")
