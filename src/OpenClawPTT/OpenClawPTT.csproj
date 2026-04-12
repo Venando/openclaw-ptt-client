@@ -7,6 +7,7 @@
     <AssemblyName>openclaw-ptt</AssemblyName>
     <RootNamespace>OpenClawPTT</RootNamespace>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <InternalsVisibleTo>$(AssemblyName).Tests</InternalsVisibleTo>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />

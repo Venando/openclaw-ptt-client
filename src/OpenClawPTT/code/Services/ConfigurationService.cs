@@ -99,19 +99,23 @@ public class ConfigurationService : IConfigurationService
         return _configManager.Validate(cfg);
     }
 
-    private static bool ShouldReconfigure()
+    /// <summary>
+    /// Prompt user to reconfigure within a timeout window.
+    /// Default timeout is 3 seconds; inject via parameter for testing.
+    /// </summary>
+    private static bool ShouldReconfigure(TimeSpan? timeout = null)
     {
         try
         {
             ConsoleUi.Log("configuration_service", "Press [R] to reconfigure");
 
-            var timeout = TimeSpan.FromSeconds(3);
+            var span = timeout ?? TimeSpan.FromSeconds(3);
             var start = DateTime.Now;
-            while (DateTime.Now - start < timeout)
+            while (DateTime.Now - start < span)
             {
-                if (Console.KeyAvailable)
+                if (ConsoleUi.KeyAvailable)
                 {
-                    var key = Console.ReadKey(intercept: true);
+                    var key = ConsoleUi.ReadKey(intercept: true);
                     return key.Key == ConsoleKey.R;
                 }
                 Thread.Sleep(100);
@@ -122,7 +126,7 @@ public class ConfigurationService : IConfigurationService
         catch (InvalidOperationException)
         {
             // No console available, just continue
-            Console.WriteLine("  No console input available, continuing...");
+            ConsoleUi.Log("configuration_service", "No console input available, continuing...");
             return false;
         }
     }
