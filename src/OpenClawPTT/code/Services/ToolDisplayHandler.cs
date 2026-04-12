@@ -64,6 +64,12 @@ public sealed class ToolDisplayHandler
 
     public void Handle(string toolName, string arguments)
     {
+        if (string.IsNullOrEmpty(toolName))
+        {
+            Console.WriteLine();
+            return;
+        }
+
         Console.ForegroundColor = ConsoleColor.Gray;
         string icon = ToolIcons.TryGetValue(toolName, out var i) ? i : "🔧";
         string toolPrefix = " ";
