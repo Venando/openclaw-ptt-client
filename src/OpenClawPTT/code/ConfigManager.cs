@@ -35,36 +35,55 @@ public sealed class ConfigManager
             return null;
 
         var json = File.ReadAllText(path);
-        var config = JsonSerializer.Deserialize<AppConfig>(json, JsonOpts);
-        if (config != null)
+        try
         {
-            using var doc = JsonDocument.Parse(json);
-
-            // Backward compatibility: if VisualMode is missing or was None (0), disable via VisualFeedbackEnabled
-            if (!doc.RootElement.TryGetProperty("VisualMode", out _) || config.VisualMode == 0)
+            var config = JsonSerializer.Deserialize<AppConfig>(json, JsonOpts);
+            if (config != null)
             {
-                config.VisualFeedbackEnabled = false;
-                config.VisualMode = VisualMode.SolidDot;
-            }
+                using var doc = JsonDocument.Parse(json);
 
-            // Set platform-specific default for EspeakNgPath if not configured
-            if (string.IsNullOrEmpty(config.EspeakNgPath))
-            {
-                config.EspeakNgPath = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                    ? @"C:\Program Files\eSpeak NG"
-                    : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
-                        ? "/opt/homebrew/bin/espeak-ng"
-                        : "/usr/bin/espeak-ng";
+                // Backward compatibility: if VisualMode is missing or was None (0), disable via VisualFeedbackEnabled
+                if (!doc.RootElement.TryGetProperty("VisualMode", out _) || config.VisualMode == 0)
+                {
+                    config.VisualFeedbackEnabled = false;
+                    config.VisualMode = VisualMode.SolidDot;
+                }
+
+                // Set platform-specific default for EspeakNgPath if not configured
+                if (string.IsNullOrEmpty(config.EspeakNgPath))
+                {
+                    config.EspeakNgPath = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                        ? @"C:\Program Files\eSpeak NG"
+                        : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+                            ? "/opt/homebrew/bin/espeak-ng"
+                            : "/usr/bin/espeak-ng";
+                }
             }
+            return config;
         }
-        return config;
+        catch (JsonException)
+        {
+            // Malformed or empty JSON — treat as missing config
+            return null;
+        }
     }
 
     public void Save(AppConfig cfg)
     {
         var path = ConfigPath(cfg);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, JsonSerializer.Serialize(cfg, JsonOpts));
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, JsonSerializer.Serialize(cfg, JsonOpts));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw; // Permissions errors should propagate
+        }
+        catch (IOException)
+        {
+            throw; // I/O errors should propagate
+        }
     }
 
     public List<string> Validate(AppConfig cfg)
