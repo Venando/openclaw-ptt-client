@@ -47,7 +47,7 @@ public class AppRunnerStabilityTests
         }
 
         public IAudioService CreateAudioService(AppConfig cfg) => Audio.Object;
-        public IPttController CreatePttController(AppConfig cfg, IAudioService audioService) => PttController.Object;
+        public IPttController CreatePttController(AppConfig cfg, IAudioService audioService, IHotkeyHookFactory? hotkeyHookFactory = null) => PttController.Object;
         public ITextMessageSender CreateTextMessageSender(IGatewayService gateway) => TextSender.Object;
         public IInputHandler CreateInputHandler(IGatewayService gateway, IAudioService audioService, ITextMessageSender textSender) => InputHandler.Object;
         public IPttLoop CreatePttLoop(
