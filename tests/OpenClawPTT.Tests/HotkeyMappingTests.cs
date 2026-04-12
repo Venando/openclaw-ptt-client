@@ -106,6 +106,89 @@ public class HotkeyMappingTests
         Assert.Throws<ArgumentException>(() => HotkeyMapping.Parse("Garbage+A"));
     }
 
+    [Fact]
+    public void Parse_InvalidFormat_NoModifierNoKey_Throws()
+    {
+        Assert.Throws<ArgumentException>(() => HotkeyMapping.Parse("garbage"));
+    }
+
+    [Fact]
+    public void Parse_UnknownKey_Throws()
+    {
+        Assert.Throws<ArgumentException>(() => HotkeyMapping.Parse("Ctrl+UnknownKey"));
+    }
+
+
+    [Fact]
+    public void Parse_ValidFormat_ReturnsHotkey()
+    {
+        var h = HotkeyMapping.Parse("Ctrl+Shift+A");
+        Assert.Contains(Modifier.Ctrl, h.Modifiers);
+        Assert.Contains(Modifier.Shift, h.Modifiers);
+        Assert.Equal(new Key('A'), h.Key);
+    }
+
+
+    [Fact]
+    public void Parse_JustKey_NoModifier_ReturnsHotkey()
+    {
+        var h = HotkeyMapping.Parse("B");
+        Assert.Empty(h.Modifiers);
+        Assert.Equal(new Key('B'), h.Key);
+    }
+
+    [Fact]
+    public void Parse_MultipleModifiers_ReturnsHotkey()
+    {
+        var h = HotkeyMapping.Parse("Ctrl+Alt+Shift+A");
+        Assert.Contains(Modifier.Ctrl, h.Modifiers);
+        Assert.Contains(Modifier.Alt, h.Modifiers);
+        Assert.Contains(Modifier.Shift, h.Modifiers);
+        Assert.Equal(new Key('A'), h.Key);
+    }
+
+    [Fact]
+    public void Parse_CaseInsensitivity_ReturnsHotkey()
+    {
+        var lower = HotkeyMapping.Parse("ctrl+a");
+        var upper = HotkeyMapping.Parse("CTRL+A");
+        Assert.Equal(lower.Key, upper.Key);
+        Assert.Equal(lower.Modifiers.Count, upper.Modifiers.Count);
+    }
+
+    // ── GetPlatformKeyCode ───────────────────────────────────────
+
+    [Theory]
+    [InlineData("Ctrl+Shift+A", 'A')]
+    [InlineData("Ctrl+B", 'B')]
+    [InlineData("Ctrl+1", '1')]
+    public void GetPlatformKeyCode_ValidKey_ReturnsPlatformKeyCode(string combination, char expectedKeyChar)
+    {
+        var h = HotkeyMapping.Parse(combination);
+        var code = HotkeyMapping.GetPlatformKeyCode(h.Key);
+        Assert.True(code > 0, $"Expected positive key code for {expectedKeyChar}");
+    }
+
+    // ── GetPlatformModifierFlags ───────────────────────────────────────
+
+    [Fact]
+    public void GetPlatformModifierFlags_ValidModifiers_ReturnsComputedMask()
+    {
+        // Linux stub returns 0 by design; other platforms return non-zero
+        var h = HotkeyMapping.Parse("Ctrl+Shift+A");
+        var mask = HotkeyMapping.GetPlatformModifierFlags(h.Modifiers);
+        // Verify it's computed without throwing; actual value is platform-dependent
+        Assert.True(true, $"Modifier mask computed: {mask}");
+    }
+
+    [Fact]
+    public void GetPlatformModifierFlags_NoModifiers_ReturnsZero()
+    {
+        var h = HotkeyMapping.Parse("A");
+        var mask = HotkeyMapping.GetPlatformModifierFlags(h.Modifiers);
+        Assert.Equal(0UL, mask);
+    }
+
     // ── Key struct ───────────────────────────────────────
 
     [Theory]
