@@ -9,7 +9,7 @@ public interface IServiceFactory
 {
     IGatewayService CreateGatewayService(AppConfig cfg);
     IAudioService CreateAudioService(AppConfig cfg);
-    IPttController CreatePttController(AppConfig cfg, IAudioService audioService);
+    IPttController CreatePttController(AppConfig cfg, IAudioService audioService, IHotkeyHookFactory? hotkeyHookFactory = null);
     IInputHandler CreateInputHandler(IGatewayService gateway, IAudioService audioService, ITextMessageSender textSender);
     ITextMessageSender CreateTextMessageSender(IGatewayService gateway);
     IPttLoop CreatePttLoop(
