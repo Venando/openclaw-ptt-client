@@ -1,5 +1,6 @@
 namespace OpenClawPTT;
 
+using System.Net.WebSockets;
 using OpenClawPTT.Services;
 
 /// <summary>
@@ -10,6 +11,12 @@ public sealed class AppRunner : IDisposable
 {
     private readonly AppConfig _cfg;
     private readonly IServiceFactory _factory;
+
+    /// <summary>
+    /// Maximum number of consecutive <see cref="PttLoopExitCode.Restart"/> responses
+    /// allowed before the run loop gives up and returns an error.
+    /// </summary>
+    public const int MaxRestartCount = 3;
 
     public AppRunner(AppConfig cfg, IServiceFactory factory)
     {
@@ -23,17 +30,39 @@ public sealed class AppRunner : IDisposable
     public async Task<int> RunAsync(CancellationToken ct)
     {
         int result;
+        int restartCount = 0;
         do
         {
             result = await RunAppLoopAsync(ct);
-        } while (result == 100); // Restart
+            if (result == (int)PttLoopExitCode.Restart)
+            {
+                restartCount++;
+                if (restartCount >= MaxRestartCount)
+                    return (int)PttLoopExitCode.Error;
+            }
+        } while (result == (int)PttLoopExitCode.Restart);
         return result;
     }
 
     private async Task<int> RunAppLoopAsync(CancellationToken ct)
     {
         using var gateway = _factory.CreateGatewayService(_cfg);
-        await gateway.ConnectAsync(ct);
+        try
+        {
+            await gateway.ConnectAsync(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw; // Cancellation is not an application error — let it propagate.
+        }
+        catch (IOException)
+        {
+            return (int)PttLoopExitCode.Error;
+        }
+        catch (WebSocketException)
+        {
+            return (int)PttLoopExitCode.Error;
+        }
         return await RunPttLoopAsync(gateway, ct);
     }
 
