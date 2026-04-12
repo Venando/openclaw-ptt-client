@@ -20,17 +20,18 @@ public sealed class InputHandler : IInputHandler
     public async Task<InputResult> HandleInputAsync(CancellationToken ct)
     {
         // non-blocking key poll
-        if (!Console.KeyAvailable)
+        if (!ConsoleUi.KeyAvailable)
         {
-            await Task.Delay(50, ct);
+            try { await Task.Delay(50, ct); }
+            catch (TaskCanceledException) { return InputResult.Continue; }
             return InputResult.Continue;
         }
 
-        var key = Console.ReadKey(intercept: true);
+        var key = ConsoleUi.ReadKey(intercept: true);
 
         if (key.Key == ConsoleKey.Q)
         {
-            Console.WriteLine("  Bye!");
+            ConsoleUi.WriteLine("  Bye!");
             return InputResult.Quit;
         }
 
@@ -51,11 +52,18 @@ public sealed class InputHandler : IInputHandler
     
     private async Task HandleTypeMessageAsync(CancellationToken ct)
     {
-        Console.WriteLine();
-        Console.Write("  ✏️  Type message: ");
-        var text = Console.ReadLine()?.Trim();
-        if (!string.IsNullOrEmpty(text))
-            await _textSender.SendAsync(text, ct);
+        try
+        {
+            ConsoleUi.WriteLine();
+            ConsoleUi.Write("  ✏️  Type message: ");
+            var text = (await ConsoleUi.ReadLineAsync(ct))?.Trim();
+            if (!string.IsNullOrEmpty(text))
+                await _textSender.SendAsync(text, ct);
+        }
+        catch (Exception)
+        {
+            // Swallow all errors — typing a message is best-effort
+        }
     }
 
     private async Task<InputResult> HandleReconfigurationAsync()

@@ -35,6 +35,8 @@ public static class ConsoleUi
         set => _impl.TreatControlCAsInput = value;
     }
 
+    public static async Task<string?> ReadLineAsync(CancellationToken cancellationToken = default)
+        => await _impl.ReadLineAsync(cancellationToken);
 
     /// <summary>Swap the console implementation. Use a mock in tests.</summary>
     public static void SetConsole(IConsole console) => _impl = console;
