@@ -2,6 +2,7 @@ using System;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using OpenClawPTT;
 
 namespace OpenClawPTT.Services;
 
@@ -10,7 +11,7 @@ public sealed class GatewayService : IGatewayService
     private readonly AppConfig _config;
     private readonly DeviceIdentity _device;
     private readonly IConsoleOutput _consoleOutput;
-    private GatewayClient _gatewayClient;
+    private IGatewayClient _gatewayClient;
     private UiEventAdapter? _uiAdapter;
     private bool _disposed;
 
@@ -51,10 +52,10 @@ public sealed class GatewayService : IGatewayService
         _gatewayClient = CreateGatewayClient();
     }
 
-    private GatewayClient CreateGatewayClient()
+    private IGatewayClient CreateGatewayClient()
     {
         _uiAdapter = new UiEventAdapter(_config, _consoleOutput);
-        var client = new GatewayClient(_config, _device);
+        var client = (GatewayClient)new GatewayClient(_config, _device);
 
         bool useDelta = _config.ReplyDisplayMode != ReplyDisplayMode.Full;
         bool useFull = _config.ReplyDisplayMode != ReplyDisplayMode.Delta;
