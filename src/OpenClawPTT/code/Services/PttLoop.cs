@@ -41,6 +41,7 @@ public sealed class PttLoop : IPttLoop
 
     public async Task<PttLoopExitCode> RunAsync(CancellationToken ct)
     {
+        if (_disposed) return PttLoopExitCode.Ok;
         _stateMachine.Reset();
 
         while (!ct.IsCancellationRequested)
@@ -63,7 +64,10 @@ public sealed class PttLoop : IPttLoop
             {
                 var transcribed = await _pttController.StopAndTranscribeAsync(ct);
                 if (transcribed != null)
-                    await _textSender.SendAsync(transcribed, ct);
+                {
+                    try { await _textSender.SendAsync(transcribed, ct); }
+                    catch { /* swallow: network/send errors do not kill the PTT loop */ }
+                }
                 _stateMachine.OnProcessingCompleted();
             }
 
