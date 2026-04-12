@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace OpenClawPTT;
 
-public sealed class GatewayClient : IDisposable
+public sealed class GatewayClient : IGatewayClient
 {
     private readonly AppConfig _cfg;
     private readonly DeviceIdentity _dev;
@@ -47,6 +47,41 @@ public sealed class GatewayClient : IDisposable
     {
         _cfg = cfg;
         _dev = dev;
+    }
+
+    // ─── IGatewayClient properties ──────────────────────────────────
+
+    public bool IsConnected =>
+        _ws?.State == WebSocketState.Open;
+
+    public string? SessionKey => _cfg.SessionKey;
+
+    public string? AgentId => null; // Not implemented in this version
+
+    public bool IsDisposed => _disposeCts.IsCancellationRequested;
+
+    // ─── disconnect ─────────────────────────────────────────────────
+
+    public async Task DisconnectAsync(CancellationToken ct)
+    {
+        await DisconnectInternalAsync(ct);
+    }
+
+    // ─── event send ─────────────────────────────────────────────────
+
+    /// <summary>Sends a generic event/request to the gateway and returns the response payload.</summary>
+    public async Task<JsonElement> SendEventAsync(string eventName, object? parameters, CancellationToken ct)
+    {
+        return await SendRequestAsync(eventName, parameters, ct);
+    }
+
+    // ─── recreate ───────────────────────────────────────────────────
+
+    /// <summary>Recreates the client with a new config (disposes old, creates new).</summary>
+    public void RecreateWithConfig(AppConfig newConfig)
+    {
+        // Note: GatewayClient is created by GatewayService, so this is a no-op here.
+        // The actual recreate logic is handled by GatewayService.RecreateWithConfig.
     }
 
     // ─── connect ────────────────────────────────────────────────────
