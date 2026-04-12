@@ -136,4 +136,79 @@ public class AgentReplyFormatterTests
         formatter.Finish();
         Assert.EndsWith(Environment.NewLine, output.Result);
     }
+
+    // ─── New stability tests ──────────────────────────────────────────────────
+
+    [Fact]
+    public void Constructor_2Param_DoesNotThrowInHeadlessEnvironment()
+    {
+        // Uses ConsoleTextOutput internally, which catches Console.WindowWidth exceptions.
+        // This test confirms the 2-param constructor initialises without throwing.
+        var formatter = new AgentReplyFormatter(prefix: "  ", prefixAlreadyPrinted: false);
+        formatter.ProcessDelta("hello");
+        formatter.Finish(); // must not throw
+    }
+
+    [Fact]
+    public void Constructor_3ParamWithExplicitWidth_Works()
+    {
+        var output = new StringWriterTextOutput();
+        var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 5, prefixAlreadyPrinted: false, consoleWidth: 60, output: output);
+        formatter.ProcessDelta("test");
+        formatter.Finish();
+        Assert.Contains("test", output.Result);
+    }
+
+    [Fact]
+    public void Constructor_WidthZero_UsesFallbackWidth()
+    {
+        // Width 0 should be normalised to 80 (safe fallback).
+        var output = new StringWriterTextOutput();
+        var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 5, prefixAlreadyPrinted: false, consoleWidth: 0, output: output);
+        formatter.ProcessDelta("hello");
+        formatter.Finish();
+        Assert.Contains("hello", output.Result); // must not crash and must produce output
+    }
+
+    [Fact]
+    public void Constructor_VeryLargeWidth_HandlesGracefully()
+    {
+        // Very large width should not cause overflow or crash.
+        var output = new StringWriterTextOutput();
+        var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 5, prefixAlreadyPrinted: false, consoleWidth: 1_000_000, output: output);
+        formatter.ProcessDelta("hello world");
+        formatter.Finish();
+        Assert.Contains("hello world", output.Result);
+    }
+
+    [Fact]
+    public void Constructor_NullPrefix_HandlesGracefully()
+    {
+        // Null prefix should not crash; newlineSuffix will also be null-length.
+        var output = new StringWriterTextOutput();
+        var formatter = new AgentReplyFormatter(prefix: null!, rightMarginIndent: 5, prefixAlreadyPrinted: false, consoleWidth: 80, output: output);
+        formatter.ProcessDelta("hello");
+        formatter.Finish();
+        Assert.Contains("hello", output.Result);
+    }
+
+    [Fact]
+    public void Finish_WithoutProcessDelta_DoesNotCrash()
+    {
+        // Finish() without any prior ProcessDelta must not throw.
+        var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 10);
+        formatter.Finish(); // should not throw
+    }
+
+    [Fact]
+    public void ProcessDelta_MultipleIncrementalChunks_NegativeWidth_DoesNotCrash()
+    {
+        // Negative width should be normalised to 80; no crash expected.
+        var output = new StringWriterTextOutput();
+        var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 5, prefixAlreadyPrinted: false, consoleWidth: -999, output: output);
+        formatter.ProcessDelta("chunk1 ");
+        formatter.ProcessDelta("chunk2");
+        formatter.Finish();
+        Assert.Contains("chunk1 chunk2", output.Result.Replace("\r\n", "\n"));
+    }
 }
