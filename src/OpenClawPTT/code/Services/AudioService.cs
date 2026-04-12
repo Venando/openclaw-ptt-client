@@ -9,7 +9,7 @@ namespace OpenClawPTT.Services;
 
 public sealed class AudioService : IAudioService
 {
-    private readonly AudioRecorder _recorder;
+    private readonly IAudioRecorder _recorder;
     private readonly ITranscriber _transcriber;
     private readonly IVisualFeedback _visualFeedback;
     
@@ -18,9 +18,20 @@ public sealed class AudioService : IAudioService
     private readonly int _rightMarginIndent;
     private bool _disposed;
     
+    /// <summary>
+    /// Creates an AudioService with a real AudioRecorder.
+    /// </summary>
     public AudioService(AppConfig config)
+        : this(config, recorder: null)
     {
-        _recorder = new AudioRecorder(config.SampleRate, config.Channels, config.BitsPerSample, config.MaxRecordSeconds);
+    }
+    
+    /// <summary>
+    /// Creates an AudioService with an injected recorder (for testing).
+    /// </summary>
+    internal AudioService(AppConfig config, IAudioRecorder? recorder)
+    {
+        _recorder = recorder ?? new AudioRecorder(config.SampleRate, config.Channels, config.BitsPerSample, config.MaxRecordSeconds);
         _transcriber = TranscriberFactory.Create(config);
         _visualFeedback = VisualFeedbackFactory.Create(config);
         _hotkeyCombination = config.HotkeyCombination;

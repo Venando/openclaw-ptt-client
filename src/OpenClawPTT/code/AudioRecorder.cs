@@ -6,7 +6,7 @@ namespace OpenClawPTT;
 /// Records microphone audio into WAV (16 kHz mono 16-bit by default).
 /// Uses NAudio on Windows.  Falls back to `sox rec` on macOS/Linux.
 /// </summary>
-public sealed class AudioRecorder : IDisposable
+public sealed class AudioRecorder : IAudioRecorder
 {
     private readonly int _sampleRate;
     private readonly int _channels;

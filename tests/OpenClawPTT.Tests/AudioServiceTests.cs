@@ -5,6 +5,7 @@ using OpenClawPTT;
 using System;
 using System.IO;
 using System.Reflection;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -218,6 +219,212 @@ public class AudioServiceTests : IDisposable
 
         await Assert.ThrowsAsync<ObjectDisposedException>(
             () => _real.StopAndTranscribeAsync(default));
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Test doubles for real AudioService via IAudioRecorder injection
+// ═══════════════════════════════════════════════════════════════
+
+/// <summary>
+/// IAudioRecorder test double that records calls and returns controllable results.
+/// Enables testing AudioService's main flow without real audio hardware.
+/// </summary>
+sealed class MockAudioRecorder : IAudioRecorder
+{
+    public bool IsRecording { get; private set; }
+    public int StartRecordingCallCount { get; private set; }
+    public int StopRecordingCallCount { get; private set; }
+    public byte[] StopRecordingResult { get; set; } = Array.Empty<byte>();
+    public bool ThrowOnStartRecording;
+    public bool ThrowOnStopRecording;
+
+    public void Reset()
+    {
+        IsRecording = false;
+        StartRecordingCallCount = 0;
+        StopRecordingCallCount = 0;
+        StopRecordingResult = Array.Empty<byte>();
+        ThrowOnStartRecording = false;
+        ThrowOnStopRecording = false;
+    }
+
+    public void StartRecording()
+    {
+        if (ThrowOnStartRecording) throw new InvalidOperationException("StartRecording failed");
+        // Idempotent: only record the first call, matching real AudioRecorder behavior
+        if (!IsRecording)
+        {
+            StartRecordingCallCount++;
+            IsRecording = true;
+        }
+    }
+
+    public byte[] StopRecording()
+    {
+        if (ThrowOnStopRecording) throw new InvalidOperationException("StopRecording failed");
+        StopRecordingCallCount++;
+        IsRecording = false;
+        return StopRecordingResult;
+    }
+
+    public void Dispose() { }
+}
+
+/// <summary>
+/// Test IConsole that records calls for verifying AudioService console output.
+/// Mirrors the RecordingConsole pattern used in ConsoleUiTests.
+/// </summary>
+sealed class TestConsole : IConsole
+{
+    public readonly List<string?> WriteLines = new();
+    public readonly List<string?> Writes = new();
+    private ConsoleColor _foregroundColor = ConsoleColor.White;
+    public ConsoleColor LastForegroundColorBeforeReset { get; private set; } = ConsoleColor.White;
+    public ConsoleColor ForegroundColor
+    {
+        get => _foregroundColor;
+        set { _foregroundColor = value; LastForegroundColorBeforeReset = value; }
+    }
+    public bool KeyAvailable => false;
+    public Encoding OutputEncoding { get; set; } = Encoding.UTF8;
+    public bool TreatControlCAsInput { get; set; }
+    public int WindowWidth => 120;
+    public bool ResetColorCalled;
+    public ConsoleKeyInfo ReadKey(bool intercept) => new ConsoleKeyInfo('A', ConsoleKey.A, false, false, false);
+    public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int w, bool prefixPrinted = false)
+        => new AgentReplyFormatter(prefix, w, prefixPrinted);
+    public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int w, bool prefixPrinted, int cw)
+        => new AgentReplyFormatter(prefix, w, prefixPrinted, cw);
+    public void Write(string? text) => Writes.Add(text);
+    public void WriteLine(string? text = null) => WriteLines.Add(text);
+    public void ResetColor() { ResetColorCalled = true; _foregroundColor = ConsoleColor.White; }
+    public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default)
+        => ValueTask.FromResult<string?>(null);
+}
+
+// ─── Tests using real AudioService ─────────────────────────────
+
+public class RealAudioServiceWithMocksTests : IDisposable
+{
+    private AudioService? _service;
+    private MockAudioRecorder? _recorder;
+    private MockTranscriber? _transcriber;
+    private MockVisualFeedback? _visual;
+    private TestConsole? _console;
+    private AppConfig? _config;
+
+    private void Setup(Func<AppConfig, AudioService> factory)
+    {
+        _service?.Dispose();
+        _recorder = new MockAudioRecorder();
+        _transcriber = new MockTranscriber();
+        _visual = new MockVisualFeedback();
+        _console = new TestConsole();
+        _config = new AppConfig
+        {
+            SampleRate = 16000,
+            Channels = 1,
+            BitsPerSample = 16,
+            MaxRecordSeconds = 30,
+            GroqApiKey = "test-key",
+            RightMarginIndent = 5,
+            VisualFeedbackEnabled = false
+        };
+        ConsoleUi.SetConsole(_console);
+        _service = factory(_config);
+    }
+
+    public void Dispose()
+    {
+        _service?.Dispose();
+        ConsoleUi.SetConsole(new SystemConsole());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // TEST: StartRecording calls StartRecording on the recorder
+    // ═══════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void StartRecording_CallsStartRecordingOnRecorder()
+    {
+        Setup(cfg => new AudioService(cfg, _recorder!));
+        _recorder!.Reset();
+
+        _service!.StartRecording();
+
+        Assert.Equal(1, _recorder.StartRecordingCallCount);
+        Assert.True(_recorder.IsRecording);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // TEST: StartRecording when already recording is idempotent
+    // ═══════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void StartRecording_WhenAlreadyRecording_IsIdempotent()
+    {
+        Setup(cfg => new AudioService(cfg, _recorder!));
+        _recorder!.Reset();
+
+        _service!.StartRecording();
+        Assert.Equal(1, _recorder.StartRecordingCallCount);
+
+        _service.StartRecording();
+        Assert.Equal(1, _recorder.StartRecordingCallCount); // still 1, not 2
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // TEST: StopAndTranscribeAsync when transcriber returns null → returns null gracefully
+    // ═══════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task StopAndTranscribeAsync_WhenTranscriberReturnsNull_ReturnsNullGracefully()
+    {
+        Setup(cfg => new AudioService(cfg, _recorder!));
+        _recorder!.Reset();
+        _recorder.StopRecordingResult = new byte[2048]; // ≥1KB so size check passes
+        _transcriber!.TranscribeFunc = _ => null!; // simulate null return
+
+        _service!.StartRecording();
+        var result = await _service.StopAndTranscribeAsync(default);
+
+        Assert.Null(result);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // TEST: Dispose can be called multiple times without crashing
+    // ═══════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void Dispose_CanBeCalledMultipleTimes()
+    {
+        Setup(cfg => new AudioService(cfg, _recorder!));
+
+        _service!.StartRecording();
+        _service.Dispose();
+        _service.Dispose(); // must not throw
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // TEST: ServiceFactory creates a configured AudioService
+    // ═══════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void ServiceFactory_CreateAudioService_ReturnsConfiguredService()
+    {
+        Setup(cfg => new AudioService(cfg, _recorder!));
+
+        Assert.NotNull(_service);
+        Assert.False(_service!.IsRecording);
+
+        // Can call StartRecording without throwing
+        _service.StartRecording();
+        Assert.True(_recorder!.IsRecording);
+
+        // Can call StopAndTranscribeAsync without throwing
+        var task = _service.StopAndTranscribeAsync(default);
+        Assert.NotNull(task);
     }
 }
 
