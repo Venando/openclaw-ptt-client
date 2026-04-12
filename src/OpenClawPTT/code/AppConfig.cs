@@ -114,8 +114,12 @@ public sealed class AppConfig
 
 
     [JsonIgnore]
-    public string DataDir => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".openclaw-ptt");
+    public string? CustomDataDir { get; set; }
+
+    [JsonIgnore]
+    public string DataDir => CustomDataDir
+        ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".openclaw-ptt");
 
 }

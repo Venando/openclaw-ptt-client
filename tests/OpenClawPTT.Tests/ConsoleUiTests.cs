@@ -45,6 +45,8 @@ public class ConsoleUiTests : IDisposable
         public void Write(string? text) => Writes.Add(text);
         public void WriteLine(string? text = null) => WriteLines.Add(text);
         public void ResetColor() { ResetColorCalled = true; _foregroundColor = ConsoleColor.White; }
+        public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default)
+            => ValueTask.FromResult<string?>(null);
     }
 
     private RecordingConsole _recording = null!;

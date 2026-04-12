@@ -59,4 +59,6 @@ public sealed class ConsoleUiOutput : IConsoleOutput
     public void Log(string tag, string msg) => ConsoleUi.Log(tag, msg);
     public void LogOk(string tag, string msg) => ConsoleUi.LogOk(tag, msg);
     public void LogError(string tag, string msg) => ConsoleUi.LogError(tag, msg);
+    public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default)
+        => Console.In.ReadLineAsync(cancellationToken);
 }

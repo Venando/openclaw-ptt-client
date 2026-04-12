@@ -21,4 +21,5 @@ public interface IConsole
 
     IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false);
     IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth);
+    ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default);
 }

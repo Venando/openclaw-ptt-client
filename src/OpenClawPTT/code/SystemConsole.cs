@@ -35,4 +35,7 @@ public sealed class SystemConsole : IConsole
 
     public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
         => new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, consoleWidth);
+
+    public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default)
+        => Console.In.ReadLineAsync(cancellationToken);
 }
