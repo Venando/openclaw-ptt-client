@@ -19,6 +19,15 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     private readonly int _consoleWidth;
     private readonly ITextOutput _output;
 
+    /// <summary>
+    /// Convenience constructor using default right-margin indent (10) and auto-detected console width.
+    /// Safe for headless environments — falls back to width 80 when Console.WindowWidth is unavailable.
+    /// </summary>
+    public AgentReplyFormatter(string prefix, bool prefixAlreadyPrinted)
+        : this(prefix, rightMarginIndent: 10, prefixAlreadyPrinted, GetConsoleWidth(), null)
+    {
+    }
+
     public AgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
         : this(prefix, rightMarginIndent, prefixAlreadyPrinted, GetConsoleWidth(), null)
     {
@@ -37,8 +46,8 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     /// </summary>
     public AgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth, ITextOutput? output)
     {
-        _prefix = prefix;
-        _newlineSuffix = new string(' ', prefix.Length);
+        _prefix = prefix ?? string.Empty;
+        _newlineSuffix = new string(' ', _prefix.Length);
         _rightMarginIndent = rightMarginIndent;
         _prefixAlreadyPrinted = prefixAlreadyPrinted;
         _consoleWidth = consoleWidth > 0 ? consoleWidth : 80;
