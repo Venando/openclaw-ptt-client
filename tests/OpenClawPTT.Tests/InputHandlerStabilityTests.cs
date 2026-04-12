@@ -196,4 +196,139 @@ public class InputHandlerStabilityTests : IDisposable
 
         Assert.Equal(InputResult.Continue, result);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Tests 6–7: Alt+R (HandleReconfiguration path)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test 6: HandleInputAsync + Alt+R — null config → returns Continue (no crash)
+    // ─────────────────────────────────────────────────────────────────────────
+    [Fact]
+    public async Task HandleInputAsync_AltR_NullConfig_ReturnsContinue()
+    {
+        SetupHandler();
+        _console.KeyAvailable = true;
+        _console.SimulatedKey = new ConsoleKeyInfo('R', ConsoleKey.R, false, true, false); // Alt+R
+        _mockConfig.Setup(c => c.Load()).Returns((AppConfig?)null);
+
+        var result = await _handler.HandleInputAsync(CancellationToken.None);
+
+        Assert.Equal(InputResult.Continue, result);
+        _mockConfig.Verify(c => c.ReconfigureAsync(It.IsAny<AppConfig>()), Times.Never);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test 7: HandleInputAsync + Alt+R — existing config → returns Restart
+    // ─────────────────────────────────────────────────────────────────────────
+    [Fact]
+    public async Task HandleInputAsync_AltR_WithExistingConfig_ReturnsRestart()
+    {
+        SetupHandler();
+        _console.KeyAvailable = true;
+        _console.SimulatedKey = new ConsoleKeyInfo('R', ConsoleKey.R, false, true, false); // Alt+R
+        var existingCfg = new AppConfig { GatewayUrl = "ws://localhost:18789" };
+        _mockConfig.Setup(c => c.Load()).Returns(existingCfg);
+        _mockConfig.Setup(c => c.ReconfigureAsync(existingCfg)).Returns(Task.FromResult(existingCfg));
+
+
+        var result = await _handler.HandleInputAsync(CancellationToken.None);
+
+        Assert.Equal(InputResult.Restart, result);
+        _mockConfig.Verify(c => c.ReconfigureAsync(existingCfg), Times.Once);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Tests 8–11: T key — HandleTypeMessageAsync path
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test 8: HandleInputAsync + T — text entered → sent via ITextMessageSender
+    // ─────────────────────────────────────────────────────────────────────────
+    [Fact]
+    public async Task HandleInputAsync_TKey_Text_SendsMessage()
+    {
+        SetupHandler();
+        _console.KeyAvailable = true;
+        _console.SimulatedKey = new ConsoleKeyInfo('T', ConsoleKey.T, false, false, false);
+        _console.SimulatedReadLineResult = "hello from test";
+
+        var result = await _handler.HandleInputAsync(CancellationToken.None);
+
+        Assert.Equal(InputResult.Continue, result);
+        Assert.Contains("hello from test", _sender.SentMessages);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test 9: HandleInputAsync + T — empty input → no crash, no send
+    // ─────────────────────────────────────────────────────────────────────────
+    [Fact]
+    public async Task HandleInputAsync_TKey_EmptyInput_NoCrash()
+    {
+        SetupHandler();
+        _console.KeyAvailable = true;
+        _console.SimulatedKey = new ConsoleKeyInfo('T', ConsoleKey.T, false, false, false);
+        _console.SimulatedReadLineResult = "";
+
+        var result = await _handler.HandleInputAsync(CancellationToken.None);
+
+        Assert.Equal(InputResult.Continue, result);
+        Assert.Empty(_sender.SentMessages);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test 10: HandleInputAsync + T — whitespace-only input → no crash, no send
+    // ─────────────────────────────────────────────────────────────────────────
+    [Fact]
+    public async Task HandleInputAsync_TKey_WhitespaceInput_NoCrash()
+    {
+        SetupHandler();
+        _console.KeyAvailable = true;
+        _console.SimulatedKey = new ConsoleKeyInfo('T', ConsoleKey.T, false, false, false);
+        _console.SimulatedReadLineResult = "   \t  ";
+
+        var result = await _handler.HandleInputAsync(CancellationToken.None);
+
+        Assert.Equal(InputResult.Continue, result);
+        Assert.Empty(_sender.SentMessages);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test 11: HandleInputAsync + T — very long input → no crash, sent as-is
+    // ─────────────────────────────────────────────────────────────────────────
+    [Fact]
+    public async Task HandleInputAsync_TKey_LongInput_SendsMessage()
+    {
+        SetupHandler();
+        _console.KeyAvailable = true;
+        _console.SimulatedKey = new ConsoleKeyInfo('T', ConsoleKey.T, false, false, false);
+        _console.SimulatedReadLineResult = new string('x', 10_000);
+
+        var result = await _handler.HandleInputAsync(CancellationToken.None);
+
+        Assert.Equal(InputResult.Continue, result);
+        Assert.Single(_sender.SentMessages);
+        Assert.Equal(10_000, _sender.SentMessages[0].Length);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Test 12: Full flow — T key → typed message end-to-end
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test 12: Full flow — T key → typed message → verified via sender
+    // ─────────────────────────────────────────────────────────────────────────
+    [Fact]
+    public async Task HandleInputAsync_TKey_FullFlow_SendsTypedMessage()
+    {
+        SetupHandler();
+        _console.KeyAvailable = true;
+        _console.SimulatedKey = new ConsoleKeyInfo('T', ConsoleKey.T, false, false, false);
+        _console.SimulatedReadLineResult = "typed message from full flow test";
+
+        var result = await _handler.HandleInputAsync(CancellationToken.None);
+
+        Assert.Equal(InputResult.Continue, result);
+        Assert.Contains("typed message from full flow test", _sender.SentMessages);
+    }
 }
