@@ -69,7 +69,22 @@ public sealed class TtsService : IDisposable
         }
 
         if (_provider is Providers.PythonTtsProvider pythonProvider)
-            pythonProvider.InitializeAsync(_cts.Token).GetAwaiter().GetResult();
+        {
+            try
+            {
+                pythonProvider.InitializeAsync(_cts.Token).GetAwaiter().GetResult();
+            }
+            catch (AggregateException ae)
+            {
+                // Unwrap TargetInvocationException from Reflection.
+                // When a .ctor is called via reflection (e.g. via Activator or mock framework),
+                // actual exceptions are wrapped in TargetInvocationException.
+                // We want the inner exception to surface clearly for easier debugging.
+                if (ae.InnerException is System.Reflection.TargetInvocationException tie)
+                    throw tie.InnerException ?? ae;
+                throw ae.InnerException ?? ae;
+            }
+        }
     }
 
     /// <summary>
