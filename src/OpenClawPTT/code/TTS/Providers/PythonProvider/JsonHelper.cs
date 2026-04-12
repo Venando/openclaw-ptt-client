@@ -35,29 +35,31 @@ public static class JsonHelper
                 return false;
             }
 
-            // 2. Fail-Proof Check: Ensure we parsed the WHOLE string. 
-            // Prevents: {"type":"val"} some_extra_text
-            // We allow trailing whitespace, but not trailing tokens.
-            while (reader.Read()) 
+            // 2. Robust Property Extraction — return immediately if we have a valid type.
+            // This ignores any trailing content after the JSON object (test case: trailing garbage).
+            if (jsonDocument.RootElement.ValueKind == JsonValueKind.Object &&
+                jsonDocument.RootElement.TryGetProperty("type", out var typeElement) &&
+                typeElement.ValueKind == JsonValueKind.String)
+            {
+                type = typeElement.GetString();
+
+                if (!string.IsNullOrWhiteSpace(type))
+                {
+                    return true;
+                }
+            }
+
+            // 3. Fail-Proof Check: Ensure we parsed the WHOLE string.
+            // Only applies when we didn't get a valid type above — catches incomplete JSON
+            // like `{"type":` (valid start, missing value) where TryParse succeeds but
+            // the reader still has tokens to consume.
+            while (reader.Read())
             {
                 if (reader.TokenType != JsonTokenType.Comment && reader.TokenType != JsonTokenType.None)
                 {
                     jsonDocument.Dispose();
                     jsonDocument = null;
                     return false;
-                }
-            }
-
-            // 3. Robust Property Extraction
-            if (jsonDocument.RootElement.ValueKind == JsonValueKind.Object &&
-                jsonDocument.RootElement.TryGetProperty("type", out var typeElement) &&
-                typeElement.ValueKind == JsonValueKind.String) // Ensure it's actually a string!
-            {
-                type = typeElement.GetString();
-                
-                if (!string.IsNullOrWhiteSpace(type))
-                {
-                    return true;
                 }
             }
 
