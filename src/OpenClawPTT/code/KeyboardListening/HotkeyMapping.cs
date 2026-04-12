@@ -9,7 +9,7 @@ namespace OpenClawPTT;
 /// Parses hotkey combination strings like "Alt+Shift+Space" and provides
 /// platform-specific key codes and modifier flags.
 /// </summary>
-internal static class HotkeyMapping
+public static class HotkeyMapping
 {
     public static Hotkey Parse(string combination)
     {
@@ -322,7 +322,7 @@ internal static class HotkeyMapping
 /// <summary>
 /// Represents a physical key (letter, digit, or special key).
 /// </summary>
-internal readonly struct Key : IEquatable<Key>
+public readonly struct Key : IEquatable<Key>
 {
     public readonly char Value;
     public readonly SpecialKey Special;
@@ -370,7 +370,7 @@ internal readonly struct Key : IEquatable<Key>
     public static bool operator !=(Key left, Key right) => !left.Equals(right);
 }
 
-internal enum SpecialKey
+public enum SpecialKey
 {
     None,
     Space,
@@ -379,7 +379,7 @@ internal enum SpecialKey
     F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12
 }
 
-internal enum Modifier
+public enum Modifier
 {
     Alt,
     Ctrl,
@@ -387,4 +387,4 @@ internal enum Modifier
     Win
 }
 
-internal record Hotkey(Key Key, HashSet<Modifier> Modifiers);
+public record Hotkey(Key Key, HashSet<Modifier> Modifiers);

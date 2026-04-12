@@ -27,9 +27,9 @@ public sealed class ServiceFactory : IServiceFactory
 
     public IAudioService CreateAudioService(AppConfig cfg) => new AudioService(cfg);
 
-    public IPttController CreatePttController(AppConfig cfg, IAudioService audioService)
+    public IPttController CreatePttController(AppConfig cfg, IAudioService audioService, IHotkeyHookFactory? hotkeyHookFactory = null)
     {
-        var controller = new PttController(cfg, audioService, new HotkeyHookFactory());
+        var controller = new PttController(cfg, audioService, hotkeyHookFactory ?? new HotkeyHookFactory());
         controller.SetHotkey(cfg.HotkeyCombination, cfg.HoldToTalk);
         controller.Start();
         return controller;

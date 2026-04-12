@@ -1,6 +1,6 @@
 namespace OpenClawPTT;
 
-internal interface IGlobalHotkeyHook : IDisposable
+public interface IGlobalHotkeyHook : IDisposable
 {
     /// <summary>Fired on a background thread when the hotkey is pressed (key down).</summary>
     event Action? HotkeyPressed;
