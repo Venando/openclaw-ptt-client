@@ -34,6 +34,7 @@ public sealed class ConsoleUiOutput : IConsoleOutput
     public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
         => ConsoleUi.CreateAgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted);
     public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
+
         => ConsoleUi.CreateAgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, consoleWidth);
 
     // IConsoleOutput display methods
