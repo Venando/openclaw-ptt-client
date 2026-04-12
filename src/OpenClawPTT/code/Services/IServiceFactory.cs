@@ -7,15 +7,15 @@ namespace OpenClawPTT;
 /// </summary>
 public interface IServiceFactory
 {
-    GatewayService CreateGatewayService(AppConfig cfg);
-    AudioService CreateAudioService(AppConfig cfg);
+    IGatewayService CreateGatewayService(AppConfig cfg);
+    IAudioService CreateAudioService(AppConfig cfg);
     IPttController CreatePttController(AppConfig cfg, IAudioService audioService);
     IInputHandler CreateInputHandler(IGatewayService gateway, IAudioService audioService, ITextMessageSender textSender);
     ITextMessageSender CreateTextMessageSender(IGatewayService gateway);
-    PttLoop CreatePttLoop(
+    IPttLoop CreatePttLoop(
         AppConfig cfg,
-        GatewayService gateway,
-        AudioService audioService,
+        IGatewayService gateway,
+        IAudioService audioService,
         IPttController pttController,
         ITextMessageSender textSender,
         IInputHandler inputHandler);

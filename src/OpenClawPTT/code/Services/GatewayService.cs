@@ -28,7 +28,7 @@ public sealed class GatewayService : IGatewayService
         _config = config;
         _device = new DeviceIdentity(config.DataDir);
         _device.EnsureKeypair();
-        _consoleOutput = new ConsoleOutput();
+        _consoleOutput = new ConsoleUiOutput();
         _gatewayClient = CreateGatewayClient();
     }
 

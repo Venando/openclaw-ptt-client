@@ -14,7 +14,7 @@ public class IConsoleOutputContractTests
     {
         // This test documents the IConsoleOutput contract — it verifies that all
         // core output methods are declared on the interface.
-        var consoleOutput = new ConsoleOutput();
+        var consoleOutput = new ConsoleUiOutput();
         
         // These should work (covered by IConsoleOutput):
         consoleOutput.PrintBanner();
@@ -36,7 +36,7 @@ public class IConsoleOutputContractTests
     public void ConsoleOutput_DropInReplacement_DoesNotThrow()
     {
         // Verify ConsoleOutput can be used as drop-in for ConsoleUi static calls
-        IConsoleOutput output = new ConsoleOutput();
+        IConsoleOutput output = new ConsoleUiOutput();
         output.PrintSuccess("Success message");
         output.PrintWarning("Warning message");
         output.PrintError("Error message");

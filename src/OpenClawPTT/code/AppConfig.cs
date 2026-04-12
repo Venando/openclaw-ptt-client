@@ -35,7 +35,7 @@ public sealed class AppConfig
     public bool LogSnapshot { get; set; } = false;
     public string GroqApiKey { get; set; } = "gsk_";
     public bool RealTimeReplyOutput { get; set; } = true;
-    public ReplyDisplayMode ReplyDisplayMode { get; set; } = ReplyDisplayMode.Full;
+    public ReplyDisplayMode ReplyDisplayMode { get; set; } = ReplyDisplayMode.Both;
 
     // STT Provider configuration
     public string? SttProvider { get; set; } // "groq", "openai", "whisper-cpp", null = default to groq
@@ -114,8 +114,12 @@ public sealed class AppConfig
 
 
     [JsonIgnore]
-    public string DataDir => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".openclaw-ptt");
+    public string? CustomDataDir { get; set; }
+
+    [JsonIgnore]
+    public string DataDir => CustomDataDir
+        ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".openclaw-ptt");
 
 }

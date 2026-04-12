@@ -1,15 +1,10 @@
 namespace OpenClawPTT;
 
 using OpenClawPTT.Services;
-using System.Linq;
 using System.Threading;
 
 internal static class Program
 {
-    private const int ExitOk = 0;
-    private const int ExitError = 1;
-    private const int ExitRestart = 100;
-
     private static async Task<int> Main(string[] args)
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -21,62 +16,33 @@ internal static class Program
         try
         {
             var configService = new ConfigurationService();
-            var console = new ConsoleOutput();
-            var factory = new ServiceFactory(configService, console);
+            var factory = new ServiceFactory(configService);
             var cfg = await configService.LoadOrSetupAsync();
 
-            int result;
-            do
-            {
-                result = await RunAppLoop(cfg, factory, cts.Token);
-            } while (result == ExitRestart);
-
-            return result;
+            using var runner = new AppRunner(cfg, factory);
+            return await runner.RunAsync(cts.Token);
         }
         catch (OperationCanceledException)
         {
-            Console.WriteLine("\n  Shutting down.");
+            Console.WriteLine("\n    Shutting down. Press any button");
             Console.ReadKey();
-            return ExitOk;
+            return 0;
         }
         catch (GatewayException gex)
         {
             ConsoleUi.PrintGatewayError(gex.Message, gex.DetailCode, gex.RecommendedStep);
+            Console.WriteLine("\n     Press any button");
             Console.ReadKey();
-            return ExitError;
+            return 1;
         }
         catch (Exception ex)
         {
-            ConsoleUi.PrintError($"Fatal: {ex.Message}");
+            ConsoleUi.PrintError($"Fatal: {ex.Message}. Press any button");
 #if DEBUG
             Console.WriteLine(ex.StackTrace);
 #endif
             Console.ReadKey();
-            return ExitError;
+            return 1;
         }
-    }
-
-    private static async Task<int> RunAppLoop(AppConfig cfg, ServiceFactory factory, CancellationToken ct)
-    {
-        using var gateway = factory.CreateGatewayService(cfg);
-        await gateway.ConnectAsync(ct);
-        return await RunPttLoop(cfg, factory, gateway, ct);
-    }
-
-    private static async Task<int> RunPttLoop(
-        AppConfig cfg,
-        ServiceFactory factory,
-        GatewayService gateway,
-        CancellationToken ct)
-    {
-        using var audioService = factory.CreateAudioService(cfg);
-        var pttController = factory.CreatePttController(cfg, audioService);
-        var textSender = factory.CreateTextMessageSender(gateway);
-        var inputHandler = factory.CreateInputHandler(gateway, audioService, textSender);
-
-        ConsoleUi.PrintHelpMenu(cfg.HotkeyCombination, cfg.HoldToTalk);
-
-        using var pttLoop = factory.CreatePttLoop(cfg, gateway, audioService, pttController, textSender, inputHandler);
-        return (int)(await pttLoop.RunAsync(ct));
     }
 }

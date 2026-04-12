@@ -31,7 +31,7 @@ public sealed class UiEventAdapter : IDisposable
     private string _newlineSuffix = "";
     private int _prefixLength;
 
-    public UiEventAdapter(AppConfig config) : this(config, new ConsoleOutput())
+    public UiEventAdapter(AppConfig config) : this(config, new ConsoleUiOutput())
     {
     }
 
