@@ -31,6 +31,8 @@ internal sealed class PttController : IPttController
             _hotkeyHook = GlobalHotkeyHookFactory.Create();
             _hotkeyHook.SetHotkey(mapping);
         }
+        
+        _hotkeyHook.Start();
 
         if (holdToTalk)
         {
