@@ -1,48 +1,22 @@
-namespace OpenClawPTT;
-
 using OpenClawPTT.Services;
-using System.Threading;
+
+namespace OpenClawPTT;
 
 internal static class Program
 {
-    private static async Task<int> Main(string[] args)
+    private static async Task<int> Main()
     {
-        Console.OutputEncoding = System.Text.Encoding.UTF8;
-        ConsoleUi.PrintBanner();
+        var cts = new CancellationTokenSource();
+        IConsole console = new SystemConsole();
+        IConfigurationService configService = new ConfigurationService();
+        var factory = new ServiceFactory(configService);
 
-        using var cts = new CancellationTokenSource();
-        Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+        var bootstrapper = new AppBootstrapper(console, configService, factory);
+        var exitCode = await bootstrapper.RunAsync(cts.Token);
 
-        try
-        {
-            var configService = new ConfigurationService();
-            var factory = new ServiceFactory(configService);
-            var cfg = await configService.LoadOrSetupAsync();
+        bootstrapper.Dispose();
+        cts.Dispose();
 
-            using var runner = new AppRunner(cfg, factory);
-            return await runner.RunAsync(cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            Console.WriteLine("\n    Shutting down. Press any button");
-            Console.ReadKey();
-            return 0;
-        }
-        catch (GatewayException gex)
-        {
-            ConsoleUi.PrintGatewayError(gex.Message, gex.DetailCode, gex.RecommendedStep);
-            Console.WriteLine("\n     Press any button");
-            Console.ReadKey();
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            ConsoleUi.PrintError($"Fatal: {ex.Message}. Press any button");
-#if DEBUG
-            Console.WriteLine(ex.StackTrace);
-#endif
-            Console.ReadKey();
-            return 1;
-        }
+        return exitCode;
     }
 }

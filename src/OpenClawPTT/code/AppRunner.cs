@@ -7,7 +7,7 @@ using OpenClawPTT.Services;
 /// Owns the top-level application composition and run loop.
 /// Disposable so it can be unit-tested in isolation from Program.
 /// </summary>
-public sealed class AppRunner : IDisposable
+public class AppRunner : IDisposable
 {
     private readonly AppConfig _cfg;
     private readonly IServiceFactory _factory;
@@ -27,7 +27,7 @@ public sealed class AppRunner : IDisposable
     /// <summary>
     /// Runs the app. Returns exit code (0=ok, 1=error, 100=restart).
     /// </summary>
-    public async Task<int> RunAsync(CancellationToken ct)
+    public virtual async Task<int> RunAsync(CancellationToken ct)
     {
         int result;
         int restartCount = 0;
