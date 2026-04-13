@@ -171,33 +171,7 @@ public class AudioServiceTests : IDisposable
 
         Assert.Null(result);
     }
-
-    // ═══════════════════════════════════════════════════════════════
-    // On Linux without sox/arecord, StartRecording throws Win32Exception.
-    // Idempotency is covered by FakeAudioService tests (which mirror the logic exactly).
-    [Fact(Skip = "Linux: no sox/arecord")]
-    public void StartRecording_WhenAlreadyRecording_NoCrash()
-    {
-        SetupRealService();
-
-        _real!.StartRecording();
-        _real.StartRecording(); // second call — no crash
-        _real.StartRecording(); // third call — no crash
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // TEST 3: Dispose is idempotent
-    // ═══════════════════════════════════════════════════════════════
-
-    [Fact(Skip = "Linux: no sox/arecord")]
-    public void Dispose_IsIdempotent()
-    {
-        SetupRealService();
-        _real!.StartRecording();
-        _real.Dispose();
-        _real.Dispose(); // must not throw
-    }
-
+    
     // ═══════════════════════════════════════════════════════════════
     // TEST 4: ObjectDisposedException after dispose
     // ═══════════════════════════════════════════════════════════════

@@ -68,12 +68,22 @@ public class ConfigurationService : IConfigurationService
     /// <summary>
     /// Run reconfiguration wizard for existing config.
     /// </summary>
-    public async Task<AppConfig> ReconfigureAsync(AppConfig existing)
+    public async Task<AppConfig> ReconfigureAsync(AppConfig existing, CancellationToken ct)
     {
-        var newCfg = await _configManager.RunSetup(existing);
+        AppConfig newCfg;
+        try
+        {
+            newCfg = await _configManager.RunSetup(existing, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            return existing; // user cancelled — keep original config, don't save partial state
+        }
+
         _storage.Save(newCfg);
         return newCfg;
     }
+
 
     /// <summary>
     /// Load config from disk without validation or setup.

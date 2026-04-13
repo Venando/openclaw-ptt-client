@@ -11,6 +11,7 @@ namespace OpenClawPTT.Tests;
 /// Tests for ConsoleUi static methods using a RecordingConsole test double.
 /// RecordingConsole avoids Moq SetupSet callback issues with ForegroundColor.
 /// </summary>
+[Collection("ConsoleUi")]
 public class ConsoleUiTests : IDisposable
 {
     /// <summary>
@@ -480,4 +481,13 @@ public class ConsoleUiTests : IDisposable
     }
 
     #endregion
+}
+
+/// <summary>
+/// Marks this collection as non-parallelizable because ConsoleUi uses static
+/// shared state that cannot safely handle concurrent test threads.
+/// </summary>
+[CollectionDefinition("ConsoleUi", DisableParallelization = true)]
+public class ConsoleUiCollection : ICollectionFixture<object>
+{
 }

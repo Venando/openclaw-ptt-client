@@ -3,8 +3,8 @@ namespace OpenClawPTT.Tests;
 using OpenClawPTT;
 using System;
 using System.ComponentModel;
-using System.IO;
 using Xunit;
+using NAudio;
 
 /// <summary>
 /// Stability tests for AudioRecorder.
@@ -16,6 +16,7 @@ using Xunit;
 /// - Dispose without stop
 /// - Invalid/edge-case parameters
 /// </summary>
+[Collection("AudioRecorder")]
 public class AudioRecorderStabilityTests : IDisposable
 {
     // ═══════════════════════════════════════════════════════════════
@@ -27,6 +28,9 @@ public class AudioRecorderStabilityTests : IDisposable
     [Fact]
     public void StartRecording_WhenSoxAndArecordMissing_Throws()
     {
+        if (OperatingSystem.IsWindows())
+            return; // sox/arecord are Unix-only; Windows uses NAudio
+
         using var recorder = new AudioRecorder();
         Assert.Throws<Win32Exception>(() => recorder.StartRecording());
     }
@@ -128,7 +132,8 @@ public class AudioRecorderStabilityTests : IDisposable
         catch (Exception ex) when (
             ex is Win32Exception ||
             ex is InvalidOperationException ||
-            ex is ArgumentException)
+            ex is ArgumentException ||
+            ex is MmException)
         {
             // Expected: either the tool rejects 0 sample rate, or NAudio throws.
             return;
@@ -153,7 +158,8 @@ public class AudioRecorderStabilityTests : IDisposable
         catch (Exception ex) when (
             ex is Win32Exception ||
             ex is InvalidOperationException ||
-            ex is ArgumentException)
+            ex is ArgumentException ||
+            ex is MmException)
         {
             return;
         }
@@ -211,4 +217,17 @@ public class AudioRecorderStabilityTests : IDisposable
     }
 
     public void Dispose() { }
+}
+
+/// <summary>
+/// Marks this collection as non-parallelizable because AudioRecorder touches
+/// NAudio's native wave-in APIs that cannot handle concurrent access to the
+/// same audio device from multiple threads/processes.
+/// </summary>
+[CollectionDefinition("AudioRecorder", DisableParallelization = true)]
+public class AudioRecorderCollection : ICollectionFixture<object>
+{
+    // No fixture data needed — collection is used solely to disable parallelization
+    // because AudioRecorder's NAudio wave-in handle cannot be safely shared across
+    // concurrent test threads.
 }
