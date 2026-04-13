@@ -125,7 +125,7 @@ public sealed class ConfigManager
             cancellationToken);
 
         var token = Environment.GetEnvironmentVariable("OPENCLAW_GATEWAY_TOKEN");
-        
+
         cfg.AuthToken = await Prompt(
             "Auth token (OPENCLAW_GATEWAY_TOKEN)",
             cfg.AuthToken ?? Environment.GetEnvironmentVariable("OPENCLAW_GATEWAY_TOKEN") ?? "",

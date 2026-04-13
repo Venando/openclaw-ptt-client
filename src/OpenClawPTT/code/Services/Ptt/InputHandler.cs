@@ -44,7 +44,7 @@ public sealed class InputHandler : IInputHandler
         // Alt+R for reconfiguration
         if (key.Key == ConsoleKey.R && (key.Modifiers & ConsoleModifiers.Alt) != 0)
         {
-            return await HandleReconfigurationAsync();
+            return await HandleReconfigurationAsync(ct);
         }
         
         return InputResult.Continue;
@@ -66,14 +66,14 @@ public sealed class InputHandler : IInputHandler
         }
     }
 
-    private async Task<InputResult> HandleReconfigurationAsync()
+    private async Task<InputResult> HandleReconfigurationAsync(CancellationToken ct)
     {
         _console.PrintWarning("\nStarting reconfiguration wizard...\n");
 
         var currentCfg = _configService.Load();
         if (currentCfg != null)
         {
-            await _configService.ReconfigureAsync(currentCfg);
+            await _configService.ReconfigureAsync(currentCfg, ct);
             _console.PrintSuccess("Configuration updated. Reconnecting...\n");
             return InputResult.Restart;
         }

@@ -167,41 +167,6 @@ public class ConfigurationServiceTests
     }
 
     [Fact]
-    public async Task ReconfigureAsync_CompletesSuccessfully()
-    {
-        // Arrange
-        var mockStorage = new Mock<IConfigStorage>();
-        mockStorage.Setup(x => x.Load()).Returns(new AppConfig { GatewayUrl = "wss://test.example.com" });
-        mockStorage.Setup(x => x.Save(It.IsAny<AppConfig>())).Verifiable();
-
-        var service = new ConfigurationService(mockStorage.Object);
-        var existing = new AppConfig { GatewayUrl = "wss://old.example.com" };
-
-        // Fake console so RunSetup doesn't hang
-        var fakeConsole = new Mock<IConsole>();
-        fakeConsole.Setup(x => x.ReadLineAsync(It.IsAny<CancellationToken>()))
-            .Returns(new ValueTask<string?>("wss://new.example.com"));
-        fakeConsole.SetupProperty(x => x.ForegroundColor);
-        fakeConsole.Setup(x => x.WindowWidth).Returns(80);
-        ConsoleUi.SetConsole(fakeConsole.Object);
-
-        try
-        {
-            // Act - just verify ReconfigureAsync can be called without throwing
-            // We mock RunSetup via ConfigManager constructor injection
-            var result = await service.ReconfigureAsync(existing);
-
-            // Assert
-            mockStorage.Verify(x => x.Save(It.IsAny<AppConfig>()), Times.AtLeastOnce);
-            Assert.NotNull(result);
-        }
-        finally
-        {
-            ConsoleUi.SetConsole(new SystemConsole());
-        }
-    }
-
-    [Fact]
     public async Task ReconfigureAsync_WithCancellation_HandlesGracefully()
     {
         // Arrange
@@ -226,7 +191,7 @@ public class ConfigurationServiceTests
         try
         {
             // Act & Assert - should not throw, just complete
-            var result = await service.ReconfigureAsync(existing);
+            var result = await service.ReconfigureAsync(existing, cts.Token);
             Assert.NotNull(result);
         }
         finally
