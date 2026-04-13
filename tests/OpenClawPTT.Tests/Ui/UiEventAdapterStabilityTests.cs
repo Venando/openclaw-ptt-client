@@ -177,7 +177,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     public void AttachToService_SubscribesAllSevenEvents()
     {
         Setup();
-        var adapter = new UiEventAdapter(new AppConfig(), _console);
+        var adapter = new AgentOutputAdapter(new AppConfig(), _console);
         adapter.AttachToService(_service);
 
         Assert.Equal(1, _service.AgentReplyFullSubs);
@@ -193,7 +193,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     public void DetachFromService_UnsubscribesAllSevenEvents()
     {
         Setup();
-        var adapter = new UiEventAdapter(new AppConfig(), _console);
+        var adapter = new AgentOutputAdapter(new AppConfig(), _console);
         adapter.AttachToService(_service);
         adapter.DetachFromService(_service);
 
@@ -210,7 +210,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     public void DoubleAttachToService_BothSubscriptionsActive()
     {
         Setup();
-        var adapter = new UiEventAdapter(new AppConfig(), _console);
+        var adapter = new AgentOutputAdapter(new AppConfig(), _console);
         adapter.AttachToService(_service);
         adapter.AttachToService(_service);
 
@@ -227,7 +227,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", EnableWordWrap = true, RightMarginIndent = 10 };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         adapter.OnAgentReplyFull("Hello world");
 
@@ -243,7 +243,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", EnableWordWrap = false };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         adapter.OnAgentReplyFull("Hello world");
 
@@ -258,7 +258,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", EnableWordWrap = true, RightMarginIndent = 10 };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         adapter.OnAgentReplyDeltaStart();
         adapter.OnAgentReplyDelta("partial ");
@@ -278,7 +278,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", ShowThinking = false };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         // ShowThinking=false path: writes _thinkingInfo directly to real Console.
         // We verify the code runs without throwing.
@@ -290,7 +290,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", ShowThinking = true, EnableWordWrap = true, RightMarginIndent = 10 };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         // ShowThinking=true + EnableWordWrap: _thinkingFormatter is created via
         // new AgentReplyFormatter(...) directly (not via _console mock).
@@ -302,7 +302,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", ShowThinking = true, EnableWordWrap = false };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         adapter.OnAgentThinking("thinking content");
 
@@ -319,7 +319,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", EnableWordWrap = true };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         adapter.OnAgentReplyDelta("some text");
 
@@ -332,7 +332,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", EnableWordWrap = true, RightMarginIndent = 10 };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         adapter.OnAgentReplyDeltaStart();
         adapter.OnAgentReplyDelta("streaming chunk");
@@ -345,7 +345,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", EnableWordWrap = false };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         adapter.OnAgentReplyDeltaStart();
         adapter.OnAgentReplyDelta("streaming chunk");
@@ -358,7 +358,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", EnableWordWrap = true, RightMarginIndent = 10 };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         adapter.OnAgentReplyDeltaStart();
         adapter.OnAgentReplyDelta("chunk1 ");
@@ -377,7 +377,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", EnableWordWrap = true, RightMarginIndent = 10 };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         adapter.OnAgentReplyDeltaStart();
         adapter.OnAgentReplyDelta("content");
@@ -391,7 +391,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", EnableWordWrap = true };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         adapter.OnAgentReplyDeltaEnd();
 
@@ -407,7 +407,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", AudioResponseMode = "text-only" };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         Assert.Null(adapter.AudioResponseHandler);
     }
@@ -417,7 +417,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", AudioResponseMode = "text-only" };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         adapter.OnAgentReplyAudio("some audio text");
     }
@@ -427,7 +427,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", AudioResponseMode = "audio-only" };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         Assert.NotNull(adapter.AudioResponseHandler);
     }
@@ -437,7 +437,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", AudioResponseMode = "both" };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         Assert.NotNull(adapter.AudioResponseHandler);
     }
@@ -451,7 +451,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", AudioResponseMode = "audio-only" };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         adapter.AttachToService(_service);
         adapter.Dispose();
@@ -462,7 +462,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", AudioResponseMode = "audio-only" };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
         adapter.AttachToService(_service);
 
         adapter.Dispose();
@@ -474,7 +474,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", AudioResponseMode = "text-only" };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         adapter.Dispose();
     }
@@ -488,7 +488,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", EnableWordWrap = true, RightMarginIndent = 10 };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         // First delta sequence
         adapter.OnAgentReplyDeltaStart();
@@ -510,7 +510,7 @@ public class UiEventAdapterStabilityTests : IDisposable
     {
         Setup();
         var cfg = new AppConfig { AgentName = "TestAgent", EnableWordWrap = true };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         adapter.OnAgentReplyDeltaStart();
         adapter.OnAgentReplyDelta("text");
@@ -535,7 +535,7 @@ public class UiEventAdapterStabilityTests : IDisposable
             RightMarginIndent = 10,
             AudioResponseMode = "text-only"
         };
-        var adapter = new UiEventAdapter(cfg, _console);
+        var adapter = new AgentOutputAdapter(cfg, _console);
 
         adapter.OnAgentReplyAudio("audio text");
         adapter.OnAgentReplyDeltaStart();

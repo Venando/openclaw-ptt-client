@@ -10,11 +10,9 @@ public interface IServiceFactory
     IGatewayService CreateGatewayService(AppConfig cfg);
     IAudioService CreateAudioService(AppConfig cfg);
     IPttController CreatePttController(AppConfig cfg, IAudioService audioService, IHotkeyHookFactory? hotkeyHookFactory = null);
-    IInputHandler CreateInputHandler(IGatewayService gateway, IAudioService audioService, ITextMessageSender textSender);
+    IInputHandler CreateInputHandler(ITextMessageSender textSender);
     ITextMessageSender CreateTextMessageSender(IGatewayService gateway);
-    IPttLoop CreatePttLoop(
-        AppConfig cfg,
-        IGatewayService gateway,
+    public IAppLoop CreatePttLoop(
         IAudioService audioService,
         IPttController pttController,
         ITextMessageSender textSender,

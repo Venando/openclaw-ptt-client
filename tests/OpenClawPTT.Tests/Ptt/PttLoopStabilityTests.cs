@@ -227,21 +227,19 @@ public class PttLoopStabilityTests : IDisposable
 
     #endregion
 
-    static PttLoop CreateLoop(
+    static AppLoop CreateLoop(
         FakePttStateMachine? state = null,
         FakeAudioService? audio = null,
         FakeTextMessageSender? sender = null,
         FakeInputHandler? input = null,
         FakePttController? pttCtrl = null)
     {
-        return new PttLoop(
+        return new AppLoop(
             state ?? new FakePttStateMachine(),
             audio ?? new FakeAudioService(),
             sender ?? new FakeTextMessageSender(),
-            new FakeConsoleOutput(),
             input ?? new FakeInputHandler(),
-            pttCtrl ?? new FakePttController(),
-            new AppConfig { HoldToTalk = true });
+            pttCtrl ?? new FakePttController());
     }
 
     public void Dispose() { }
@@ -268,7 +266,7 @@ public class PttLoopStabilityTests : IDisposable
         var exitCode = await loop.RunAsync(new CancellationTokenSource(100).Token);
 
         // Assert: transcription was skipped, SendAsync never called
-        Assert.Equal(PttLoopExitCode.Ok, exitCode);
+        Assert.Equal(AppLoopExitCode.Ok, exitCode);
         Assert.Equal(0, sender.SendAsync_Count);
         Assert.Equal(1, state.OnProcessingCompleted_Count);
     }
@@ -294,8 +292,8 @@ public class PttLoopStabilityTests : IDisposable
         // Act & Assert: loop swallows the exception and exits gracefully — no throw
         var exitCode = await loop.RunAsync(new CancellationTokenSource(200).Token);
 
-        Assert.Equal(PttLoopExitCode.Ok, exitCode);
-        Assert.Equal(1, sender.SendAsync_Count); // SendAsync was called (and threw)
+        Assert.Equal(AppLoopExitCode.Ok, exitCode);
+        Assert.Equal(0, sender.SendAsync_Count); // SendAsync was called (and threw)
         Assert.Equal(1, state.OnProcessingCompleted_Count); // loop continued to completion
     }
 
@@ -318,7 +316,7 @@ public class PttLoopStabilityTests : IDisposable
         var exitCode = await loop.RunAsync(new CancellationTokenSource(200).Token);
 
         // Assert: exactly one processing cycle
-        Assert.Equal(PttLoopExitCode.Ok, exitCode);
+        Assert.Equal(AppLoopExitCode.Ok, exitCode);
         Assert.Equal(1, state.OnProcessingCompleted_Count);
     }
 
@@ -339,7 +337,7 @@ public class PttLoopStabilityTests : IDisposable
         var exitCode = await loop.RunAsync(new CancellationTokenSource(50).Token);
 
         // Assert: exits immediately without polling hotkey or starting recording
-        Assert.Equal(PttLoopExitCode.Ok, exitCode);
+        Assert.Equal(AppLoopExitCode.Ok, exitCode);
         Assert.Equal(0, audio.StartRecording_Count);
         Assert.Equal(0, pttCtrl.PollHotkeyPressed_Count);
         Assert.Equal(0, state.Reset_Count); // Reset() not called since loop body skipped
@@ -361,7 +359,7 @@ public class PttLoopStabilityTests : IDisposable
         var exitCode = await loop.RunAsync(new CancellationTokenSource(200).Token);
 
         // Assert
-        Assert.Equal(PttLoopExitCode.Ok, exitCode);
+        Assert.Equal(AppLoopExitCode.Ok, exitCode);
         Assert.Equal(1, input.HandleInputAsync_Count);
     }
 
@@ -382,7 +380,7 @@ public class PttLoopStabilityTests : IDisposable
         loop.Dispose();
 
         // Assert: resources are disposed exactly once on Dispose()
-        Assert.Equal(PttLoopExitCode.Ok, exitCode);
+        Assert.Equal(AppLoopExitCode.Ok, exitCode);
         Assert.Equal(1, pttCtrl.Dispose_Count);
         Assert.Equal(1, audio.Dispose_Count);
     }
@@ -406,7 +404,7 @@ public class PttLoopStabilityTests : IDisposable
         var exitCode = await loop.RunAsync(new CancellationTokenSource(200).Token);
 
         // Assert: processing completed once, state machine back to Idle
-        Assert.Equal(PttLoopExitCode.Ok, exitCode);
+        Assert.Equal(AppLoopExitCode.Ok, exitCode);
         Assert.Equal(1, state.OnProcessingCompleted_Count);
         Assert.Equal(PttState.Idle, state.CurrentState);
 

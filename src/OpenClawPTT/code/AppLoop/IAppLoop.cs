@@ -1,7 +1,7 @@
 namespace OpenClawPTT.Services;
 
 /// <summary>Exit codes returned by the PTT main loop.</summary>
-public enum PttLoopExitCode
+public enum AppLoopExitCode
 {
     Ok = 0,
     Error = 1,
@@ -11,11 +11,11 @@ public enum PttLoopExitCode
 /// <summary>
 /// Extracts the main PTT event loop from Program.RunPttLoop into a testable injectable service.
 /// </summary>
-public interface IPttLoop : IDisposable
+public interface IAppLoop : IDisposable
 {
     /// <summary>The exit code from the last RunAsync call.</summary>
-    PttLoopExitCode ExitCode { get; }
+    AppLoopExitCode ExitCode { get; }
 
     /// <summary>Runs the PTT loop until cancellation or quit/restart.</summary>
-    Task<PttLoopExitCode> RunAsync(CancellationToken ct);
+    Task<AppLoopExitCode> RunAsync(CancellationToken ct);
 }

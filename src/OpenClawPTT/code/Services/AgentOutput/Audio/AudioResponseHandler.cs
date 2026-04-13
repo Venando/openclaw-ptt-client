@@ -1,8 +1,3 @@
-using System;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
-using NAudio.Wave;
 using OpenClawPTT.TTS;
 
 namespace OpenClawPTT.Services;
@@ -16,7 +11,7 @@ public sealed class AudioResponseHandler : IDisposable
     private readonly AppConfig _config;
     private readonly ITextToSpeech? _ttsProvider;
     private readonly AudioPlayerService _audioPlayer;
-    private readonly OpenClawPTT.TTS.TtsService? _ttsService;
+    private readonly TtsService? _ttsService;
     private readonly IConsoleOutput? _console;
     private bool _disposed;
 
@@ -41,7 +36,7 @@ public sealed class AudioResponseHandler : IDisposable
         {
             try
             {
-                _ttsService = new OpenClawPTT.TTS.TtsService(config);
+                _ttsService = new TtsService(config);
                 _ttsProvider = _ttsService.Provider;
             }
             catch (Exception ex)

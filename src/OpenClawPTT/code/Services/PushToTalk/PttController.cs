@@ -1,34 +1,20 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using OpenClawPTT.VisualFeedback;
 
 namespace OpenClawPTT.Services;
 
 internal sealed class PttController : IPttController
 {
-    private readonly IAudioService _audioService;
-    private readonly IVisualFeedback _visualFeedback;
-    private readonly string _hotkeyCombination;
-    private readonly bool _holdToTalk;
     private readonly IHotkeyHookFactory? _hotkeyHookFactory;
-
     private IGlobalHotkeyHook? _hotkeyHook;
     private bool _disposed;
 
     private volatile bool _hotkeyPressed;
     private volatile bool _hotkeyReleased;
 
-    public PttController(AppConfig config, IAudioService audioService, IHotkeyHookFactory? hotkeyHookFactory = null)
+    public PttController(IHotkeyHookFactory? hotkeyHookFactory = null)
     {
-        _audioService = audioService;
-        _visualFeedback = VisualFeedbackFactory.Create(config);
-        _hotkeyCombination = config.HotkeyCombination;
-        _holdToTalk = config.HoldToTalk;
         _hotkeyHookFactory = hotkeyHookFactory;
     }
-
-    public bool IsRecording => _audioService.IsRecording;
 
     public void SetHotkey(string hotkeyCombination, bool holdToTalk)
     {
@@ -57,32 +43,6 @@ internal sealed class PttController : IPttController
         }
     }
 
-    public void Start()
-    {
-        _hotkeyHook?.Start();
-    }
-
-    public void Stop()
-    {
-        _hotkeyHook?.Dispose();
-    }
-
-    public void StartRecording()
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        _audioService.StartRecording();
-    }
-
-    public async Task<string?> StopAndTranscribeAsync(CancellationToken ct = default)
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        return await _audioService.StopAndTranscribeAsync(ct);
-    }
-
-    public bool ShouldStopRecording() => _holdToTalk && PollHotkeyRelease() && _audioService.IsRecording;
-
-    public bool ShouldToggleRecording() => !_holdToTalk && PollHotkeyPressed();
-
     public bool PollHotkeyPressed()
     {
         if (_hotkeyPressed)
@@ -108,8 +68,6 @@ internal sealed class PttController : IPttController
         if (!_disposed)
         {
             _hotkeyHook?.Dispose();
-            _audioService.Dispose();
-            _visualFeedback.Dispose();
             _disposed = true;
         }
     }

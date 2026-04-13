@@ -5,7 +5,7 @@ namespace OpenClawPTT.Services;
 /// <summary>
 /// Console implementation of ITextOutput that delegates to System.Console.
 /// </summary>
-public sealed class ConsoleTextOutput : ITextOutput
+public sealed class ConsoleTextOutput : IConsoleTextOutput
 {
     public void Write(string? text) => Console.Write(text);
 

@@ -4,7 +4,7 @@ namespace OpenClawPTT.Services;
 /// Abstraction for text output operations, enabling AgentReplyFormatter
 /// to be tested without writing to the real console.
 /// </summary>
-public interface ITextOutput
+public interface IConsoleTextOutput
 {
     void Write(string? text);
     void WriteLine();

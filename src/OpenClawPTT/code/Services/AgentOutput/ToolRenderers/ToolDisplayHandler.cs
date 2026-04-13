@@ -42,7 +42,7 @@ public sealed class ToolDisplayHandler
     /// Legacy constructor for backward compatibility.
     /// </summary>
     public ToolDisplayHandler(int rightMarginIndent)
-        : this(new ConsoleToolOutput(), BuildDefaultRenderers(new ConsoleToolOutput()), rightMarginIndent)
+        : this(new ToolOutputHelper(), BuildDefaultRenderers(new ToolOutputHelper()), rightMarginIndent)
     {
     }
 

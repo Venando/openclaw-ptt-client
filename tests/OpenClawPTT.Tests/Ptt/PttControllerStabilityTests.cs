@@ -80,7 +80,7 @@ public class PttControllerStabilityTests : IDisposable
     [Fact]
     void SetHotkey_CalledOnce_CreatesHook()
     {
-        var controller = new PttController(_config, _mockAudio.Object, _factory);
+        var controller = new PttController(_factory);
         controller.SetHotkey("Ctrl+K", false);
 
         Assert.Single(_factory.CreatedHooks);
@@ -89,7 +89,7 @@ public class PttControllerStabilityTests : IDisposable
     [Fact]
     void SetHotkey_CalledTwice_DisposesOldHookBeforeNew()
     {
-        var controller = new PttController(_config, _mockAudio.Object, _factory);
+        var controller = new PttController(_factory);
         controller.SetHotkey("Ctrl+K", false);
         var first = _factory.CreatedHooks[0];
 
@@ -104,7 +104,7 @@ public class PttControllerStabilityTests : IDisposable
     [Fact]
     void SetHotkey_WithHoldToTalk_WiresBothEvents()
     {
-        var controller = new PttController(_config, _mockAudio.Object, _factory);
+        var controller = new PttController(_factory);
         controller.SetHotkey("Ctrl+K", true);
         var hook = _factory.CreatedHooks[0];
         var ifce = (IGlobalHotkeyHook)hook;
@@ -123,7 +123,7 @@ public class PttControllerStabilityTests : IDisposable
     [Fact]
     void SetHotkey_WithoutHoldToTalk_DoesNotWireReleaseEvent()
     {
-        var controller = new PttController(_config, _mockAudio.Object, _factory);
+        var controller = new PttController(_factory);
         controller.SetHotkey("Ctrl+K", false);
         var hook = _factory.CreatedHooks[0];
         hook.SimulateRelease();
@@ -136,7 +136,7 @@ public class PttControllerStabilityTests : IDisposable
     [Fact]
     void SetHotkey_WithNullFactory_DoesNotThrow()
     {
-        var controller = new PttController(_config, _mockAudio.Object, hotkeyHookFactory: null);
+        var controller = new PttController(hotkeyHookFactory: null);
         var ex = Record.Exception(() => controller.SetHotkey("Ctrl+K", false));
         Assert.Null(ex);
     }
@@ -146,7 +146,7 @@ public class PttControllerStabilityTests : IDisposable
     [Fact]
     void PollHotkeyPressed_InitiallyFalse()
     {
-        var controller = new PttController(_config, _mockAudio.Object, _factory);
+        var controller = new PttController(_factory);
         controller.SetHotkey("Ctrl+K", false);
 
         Assert.False(controller.PollHotkeyPressed());
@@ -155,7 +155,7 @@ public class PttControllerStabilityTests : IDisposable
     [Fact]
     void PollHotkeyPressed_AfterPress_ReturnsTrueOnce()
     {
-        var controller = new PttController(_config, _mockAudio.Object, _factory);
+        var controller = new PttController(_factory);
         controller.SetHotkey("Ctrl+K", false);
         var hook = _factory.CreatedHooks[0];
         hook.SimulatePress();
@@ -169,7 +169,7 @@ public class PttControllerStabilityTests : IDisposable
     {
         // Use reflection to directly set the internal flag, bypassing event wiring.
         // This tests the core atomic consume behavior.
-        var controller = new PttController(_config, _mockAudio.Object, _factory);
+        var controller = new PttController(_factory);
         controller.SetHotkey("Ctrl+K", false);
 
         var fPressed = typeof(PttController)
@@ -189,7 +189,7 @@ public class PttControllerStabilityTests : IDisposable
     [Fact]
     void PollHotkeyRelease_InitiallyFalse()
     {
-        var controller = new PttController(_config, _mockAudio.Object, _factory);
+        var controller = new PttController(_factory);
         controller.SetHotkey("Ctrl+K", true);
 
         Assert.False(controller.PollHotkeyRelease());
@@ -198,7 +198,7 @@ public class PttControllerStabilityTests : IDisposable
     [Fact]
     void PollHotkeyRelease_AfterRelease_ReturnsTrueOnce()
     {
-        var controller = new PttController(_config, _mockAudio.Object, _factory);
+        var controller = new PttController(_factory);
         controller.SetHotkey("Ctrl+K", true);
         var hook = _factory.CreatedHooks[0];
         hook.SimulateRelease();
@@ -211,7 +211,7 @@ public class PttControllerStabilityTests : IDisposable
     void PollHotkeyRelease_MultipleReleases_EachConsumedSeparately()
     {
         // Use reflection to directly set the internal flag, bypassing event wiring.
-        var controller = new PttController(_config, _mockAudio.Object, _factory);
+        var controller = new PttController(_factory);
         controller.SetHotkey("Ctrl+K", true);
 
         var fReleased = typeof(PttController)
@@ -226,72 +226,17 @@ public class PttControllerStabilityTests : IDisposable
         Assert.False(controller.PollHotkeyRelease()); // consumed again
     }
 
-    // ── Start / Stop lifecycle tests ───────────────────────────────────────
-
-    [Fact]
-    void Start_CallsHookStart()
-    {
-        var controller = new PttController(_config, _mockAudio.Object, _factory);
-        controller.SetHotkey("Ctrl+K", false);
-        _factory.CreatedHooks[0].StartCalls.Clear();
-
-        controller.Start();
-
-        Assert.Single(_factory.CreatedHooks[0].StartCalls);
-    }
-
-    [Fact]
-    void Stop_CallsHookDispose()
-    {
-        var controller = new PttController(_config, _mockAudio.Object, _factory);
-        controller.SetHotkey("Ctrl+K", false);
-
-        controller.Stop();
-
-        Assert.Single(_factory.CreatedHooks[0].DisposeCalls);
-    }
-
-    [Fact]
-    void Stop_WithoutSetHotkey_DoesNotThrow()
-    {
-        var controller = new PttController(_config, _mockAudio.Object, _factory);
-        var ex = Record.Exception(() => controller.Stop());
-        Assert.Null(ex);
-    }
-
     // ── Dispose tests ──────────────────────────────────────────────────────
 
     [Fact]
     void Dispose_CalledTwice_DoesNotThrow()
     {
-        var controller = new PttController(_config, _mockAudio.Object, _factory);
+        var controller = new PttController(_factory);
         controller.SetHotkey("Ctrl+K", false);
 
         controller.Dispose();
 
         var ex = Record.Exception(() => controller.Dispose());
         Assert.Null(ex);
-    }
-
-    [Fact]
-    void Dispose_DisposesHookAndAudio()
-    {
-        var controller = new PttController(_config, _mockAudio.Object, _factory);
-        controller.SetHotkey("Ctrl+K", false);
-
-        controller.Dispose();
-
-        Assert.Single(_factory.CreatedHooks[0].DisposeCalls);
-        _mockAudio.Verify(a => a.Dispose(), Times.Once);
-    }
-
-    [Fact]
-    void Dispose_WithoutSetHotkey_DisposesAudio()
-    {
-        var controller = new PttController(_config, _mockAudio.Object, _factory);
-
-        controller.Dispose();
-
-        _mockAudio.Verify(a => a.Dispose(), Times.Once);
     }
 }

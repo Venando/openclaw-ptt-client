@@ -14,7 +14,6 @@ public class PttLoopTests
         var mockState = new Mock<IPttStateMachine>();
         var mockAudio = new Mock<IAudioService>();
         var mockSender = new Mock<ITextMessageSender>();
-        var mockConsole = new Mock<IConsoleOutput>();
         var mockInput = new Mock<IInputHandler>();
         var mockPttCtrl = new Mock<IPttController>();
 
@@ -22,14 +21,14 @@ public class PttLoopTests
             .ReturnsAsync(InputResult.Quit);
 
         var cfg = new AppConfig { HoldToTalk = true };
-        var loop = new PttLoop(
+        var loop = new AppLoop(
             mockState.Object, mockAudio.Object, mockSender.Object,
-            mockConsole.Object, mockInput.Object, mockPttCtrl.Object, cfg);
+            mockInput.Object, mockPttCtrl.Object);
 
         var cts = new CancellationTokenSource(50);
         var result = await loop.RunAsync(cts.Token);
 
-        Assert.Equal(PttLoopExitCode.Ok, result);
+        Assert.Equal(AppLoopExitCode.Ok, result);
     }
 
     [Fact]
@@ -38,7 +37,6 @@ public class PttLoopTests
         var mockState = new Mock<IPttStateMachine>();
         var mockAudio = new Mock<IAudioService>();
         var mockSender = new Mock<ITextMessageSender>();
-        var mockConsole = new Mock<IConsoleOutput>();
         var mockInput = new Mock<IInputHandler>();
         var mockPttCtrl = new Mock<IPttController>();
 
@@ -46,14 +44,14 @@ public class PttLoopTests
             .ReturnsAsync(InputResult.Restart);
 
         var cfg = new AppConfig { HoldToTalk = true };
-        var loop = new PttLoop(
+        var loop = new AppLoop(
             mockState.Object, mockAudio.Object, mockSender.Object,
-            mockConsole.Object, mockInput.Object, mockPttCtrl.Object, cfg);
+            mockInput.Object, mockPttCtrl.Object);
 
         var cts = new CancellationTokenSource(50);
         var result = await loop.RunAsync(cts.Token);
 
-        Assert.Equal(PttLoopExitCode.Restart, result);
+        Assert.Equal(AppLoopExitCode.Restart, result);
     }
 
     [Fact]
@@ -62,14 +60,11 @@ public class PttLoopTests
         var mockState = new Mock<IPttStateMachine>();
         var mockAudio = new Mock<IAudioService>();
         var mockSender = new Mock<ITextMessageSender>();
-        var mockConsole = new Mock<IConsoleOutput>();
         var mockInput = new Mock<IInputHandler>();
         var mockPttCtrl = new Mock<IPttController>();
 
         mockPttCtrl.Setup(x => x.PollHotkeyPressed()).Returns(true);
         mockPttCtrl.Setup(x => x.PollHotkeyRelease()).Returns(false);
-        mockPttCtrl.Setup(x => x.StopAndTranscribeAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string?)null);
 
         mockState.SetupGet(x => x.CurrentState).Returns(PttState.Idle);
         mockState.Setup(x => x.ShouldStartRecording).Returns(true);
@@ -86,9 +81,9 @@ public class PttLoopTests
             });
 
         var cfg = new AppConfig { HoldToTalk = true };
-        var loop = new PttLoop(
+        var loop = new AppLoop(
             mockState.Object, mockAudio.Object, mockSender.Object,
-            mockConsole.Object, mockInput.Object, mockPttCtrl.Object, cfg);
+            mockInput.Object, mockPttCtrl.Object);
 
         var cts = new CancellationTokenSource(100);
         await loop.RunAsync(cts.Token);

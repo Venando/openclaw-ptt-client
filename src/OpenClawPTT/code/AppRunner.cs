@@ -13,7 +13,7 @@ public sealed class AppRunner : IDisposable
     private readonly IServiceFactory _factory;
 
     /// <summary>
-    /// Maximum number of consecutive <see cref="PttLoopExitCode.Restart"/> responses
+    /// Maximum number of consecutive <see cref="AppLoopExitCode.Restart"/> responses
     /// allowed before the run loop gives up and returns an error.
     /// </summary>
     public const int MaxRestartCount = 3;
@@ -34,13 +34,13 @@ public sealed class AppRunner : IDisposable
         do
         {
             result = await RunAppLoopAsync(ct);
-            if (result == (int)PttLoopExitCode.Restart)
+            if (result == (int)AppLoopExitCode.Restart)
             {
                 restartCount++;
                 if (restartCount >= MaxRestartCount)
-                    return (int)PttLoopExitCode.Error;
+                    return (int)AppLoopExitCode.Error;
             }
-        } while (result == (int)PttLoopExitCode.Restart);
+        } while (result == (int)AppLoopExitCode.Restart);
         return result;
     }
 
@@ -57,11 +57,11 @@ public sealed class AppRunner : IDisposable
         }
         catch (IOException)
         {
-            return (int)PttLoopExitCode.Error;
+            return (int)AppLoopExitCode.Error;
         }
         catch (WebSocketException)
         {
-            return (int)PttLoopExitCode.Error;
+            return (int)AppLoopExitCode.Error;
         }
         return await RunPttLoopAsync(gateway, ct);
     }
@@ -71,13 +71,12 @@ public sealed class AppRunner : IDisposable
         using var audioService = _factory.CreateAudioService(_cfg);
         var pttController = _factory.CreatePttController(_cfg, audioService);
         var textSender = _factory.CreateTextMessageSender(gateway);
-        var inputHandler = _factory.CreateInputHandler(gateway, audioService, textSender);
+        var inputHandler = _factory.CreateInputHandler(textSender);
 
         ConsoleUi.PrintHelpMenu(_cfg.HotkeyCombination, _cfg.HoldToTalk);
 
-        using var pttLoop = _factory.CreatePttLoop(
-            _cfg, gateway, audioService,
-            pttController, textSender, inputHandler);
+        using IAppLoop pttLoop = _factory.CreatePttLoop(
+            audioService, pttController, textSender, inputHandler);
 
         return (int)(await pttLoop.RunAsync(ct));
     }

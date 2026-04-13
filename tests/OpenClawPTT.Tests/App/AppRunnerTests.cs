@@ -26,16 +26,14 @@ public class AppRunnerTests
         public Mock<IPttController> PttController { get; } = new();
         public Mock<ITextMessageSender> TextSender { get; } = new();
         public Mock<IInputHandler> InputHandler { get; } = new();
-        public Mock<IPttLoop> PttLoop { get; } = new();
+        public Mock<IAppLoop> PttLoop { get; } = new();
 
         public IGatewayService CreateGatewayService(AppConfig cfg) => Gateway.Object;
         public IAudioService CreateAudioService(AppConfig cfg) => Audio.Object;
         public IPttController CreatePttController(AppConfig cfg, IAudioService audioService, IHotkeyHookFactory? hotkeyHookFactory = null) => PttController.Object;
         public ITextMessageSender CreateTextMessageSender(IGatewayService gateway) => TextSender.Object;
-        public IInputHandler CreateInputHandler(IGatewayService gateway, IAudioService audioService, ITextMessageSender textSender) => InputHandler.Object;
-        public IPttLoop CreatePttLoop(
-            AppConfig cfg,
-            IGatewayService gateway,
+        public IInputHandler CreateInputHandler(ITextMessageSender textSender) => InputHandler.Object;
+        public IAppLoop CreatePttLoop(
             IAudioService audioService,
             IPttController pttController,
             ITextMessageSender textSender,
@@ -89,7 +87,7 @@ public class AppRunnerTests
             .Returns(Task.CompletedTask);
 
         factory.PttLoop.Setup(x => x.RunAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(PttLoopExitCode.Ok);
+            .ReturnsAsync(AppLoopExitCode.Ok);
 
         var cfg = DefaultConfig;
         using var runner = new AppRunner(cfg, factory);
@@ -117,7 +115,7 @@ public class AppRunnerTests
             .ReturnsAsync(() =>
             {
                 callCount++;
-                return callCount == 1 ? PttLoopExitCode.Restart : PttLoopExitCode.Ok;
+                return callCount == 1 ? AppLoopExitCode.Restart : AppLoopExitCode.Ok;
             });
 
         var cfg = DefaultConfig;
@@ -143,7 +141,7 @@ public class AppRunnerTests
             .Returns(Task.CompletedTask);
 
         factory.PttLoop.Setup(x => x.RunAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(PttLoopExitCode.Ok);
+            .ReturnsAsync(AppLoopExitCode.Ok);
 
         var cfg = DefaultConfig;
         using var runner = new AppRunner(cfg, factory);

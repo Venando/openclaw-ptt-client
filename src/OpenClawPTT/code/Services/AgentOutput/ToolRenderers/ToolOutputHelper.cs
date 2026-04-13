@@ -6,7 +6,7 @@ namespace OpenClawPTT.Services;
 /// <summary>
 /// Console implementation of IToolOutput using System.Console.
 /// </summary>
-public sealed class ConsoleToolOutput : IToolOutput
+public sealed class ToolOutputHelper : IToolOutput
 {
     public void Print(string text, ConsoleColor color = ConsoleColor.White)
     {

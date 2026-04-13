@@ -126,7 +126,7 @@ public class GatewayAudioQaTests
             AgentName = "TestBot"
         };
 
-        var adapter = new UiEventAdapter(cfg);
+        var adapter = new AgentOutputAdapter(cfg);
 
         // In text-only mode, _audioResponseHandler should be null
         Assert.Null(adapter.AudioResponseHandler);
@@ -142,7 +142,7 @@ public class GatewayAudioQaTests
             AgentName = "TestBot"
         };
 
-        var adapter = new UiEventAdapter(cfg);
+        var adapter = new AgentOutputAdapter(cfg);
 
         // In audio mode, _audioResponseHandler should be created (even if TTS fails)
         Assert.NotNull(adapter.AudioResponseHandler);
@@ -153,7 +153,7 @@ public class GatewayAudioQaTests
     public void UiEventAdapter_Dispose_CanBeCalledMultipleTimes()
     {
         var cfg = new AppConfig { AudioResponseMode = "text-only", AgentName = "TestBot" };
-        var adapter = new UiEventAdapter(cfg);
+        var adapter = new AgentOutputAdapter(cfg);
 
         adapter.Dispose();
         adapter.Dispose(); // should not throw
@@ -167,7 +167,7 @@ public class GatewayAudioQaTests
         // When AudioResponseMode is text-only, _audioResponseHandler is null.
         // OnAgentReplyAudio should handle this gracefully (fire-and-forget with null check).
         var cfg = new AppConfig { AudioResponseMode = "text-only", AgentName = "TestBot" };
-        var adapter = new UiEventAdapter(cfg);
+        var adapter = new AgentOutputAdapter(cfg);
 
         // This should not throw even though _audioResponseHandler is null
         adapter.OnAgentReplyAudio("some audio text");

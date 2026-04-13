@@ -29,27 +29,24 @@ public sealed class ServiceFactory : IServiceFactory
 
     public IPttController CreatePttController(AppConfig cfg, IAudioService audioService, IHotkeyHookFactory? hotkeyHookFactory = null)
     {
-        var controller = new PttController(cfg, audioService, hotkeyHookFactory ?? new HotkeyHookFactory());
+        var controller = new PttController(hotkeyHookFactory ?? new HotkeyHookFactory());
         controller.SetHotkey(cfg.HotkeyCombination, cfg.HoldToTalk);
-        controller.Start();
         return controller;
     }
 
-    public IInputHandler CreateInputHandler(IGatewayService gateway, IAudioService audioService, ITextMessageSender textSender)
+    public IInputHandler CreateInputHandler(ITextMessageSender textSender)
         => new InputHandler(textSender, _configService, _console);
 
     public ITextMessageSender CreateTextMessageSender(IGatewayService gateway)
         => new TextMessageSender(gateway, _configService, _console, _composer);
 
-    public IPttLoop CreatePttLoop(
-        AppConfig cfg,
-        IGatewayService gateway,
+    public IAppLoop CreatePttLoop(
         IAudioService audioService,
         IPttController pttController,
         ITextMessageSender textSender,
         IInputHandler inputHandler)
     {
         var stateMachine = new PttStateMachine();
-        return new PttLoop(stateMachine, audioService, textSender, _console, inputHandler, pttController, cfg);
+        return new AppLoop(stateMachine, audioService, textSender, inputHandler, pttController);
     }
 }

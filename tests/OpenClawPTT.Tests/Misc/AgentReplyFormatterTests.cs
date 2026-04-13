@@ -11,7 +11,7 @@ namespace OpenClawPTT.Tests;
 /// </summary>
 public class AgentReplyFormatterTests
 {
-    private sealed class StringWriterTextOutput : ITextOutput
+    private sealed class StringWriterTextOutput : IConsoleTextOutput
     {
         private readonly StringBuilder _sb = new StringBuilder();
         public string Result => _sb.ToString();

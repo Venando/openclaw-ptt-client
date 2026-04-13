@@ -17,7 +17,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     private int _currentLineLength; // length of current line excluding prefix
     private readonly bool _prefixAlreadyPrinted;
     private readonly int _consoleWidth;
-    private readonly ITextOutput _output;
+    private readonly IConsoleTextOutput _output;
 
     /// <summary>
     /// Convenience constructor using default right-margin indent (10) and auto-detected console width.
@@ -44,7 +44,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     /// <summary>
     /// Constructor with explicit console width and text output abstraction for testability.
     /// </summary>
-    public AgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth, ITextOutput? output)
+    public AgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth, IConsoleTextOutput? output)
     {
         _prefix = prefix ?? string.Empty;
         _newlineSuffix = new string(' ', _prefix.Length);

@@ -85,11 +85,6 @@ public sealed class PttStateMachine : IPttStateMachine
         // No state change — recording started confirms the transition to Recording
     }
 
-    public void OnRecordingStopped()
-    {
-        // Recording stopped — state transition happens in OnHotkeyReleased or OnHotkeyPressed(toggle)
-    }
-
     public void OnProcessingCompleted()
     {
         _state = PttState.Idle;

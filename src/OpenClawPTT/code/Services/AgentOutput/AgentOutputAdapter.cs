@@ -8,7 +8,7 @@ namespace OpenClawPTT.Services;
 /// ConsoleUi output methods. This adapter is responsible for all UI concerns;
 /// GatewayService itself only fires domain events.
 /// </summary>
-public sealed class UiEventAdapter : IDisposable
+public sealed class AgentOutputAdapter : IDisposable
 {
     private readonly AppConfig _config;
     private readonly IConsoleOutput _consoleOutput;
@@ -31,17 +31,17 @@ public sealed class UiEventAdapter : IDisposable
     private string _newlineSuffix = "";
     private int _prefixLength;
 
-    public UiEventAdapter(AppConfig config) : this(config, new ConsoleUiOutput())
+    public AgentOutputAdapter(AppConfig config) : this(config, new ConsoleUiOutput())
     {
     }
 
-    public UiEventAdapter(AppConfig config, IConsoleOutput consoleOutput)
+    public AgentOutputAdapter(AppConfig config, IConsoleOutput consoleOutput)
     {
         _config = config;
         _consoleOutput = consoleOutput;
         _agentReplayPrefix = $"  🤖 {_config.AgentName}: ";
-        _agentReplayPrefixWithAudio = $"  🤖🔊 {_config.AgentName}: ";
-        _agentReplayPrefixTextMode = $"  🤖✍️ {_config.AgentName}: ";
+        _agentReplayPrefixWithAudio = $"  🤖 🔊 {_config.AgentName}: ";
+        _agentReplayPrefixTextMode = $"  🤖 ✍️ {_config.AgentName}: ";
         _thinkingPrefix = "  💭 Thinking: ";
         _thinkingInfo = "  💭 Thinking… ";
 

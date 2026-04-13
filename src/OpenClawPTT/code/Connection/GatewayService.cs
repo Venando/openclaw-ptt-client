@@ -12,7 +12,7 @@ public sealed class GatewayService : IGatewayService
     private readonly DeviceIdentity _device;
     private readonly IConsoleOutput _consoleOutput;
     private IGatewayClient _gatewayClient;
-    private UiEventAdapter? _uiAdapter;
+    private AgentOutputAdapter? _uiAdapter;
     private bool _disposed;
 
     public event Action<string>? AgentReplyFull;
@@ -54,7 +54,7 @@ public sealed class GatewayService : IGatewayService
 
     private IGatewayClient CreateGatewayClient()
     {
-        _uiAdapter = new UiEventAdapter(_config, _consoleOutput);
+        _uiAdapter = new AgentOutputAdapter(_config, _consoleOutput);
         var client = (GatewayClient)new GatewayClient(_config, _device);
 
         bool useDelta = _config.ReplyDisplayMode != ReplyDisplayMode.Full;

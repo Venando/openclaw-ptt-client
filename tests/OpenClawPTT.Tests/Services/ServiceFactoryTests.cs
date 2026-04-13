@@ -70,24 +70,20 @@ public class ServiceFactoryTests
     {
         var configService = new ConfigurationService();
         var factory = new ServiceFactory(configService);
-        var cfg = DefaultConfig;
 
-        var mockGateway = new Mock<IGatewayService>();
         var mockAudio = new Mock<IAudioService>();
         var mockPttController = new Mock<IPttController>();
         var mockTextSender = new Mock<ITextMessageSender>();
         var mockInputHandler = new Mock<IInputHandler>();
 
         var loop = factory.CreatePttLoop(
-            cfg,
-            mockGateway.Object,
             mockAudio.Object,
             mockPttController.Object,
             mockTextSender.Object,
             mockInputHandler.Object);
 
         Assert.NotNull(loop);
-        Assert.IsAssignableFrom<IPttLoop>(loop);
+        Assert.IsAssignableFrom<IAppLoop>(loop);
 
         loop.Dispose();
     }

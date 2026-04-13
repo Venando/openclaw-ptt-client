@@ -3,7 +3,7 @@ namespace OpenClawPTT.Services;
 /// <summary>
 /// Abstraction for tool output operations, enabling testability and
 /// alternate render targets (e.g. string builders for testing).
-/// </summary>
+/// </summary>`
 public interface IToolOutput
 {
     void Print(string text, ConsoleColor color = ConsoleColor.White);
