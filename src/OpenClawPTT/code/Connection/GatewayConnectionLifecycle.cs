@@ -14,6 +14,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
 {
     private readonly AppConfig _cfg;
     private readonly DeviceIdentity _deviceIdentity;
+    private readonly Func<IClientWebSocket> _socketFactory;
 
     private IClientWebSocket _ws = null!;
     private CancellationTokenSource? _tickCts;
@@ -26,11 +27,13 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
     private GatewayMessager? _gatewayMessager;
     private GatewayReconnector _gatewayReconnector;
 
-    public GatewayConnectionLifecycle(AppConfig cfg, DeviceIdentity dev, IGatewayEventSource events)
+    public GatewayConnectionLifecycle(AppConfig cfg, DeviceIdentity dev, IGatewayEventSource events,
+        Func<IClientWebSocket>? socketFactory = null)
     {
         _cfg = cfg;
         _deviceIdentity = dev;
         _events = events;
+        _socketFactory = socketFactory ?? (() => new ClientWebSocketAdapter());
         _gatewayReconnector = new GatewayReconnector(cfg, this, _disposeCts.Token);
     }
 
@@ -71,7 +74,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
             await DisposeConnection(ct);
 
             // TODO: Accept IClientWebSocket via constructor for testability (PR #37)
-            _ws = new ClientWebSocketAdapter();
+            _ws = _socketFactory();
 
             var linkCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
             var linkedCt = linkCts.Token;
