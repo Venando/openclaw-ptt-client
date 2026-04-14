@@ -21,4 +21,5 @@ public sealed class GatewayEventSource : IGatewayEventSource
     public void RaiseAgentReplyDeltaEnd() => AgentReplyDeltaEnd?.Invoke();
     public void RaiseAgentReplyFull(string text) => AgentReplyFull?.Invoke(text);
     public void RaiseAgentReplyDelta(string chunk) => AgentReplyDelta?.Invoke(chunk);
+    public void RaiseEventReceived(string eventName, JsonElement payload) => EventReceived?.Invoke(eventName, payload);
 }

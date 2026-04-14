@@ -22,4 +22,5 @@ public interface IGatewayEventSource
     void RaiseAgentReplyDeltaEnd();
     void RaiseAgentReplyFull(string text);
     void RaiseAgentReplyDelta(string chunk);
+    void RaiseEventReceived(string eventName, JsonElement payload);
 }

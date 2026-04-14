@@ -173,4 +173,15 @@ public sealed class MessageFraming : ISender
         }
         _eventWaiters.Clear();
     }
+
+    /// <summary>Tries to remove and return a pending request TCS by ID.</summary>
+    internal bool TryRemovePending(string id, out TaskCompletionSource<JsonElement> tcs)
+        => _pending.TryRemove(id, out tcs);
+
+    /// <summary>Resolves a one-shot event waiter by name with the given payload.</summary>
+    internal void ResolveEventWaiter(string eventName, JsonElement payload)
+    {
+        if (_eventWaiters.TryRemove(eventName, out var tcs))
+            tcs.TrySetResult(payload);
+    }
 }
