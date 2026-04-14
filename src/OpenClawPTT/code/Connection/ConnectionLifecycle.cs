@@ -112,6 +112,7 @@ public sealed class ConnectionLifecycle
         // start receive pump
         _receivePump = new ReceivePump(_ws, _framing, _handler);
         _receivePump.OnEvent = HandleEvent;
+        _receivePump.DisconnectionRequested += () => _ = HandleDisconnectionAsync(CancellationToken.None);
         _receivePump.Start(linkedCt);
 
         // ── 1. wait for connect.challenge ──
