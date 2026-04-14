@@ -61,6 +61,8 @@ public sealed class GatewayClient : IGatewayClient
 
     public bool IsDisposed => _disposeCts.IsCancellationRequested;
 
+    public IGatewayEventSource? GetEventSource() => null;
+
     // ─── disconnect ─────────────────────────────────────────────────
 
     public async Task DisconnectAsync(CancellationToken ct)

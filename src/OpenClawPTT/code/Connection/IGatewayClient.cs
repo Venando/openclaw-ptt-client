@@ -22,14 +22,5 @@ public interface IGatewayClient : IDisposable
     Task<JsonElement> SendAudioAsync(byte[] wavBytes, CancellationToken ct);
     Task<JsonElement> SendEventAsync(string eventName, object? parameters, CancellationToken ct);
     void RecreateWithConfig(AppConfig newConfig);
-
-    // Events forwarded from IGatewayUIEvents
-    event Action<string, JsonElement>? EventReceived;
-    event Action<string>? AgentReplyFull;
-    event Action<string>? AgentReplyDelta;
-    event Action? AgentReplyDeltaStart;
-    event Action? AgentReplyDeltaEnd;
-    event Action<string>? AgentThinking;
-    event Action<string, string>? AgentToolCall;
-    event Action<string>? AgentReplyAudio;
+    IGatewayEventSource? GetEventSource();
 }

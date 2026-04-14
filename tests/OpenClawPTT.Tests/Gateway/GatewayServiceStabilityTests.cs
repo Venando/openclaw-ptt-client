@@ -211,10 +211,11 @@ internal sealed class TestableGatewayService : IGatewayService
 
     private void WireEvents()
     {
-        _gatewayClient.AgentThinking += e => AgentThinking?.Invoke(e);
-        _gatewayClient.AgentToolCall += (n, a) => AgentToolCall?.Invoke(n, a);
-        _gatewayClient.AgentReplyAudio += a => AgentReplyAudio?.Invoke(a);
-        _gatewayClient.EventReceived += (name, payload) => EventReceived?.Invoke(name, payload);
+        var es = _gatewayClient.GetEventSource();
+        es!.AgentThinking += e => AgentThinking?.Invoke(e);
+        es.AgentToolCall += (n, a) => AgentToolCall?.Invoke(n, a);
+        es.AgentReplyAudio += a => AgentReplyAudio?.Invoke(a);
+        es.EventReceived += (name, payload) => EventReceived?.Invoke(name, payload);
 
         // Wire delta/full paths based on config
         bool useDelta = _config.ReplyDisplayMode != ReplyDisplayMode.Full;
@@ -222,14 +223,14 @@ internal sealed class TestableGatewayService : IGatewayService
 
         if (useDelta)
         {
-            _gatewayClient.AgentReplyDeltaStart += () => AgentReplyDeltaStart?.Invoke();
-            _gatewayClient.AgentReplyDelta += d => AgentReplyDelta?.Invoke(d);
-            _gatewayClient.AgentReplyDeltaEnd += () => AgentReplyDeltaEnd?.Invoke();
+            es.AgentReplyDeltaStart += () => AgentReplyDeltaStart?.Invoke();
+            es.AgentReplyDelta += d => AgentReplyDelta?.Invoke(d);
+            es.AgentReplyDeltaEnd += () => AgentReplyDeltaEnd?.Invoke();
         }
 
         if (useFull)
         {
-            _gatewayClient.AgentReplyFull += body => AgentReplyFull?.Invoke(body);
+            es.AgentReplyFull += body => AgentReplyFull?.Invoke(body);
         }
     }
 
