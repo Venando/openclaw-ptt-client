@@ -936,6 +936,21 @@ public sealed class GatewayClient : IGatewayClient
         _reconnectLock.Dispose();
         try { _disposeCts.Dispose(); } catch (ObjectDisposedException) { /* already disposed */ }
     }
+
+    // ─── Test support ────────────────────────────────────────────────────────
+
+    /// <summary>Processes a full session.message event JSON string for testing.</summary>
+    internal void TestHandleSessionMessage(string eventJson)
+    {
+        ProcessFrame(eventJson);
+    }
+
+    /// <summary>Strips audio tags — exposes private static for testing.</summary>
+    internal static string TestStripAudioTags(string text) => StripAudioTags(text);
+
+    /// <summary>Extracts marked content — exposes private instance method for testing.</summary>
+    internal (bool hasAudio, bool hasText, string audioText, string textContent) TestExtractMarkedContent(string fullMessage)
+        => ExtractMarkedContent(fullMessage);
 }
 
 // ─── gateway exception ─────────────────────────────────────────────
