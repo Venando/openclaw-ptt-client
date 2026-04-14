@@ -91,4 +91,13 @@ public class MessageFramingTests
 
         Assert.NotNull(framing);
     }
+
+    [Fact]
+    public void MessageFraming_OpenSocket_ConstructsSuccessfully()
+    {
+        var mockWs = CreateMockSocket(WebSocketState.Open);
+        var cfg = new AppConfig();
+        var framing = new MessageFraming(mockWs.Object, cfg);
+        Assert.NotNull(framing);
+    }
 }

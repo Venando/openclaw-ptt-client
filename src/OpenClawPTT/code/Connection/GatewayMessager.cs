@@ -10,17 +10,24 @@ public class GatewayMessager : IDisposable
     private readonly IClientWebSocket _ws;
     private readonly IGatewayEventSource _events;
     private readonly AppConfig _cfg;
+    private readonly Func<MessageFraming>? _framingFactory;
     private readonly MessageFraming _framing;
     private readonly Action<CancellationToken>? _onDisconnection;
 
     public MessageFraming GetFraming() => _framing;
 
-    public GatewayMessager(IClientWebSocket ws, IGatewayEventSource events, AppConfig cfg, Action<CancellationToken>? onDisconnection = null)
+    public GatewayMessager(
+        IClientWebSocket ws,
+        IGatewayEventSource events,
+        AppConfig cfg,
+        Action<CancellationToken>? onDisconnection = null,
+        Func<MessageFraming>? framingFactory = null)
     {
         _ws = ws;
         _cfg = cfg;
         _events = events;
-        _framing = new MessageFraming(_ws, cfg);
+        _framingFactory = framingFactory;
+        _framing = _framingFactory != null ? _framingFactory() : new MessageFraming(_ws, _cfg);
         _onDisconnection = onDisconnection;
     }
 
