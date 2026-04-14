@@ -713,6 +713,7 @@ public sealed class ConnectionLifecycle
                 {
                     await ConnectAsync(linkedCt);
                     ConsoleUi.LogOk("gateway", "Reconnected successfully.");
+                    _isReconnecting = false;
                     break;
                 }
                 catch (OperationCanceledException) when (linkedCt.IsCancellationRequested)
@@ -730,8 +731,6 @@ public sealed class ConnectionLifecycle
         {
             linkCts.Dispose();
         }
-
-        _isReconnecting = false; // no lock needed: only one reconnect runs at a time
     }
 
     // ─── dispose connection ───────────────────────────────────────────
