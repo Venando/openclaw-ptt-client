@@ -73,7 +73,11 @@ public sealed class AuthHandler
     {
         ConsoleUi.Log("gateway", "Waiting for connect.challenge ...");
         var challenge = await WaitForEventAsync("connect.challenge", TimeSpan.FromSeconds(10), ct);
-        return challenge.GetProperty("nonce").GetString()!;
+        var nonceEl = challenge.GetProperty("nonce");
+        if (nonceEl.ValueKind == JsonValueKind.Null || nonceEl.ValueKind == JsonValueKind.Undefined)
+            throw new GatewayException("Server challenge missing nonce", challenge);
+        var nonce = nonceEl.GetString() ?? throw new GatewayException("Server challenge nonce is empty", challenge);
+        return nonce;
     }
 
     /// <summary>
@@ -148,6 +152,8 @@ public sealed class AuthHandler
 
         // validate hello-ok
         var helloType = hello.TryGetProperty("type", out var htEl) ? htEl.GetString() : null;
+        if (helloType == "hello-ok" && hello.TryGetProperty("error", out var err))
+            throw new GatewayException($"Server returned hello-ok with error: {err}", hello);
         if (helloType != "hello-ok")
             throw new Exception($"Handshake rejected: {hello}");
 
