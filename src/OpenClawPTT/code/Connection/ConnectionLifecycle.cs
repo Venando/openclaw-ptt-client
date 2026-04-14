@@ -48,8 +48,6 @@ public sealed class ConnectionLifecycle
 
     public bool IsConnected => _ws?.State == WebSocketState.Open;
 
-    public IClientWebSocket? Socket => _ws;
-
     public MessageFraming GetFraming() => _framing!;
 
     // ─── connect ─────────────────────────────────────────────────────
