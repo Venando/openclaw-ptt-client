@@ -9,7 +9,7 @@ namespace OpenClawPTT;
 /// Manages message framing, request/response correlation, and one-shot event waiters.
 /// Thread-safe. Used by GatewayClient to handle the WebSocket protocol.
 /// </summary>
-public sealed class MessageFraming : ISender
+public sealed class MessageFraming
 {
     private readonly IClientWebSocket _ws;
     private readonly AppConfig _cfg;
@@ -28,14 +28,11 @@ public sealed class MessageFraming : ISender
         _cfg = cfg;
     }
 
-    /// <summary>Returns the ISender interface for use by the client.</summary>
-    public ISender GetSender() => this;
-
     /// <summary>Generates the next unique request ID.</summary>
     public string NextId() =>
         $"ptt-{Interlocked.Increment(ref _idCounter):D6}";
 
-    // ─── ISender ────────────────────────────────────────────────────
+    // ─── send ───────────────────────────────────────────────────────
 
     /// <summary>Sends a request and waits for the response.</summary>
     public async Task<JsonElement> SendRequestAsync(

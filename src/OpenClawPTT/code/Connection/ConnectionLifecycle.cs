@@ -10,7 +10,7 @@ namespace OpenClawPTT;
 /// Owns the WebSocket connection lifecycle: connect, receive pump, reconnection, and disconnect.
 /// Coordinates with MessageFraming for framing/sending and SessionMessageHandler for event dispatch.
 /// </summary>
-public sealed class ConnectionLifecycle : ISender
+public sealed class ConnectionLifecycle
 {
     private readonly AppConfig _cfg;
     private readonly DeviceIdentity _dev;
@@ -702,6 +702,7 @@ public sealed class ConnectionLifecycle : ISender
                 }
                 catch (OperationCanceledException) when (linkedCt.IsCancellationRequested)
                 {
+                    _isReconnecting = false;
                     break;
                 }
                 catch (Exception ex)
