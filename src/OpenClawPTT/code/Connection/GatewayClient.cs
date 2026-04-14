@@ -95,18 +95,25 @@ public sealed class GatewayClient : IGatewayClient
         var tempPath = Path.Combine(Path.GetTempPath(),
             $"voice_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}.wav");
 
-        await File.WriteAllBytesAsync(tempPath, wavBytes, ct);
-
-        var sessionKey = !string.IsNullOrEmpty(_cfg.SessionKey) ? _cfg.SessionKey : "main";
-
-        var chatParams = new Dictionary<string, object?>
+        try
         {
-            ["sessionKey"] = sessionKey,
-            ["idempotencyKey"] = Guid.NewGuid().ToString(),
-            ["message"] = $"file://{tempPath}",
-        };
+            await File.WriteAllBytesAsync(tempPath, wavBytes, ct);
 
-        return await _framing!.SendRequestAsync("chat.send", chatParams, ct);
+            var sessionKey = !string.IsNullOrEmpty(_cfg.SessionKey) ? _cfg.SessionKey : "main";
+
+            var chatParams = new Dictionary<string, object?>
+            {
+                ["sessionKey"] = sessionKey,
+                ["idempotencyKey"] = Guid.NewGuid().ToString(),
+                ["message"] = $"file://{tempPath}",
+            };
+
+            return await _framing!.SendRequestAsync("chat.send", chatParams, ct);
+        }
+        finally
+        {
+            try { File.Delete(tempPath); } catch { /* best effort */ }
+        }
     }
 
     /// <summary>Sends a generic event/request to the gateway and returns the response payload.</summary>

@@ -85,8 +85,14 @@ public sealed class ConnectionLifecycle : ISender
         // Clean up any existing connection before reconnecting
         await DisposeConnection(ct);
 
+        // TODO: Accept IClientWebSocket via constructor for testability (PR #37)
         _ws = new ClientWebSocketAdapter();
-        _ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
+
+        var linkCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
+        var linkedCt = linkCts.Token;
+        try
+        {
+            _ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
         _framing = new MessageFraming(_ws, _cfg);
 
         // Safe to clear now that _framing is assigned
@@ -95,15 +101,15 @@ public sealed class ConnectionLifecycle : ISender
 
         var uri = new Uri(_cfg.GatewayUrl);
         ConsoleUi.Log("gateway", $"Connecting to {uri} ...");
-        await _ws.ConnectAsync(uri, ct);
+        await _ws.ConnectAsync(uri, linkedCt);
         ConsoleUi.Log("gateway", "WebSocket open.");
 
         // start receive pump
-        _recvTask = Task.Run(() => ReceiveLoop(ct), ct);
+        _recvTask = Task.Run(() => ReceiveLoop(linkedCt), linkedCt);
 
         // ── 1. wait for connect.challenge ──
         ConsoleUi.Log("gateway", "Waiting for connect.challenge ...");
-        var challenge = await _framing.WaitForEventAsync("connect.challenge", TimeSpan.FromSeconds(10), ct);
+        var challenge = await _framing.WaitForEventAsync("connect.challenge", TimeSpan.FromSeconds(10), linkedCt);
         var nonce = challenge.GetProperty("nonce").GetString()!;
 
         // ── 2. build + sign connect request ──
@@ -168,7 +174,7 @@ public sealed class ConnectionLifecycle : ISender
         }
 
         ConsoleUi.Log("gateway", "Sending connect ...");
-        JsonElement hello = await SendRequestAsync("connect", connectParams, ct);
+        JsonElement hello = await SendRequestAsync("connect", connectParams, linkedCt);
 
         // ── 3. validate hello-ok ──
         var helloType = hello.TryGetProperty("type", out var htEl) ? htEl.GetString() : null;
@@ -223,7 +229,7 @@ public sealed class ConnectionLifecycle : ISender
             && pol.TryGetProperty("tickIntervalMs", out var tEl))
             tickMs = tEl.GetInt32();
 
-        StartKeepalive(tickMs, ct);
+        StartKeepalive(tickMs, linkedCt);
         ConsoleUi.Log("gateway", $"Keepalive every {tickMs}ms.");
 
         var subscribeParams = new Dictionary<string, object?>
@@ -231,7 +237,9 @@ public sealed class ConnectionLifecycle : ISender
             ["sessionKey"] = _cfg.SessionKey  // "agent:main:main"
         };
 
-        await SendRequestAsync("sessions.subscribe", subscribeParams, ct);
+        await SendRequestAsync("sessions.subscribe", subscribeParams, linkedCt);
+        }
+        finally { linkCts.Dispose(); }
     }
 
     private void LogMessage(Dictionary<string, object?> parameters)
@@ -657,6 +665,8 @@ public sealed class ConnectionLifecycle : ISender
 
     private async Task ScheduleReconnectAsync(CancellationToken ct)
     {
+        if (_disposeCts.IsCancellationRequested) return;
+
         await _reconnectLock.WaitAsync(ct);
         try
         {
@@ -673,27 +683,36 @@ public sealed class ConnectionLifecycle : ISender
 
     private async Task ReconnectLoopAsync(CancellationToken ct)
     {
-        while (!ct.IsCancellationRequested)
+        var linkCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
+        var linkedCt = linkCts.Token;
+        try
         {
-            var delayMs = (int)(_cfg.ReconnectDelaySeconds * 1000);
-            ConsoleUi.Log("gateway", $"Waiting {_cfg.ReconnectDelaySeconds}s before reconnection attempt...");
-            await Task.Delay(delayMs, ct);
+            while (!linkedCt.IsCancellationRequested)
+            {
+                var delayMs = (int)(_cfg.ReconnectDelaySeconds * 1000);
+                ConsoleUi.Log("gateway", $"Waiting {_cfg.ReconnectDelaySeconds}s before reconnection attempt...");
+                await Task.Delay(delayMs, linkedCt);
 
-            ConsoleUi.Log("gateway", "Attempting to reconnect...");
-            try
-            {
-                await ConnectAsync(ct);
-                ConsoleUi.LogOk("gateway", "Reconnected successfully.");
-                break;
+                ConsoleUi.Log("gateway", "Attempting to reconnect...");
+                try
+                {
+                    await ConnectAsync(linkedCt);
+                    ConsoleUi.LogOk("gateway", "Reconnected successfully.");
+                    break;
+                }
+                catch (OperationCanceledException) when (linkedCt.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    ConsoleUi.LogError("gateway", $"Reconnection failed: {ex.Message}");
+                }
             }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                ConsoleUi.LogError("gateway", $"Reconnection failed: {ex.Message}");
-            }
+        }
+        finally
+        {
+            linkCts.Dispose();
         }
 
         _isReconnecting = false; // no lock needed: only one reconnect runs at a time
