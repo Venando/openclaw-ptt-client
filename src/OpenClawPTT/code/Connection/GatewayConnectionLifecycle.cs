@@ -55,7 +55,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
 
     public bool IsConnected => _ws?.State == WebSocketState.Open;
 
-    public MessageFraming? GetFraming() => _gatewayMessager?.GetFraming();
+    public IMessageFraming? GetFraming() => _gatewayMessager?.GetFraming();
 
     // ─── connect ─────────────────────────────────────────────────────
 

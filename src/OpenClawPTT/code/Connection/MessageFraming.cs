@@ -9,7 +9,7 @@ namespace OpenClawPTT;
 /// Manages message framing, request/response correlation, and one-shot event waiters.
 /// Thread-safe. Used by GatewayClient to handle the WebSocket protocol.
 /// </summary>
-public sealed class MessageFraming
+public class MessageFraming : IMessageFraming
 {
     private readonly IClientWebSocket _ws;
     private readonly AppConfig _cfg;
@@ -29,13 +29,13 @@ public sealed class MessageFraming
     }
 
     /// <summary>Generates the next unique request ID.</summary>
-    public string NextId() =>
+    public virtual string NextId() =>
         $"ptt-{Interlocked.Increment(ref _idCounter):D6}";
 
     // ─── send ───────────────────────────────────────────────────────
 
     /// <summary>Sends a request and waits for the response.</summary>
-    public async Task<JsonElement> SendRequestAsync(
+    public virtual async Task<JsonElement> SendRequestAsync(
         string method,
         object? parameters,
         CancellationToken ct,
@@ -77,7 +77,7 @@ public sealed class MessageFraming
     // ─── event waiting ──────────────────────────────────────────────
 
     /// <summary>Waits for a single inbound event with the given name.</summary>
-    public async Task<JsonElement> WaitForEventAsync(
+    public virtual async Task<JsonElement> WaitForEventAsync(
         string eventName,
         TimeSpan timeout,
         CancellationToken ct)
@@ -100,7 +100,7 @@ public sealed class MessageFraming
     // ─── cleanup ────────────────────────────────────────────────────
 
     /// <summary>Cancels and clears all pending request waiters.</summary>
-    public void ClearPendingRequests()
+    public virtual void ClearPendingRequests()
     {
         foreach (var kvp in _pending)
         {
@@ -110,7 +110,7 @@ public sealed class MessageFraming
     }
 
     /// <summary>Cancels and clears all event waiters.</summary>
-    public void ClearEventWaiters()
+    public virtual void ClearEventWaiters()
     {
         foreach (var kvp in _eventWaiters)
         {

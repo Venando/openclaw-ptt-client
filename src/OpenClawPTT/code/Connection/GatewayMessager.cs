@@ -14,7 +14,7 @@ public class GatewayMessager : IDisposable
     private readonly MessageFraming _framing;
     private readonly Action<CancellationToken>? _onDisconnection;
 
-    public MessageFraming GetFraming() => _framing;
+    public IMessageFraming GetFraming() => _framing;
 
     public GatewayMessager(
         IClientWebSocket ws,

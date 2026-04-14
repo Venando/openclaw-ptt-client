@@ -11,7 +11,7 @@ namespace OpenClawPTT;
 public interface IGatewayConnectionLifecycle : IDisposable
 {
     bool IsConnected { get; }
-    MessageFraming? GetFraming();
+    IMessageFraming? GetFraming();
     Task<JsonElement> SendRequestAsync(string method, object? parameters, CancellationToken ct, TimeSpan? timeout = null);
     Task DisconnectAsync(CancellationToken ct);
     Task ConnectAsync(CancellationToken ct);
