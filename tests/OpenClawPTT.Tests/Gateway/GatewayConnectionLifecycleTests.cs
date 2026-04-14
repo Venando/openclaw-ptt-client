@@ -94,6 +94,23 @@ public class GatewayConnectionLifecycleTests : IDisposable
         Assert.Null(exception);
     }
 
+    // ─── resilience / disconnection tests ───────────────────────────
+
+    // Note: DisconnectAsync and DisposeConnection access _ws which is only set after
+    // ConnectAsync is called. Full integration testing of DisconnectAsync would require
+    // a connected socket. These tests verify Dispose() handles null _ws gracefully.
+
+    [Fact]
+    public void Dispose_WithNullSocket_DoesNotThrow()
+    {
+        // Before ConnectAsync, _ws is null — Dispose should not throw
+        var lifecycle = CreateWithMockSocket();
+
+        var exception = Record.Exception(() => lifecycle.Dispose());
+
+        Assert.Null(exception);
+    }
+
     public void Dispose()
     {
         // cleanup if needed
