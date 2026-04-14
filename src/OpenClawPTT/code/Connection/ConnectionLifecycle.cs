@@ -679,12 +679,12 @@ public sealed class ConnectionLifecycle
         try
         {
             if (_isReconnecting) return;
+            _isReconnecting = true;
         }
         finally
         {
             _reconnectLock.Release();
         }
-        _isReconnecting = true; // set outside lock so ReconnectLoopAsync doesn't need to re-acquire
         ConsoleUi.Log("gateway", "Starting reconnection loop...");
         _reconnectTask = ReconnectLoopAsync(ct);
     }

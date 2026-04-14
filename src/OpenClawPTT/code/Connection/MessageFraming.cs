@@ -97,58 +97,6 @@ public sealed class MessageFraming
         }
     }
 
-    // ─── frame processing ───────────────────────────────────────────
-
-    /// <summary>Processes an inbound JSON frame from the WebSocket.</summary>
-    internal void ProcessFrame(string json)
-    {
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        var type = root.GetProperty("type").GetString();
-
-        switch (type)
-        {
-            case "res":
-                HandleResponse(root);
-                break;
-            case "event":
-                HandleEvent(root);
-                break;
-        }
-    }
-
-    private void HandleResponse(JsonElement root)
-    {
-        var id = root.GetProperty("id").GetString()!;
-        if (!_pending.TryRemove(id, out var tcs))
-            return;
-
-        var ok = root.GetProperty("ok").GetBoolean();
-        if (ok)
-        {
-            tcs.SetResult(root.TryGetProperty("payload", out var p)
-                ? p.Clone()
-                : default);
-        }
-        else
-        {
-            var err = root.TryGetProperty("error", out var e)
-                ? e.Clone().ToString()
-                : "unknown error";
-            tcs.SetException(new GatewayException(err, root.Clone()));
-        }
-    }
-
-    private void HandleEvent(JsonElement root)
-    {
-        var name = root.GetProperty("event").GetString()!;
-        var payload = root.TryGetProperty("payload", out var p) ? p.Clone() : default;
-
-        // resolve one-shot waiter
-        if (_eventWaiters.TryRemove(name, out var tcs))
-            tcs.TrySetResult(payload);
-    }
-
     // ─── cleanup ────────────────────────────────────────────────────
 
     /// <summary>Cancels and clears all pending request waiters.</summary>

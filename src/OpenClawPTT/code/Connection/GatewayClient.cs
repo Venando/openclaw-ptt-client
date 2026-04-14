@@ -127,11 +127,14 @@ public sealed class GatewayClient : IGatewayClient
 
     // ─── recreate ───────────────────────────────────────────────────
 
-    /// <summary>Recreates the client with a new config (disposes old, creates new).</summary>
+    /// <summary>
+    /// Recreates the client with a new config (disposes old, creates new).
+    /// Currently a no-op — actual recreate is handled by GatewayService.
+    /// </summary>
     public void RecreateWithConfig(AppConfig newConfig)
     {
-        // Note: GatewayClient is created by GatewayService, so this is a no-op here.
-        // The actual recreate logic is handled by GatewayService.RecreateWithConfig.
+        // No-op: GatewayClient is created and owned by GatewayService.
+        // GatewayService.RecreateWithConfig disposes and recreates us.
     }
 
     // ─── test support ────────────────────────────────────────────────────────
