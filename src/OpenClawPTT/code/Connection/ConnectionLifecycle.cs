@@ -16,7 +16,7 @@ public sealed class ConnectionLifecycle
     private readonly DeviceIdentity _dev;
 
     private IClientWebSocket _ws = null!;
-    private CancellationTokenSource? _tickCts;
+    private KeepaliveRunner? _keepalive;
     private ReceivePump _receivePump = null!;
 
     private readonly SemaphoreSlim _reconnectLock = new SemaphoreSlim(1, 1);
@@ -240,7 +240,8 @@ public sealed class ConnectionLifecycle
             && pol.TryGetProperty("tickIntervalMs", out var tEl))
             tickMs = tEl.GetInt32();
 
-        StartKeepalive(tickMs, linkedCt);
+        _keepalive = new KeepaliveRunner(SendRequestAsync, tickMs);
+        _keepalive.Start(linkedCt);
         ConsoleUi.Log("gateway", $"Keepalive every {tickMs}ms.");
 
         var subscribeParams = new Dictionary<string, object?>
@@ -319,36 +320,12 @@ public sealed class ConnectionLifecycle
         }
     }
 
-    // ─── keepalive ──────────────────────────────────────────────────
-
-    private void StartKeepalive(int intervalMs, CancellationToken ct)
-    {
-        _tickCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var tickCt = _tickCts.Token;
-
-        _ = Task.Run(async () =>
-        {
-            while (!tickCt.IsCancellationRequested)
-            {
-                await Task.Delay(intervalMs, tickCt);
-                try
-                {
-                    if (_ws.State == WebSocketState.Open)
-                        await SendRequestAsync("tick", null, tickCt, TimeSpan.FromSeconds(5));
-                }
-                catch (OperationCanceledException) { break; }
-                catch { /* swallow tick failures */ }
-            }
-        }, tickCt);
-    }
 
     // ─── connection resilience ───────────────────────────────────────
 
     private async Task DisconnectInternalAsync(CancellationToken ct)
     {
-        _tickCts?.Cancel();
-        _tickCts?.Dispose();
-        _tickCts = null;
+        _keepalive?.Stop();
 
         if (_ws.State == WebSocketState.Open)
         {
@@ -439,12 +416,7 @@ public sealed class ConnectionLifecycle
 
         try
         {
-            if (_tickCts != null)
-            {
-                await _tickCts.CancelAsync();
-                _tickCts.Dispose();
-                _tickCts = null;
-            }
+            _keepalive?.Stop();
 
             if (_ws.State == WebSocketState.Open || _ws.State == WebSocketState.CloseReceived)
             {
@@ -475,8 +447,7 @@ public sealed class ConnectionLifecycle
         try { _disposeCts.Cancel(); } catch (ObjectDisposedException) { /* already disposed */ }
         _reconnectTask?.Wait(TimeSpan.FromSeconds(5));
 
-        _tickCts?.Cancel();
-        _tickCts?.Dispose();
+        _keepalive?.Dispose();
         _receivePump?.Dispose();
 
         if (_ws != null && _ws.State == WebSocketState.Open)
