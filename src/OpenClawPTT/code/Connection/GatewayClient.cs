@@ -9,7 +9,7 @@ public sealed class GatewayClient : IGatewayClient
 {
     private readonly AppConfig _cfg;
     private readonly DeviceIdentity _dev;
-    private ClientWebSocket _ws = null!;
+    private IClientWebSocket _ws;
     private CancellationTokenSource? _tickCts;
     private Task? _recvTask;
 
@@ -43,10 +43,11 @@ public sealed class GatewayClient : IGatewayClient
     /// <summary>Fires when agent response contains [audio] marker with text for TTS.</summary>
     public event Action<string>? AgentReplyAudio;
 
-    public GatewayClient(AppConfig cfg, DeviceIdentity dev)
+    public GatewayClient(AppConfig cfg, DeviceIdentity dev, IClientWebSocket? webSocket = null)
     {
         _cfg = cfg;
         _dev = dev;
+        _ws = webSocket ?? new ClientWebSocketAdapter();
     }
 
     // ─── IGatewayClient properties ──────────────────────────────────
@@ -93,7 +94,7 @@ public sealed class GatewayClient : IGatewayClient
 
         ClearPendingRequests();
 
-        _ws = new ClientWebSocket();
+        _ws = new ClientWebSocketAdapter();
         _ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
         var uri = new Uri(_cfg.GatewayUrl);
