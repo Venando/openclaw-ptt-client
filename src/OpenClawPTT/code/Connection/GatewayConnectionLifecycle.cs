@@ -10,7 +10,7 @@ namespace OpenClawPTT;
 /// Owns the WebSocket connection lifecycle: connect, receive pump, reconnection, and disconnect.
 /// Coordinates with MessageFraming for framing/sending and SessionMessageHandler for event dispatch.
 /// </summary>
-public sealed class GatewayConnectionLifecycle : IGatewayConnector
+public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConnectionLifecycle
 {
     private readonly AppConfig _cfg;
     private readonly DeviceIdentity _deviceIdentity;

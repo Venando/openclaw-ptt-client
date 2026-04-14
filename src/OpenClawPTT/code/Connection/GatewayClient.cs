@@ -17,17 +17,20 @@ public sealed class GatewayClient : IGatewayClient
     private readonly AppConfig _cfg;
     private readonly DeviceIdentity _dev;
     private readonly IGatewayEventSource _eventSource;
+    private readonly Func<IGatewayConnectionLifecycle>? _lifecycleFactory;
 
-    private GatewayConnectionLifecycle? _lifecycle;
+    private IGatewayConnectionLifecycle? _lifecycle;
 
     private bool _isDisposed;
 
-    public GatewayClient(AppConfig cfg, DeviceIdentity dev, IGatewayEventSource eventSource)
+    public GatewayClient(AppConfig cfg, DeviceIdentity dev, IGatewayEventSource eventSource,
+        Func<IGatewayConnectionLifecycle>? lifecycleFactory = null)
     {
         _cfg = cfg;
         _dev = dev;
         _eventSource = eventSource;
-        _lifecycle = new GatewayConnectionLifecycle(_cfg, _dev, _eventSource);
+        _lifecycleFactory = lifecycleFactory ?? (() => new GatewayConnectionLifecycle(_cfg, _dev, _eventSource));
+        _lifecycle = _lifecycleFactory();
     }
 
     // ─── IGatewayClient properties ──────────────────────────────────
