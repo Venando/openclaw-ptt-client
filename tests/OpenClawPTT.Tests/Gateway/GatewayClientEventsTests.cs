@@ -13,6 +13,7 @@ public class GatewayClientEventsTests : IDisposable
 {
     private readonly AppConfig _config;
     private readonly DeviceIdentity _device;
+    private readonly GatewayEventSource _eventSource;
     private readonly GatewayClient _client;
     private readonly List<string> _fullEvents = new();
     private readonly List<string> _audioEvents = new();
@@ -28,10 +29,11 @@ public class GatewayClientEventsTests : IDisposable
         _device = new DeviceIdentity(_config.DataDir);
         _device.EnsureKeypair();
 
-        _client = new GatewayClient(_config, _device);
+        _eventSource = new GatewayEventSource();
+        _client = new GatewayClient(_config, _device, _eventSource);
 
-        _client.AgentReplyFull += t => _fullEvents.Add(t);
-        _client.AgentReplyAudio += t => _audioEvents.Add(t);
+        _eventSource.AgentReplyFull += t => _fullEvents.Add(t);
+        _eventSource.AgentReplyAudio += t => _audioEvents.Add(t);
     }
 
     public void Dispose() { _client.Dispose(); }
@@ -136,8 +138,10 @@ public class GatewayClientEventsTests : IDisposable
     [Fact]
     public void AgentReplyFull_FiresOnce_ForOneTextBlock()
     {
+        // Use direct method to bypass _framing.ResolveEventWaiter (no socket/ConnectAsync)
         var content = BuildSessionMessage(("text", "hello world", null));
-        _client.TestHandleSessionMessage(content);
+        var payloadJson = ExtractPayload(content);
+        _client.TestHandleSessionMessageDirect(payloadJson);
         Assert.Single(_fullEvents);
         Assert.Equal("hello world", _fullEvents[0]);
     }
@@ -146,7 +150,8 @@ public class GatewayClientEventsTests : IDisposable
     public void AgentReplyAudio_FiresOnce_ForAudioBlock()
     {
         var content = BuildSessionMessage(("audio", null, "ping"));
-        _client.TestHandleSessionMessage(content);
+        var payloadJson = ExtractPayload(content);
+        _client.TestHandleSessionMessageDirect(payloadJson);
         Assert.Single(_audioEvents);
         Assert.Equal("ping", _audioEvents[0]);
     }
@@ -156,7 +161,8 @@ public class GatewayClientEventsTests : IDisposable
     {
         // [audio] tags in a type="text" block → both TTS and display fire
         var content = BuildSessionMessage(("text", "[audio]ping[/audio]", null));
-        _client.TestHandleSessionMessage(content);
+        var payloadJson = ExtractPayload(content);
+        _client.TestHandleSessionMessageDirect(payloadJson);
         Assert.Single(_fullEvents);
         Assert.Equal("ping", _fullEvents[0]);
         Assert.Single(_audioEvents);
@@ -170,7 +176,14 @@ public class GatewayClientEventsTests : IDisposable
             ("text", "hello", null),
             ("text", "world", null)
         );
-        _client.TestHandleSessionMessage(content);
+        var payloadJson = ExtractPayload(content);
+        _client.TestHandleSessionMessageDirect(payloadJson);
         Assert.Equal(2, _fullEvents.Count);
+    }
+
+    private static string ExtractPayload(string fullEventJson)
+    {
+        using var doc = JsonDocument.Parse(fullEventJson);
+        return doc.RootElement.GetProperty("payload").GetRawText();
     }
 }

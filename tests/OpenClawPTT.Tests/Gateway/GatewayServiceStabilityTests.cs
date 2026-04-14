@@ -212,7 +212,9 @@ internal sealed class TestableGatewayService : IGatewayService
     private void WireEvents()
     {
         var es = _gatewayClient.GetEventSource();
-        es!.AgentThinking += e => AgentThinking?.Invoke(e);
+        if (es == null) return;
+
+        es.AgentThinking += e => AgentThinking?.Invoke(e);
         es.AgentToolCall += (n, a) => AgentToolCall?.Invoke(n, a);
         es.AgentReplyAudio += a => AgentReplyAudio?.Invoke(a);
         es.EventReceived += (name, payload) => EventReceived?.Invoke(name, payload);

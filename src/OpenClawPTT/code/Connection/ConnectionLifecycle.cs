@@ -26,14 +26,13 @@ public sealed class ConnectionLifecycle : ISender
 
     // ─── Dependencies ───────────────────────────────────────────────
     private readonly IGatewayEventSource _events;
-    private readonly MessageFraming _framing;
+    private MessageFraming? _framing;
 
-    public ConnectionLifecycle(AppConfig cfg, DeviceIdentity dev, IGatewayEventSource events, MessageFraming framing)
+    public ConnectionLifecycle(AppConfig cfg, DeviceIdentity dev, IGatewayEventSource events)
     {
         _cfg = cfg;
         _dev = dev;
         _events = events;
-        _framing = framing;
     }
 
     // ─── ISender ──────────────────────────────────────────────────────
@@ -51,7 +50,30 @@ public sealed class ConnectionLifecycle : ISender
 
     public IClientWebSocket? Socket => _ws;
 
+    public MessageFraming GetFraming() => _framing!;
+
     // ─── connect ─────────────────────────────────────────────────────
+
+    public async Task DisconnectAsync(CancellationToken ct)
+    {
+        await DisconnectInternalAsync(ct);
+    }
+
+    // ─── test support ──────────────────────────────────────────────
+
+    internal void TestProcessFrame(string json) => ProcessFrame(json);
+
+    internal void TestHandleEvent(string eventJson)
+    {
+        using var doc = JsonDocument.Parse(eventJson);
+        HandleEvent(doc.RootElement);
+    }
+
+    internal void TestHandleSessionMessage(string payloadJson)
+    {
+        using var doc = JsonDocument.Parse(payloadJson);
+        HandleSessionMessage(doc.RootElement);
+    }
 
     public async Task ConnectAsync(CancellationToken ct)
     {
@@ -63,6 +85,7 @@ public sealed class ConnectionLifecycle : ISender
 
         _ws = new ClientWebSocketAdapter();
         _ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
+        _framing = new MessageFraming(_ws, _cfg);
 
         var uri = new Uri(_cfg.GatewayUrl);
         ConsoleUi.Log("gateway", $"Connecting to {uri} ...");
@@ -327,8 +350,9 @@ public sealed class ConnectionLifecycle : ISender
         var name = root.GetProperty("event").GetString()!;
         var payload = root.TryGetProperty("payload", out var p) ? p.Clone() : default;
 
-        // resolve one-shot waiter via MessageFraming
-        _framing.ResolveEventWaiter(name, payload);
+        // resolve one-shot waiter via MessageFraming (skip if _framing not yet initialized)
+        if (_framing != null)
+            _framing.ResolveEventWaiter(name, payload);
 
         switch (name)
         {

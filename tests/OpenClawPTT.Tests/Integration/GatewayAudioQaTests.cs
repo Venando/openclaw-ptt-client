@@ -28,7 +28,7 @@ public class GatewayAudioQaTests
         var dev = new DeviceIdentity(cfg.DataDir);
         dev.EnsureKeypair();
 
-        var client = new GatewayClient(cfg, dev);
+        var client = new GatewayClient(cfg, dev, null!);
 
         // Act & Assert: dispose without ever connecting should be safe
         client.Dispose();
@@ -46,7 +46,7 @@ public class GatewayAudioQaTests
         var dev = new DeviceIdentity(cfg.DataDir);
         dev.EnsureKeypair();
 
-        var client = new GatewayClient(cfg, dev);
+        var client = new GatewayClient(cfg, dev, null!);
         client.Dispose();
         // Second dispose should not throw ObjectDisposedException from CTS.Cancel()
         // (The underlying bug: _disposeCts.Cancel() is called before _disposeCts.Dispose()
