@@ -18,7 +18,7 @@ public sealed class GatewayClient : IGatewayClient
     private readonly DeviceIdentity _dev;
     private readonly IGatewayEventSource _eventSource;
 
-    private ConnectionLifecycle? _lifecycle;
+    private GatewayConnectionLifecycle? _lifecycle;
 
     private bool _isDisposed;
 
@@ -27,7 +27,7 @@ public sealed class GatewayClient : IGatewayClient
         _cfg = cfg;
         _dev = dev;
         _eventSource = eventSource;
-        _lifecycle = new ConnectionLifecycle(_cfg, _dev, _eventSource);
+        _lifecycle = new GatewayConnectionLifecycle(_cfg, _dev, _eventSource);
     }
 
     // ─── IGatewayClient properties ──────────────────────────────────
@@ -76,7 +76,21 @@ public sealed class GatewayClient : IGatewayClient
             ["idempotencyKey"] = Guid.NewGuid().ToString(),
             ["message"] = body
         };
-        return await _lifecycle.GetFraming().SendRequestAsync("chat.send", chatParams, ct);
+
+        return await TrySendAsync("chat.send", chatParams, ct);
+    }
+
+    private async Task<JsonElement> TrySendAsync(string method, object? chatParams, CancellationToken ct)
+    {
+        if (_lifecycle == null)
+            return default;
+
+        var framing = _lifecycle.GetFraming();
+
+        if (framing == null)
+            return default;
+
+        return await framing.SendRequestAsync(method, chatParams, ct);
     }
 
     /// <summary>
@@ -105,7 +119,7 @@ public sealed class GatewayClient : IGatewayClient
                 ["message"] = $"file://{tempPath}",
             };
 
-            return await _lifecycle.GetFraming().SendRequestAsync("chat.send", chatParams, ct);
+            return await TrySendAsync("chat.send", chatParams, ct);
         }
         finally
         {
@@ -119,7 +133,7 @@ public sealed class GatewayClient : IGatewayClient
         ThrowIfDisposed();
         if (_lifecycle == null || !_lifecycle.IsConnected)
             throw new InvalidOperationException("Not connected. Call ConnectAsync first.");
-        return await _lifecycle.GetFraming().SendRequestAsync(eventName, parameters, ct);
+        return await TrySendAsync(eventName, parameters, ct);
     }
 
     // ─── recreate ───────────────────────────────────────────────────
@@ -133,30 +147,6 @@ public sealed class GatewayClient : IGatewayClient
         // No-op: GatewayClient is created and owned by GatewayService.
         // GatewayService.RecreateWithConfig disposes and recreates us.
     }
-
-    // ─── test support ───────────────────────────────────────────────────────
-
-    /// <summary>Processes a full session.message event JSON string for testing.</summary>
-    internal void TestHandleSessionMessage(string eventJson)
-    {
-        // Route the event JSON ({"type":"event","event":"session.message","payload":{...}})
-        // through ConnectionLifecycle's HandleEvent, which dispatches to HandleSessionMessage.
-        _lifecycle?.TestHandleEvent(eventJson);
-    }
-
-    /// <summary>For testing only — bypasses HandleEvent and calls HandleSessionMessage directly on the lifecycle.</summary>
-    internal void TestHandleSessionMessageDirect(string payloadJson)
-    {
-        _lifecycle?.TestHandleSessionMessage(payloadJson);
-    }
-
-    /// <summary>Strips audio tags — exposes private static for testing.</summary>
-    internal static string TestStripAudioTags(string text) => ConnectionLifecycle.TestStripAudioTags(text);
-
-    /// <summary>Extracts marked content — exposes internal method on lifecycle for testing.</summary>
-    internal (bool hasAudio, bool hasText, string audioText, string textContent) TestExtractMarkedContent(string fullMessage)
-        => _lifecycle?.TestExtractMarkedContent(fullMessage)
-           ?? (false, false, "", "");
 
     // ─── helpers ─────────────────────────────────────────────────────
 

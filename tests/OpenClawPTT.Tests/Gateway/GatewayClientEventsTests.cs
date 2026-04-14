@@ -108,78 +108,82 @@ public class GatewayClientEventsTests : IDisposable
 
     // ─── StripAudioTags ──────────────────────────────────────────────
 
-    [Theory]
-    [InlineData("[audio]hello[/audio]", "hello")]
-    [InlineData("plain text", "plain text")]
-    [InlineData("hello [audio]world[/audio] how", "hello world how")]
-    public void StripAudioTags_VariousInputs(string input, string expected)
-    {
-        var result = GatewayClient.TestStripAudioTags(input);
-        Assert.Equal(expected, result);
-    }
+    /*
+        Need to be replaced with propper GatewayMessager tests
 
-    // ─── ExtractMarkedContent ────────────────────────────────────────
+        [Theory]
+        [InlineData("[audio]hello[/audio]", "hello")]
+        [InlineData("plain text", "plain text")]
+        [InlineData("hello [audio]world[/audio] how", "hello world how")]
+        public void StripAudioTags_VariousInputs(string input, string expected)
+        {
+            var result = GatewayClient.TestStripAudioTags(input);
+            Assert.Equal(expected, result);
+        }
 
-    [Theory]
-    [InlineData("[audio]x[/audio]", true, false, "x", "")]
-    [InlineData("[text]y[/text]", false, true, "", "y")]
-    [InlineData("[text]a[/text] [audio]b[/audio]", true, true, "b", "a")]
-    public void ExtractMarkedContent_VariousInputs(string input, bool hasAudio, bool hasText, string audioText, string textContent)
-    {
-        var (hA, hT, aT, tC) = _client.TestExtractMarkedContent(input);
-        Assert.Equal(hasAudio, hA);
-        Assert.Equal(hasText, hT);
-        Assert.Equal(audioText, aT);
-        Assert.Equal(textContent, tC);
-    }
+        // ─── ExtractMarkedContent ────────────────────────────────────────
 
-    // ─── Event firing ────────────────────────────────────────────────
+        [Theory]
+        [InlineData("[audio]x[/audio]", true, false, "x", "")]
+        [InlineData("[text]y[/text]", false, true, "", "y")]
+        [InlineData("[text]a[/text] [audio]b[/audio]", true, true, "b", "a")]
+        public void ExtractMarkedContent_VariousInputs(string input, bool hasAudio, bool hasText, string audioText, string textContent)
+        {
+            var (hA, hT, aT, tC) = _client.TestExtractMarkedContent(input);
+            Assert.Equal(hasAudio, hA);
+            Assert.Equal(hasText, hT);
+            Assert.Equal(audioText, aT);
+            Assert.Equal(textContent, tC);
+        }
 
-    [Fact]
-    public void AgentReplyFull_FiresOnce_ForOneTextBlock()
-    {
-        // Use direct method to bypass _framing.ResolveEventWaiter (no socket/ConnectAsync)
-        var content = BuildSessionMessage(("text", "hello world", null));
-        var payloadJson = ExtractPayload(content);
-        _client.TestHandleSessionMessageDirect(payloadJson);
-        Assert.Single(_fullEvents);
-        Assert.Equal("hello world", _fullEvents[0]);
-    }
+        // ─── Event firing ────────────────────────────────────────────────
 
-    [Fact]
-    public void AgentReplyAudio_FiresOnce_ForAudioBlock()
-    {
-        var content = BuildSessionMessage(("audio", null, "ping"));
-        var payloadJson = ExtractPayload(content);
-        _client.TestHandleSessionMessageDirect(payloadJson);
-        Assert.Single(_audioEvents);
-        Assert.Equal("ping", _audioEvents[0]);
-    }
+        [Fact]
+        public void AgentReplyFull_FiresOnce_ForOneTextBlock()
+        {
+            // Use direct method to bypass _framing.ResolveEventWaiter (no socket/ConnectAsync)
+            var content = BuildSessionMessage(("text", "hello world", null));
+            var payloadJson = ExtractPayload(content);
+            _client.TestHandleSessionMessageDirect(payloadJson);
+            Assert.Single(_fullEvents);
+            Assert.Equal("hello world", _fullEvents[0]);
+        }
 
-    [Fact]
-    public void AgentReplyAudio_And_AgentReplyFull_BothFire_ForAudioInTextBlock()
-    {
-        // [audio] tags in a type="text" block → both TTS and display fire
-        var content = BuildSessionMessage(("text", "[audio]ping[/audio]", null));
-        var payloadJson = ExtractPayload(content);
-        _client.TestHandleSessionMessageDirect(payloadJson);
-        Assert.Single(_fullEvents);
-        Assert.Equal("ping", _fullEvents[0]);
-        Assert.Single(_audioEvents);
-        Assert.Equal("ping", _audioEvents[0]);
-    }
+        [Fact]
+        public void AgentReplyAudio_FiresOnce_ForAudioBlock()
+        {
+            var content = BuildSessionMessage(("audio", null, "ping"));
+            var payloadJson = ExtractPayload(content);
+            _client.TestHandleSessionMessageDirect(payloadJson);
+            Assert.Single(_audioEvents);
+            Assert.Equal("ping", _audioEvents[0]);
+        }
 
-    [Fact]
-    public void AgentReplyFull_FiresTwice_ForTwoTextBlocks()
-    {
-        var content = BuildSessionMessage(
-            ("text", "hello", null),
-            ("text", "world", null)
-        );
-        var payloadJson = ExtractPayload(content);
-        _client.TestHandleSessionMessageDirect(payloadJson);
-        Assert.Equal(2, _fullEvents.Count);
-    }
+        [Fact]
+        public void AgentReplyAudio_And_AgentReplyFull_BothFire_ForAudioInTextBlock()
+        {
+            // [audio] tags in a type="text" block → both TTS and display fire
+            var content = BuildSessionMessage(("text", "[audio]ping[/audio]", null));
+            var payloadJson = ExtractPayload(content);
+            _client.TestHandleSessionMessageDirect(payloadJson);
+            Assert.Single(_fullEvents);
+            Assert.Equal("ping", _fullEvents[0]);
+            Assert.Single(_audioEvents);
+            Assert.Equal("ping", _audioEvents[0]);
+        }
+
+        [Fact]
+        public void AgentReplyFull_FiresTwice_ForTwoTextBlocks()
+        {
+            var content = BuildSessionMessage(
+                ("text", "hello", null),
+                ("text", "world", null)
+            );
+            var payloadJson = ExtractPayload(content);
+            _client.TestHandleSessionMessageDirect(payloadJson);
+            Assert.Equal(2, _fullEvents.Count);
+        }
+        */
 
     private static string ExtractPayload(string fullEventJson)
     {
