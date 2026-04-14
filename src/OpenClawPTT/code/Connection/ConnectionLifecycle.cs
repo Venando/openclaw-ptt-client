@@ -181,6 +181,10 @@ public sealed class ConnectionLifecycle
         if (helloType != "hello-ok")
             throw new Exception($"Handshake rejected: {hello}");
 
+        // Check for error field even on hello-ok
+        if (hello.TryGetProperty("error", out var err))
+            throw new Exception($"Server returned hello-ok with error: {err}");
+
         ConsoleUi.LogOk("gateway", "Authenticated — hello-ok received.");
 
         var options = new JsonSerializerOptions { WriteIndented = true };
@@ -307,7 +311,11 @@ public sealed class ConnectionLifecycle
                 ProcessFrame(json);
             }
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+            // Cancellation is orchestrated from above (via _disposeCts linked token).
+            // No reconnection needed — dispose path handles cleanup.
+        }
         catch (WebSocketException ex)
         {
             ConsoleUi.LogError("gateway", $"WebSocket error: {ex.Message}");
