@@ -70,6 +70,8 @@ public sealed class GatewayClient : IGatewayClient
     public async Task<JsonElement> SendTextAsync(string body, CancellationToken ct)
     {
         ThrowIfDisposed();
+        if (_lifecycle == null || !_lifecycle.IsConnected)
+            throw new InvalidOperationException("Not connected. Call ConnectAsync first.");
         var sessionKey = !string.IsNullOrEmpty(_cfg.SessionKey) ? _cfg.SessionKey : "main";
         var chatParams = new Dictionary<string, object?>
         {
@@ -87,6 +89,8 @@ public sealed class GatewayClient : IGatewayClient
     public async Task<JsonElement> SendAudioAsync(byte[] wavBytes, CancellationToken ct)
     {
         ThrowIfDisposed();
+        if (_lifecycle == null || !_lifecycle.IsConnected)
+            throw new InvalidOperationException("Not connected. Call ConnectAsync first.");
 
         var tempPath = Path.Combine(Path.GetTempPath(),
             $"voice_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}.wav");
@@ -109,6 +113,8 @@ public sealed class GatewayClient : IGatewayClient
     public async Task<JsonElement> SendEventAsync(string eventName, object? parameters, CancellationToken ct)
     {
         ThrowIfDisposed();
+        if (_lifecycle == null || !_lifecycle.IsConnected)
+            throw new InvalidOperationException("Not connected. Call ConnectAsync first.");
         return await _framing!.SendRequestAsync(eventName, parameters, ct);
     }
 

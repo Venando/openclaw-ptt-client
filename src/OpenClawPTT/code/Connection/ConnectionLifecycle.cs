@@ -363,14 +363,17 @@ public sealed class ConnectionLifecycle : ISender
         switch (name)
         {
             case "session.message":
+                _events.RaiseEventReceived(name, payload);
                 HandleSessionMessage(payload);
                 return;
 
             case "agent":
+                _events.RaiseEventReceived(name, payload);
                 HandleAgentStream(payload);
                 return;
 
             case "chat":
+                _events.RaiseEventReceived(name, payload);
                 HandleChatFinal(payload);
                 return;
 
@@ -479,7 +482,8 @@ public sealed class ConnectionLifecycle : ISender
 
         if (_cfg.RealTimeReplyOutput)
         {
-            _events.RaiseAgentReplyDeltaEnd();
+            // In realtime mode, streaming responses are already handled by HandleAgentStream
+            // HandleChatFinal should be silent (no double End)
             return;
         }
 
@@ -634,8 +638,8 @@ public sealed class ConnectionLifecycle : ISender
             catch { /* ignore */ }
         }
 
-        _framing.ClearPendingRequests();
-        _framing.ClearEventWaiters();
+        _framing?.ClearPendingRequests();
+        _framing?.ClearEventWaiters();
     }
 
     private async Task HandleDisconnectionAsync(CancellationToken ct)
