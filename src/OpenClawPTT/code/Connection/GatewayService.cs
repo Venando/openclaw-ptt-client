@@ -55,7 +55,7 @@ public sealed class GatewayService : IGatewayService
     private IGatewayClient CreateGatewayClient()
     {
         _uiAdapter = new AgentOutputAdapter(_config, _consoleOutput);
-        var client = (GatewayClient)new GatewayClient(_config, _device, null!);
+        var client = (GatewayClient)new GatewayClient(_config, _device, new GatewayEventSource());
         var events = client.GetEventSource();
 
         bool useDelta = _config.ReplyDisplayMode != ReplyDisplayMode.Full;
