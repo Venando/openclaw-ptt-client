@@ -651,14 +651,14 @@ public sealed class ConnectionLifecycle : ISender
         try
         {
             if (_isReconnecting) return;
-            _isReconnecting = true;
-            ConsoleUi.Log("gateway", "Starting reconnection loop...");
-            _reconnectTask = ReconnectLoopAsync(ct);
         }
         finally
         {
             _reconnectLock.Release();
         }
+        _isReconnecting = true; // set outside lock so ReconnectLoopAsync doesn't need to re-acquire
+        ConsoleUi.Log("gateway", "Starting reconnection loop...");
+        _reconnectTask = ReconnectLoopAsync(ct);
     }
 
     private async Task ReconnectLoopAsync(CancellationToken ct)
@@ -686,15 +686,7 @@ public sealed class ConnectionLifecycle : ISender
             }
         }
 
-        await _reconnectLock.WaitAsync(ct);
-        try
-        {
-            _isReconnecting = false;
-        }
-        finally
-        {
-            _reconnectLock.Release();
-        }
+        _isReconnecting = false; // no lock needed: only one reconnect runs at a time
     }
 
     // ─── dispose connection ───────────────────────────────────────────
@@ -743,6 +735,7 @@ public sealed class ConnectionLifecycle : ISender
 
         _tickCts?.Cancel();
         _tickCts?.Dispose();
+        _recvTask?.Wait(TimeSpan.FromSeconds(3));
 
         if (_ws != null && _ws.State == WebSocketState.Open)
         {
