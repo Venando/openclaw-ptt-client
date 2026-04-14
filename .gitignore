@@ -36,4 +36,4 @@ Thumbs.db
 
 # Project documentation (generated/workspace-specific)
 PROJECT-INDEX.md
-projects/
+projects/.worktrees/
