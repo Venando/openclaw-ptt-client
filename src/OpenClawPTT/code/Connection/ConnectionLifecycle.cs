@@ -75,17 +75,23 @@ public sealed class ConnectionLifecycle : ISender
         HandleSessionMessage(doc.RootElement);
     }
 
+    internal static string TestStripAudioTags(string text) => StripAudioTags(text);
+
+    internal (bool hasAudio, bool hasText, string audioText, string textContent) TestExtractMarkedContent(string fullMessage)
+        => ExtractMarkedContent(fullMessage);
+
     public async Task ConnectAsync(CancellationToken ct)
     {
         // Clean up any existing connection before reconnecting
         await DisposeConnection(ct);
 
-        _framing.ClearPendingRequests();
-        _framing.ClearEventWaiters();
-
         _ws = new ClientWebSocketAdapter();
         _ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
         _framing = new MessageFraming(_ws, _cfg);
+
+        // Safe to clear now that _framing is assigned
+        _framing.ClearPendingRequests();
+        _framing.ClearEventWaiters();
 
         var uri = new Uri(_cfg.GatewayUrl);
         ConsoleUi.Log("gateway", $"Connecting to {uri} ...");

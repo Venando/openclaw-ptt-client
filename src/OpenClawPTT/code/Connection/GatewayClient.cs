@@ -20,9 +20,6 @@ public sealed class GatewayClient : IGatewayClient
 
     private ConnectionLifecycle? _lifecycle;
     private MessageFraming? _framing;
-    private AuthHandler? _authHandler;
-    private KeepaliveRunner? _keepalive;
-    private SessionMessageHandler? _sessionHandler;
 
     private bool _isDisposed;
 
@@ -32,7 +29,6 @@ public sealed class GatewayClient : IGatewayClient
         _dev = dev;
         _eventSource = eventSource;
         _lifecycle = new ConnectionLifecycle(_cfg, _dev, _eventSource);
-        _sessionHandler = new SessionMessageHandler(_eventSource, _cfg);
     }
 
     // ─── IGatewayClient properties ──────────────────────────────────
@@ -53,16 +49,11 @@ public sealed class GatewayClient : IGatewayClient
     {
         ThrowIfDisposed();
 
-        // lifecycle and _sessionHandler were created in constructor for testability.
-        // Just run ConnectAsync on the lifecycle (which creates real _framing internally).
-        _authHandler = new AuthHandler(_dev, _cfg);
-
+        // lifecycle was created in constructor for testability.
+        // ConnectAsync internally manages keepalive (reads tickIntervalMs from server hello).
         await _lifecycle.ConnectAsync(ct);
 
         _framing = _lifecycle.GetFraming();
-        _keepalive = new KeepaliveRunner(_framing.GetSender(), _cfg);
-
-        _keepalive.Start(15_000, ct);
     }
 
     // ─── disconnect ─────────────────────────────────────────────────
@@ -70,7 +61,6 @@ public sealed class GatewayClient : IGatewayClient
     public async Task DisconnectAsync(CancellationToken ct)
     {
         ThrowIfDisposed();
-        _keepalive?.Stop();
         await (_lifecycle?.DisconnectAsync(ct) ?? Task.CompletedTask);
     }
 
@@ -148,11 +138,11 @@ public sealed class GatewayClient : IGatewayClient
     }
 
     /// <summary>Strips audio tags — exposes private static for testing.</summary>
-    internal static string TestStripAudioTags(string text) => SessionMessageHandler.TestStripAudioTags(text);
+    internal static string TestStripAudioTags(string text) => ConnectionLifecycle.TestStripAudioTags(text);
 
-    /// <summary>Extracts marked content — exposes private instance method for testing.</summary>
+    /// <summary>Extracts marked content — exposes internal method on lifecycle for testing.</summary>
     internal (bool hasAudio, bool hasText, string audioText, string textContent) TestExtractMarkedContent(string fullMessage)
-        => _sessionHandler?.TestExtractMarkedContent(fullMessage)
+        => _lifecycle?.TestExtractMarkedContent(fullMessage)
            ?? (false, false, "", "");
 
     // ─── helpers ─────────────────────────────────────────────────────
@@ -170,12 +160,7 @@ public sealed class GatewayClient : IGatewayClient
         if (_isDisposed) return;
         _isDisposed = true;
 
-        _keepalive?.Stop();
         _lifecycle?.Dispose();
-        _sessionHandler = null;
-        _keepalive = null;
-        _authHandler?.Dispose();
-        _authHandler = null;
         _framing = null;
         _lifecycle = null;
     }
