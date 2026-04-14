@@ -76,6 +76,7 @@ public sealed class GatewayService : IGatewayService
                 AgentToolCall?.Invoke(toolName, arguments);
             };
 
+            // Audio is wired unconditionally — audio content (TTS) is independent of display mode
             events.AgentReplyAudio += audioText =>
             {
                 _uiAdapter.OnAgentReplyAudio(audioText);

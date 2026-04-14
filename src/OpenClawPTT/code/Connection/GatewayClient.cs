@@ -19,7 +19,6 @@ public sealed class GatewayClient : IGatewayClient
     private readonly IGatewayEventSource _eventSource;
 
     private ConnectionLifecycle? _lifecycle;
-    private MessageFraming? _framing;
 
     private bool _isDisposed;
 
@@ -52,8 +51,6 @@ public sealed class GatewayClient : IGatewayClient
         // lifecycle was created in constructor for testability.
         // ConnectAsync internally manages keepalive (reads tickIntervalMs from server hello).
         await _lifecycle.ConnectAsync(ct);
-
-        _framing = _lifecycle.GetFraming();
     }
 
     // ─── disconnect ─────────────────────────────────────────────────
@@ -79,7 +76,7 @@ public sealed class GatewayClient : IGatewayClient
             ["idempotencyKey"] = Guid.NewGuid().ToString(),
             ["message"] = body
         };
-        return await _framing!.SendRequestAsync("chat.send", chatParams, ct);
+        return await _lifecycle.GetFraming().SendRequestAsync("chat.send", chatParams, ct);
     }
 
     /// <summary>
@@ -108,7 +105,7 @@ public sealed class GatewayClient : IGatewayClient
                 ["message"] = $"file://{tempPath}",
             };
 
-            return await _framing!.SendRequestAsync("chat.send", chatParams, ct);
+            return await _lifecycle.GetFraming().SendRequestAsync("chat.send", chatParams, ct);
         }
         finally
         {
@@ -122,7 +119,7 @@ public sealed class GatewayClient : IGatewayClient
         ThrowIfDisposed();
         if (_lifecycle == null || !_lifecycle.IsConnected)
             throw new InvalidOperationException("Not connected. Call ConnectAsync first.");
-        return await _framing!.SendRequestAsync(eventName, parameters, ct);
+        return await _lifecycle.GetFraming().SendRequestAsync(eventName, parameters, ct);
     }
 
     // ─── recreate ───────────────────────────────────────────────────
@@ -137,7 +134,7 @@ public sealed class GatewayClient : IGatewayClient
         // GatewayService.RecreateWithConfig disposes and recreates us.
     }
 
-    // ─── test support ────────────────────────────────────────────────────────
+    // ─── test support ───────────────────────────────────────────────────────
 
     /// <summary>Processes a full session.message event JSON string for testing.</summary>
     internal void TestHandleSessionMessage(string eventJson)
@@ -177,7 +174,6 @@ public sealed class GatewayClient : IGatewayClient
         _isDisposed = true;
 
         _lifecycle?.Dispose();
-        _framing = null;
         _lifecycle = null;
     }
 }
