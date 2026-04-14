@@ -215,10 +215,10 @@ public sealed class ConnectionLifecycle
         {
             if (_cfg.LogHello)
             {
-                string prettySpanshot = JsonSerializer.Serialize(snapshot, options);
+                string prettySnapshot = JsonSerializer.Serialize(snapshot, options);
                 Console.ForegroundColor = ConsoleColor.Magenta;
                 Console.WriteLine("--- SERVER SNAPSHOT PAYLOAD ---");
-                Console.WriteLine(prettySpanshot);
+                Console.WriteLine(prettySnapshot);
                 Console.WriteLine("----------------------------");
                 Console.ResetColor();
             }
@@ -415,6 +415,9 @@ public sealed class ConnectionLifecycle
         if (!messageEl.TryGetProperty("content", out var contentEl)) return;
         if (contentEl.ValueKind != JsonValueKind.Array) return;
 
+        // In realtime mode, HandleAgentStream owns the delta lifecycle (phase=start/end).
+        // HandleSessionMessage fires content events only — no double delta framing.
+        bool emitDelta = !_cfg.RealTimeReplyOutput;
         bool startFired = false;
 
         foreach (var block in contentEl.EnumerateArray())
@@ -443,7 +446,7 @@ public sealed class ConnectionLifecycle
                     var (hasAudio, hasText, audioText, textContent) = ExtractMarkedContent(text);
                     if (hasAudio)
                         _events.RaiseAgentReplyAudio(audioText);
-                    if (!startFired)
+                    if (emitDelta && !startFired)
                     {
                         _events.RaiseAgentReplyDeltaStart();
                         startFired = true;
@@ -459,7 +462,7 @@ public sealed class ConnectionLifecycle
                 var audioText = audioEl.GetString() ?? string.Empty;
                 if (!string.IsNullOrEmpty(audioText))
                 {
-                    if (!startFired)
+                    if (emitDelta && !startFired)
                     {
                         _events.RaiseAgentReplyDeltaStart();
                         startFired = true;
@@ -473,7 +476,7 @@ public sealed class ConnectionLifecycle
             }
         }
 
-        if (startFired)
+        if (emitDelta && startFired)
             _events.RaiseAgentReplyDeltaEnd();
     }
 
