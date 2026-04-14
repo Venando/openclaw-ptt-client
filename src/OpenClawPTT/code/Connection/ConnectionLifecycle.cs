@@ -17,7 +17,7 @@ public sealed class ConnectionLifecycle
 
     private IClientWebSocket _ws = null!;
     private CancellationTokenSource? _tickCts;
-    private Task? _recvTask;
+    private ReceivePump _receivePump = null!;
 
     private readonly SemaphoreSlim _reconnectLock = new SemaphoreSlim(1, 1);
     private bool _isReconnecting = false;
@@ -61,12 +61,13 @@ public sealed class ConnectionLifecycle
 
     // ─── test support ──────────────────────────────────────────────
 
-    internal void TestProcessFrame(string json) => ProcessFrame(json);
-
     internal void TestHandleEvent(string eventJson)
     {
         using var doc = JsonDocument.Parse(eventJson);
-        HandleEvent(doc.RootElement);
+        var root = doc.RootElement;
+        var name = root.GetProperty("event").GetString()!;
+        var payload = root.TryGetProperty("payload", out var p) ? p.Clone() : default;
+        HandleEvent(name, payload);
     }
 
     internal void TestHandleSessionMessage(string payloadJson)
@@ -109,7 +110,9 @@ public sealed class ConnectionLifecycle
         ConsoleUi.Log("gateway", "WebSocket open.");
 
         // start receive pump
-        _recvTask = Task.Run(() => ReceiveLoop(linkedCt), linkedCt);
+        _receivePump = new ReceivePump(_ws, _framing, _handler);
+        _receivePump.OnEvent = HandleEvent;
+        _receivePump.Start(linkedCt);
 
         // ── 1. wait for connect.challenge ──
         ConsoleUi.Log("gateway", "Waiting for connect.challenge ...");
@@ -286,105 +289,12 @@ public sealed class ConnectionLifecycle
 
     // ─── receive pump ───────────────────────────────────────────────
 
-    private async Task ReceiveLoop(CancellationToken ct)
+    private void HandleEvent(string eventName, JsonElement payload)
     {
-        var buf = new byte[256 * 1024];
-
-        try
-        {
-            while (!ct.IsCancellationRequested && _ws.State == WebSocketState.Open)
-            {
-                using var ms = new MemoryStream();
-                WebSocketReceiveResult result;
-                do
-                {
-                    result = await _ws.ReceiveAsync(buf, ct);
-                    if (result.MessageType == WebSocketMessageType.Close)
-                    {
-                        ConsoleUi.Log("gateway", "Server closed connection.");
-                        _ = HandleDisconnectionAsync(ct);
-                        return;
-                    }
-                    ms.Write(buf, 0, result.Count);
-
-                    if (result.Count == buf.Length)
-                        ConsoleUi.LogError("gateway", $"WARNING: fragment filled buffer ({buf.Length} bytes) — consider increasing buffer size");
-
-                } while (!result.EndOfMessage);
-
-                var json = Encoding.UTF8.GetString(ms.ToArray());
-
-                ProcessFrame(json);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Cancellation is orchestrated from above (via _disposeCts linked token).
-            // No reconnection needed — dispose path handles cleanup.
-        }
-        catch (WebSocketException ex)
-        {
-            ConsoleUi.LogError("gateway", $"WebSocket error: {ex.Message}");
-            _ = HandleDisconnectionAsync(ct);
-        }
-        catch (Exception ex)
-        {
-            ConsoleUi.LogError("gateway", $"ReceiveLoop unexpected error: {ex.GetType().Name}: {ex.Message}");
-            _ = HandleDisconnectionAsync(ct);
-        }
-    }
-
-    private void ProcessFrame(string json)
-    {
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        var type = root.GetProperty("type").GetString();
-
-        switch (type)
-        {
-            case "res":
-                HandleResponse(root);
-                break;
-            case "event":
-                HandleEvent(root);
-                break;
-        }
-    }
-
-    private void HandleResponse(JsonElement root)
-    {
-        var id = root.GetProperty("id").GetString()!;
-        if (!_framing.TryRemovePending(id, out var tcs))
-            return;
-
-        var ok = root.GetProperty("ok").GetBoolean();
-        if (ok)
-        {
-            tcs.SetResult(root.TryGetProperty("payload", out var p)
-                ? p.Clone()
-                : default);
-        }
-        else
-        {
-            var err = root.TryGetProperty("error", out var e)
-                ? e.Clone().ToString()
-                : "unknown error";
-            tcs.SetException(new GatewayException(err, root.Clone()));
-        }
-    }
-
-    private void HandleEvent(JsonElement root)
-    {
-        var name = root.GetProperty("event").GetString()!;
-        var payload = root.TryGetProperty("payload", out var p) ? p.Clone() : default;
-
-        if (_framing != null)
-            _framing.ResolveEventWaiter(name, payload);
-
-        switch (name)
+        switch (eventName)
         {
             case "session.message":
-                _events.RaiseEventReceived(name, payload);
+                _events.RaiseEventReceived(eventName, payload);
                 var r = _handler.HandleSessionMessage(payload);
                 if (r.HasAudio) _events.RaiseAgentReplyAudio(r.AudioText);
                 if (r.HasText) _events.RaiseAgentReplyFull(r.TextContent);
@@ -392,19 +302,19 @@ public sealed class ConnectionLifecycle
                 if (!string.IsNullOrEmpty(r.ToolCallName)) _events.RaiseAgentToolCall(r.ToolCallName, r.ToolCallArgs ?? "");
                 return;
             case "agent":
-                _events.RaiseEventReceived(name, payload);
+                _events.RaiseEventReceived(eventName, payload);
                 _handler.HandleAgentStream(payload); // realtime-only, no events needed from return
                 return;
             case "chat":
-                _events.RaiseEventReceived(name, payload);
+                _events.RaiseEventReceived(eventName, payload);
                 _handler.HandleChatFinal(payload);
                 return;
             case "exec.approval.requested":
-                _events.RaiseEventReceived(name, payload);
+                _events.RaiseEventReceived(eventName, payload);
                 _ = _handler.HandleApprovalRequest(payload);
                 return;
             default:
-                _events.RaiseEventReceived(name, payload);
+                _events.RaiseEventReceived(eventName, payload);
                 return;
         }
     }
@@ -567,7 +477,7 @@ public sealed class ConnectionLifecycle
 
         _tickCts?.Cancel();
         _tickCts?.Dispose();
-        _recvTask?.Wait(TimeSpan.FromSeconds(3));
+        _receivePump?.Dispose();
 
         if (_ws != null && _ws.State == WebSocketState.Open)
         {
