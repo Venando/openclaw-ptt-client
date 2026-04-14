@@ -82,8 +82,12 @@ public sealed class ConnectionLifecycle
 
     public async Task ConnectAsync(CancellationToken ct)
     {
-        // Clean up any existing connection before reconnecting
-        await DisposeConnection(ct);
+        // Prevent concurrent connect attempts (two connects would leak sockets)
+        await _reconnectLock.WaitAsync(ct);
+        try
+        {
+            // Clean up any existing connection before reconnecting
+            await DisposeConnection(ct);
 
         // TODO: Accept IClientWebSocket via constructor for testability (PR #37)
         _ws = new ClientWebSocketAdapter();
@@ -244,6 +248,8 @@ public sealed class ConnectionLifecycle
         await SendRequestAsync("sessions.subscribe", subscribeParams, linkedCt);
         }
         finally { linkCts.Dispose(); }
+        }
+        finally { _reconnectLock.Release(); }
     }
 
     private void LogMessage(Dictionary<string, object?> parameters)
@@ -781,6 +787,10 @@ public sealed class ConnectionLifecycle
             catch { /* best effort */ }
         }
         _ws?.Dispose();
+
+        // Clean up any in-flight send/request TCS to prevent tasks hanging forever
+        _framing?.ClearPendingRequests();
+        _framing?.ClearEventWaiters();
 
         _reconnectLock.Dispose();
         try { _disposeCts.Dispose(); } catch (ObjectDisposedException) { /* already disposed */ }
