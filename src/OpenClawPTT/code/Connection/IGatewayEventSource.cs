@@ -13,4 +13,13 @@ public interface IGatewayEventSource
     event Action<string>? AgentThinking;
     event Action<string, string>? AgentToolCall;
     event Action<string>? AgentReplyAudio;
+
+    // Raise helpers — allows external callers to fire events without violating C# event-access rules
+    void RaiseAgentThinking(string thinking);
+    void RaiseAgentToolCall(string toolName, string arguments);
+    void RaiseAgentReplyAudio(string audioText);
+    void RaiseAgentReplyDeltaStart();
+    void RaiseAgentReplyDeltaEnd();
+    void RaiseAgentReplyFull(string text);
+    void RaiseAgentReplyDelta(string chunk);
 }
