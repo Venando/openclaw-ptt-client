@@ -6,8 +6,8 @@ using Xunit;
 namespace OpenClawPTT.Tests.Gateway;
 
 /// <summary>
-/// Note: MessageFraming is sealed and cannot be mocked with Moq.
-/// These tests use a real MessageFraming instance as the factory result to validate
+/// Note: MessageFraming is not sealed and has virtual members — it can be subclassed
+/// for testing, but these tests use a real instance as the factory result to validate
 /// that factory injection works correctly (GetFraming returns the provided instance).
 /// </summary>
 public class GatewayMessagerTests : IDisposable
