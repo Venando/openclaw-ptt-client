@@ -43,10 +43,11 @@ public sealed class AppBootstrapper : IDisposable
 
         try
         {
+            // Start StreamShell UI (non-blocking)
+            _ = Task.Run(() => _shellHost.Run(), _cts.Token);
+
             var cfg = await _configService.LoadOrSetupAsync(_shellHost);
 
-            // Start StreamShell UI (non-blocking)
-            _shellHost.Run();
 
             using var runner = _runnerFactory(cfg, _factory);
             runnerExitCode = await runner.RunAsync(_cts.Token);
