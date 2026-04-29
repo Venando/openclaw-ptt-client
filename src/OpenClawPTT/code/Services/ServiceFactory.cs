@@ -10,17 +10,19 @@ public sealed class ServiceFactory : IServiceFactory
     private readonly IConfigurationService _configService;
     private readonly IConsoleOutput _console;
     private readonly IMessageComposer _composer;
+    private readonly IStreamShellHost _shellHost;
 
     public ServiceFactory(IConfigurationService configService)
-        : this(configService, new ConsoleUiOutput(), new MessageComposer())
+        : this(configService, new ConsoleUiOutput(), new MessageComposer(), new StreamShellHost())
     {
     }
 
-    public ServiceFactory(IConfigurationService configService, IConsoleOutput console, IMessageComposer composer)
+    public ServiceFactory(IConfigurationService configService, IConsoleOutput console, IMessageComposer composer, IStreamShellHost shellHost)
     {
         _configService = configService;
         _console = console;
         _composer = composer;
+        _shellHost = shellHost;
     }
 
     public IGatewayService CreateGatewayService(AppConfig cfg) => new GatewayService(cfg);
@@ -35,7 +37,7 @@ public sealed class ServiceFactory : IServiceFactory
     }
 
     public IInputHandler CreateInputHandler(ITextMessageSender textSender)
-        => new InputHandler(textSender, _configService, _console);
+        => new InputHandler(textSender, _configService, _console, _shellHost);
 
     public ITextMessageSender CreateTextMessageSender(IGatewayService gateway)
         => new TextMessageSender(gateway, _configService, _console, _composer);

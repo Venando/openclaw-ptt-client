@@ -9,12 +9,14 @@ public sealed class InputHandler : IInputHandler
     private readonly ITextMessageSender _textSender;
     private readonly IConfigurationService _configService;
     private readonly IConsoleOutput _console;
+    private readonly IStreamShellHost _shellHost;
 
-    public InputHandler(ITextMessageSender textSender, IConfigurationService configService, IConsoleOutput console)
+    public InputHandler(ITextMessageSender textSender, IConfigurationService configService, IConsoleOutput console, IStreamShellHost shellHost)
     {
         _textSender = textSender;
         _configService = configService;
         _console = console;
+        _shellHost = shellHost;
     }
     
     public async Task<InputResult> HandleInputAsync(CancellationToken ct)
@@ -73,7 +75,7 @@ public sealed class InputHandler : IInputHandler
         var currentCfg = _configService.Load();
         if (currentCfg != null)
         {
-            await _configService.ReconfigureAsync(currentCfg, ct);
+            await _configService.ReconfigureAsync(_shellHost, currentCfg, ct);
             _console.PrintSuccess("Configuration updated. Reconnecting...\n");
             return InputResult.Restart;
         }

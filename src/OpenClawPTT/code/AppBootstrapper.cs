@@ -11,6 +11,7 @@ public sealed class AppBootstrapper : IDisposable
     private readonly IConsole _console;
     private readonly IServiceFactory _factory;
     private readonly IConfigurationService _configService;
+    private readonly IStreamShellHost _shellHost;
     private readonly Func<AppConfig, IServiceFactory, AppRunner> _runnerFactory;
     private CancellationTokenSource? _cts;
 
@@ -18,11 +19,13 @@ public sealed class AppBootstrapper : IDisposable
         IConsole console,
         IConfigurationService configService,
         IServiceFactory factory,
+        IStreamShellHost? shellHost = null,
         Func<AppConfig, IServiceFactory, AppRunner>? runnerFactory = null)
     {
         _console = console;
         _configService = configService;
         _factory = factory;
+        _shellHost = shellHost ?? new StreamShellHost();
         _runnerFactory = runnerFactory ?? ((cfg, f) => new AppRunner(cfg, f));
     }
 
@@ -40,7 +43,11 @@ public sealed class AppBootstrapper : IDisposable
 
         try
         {
-            var cfg = await _configService.LoadOrSetupAsync();
+            var cfg = await _configService.LoadOrSetupAsync(_shellHost);
+
+            // Start StreamShell UI (non-blocking)
+            _shellHost.Run();
+
             using var runner = _runnerFactory(cfg, _factory);
             runnerExitCode = await runner.RunAsync(_cts.Token);
         }

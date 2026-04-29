@@ -10,11 +10,13 @@ internal static class Program
         IConsole console = new SystemConsole();
         IConfigurationService configService = new ConfigurationService();
         var factory = new ServiceFactory(configService);
+        var shellHost = new StreamShellHost();
 
-        var bootstrapper = new AppBootstrapper(console, configService, factory);
+        var bootstrapper = new AppBootstrapper(console, configService, factory, shellHost);
         var exitCode = await bootstrapper.RunAsync(cts.Token);
 
         bootstrapper.Dispose();
+        shellHost.Dispose();
         cts.Dispose();
 
         return exitCode;
