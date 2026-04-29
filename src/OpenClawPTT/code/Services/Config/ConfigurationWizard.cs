@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
+using Spectre.Console;
 
 namespace OpenClawPTT;
 
@@ -153,7 +154,7 @@ public sealed class ConfigurationWizard
         var label = GetLabel(step);
         var defaultVal = GetDefaultValue(step);
         var def = string.IsNullOrEmpty(defaultVal) ? "" : $" [{defaultVal}]";
-        _host?.AddMessage($"[yellow]{label}{def}:[/]");
+        _host?.AddMessage($"[yellow]{label}[grey]{Markup.Escape(def)}[/]:[/]");
     }
 
     private static string GetLabel(Step step) => step switch

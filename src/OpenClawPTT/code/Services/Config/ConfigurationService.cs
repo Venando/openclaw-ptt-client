@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
+using Spectre.Console;
 using System.Threading.Tasks;
 
 namespace OpenClawPTT.Services;
@@ -43,7 +43,7 @@ public class ConfigurationService : IConfigurationService
         {
             shellHost.AddMessage("[yellow]Configuration issues detected:[/]");
             foreach (var i in issues)
-                shellHost.AddMessage($"  [grey]• {i}[/]");
+                shellHost.AddMessage($"  [grey]• {Markup.Escape(i)}[/]");
         }
 
         if (needsSetup)
