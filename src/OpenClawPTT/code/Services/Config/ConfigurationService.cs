@@ -29,7 +29,7 @@ public class ConfigurationService : IConfigurationService
 
         if (cfg is null)
         {
-            shellHost.AddMessage("[yellow]No configuration found — starting first-time setup.[/]");
+            shellHost.AddMessage("[cyan2]No configuration found — starting first-time setup.[/]");
             cfg = await _wizard.RunSetupAsync(shellHost);
             _storage.Save(cfg);
             shellHost.AddMessage("[green]Configuration saved.[/]");
@@ -41,7 +41,7 @@ public class ConfigurationService : IConfigurationService
 
         if (issues.Count > 0)
         {
-            shellHost.AddMessage("[yellow]Configuration issues detected:[/]");
+            shellHost.AddMessage("[cyan2]Configuration issues detected:[/]");
             foreach (var i in issues)
                 shellHost.AddMessage($"  [grey]• {Markup.Escape(i)}[/]");
         }
@@ -49,9 +49,9 @@ public class ConfigurationService : IConfigurationService
         if (needsSetup)
         {
             if (forceReconfigure)
-                shellHost.AddMessage("[yellow]Starting setup wizard...[/]");
+                shellHost.AddMessage("[cyan2]Starting setup wizard...[/]");
             else
-                shellHost.AddMessage("[yellow]Starting setup wizard to fix missing/invalid fields...[/]");
+                shellHost.AddMessage("[cyan2]Starting setup wizard to fix missing/invalid fields...[/]");
 
             cfg = await _wizard.RunSetupAsync(shellHost, cfg);
             _storage.Save(cfg);
@@ -63,7 +63,7 @@ public class ConfigurationService : IConfigurationService
 
     public async Task<AppConfig> ReconfigureAsync(IStreamShellHost shellHost, AppConfig existing, CancellationToken ct)
     {
-        shellHost.AddMessage("[yellow]Starting setup wizard...[/]");
+        shellHost.AddMessage("[cyan2]Starting setup wizard...[/]");
 
         AppConfig newCfg;
         try

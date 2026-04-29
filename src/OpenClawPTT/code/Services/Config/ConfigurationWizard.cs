@@ -35,12 +35,21 @@ public sealed class ConfigurationWizard
         Done
     }
 
+    /// <summary>Fields whose stored value should be masked in confirmation messages.</summary>
+    private static readonly HashSet<Step> _secretSteps = new()
+    {
+        Step.GroqApiKey,
+        Step.TtsApiKey,
+        Step.AuthToken,
+    };
+
     private IStreamShellHost? _host;
     private AppConfig? _existing;
     private AppConfig _config = new();
     private Step _currentStep = Step.GatewayUrl;
     private TaskCompletionSource<AppConfig>? _tcs;
     private CancellationTokenRegistration? _ctReg;
+    private bool _isFirstPrompt = true;
 
     public Task<AppConfig> RunSetupAsync(IStreamShellHost host, AppConfig? existing = null, CancellationToken ct = default)
     {
@@ -49,6 +58,7 @@ public sealed class ConfigurationWizard
         _config = existing != null ? Clone(existing) : new AppConfig();
         _currentStep = Step.GatewayUrl;
         _tcs = new TaskCompletionSource<AppConfig>();
+        _isFirstPrompt = true;
 
         if (ct.CanBeCanceled)
         {
@@ -76,27 +86,9 @@ public sealed class ConfigurationWizard
         // Empty input accepts the default value (unless it's an optional blank field)
         if (string.IsNullOrEmpty(rawInput))
         {
-            if (step == Step.TlsFingerprint)
+            if (IsOptionalSkipStep(step))
             {
-                _config.TlsFingerprint = null;
-                Advance();
-                return;
-            }
-            if (step == Step.TtsApiKey)
-            {
-                _config.TtsApiKey = null;
-                Advance();
-                return;
-            }
-            if (step == Step.TtsVoiceId)
-            {
-                _config.TtsVoiceId = null;
-                Advance();
-                return;
-            }
-            if (step == Step.AuthToken)
-            {
-                _config.AuthToken = null;
+                ApplyValue(step, null!);
                 Advance();
                 return;
             }
@@ -106,12 +98,20 @@ public sealed class ConfigurationWizard
 
         if (!Validate(step, rawInput, out var parsedValue))
         {
-            _host.AddMessage("[red]Invalid value, try again.[/]");
+            var hint = GetValidationHint(step);
+            _host.AddMessage($"[red]  ✗ Invalid value.{hint}[/]");
             SendPrompt(step);
             return;
         }
 
         ApplyValue(step, parsedValue ?? rawInput);
+
+        // Show confirmation of what was set (masked for secrets)
+        var displayValue = _secretSteps.Contains(step)
+            ? MaskSecret(parsedValue ?? rawInput)
+            : parsedValue ?? rawInput;
+        _host.AddMessage($"[green]  ✓ {Markup.Escape(displayValue)}[/]");
+
         Advance();
     }
 
@@ -151,36 +151,98 @@ public sealed class ConfigurationWizard
 
     private void SendPrompt(Step step)
     {
-        var label = GetLabel(step);
+        if (!_isFirstPrompt)
+        {
+            _host?.AddMessage(""); // blank line between prompts
+        }
+        _isFirstPrompt = false;
+
+        var description = GetDescription(step);
         var defaultVal = GetDefaultValue(step);
-        var def = string.IsNullOrEmpty(defaultVal) ? "" : $" [{defaultVal}]";
-        _host?.AddMessage($"[yellow]{label}[grey]{Markup.Escape(def)}[/]:[/]");
+        var hasDefault = !string.IsNullOrEmpty(defaultVal);
+
+        // Show description with a short hint
+        _host?.AddMessage($"[cyan2]▸ {Markup.Escape(description)}[/]");
+
+        if (hasDefault)
+        {
+            var displayDefault = _secretSteps.Contains(step)
+                ? MaskSecret(defaultVal)
+                : defaultVal;
+            _host?.AddMessage($"  [grey](current: {Markup.Escape(displayDefault)}, press Enter to keep)[/]");
+        }
     }
 
-    private static string GetLabel(Step step) => step switch
+    /// <summary>Whether entering nothing skips this optional field entirely.</summary>
+    private static bool IsOptionalSkipStep(Step step) => step switch
     {
-        Step.GatewayUrl => "Gateway URL",
-        Step.AuthToken => "Auth token (OPENCLAW_GATEWAY_TOKEN)",
-        Step.TlsFingerprint => "TLS cert fingerprint (blank to skip pinning)",
-        Step.GroqApiKey => "Groq API key",
-        Step.Locale => "Locale",
-        Step.SampleRate => "Audio sample rate",
-        Step.MaxRecordSeconds => "Max recording seconds",
-        Step.RealTimeReplyOutput => "Real-time reply output",
-        Step.AgentName => "Agent name (shown in reply prefix)",
-        Step.HotkeyCombination => "Hotkey combination (e.g., Alt+=, Ctrl+Shift+Space)",
-        Step.HoldToTalk => "Hold-to-talk mode (true/false)",
-        Step.TranscriptionPromptPrefix => "Transcription prompt prefix",
-        Step.VisualFeedbackEnabled => "Visual feedback enabled (true/false)",
-        Step.VisualFeedbackPosition => "Visual feedback position (TopLeft, TopRight, BottomLeft, BottomRight)",
-        Step.VisualFeedbackSize => "Visual feedback dot size (pixels)",
-        Step.VisualFeedbackOpacity => "Visual feedback opacity (0.0 to 1.0)",
-        Step.VisualFeedbackColor => "Visual feedback color (hex #RRGGBB)",
-        Step.VisualFeedbackRimThickness => "Visual feedback rim thickness (0 = off, 1-50 pixels)",
-        Step.AudioResponseMode => "Audio response mode (text-only, audio-only, both)",
-        Step.TtsApiKey => "ElevenLabs API key (optional, for audio responses)",
+        Step.TlsFingerprint => true,
+        Step.TtsApiKey => true,
+        Step.TtsVoiceId => true,
+        Step.AuthToken => true,
+        _ => false
+    };
+
+    private static string MaskSecret(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return "(not set)";
+        if (value.Length <= 4)
+            return new string('*', value.Length);
+        // Show first 4 + mask
+        return value[..4] + new string('*', Math.Min(value.Length - 4, 12));
+    }
+
+    private static string GetDescription(Step step) => step switch
+    {
+        Step.GatewayUrl => "Gateway URL", // No extra hint — wss:// is well known
+        Step.AuthToken => "Auth token (OPENCLAW_GATEWAY_TOKEN env)",
+        Step.TlsFingerprint => "TLS cert fingerprint (optional, for wss:// pinning)",
+        Step.GroqApiKey => "Groq API key (starts with gsk_)",
+        Step.Locale => "Locale (e.g. en-US, ja-JP, ru-RU)",
+        Step.SampleRate => "Audio sample rate (8000–48000 Hz)",
+        Step.MaxRecordSeconds => "Max recording length (5–600 seconds)",
+        Step.RealTimeReplyOutput => "Real-time reply streaming (true/false)",
+        Step.AgentName => "Your name (shown as reply prefix)",
+        Step.HotkeyCombination => "PTT hotkey (e.g. Alt+= or Ctrl+Shift+Space)",
+        Step.HoldToTalk => "Hold-to-talk (true = hold down, false = toggle)",
+        Step.TranscriptionPromptPrefix => "Transcription context prefix",
+        Step.VisualFeedbackEnabled => "Show visual feedback indicator (true/false)",
+        Step.VisualFeedbackPosition => "Feedback position (TopLeft / TopRight / BottomLeft / BottomRight)",
+        Step.VisualFeedbackSize => "Feedback dot size (1–200 pixels)",
+        Step.VisualFeedbackOpacity => "Feedback opacity (0.0 transparent – 1.0 solid)",
+        Step.VisualFeedbackColor => "Feedback color (hex e.g. #00FF00)",
+        Step.VisualFeedbackRimThickness => "Feedback rim (0 = off, 1–50 pixels)",
+        Step.AudioResponseMode => "Audio response mode (text-only / audio-only / both)",
+        Step.TtsApiKey => "ElevenLabs API key (optional blank)",
         Step.TtsVoiceId => "ElevenLabs voice ID",
-        _ => throw new ArgumentOutOfRangeException(nameof(step), step, null)
+        _ => step.ToString()
+    };
+
+    private static string GetValidationHint(Step step) => step switch
+    {
+        Step.GatewayUrl => " Expected ws:// or wss:// URL (e.g. ws://localhost:18789)",
+        Step.AuthToken => "",
+        Step.TlsFingerprint => "",
+        Step.GroqApiKey => " Must start with gsk_",
+        Step.Locale => " At least 2 characters (e.g. en-US)",
+        Step.SampleRate => " Expected a number between 8000 and 48000",
+        Step.MaxRecordSeconds => " Expected a number between 5 and 600",
+        Step.RealTimeReplyOutput => " Expected true or false",
+        Step.AgentName => " Cannot be empty",
+        Step.HotkeyCombination => " Expected format like Alt+= or Ctrl+Shift+Space",
+        Step.HoldToTalk => " Expected true or false",
+        Step.TranscriptionPromptPrefix => " Cannot be empty",
+        Step.VisualFeedbackEnabled => " Expected true or false",
+        Step.VisualFeedbackPosition => " Choose: TopLeft, TopRight, BottomLeft, or BottomRight",
+        Step.VisualFeedbackSize => " Expected a number between 1 and 200",
+        Step.VisualFeedbackOpacity => " Expected a number between 0.0 and 1.0",
+        Step.VisualFeedbackColor => " Expected hex color like #00FF00",
+        Step.VisualFeedbackRimThickness => " Expected a number between 0 and 50",
+        Step.AudioResponseMode => " Choose: text-only, audio-only, or both",
+        Step.TtsApiKey => "",
+        Step.TtsVoiceId => "",
+        _ => ""
     };
 
     private string GetDefaultValue(Step step) => step switch

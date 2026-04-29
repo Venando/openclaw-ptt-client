@@ -15,9 +15,10 @@ public class ConfigurationWizardTests
 
         _ = wizard.RunSetupAsync(host);
 
-        Assert.Single(host.Messages);
-        Assert.Contains("Gateway URL", host.Messages[0]);
-        Assert.Contains("[yellow]", host.Messages[0]);
+        // First message is the prompt description + the current value hint (AppConfig has defaults)
+        Assert.Equal(2, host.Messages.Count);
+        Assert.Contains("▸ Gateway URL", host.Messages[0]);
+        Assert.Contains("[cyan2]", host.Messages[0]);
     }
 
     [Fact]
@@ -105,17 +106,20 @@ public class ConfigurationWizardTests
 
         var task = wizard.RunSetupAsync(host);
 
-        // First prompt is GatewayUrl
-        Assert.Single(host.Messages);
-        var firstPrompt = host.Messages[0];
+        // First prompt: description + current value hint (AppConfig has default GatewayUrl)
+        Assert.Equal(2, host.Messages.Count);
+        var firstPromptDescription = host.Messages[0];
+        var firstPromptHint = host.Messages[1];
 
         // Submit invalid input
         host.SubmitInput("not-a-valid-url");
 
-        // Should have error message + repeated prompt
-        Assert.Equal(3, host.Messages.Count);
-        Assert.Equal("[red]Invalid value, try again.[/]", host.Messages[1]);
-        Assert.Equal(firstPrompt, host.Messages[2]);
+        // Should have: validation error + repeated prompt (blank separator + description + hint)
+        Assert.Equal(6, host.Messages.Count);
+        Assert.Contains("[red]  ✗ Invalid value.", host.Messages[2]);
+        Assert.Equal(firstPromptDescription, host.Messages[4]);
+        Assert.Equal("", host.Messages[3]); // blank separator
+        Assert.Equal(firstPromptHint, host.Messages[5]);
 
         // Now submit valid input to complete the test cleanly
         host.SubmitInput("ws://localhost:18789");
