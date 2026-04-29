@@ -83,6 +83,18 @@ public sealed class ConfigurationWizard
         var rawInput = input.Trim();
         var step = _currentStep;
 
+        // "--" means clear the field (set to empty string)
+        if (rawInput == "--")
+        {
+            if (IsClearableField(step))
+            {
+                ApplyValue(step, "");
+                _host.AddMessage($"[green]  ✓ (cleared)[/]");
+                Advance();
+                return;
+            }
+        }
+
         // Empty input accepts the default value (unless it's an optional blank field)
         if (string.IsNullOrEmpty(rawInput))
         {
@@ -183,6 +195,14 @@ public sealed class ConfigurationWizard
         _ => false
     };
 
+    /// <summary>Fields that can be cleared by typing -- (set to empty string instead of keeping default).</summary>
+    private static bool IsClearableField(Step step) => step switch
+    {
+        Step.TranscriptionPromptPrefix => true,
+        Step.AgentName => true,
+        _ => false
+    };
+
     private static string MaskSecret(string value)
     {
         if (string.IsNullOrEmpty(value))
@@ -203,10 +223,10 @@ public sealed class ConfigurationWizard
         Step.SampleRate => "Audio sample rate (8000–48000 Hz)",
         Step.MaxRecordSeconds => "Max recording length (5–600 seconds)",
         Step.RealTimeReplyOutput => "Real-time reply streaming (true/false)",
-        Step.AgentName => "Your name (shown as reply prefix)",
+        Step.AgentName => "Your name, shown as reply prefix (-- to clear)",
         Step.HotkeyCombination => "PTT hotkey (e.g. Alt+= or Ctrl+Shift+Space)",
         Step.HoldToTalk => "Hold-to-talk (true = hold down, false = toggle)",
-        Step.TranscriptionPromptPrefix => "Transcription context prefix",
+        Step.TranscriptionPromptPrefix => "Transcription context prefix (-- to clear)",
         Step.VisualFeedbackEnabled => "Show visual feedback indicator (true/false)",
         Step.VisualFeedbackPosition => "Feedback position (TopLeft / TopRight / BottomLeft / BottomRight)",
         Step.VisualFeedbackSize => "Feedback dot size (1–200 pixels)",
@@ -232,7 +252,7 @@ public sealed class ConfigurationWizard
         Step.AgentName => " Cannot be empty",
         Step.HotkeyCombination => " Expected format like Alt+= or Ctrl+Shift+Space",
         Step.HoldToTalk => " Expected true or false",
-        Step.TranscriptionPromptPrefix => " Cannot be empty",
+        Step.TranscriptionPromptPrefix => " Cannot be empty (or -- to clear)",
         Step.VisualFeedbackEnabled => " Expected true or false",
         Step.VisualFeedbackPosition => " Choose: TopLeft, TopRight, BottomLeft, or BottomRight",
         Step.VisualFeedbackSize => " Expected a number between 1 and 200",

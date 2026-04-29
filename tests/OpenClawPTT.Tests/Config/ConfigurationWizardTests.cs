@@ -117,8 +117,8 @@ public class ConfigurationWizardTests
         // Should have: validation error + repeated prompt (blank separator + description + hint)
         Assert.Equal(6, host.Messages.Count);
         Assert.Contains("[red]  ✗ Invalid value.", host.Messages[2]);
-        Assert.Equal(firstPromptDescription, host.Messages[4]);
         Assert.Equal("", host.Messages[3]); // blank separator
+        Assert.Equal(firstPromptDescription, host.Messages[4]);
         Assert.Equal(firstPromptHint, host.Messages[5]);
 
         // Now submit valid input to complete the test cleanly
@@ -164,5 +164,57 @@ public class ConfigurationWizardTests
 
         var config = await task;
         Assert.NotNull(config);
+    }
+
+    [Fact]
+    public async Task RunSetupAsync_DoubleDash_ClearsTextField()
+    {
+        var host = new FakeStreamShellHost();
+        var wizard = new ConfigurationWizard();
+
+        // Start with an existing config that has a prefix set
+        var existing = new AppConfig
+        {
+            GatewayUrl = "ws://localhost:18789",
+            Locale = "en-US",
+            SampleRate = 16000,
+            MaxRecordSeconds = 60,
+            AgentName = "MyAgent",
+            HotkeyCombination = "Alt+=",
+            HoldToTalk = false,
+            TranscriptionPromptPrefix = "[It's a raw speech-to-text transcription]:",
+        };
+
+        var task = wizard.RunSetupAsync(host, existing);
+
+        // Step through to AgentName (12 fields before it)
+        host.SubmitInput("ws://localhost:18789"); // GatewayUrl
+        host.SubmitInput("");                     // AuthToken
+        host.SubmitInput("gsk_testkey123");       // GroqApiKey
+        host.SubmitInput("en-US");                // Locale
+        host.SubmitInput("16000");                // SampleRate
+        host.SubmitInput("60");                   // MaxRecordSeconds
+        host.SubmitInput("true");                 // RealTimeReplyOutput
+        host.SubmitInput("--");                   // AgentName: clear it
+        host.SubmitInput("Alt+=");                // HotkeyCombination
+        host.SubmitInput("false");                // HoldToTalk
+        host.SubmitInput("--");                   // TranscriptionPromptPrefix: clear it
+
+        // Remainder of the fields (just fill with valid values)
+        host.SubmitInput("true");                 // VisualFeedbackEnabled
+        host.SubmitInput("TopLeft");              // VisualFeedbackPosition
+        host.SubmitInput("10");                   // VisualFeedbackSize
+        host.SubmitInput("0.5");                  // VisualFeedbackOpacity
+        host.SubmitInput("#00FF00");              // VisualFeedbackColor
+        host.SubmitInput("5");                    // VisualFeedbackRimThickness
+        host.SubmitInput("text-only");            // AudioResponseMode
+        host.SubmitInput("");                     // TtsApiKey
+        host.SubmitInput("");                     // TtsVoiceId
+
+        var config = await task;
+
+        Assert.NotNull(config);
+        Assert.Equal("", config.AgentName);
+        Assert.Equal("", config.TranscriptionPromptPrefix);
     }
 }
