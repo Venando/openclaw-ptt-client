@@ -1,0 +1,164 @@
+using System.Linq;
+using System.Threading.Tasks;
+using OpenClawPTT.Services;
+using Xunit;
+
+namespace OpenClawPTT.Tests.Config;
+
+public class ConfigurationWizardTests
+{
+    [Fact]
+    public async Task RunSetupAsync_SendsGatewayUrlPrompt()
+    {
+        var host = new FakeStreamShellHost();
+        var wizard = new ConfigurationWizard();
+
+        _ = wizard.RunSetupAsync(host);
+
+        Assert.Single(host.Messages);
+        Assert.Contains("Gateway URL", host.Messages[0]);
+        Assert.Contains("[yellow]", host.Messages[0]);
+    }
+
+    [Fact]
+    public async Task RunSetupAsync_ValidInputs_CompletesWithConfig()
+    {
+        var host = new FakeStreamShellHost();
+        var wizard = new ConfigurationWizard();
+
+        var task = wizard.RunSetupAsync(host);
+
+        // 1. GatewayUrl
+        host.SubmitInput("wss://localhost:18789");
+        // 2. AuthToken
+        host.SubmitInput("my-token");
+        // 3. TlsFingerprint (wss:// triggers this prompt)
+        host.SubmitInput("sha256/abc123");
+        // 4. GroqApiKey
+        host.SubmitInput("gsk_testkey123");
+        // 5. Locale
+        host.SubmitInput("en-US");
+        // 6. SampleRate
+        host.SubmitInput("16000");
+        // 7. MaxRecordSeconds
+        host.SubmitInput("120");
+        // 8. RealTimeReplyOutput
+        host.SubmitInput("true");
+        // 9. AgentName
+        host.SubmitInput("MyAgent");
+        // 10. HotkeyCombination
+        host.SubmitInput("Alt+=");
+        // 11. HoldToTalk
+        host.SubmitInput("false");
+        // 12. TranscriptionPromptPrefix
+        host.SubmitInput("[Transcribe]:");
+        // 13. VisualFeedbackEnabled
+        host.SubmitInput("true");
+        // 14. VisualFeedbackPosition
+        host.SubmitInput("TopRight");
+        // 15. VisualFeedbackSize
+        host.SubmitInput("20");
+        // 16. VisualFeedbackOpacity
+        host.SubmitInput("1.0");
+        // 17. VisualFeedbackColor
+        host.SubmitInput("#FF0000");
+        // 18. VisualFeedbackRimThickness
+        host.SubmitInput("8");
+        // 19. AudioResponseMode
+        host.SubmitInput("both");
+        // 20. TtsApiKey
+        host.SubmitInput("eleven-key");
+        // 21. TtsVoiceId
+        host.SubmitInput("voice123");
+
+        var config = await task;
+
+        Assert.NotNull(config);
+        Assert.Equal("wss://localhost:18789", config.GatewayUrl);
+        Assert.Equal("my-token", config.AuthToken);
+        Assert.Equal("sha256/abc123", config.TlsFingerprint);
+        Assert.Equal("gsk_testkey123", config.GroqApiKey);
+        Assert.Equal("en-US", config.Locale);
+        Assert.Equal(16000, config.SampleRate);
+        Assert.Equal(120, config.MaxRecordSeconds);
+        Assert.True(config.RealTimeReplyOutput);
+        Assert.Equal("MyAgent", config.AgentName);
+        Assert.Equal("Alt+=", config.HotkeyCombination);
+        Assert.False(config.HoldToTalk);
+        Assert.Equal("[Transcribe]:", config.TranscriptionPromptPrefix);
+        Assert.True(config.VisualFeedbackEnabled);
+        Assert.Equal("TopRight", config.VisualFeedbackPosition);
+        Assert.Equal(20, config.VisualFeedbackSize);
+        Assert.Equal(1.0, config.VisualFeedbackOpacity);
+        Assert.Equal("#FF0000", config.VisualFeedbackColor);
+        Assert.Equal(8, config.VisualFeedbackRimThickness);
+        Assert.Equal("both", config.AudioResponseMode);
+        Assert.Equal("eleven-key", config.TtsApiKey);
+        Assert.Equal("voice123", config.TtsVoiceId);
+    }
+
+    [Fact]
+    public async Task RunSetupAsync_InvalidInput_ResendsPrompt()
+    {
+        var host = new FakeStreamShellHost();
+        var wizard = new ConfigurationWizard();
+
+        var task = wizard.RunSetupAsync(host);
+
+        // First prompt is GatewayUrl
+        Assert.Single(host.Messages);
+        var firstPrompt = host.Messages[0];
+
+        // Submit invalid input
+        host.SubmitInput("not-a-valid-url");
+
+        // Should have error message + repeated prompt
+        Assert.Equal(3, host.Messages.Count);
+        Assert.Equal("[red]Invalid value, try again.[/]", host.Messages[1]);
+        Assert.Equal(firstPrompt, host.Messages[2]);
+
+        // Now submit valid input to complete the test cleanly
+        host.SubmitInput("ws://localhost:18789");
+        // AuthToken
+        host.SubmitInput("");
+        // GroqApiKey
+        host.SubmitInput("gsk_testkey123");
+        // Locale
+        host.SubmitInput("en");
+        // SampleRate
+        host.SubmitInput("16000");
+        // MaxRecordSeconds
+        host.SubmitInput("60");
+        // RealTimeReplyOutput
+        host.SubmitInput("true");
+        // AgentName
+        host.SubmitInput("Agent");
+        // HotkeyCombination
+        host.SubmitInput("Alt+=");
+        // HoldToTalk
+        host.SubmitInput("false");
+        // TranscriptionPromptPrefix
+        host.SubmitInput("prefix");
+        // VisualFeedbackEnabled
+        host.SubmitInput("true");
+        // VisualFeedbackPosition
+        host.SubmitInput("TopLeft");
+        // VisualFeedbackSize
+        host.SubmitInput("10");
+        // VisualFeedbackOpacity
+        host.SubmitInput("0.5");
+        // VisualFeedbackColor
+        host.SubmitInput("#00FF00");
+        // VisualFeedbackRimThickness
+        host.SubmitInput("5");
+        // AudioResponseMode
+        host.SubmitInput("text-only");
+        // TtsApiKey
+        host.SubmitInput("");
+        // TtsVoiceId
+        host.SubmitInput("");
+
+        var config = await task;
+        Assert.NotNull(config);
+    }
+}
