@@ -12,9 +12,11 @@ public class AppBootstrapperTests : IDisposable
     private readonly Mock<IConsole> _fakeConsole;
     private readonly Mock<IConfigurationService> _fakeConfig;
     private readonly Mock<IServiceFactory> _fakeFactory;
+    private readonly Mock<IStreamShellHost> _fakeShellHost;
 
     public AppBootstrapperTests()
     {
+        _fakeShellHost = new Mock<IStreamShellHost>();
         _fakeConsole = new Mock<IConsole>();
         _fakeConsole.Setup(x => x.ForegroundColor).Returns(ConsoleColor.Gray);
         _fakeConsole.Setup(x => x.OutputEncoding).Returns(Encoding.UTF8);
@@ -25,6 +27,8 @@ public class AppBootstrapperTests : IDisposable
         ConsoleUi.SetConsole(_fakeConsole.Object);
 
         _fakeConfig = new Mock<IConfigurationService>();
+        _fakeConfig.Setup(x => x.LoadOrSetupAsync(It.IsAny<IStreamShellHost>(), false))
+            .ReturnsAsync(new AppConfig());
         _fakeFactory = new Mock<IServiceFactory>();
     }
 
@@ -54,6 +58,7 @@ public class AppBootstrapperTests : IDisposable
             _fakeConsole.Object,
             _fakeConfig.Object,
             _fakeFactory.Object,
+            _fakeShellHost.Object,
             (_, _) => mockRunner.Object);
 
         var exitCode = await bootstrapper.RunAsync();
@@ -73,6 +78,7 @@ public class AppBootstrapperTests : IDisposable
             _fakeConsole.Object,
             _fakeConfig.Object,
             _fakeFactory.Object,
+            _fakeShellHost.Object,
             (_, _) => mockRunner.Object);
 
         var exitCode = await bootstrapper.RunAsync();
@@ -87,7 +93,7 @@ public class AppBootstrapperTests : IDisposable
     [Fact]
     public async Task RunAsync_ConfigLoadThrows_ReturnsExitError()
     {
-        _fakeConfig.Setup(x => x.LoadOrSetupAsync(false))
+        _fakeConfig.Setup(x => x.LoadOrSetupAsync(It.IsAny<IStreamShellHost>(), false))
             .ThrowsAsync(new InvalidOperationException("config broken"));
 
         var bootstrapper = new AppBootstrapper(
@@ -108,6 +114,7 @@ public class AppBootstrapperTests : IDisposable
             _fakeConsole.Object,
             _fakeConfig.Object,
             _fakeFactory.Object,
+            _fakeShellHost.Object,
             (_, _) => mockRunner.Object);
 
         var exitCode = await bootstrapper.RunAsync();
@@ -129,6 +136,7 @@ public class AppBootstrapperTests : IDisposable
             _fakeConsole.Object,
             _fakeConfig.Object,
             _fakeFactory.Object,
+            _fakeShellHost.Object,
             (_, _) => mockRunner.Object);
 
         cts.Cancel();
@@ -149,6 +157,7 @@ public class AppBootstrapperTests : IDisposable
             _fakeConsole.Object,
             _fakeConfig.Object,
             _fakeFactory.Object,
+            _fakeShellHost.Object,
             (_, _) => mockRunner.Object);
 
         await bootstrapper.RunAsync();
@@ -168,6 +177,7 @@ public class AppBootstrapperTests : IDisposable
             _fakeConsole.Object,
             _fakeConfig.Object,
             _fakeFactory.Object,
+            _fakeShellHost.Object,
             (_, _) => mockRunner.Object);
 
         bootstrapper.Dispose();

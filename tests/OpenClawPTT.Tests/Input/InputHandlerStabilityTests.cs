@@ -96,6 +96,7 @@ public class InputHandlerStabilityTests : IDisposable
     private RecordingConsole _console = null!;
     private RecordingTextSender _sender = null!;
     private Mock<IConfigurationService> _mockConfig = null!;
+    private Mock<IStreamShellHost> _mockShellHost = null!;
     private InputHandler _handler = null!;
 
     private void SetupHandler()
@@ -107,7 +108,8 @@ public class InputHandlerStabilityTests : IDisposable
         _sender = new RecordingTextSender();
         _mockConfig = new Mock<IConfigurationService>();
         _mockConfig.Setup(c => c.Load()).Returns((AppConfig?)null);
-        _handler = new InputHandler(_sender, _mockConfig.Object, _console);
+        _mockShellHost = new Mock<IStreamShellHost>();
+        _handler = new InputHandler(_sender, _mockConfig.Object, _console, _mockShellHost.Object);
     }
 
     public void Dispose()
@@ -215,7 +217,7 @@ public class InputHandlerStabilityTests : IDisposable
         var result = await _handler.HandleInputAsync(CancellationToken.None);
 
         Assert.Equal(InputResult.Continue, result);
-        _mockConfig.Verify(c => c.ReconfigureAsync(It.IsAny<AppConfig>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockConfig.Verify(c => c.ReconfigureAsync(It.IsAny<IStreamShellHost>(), It.IsAny<AppConfig>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -229,13 +231,13 @@ public class InputHandlerStabilityTests : IDisposable
         _console.SimulatedKey = new ConsoleKeyInfo('R', ConsoleKey.R, false, true, false); // Alt+R
         var existingCfg = new AppConfig { GatewayUrl = "ws://localhost:18789" };
         _mockConfig.Setup(c => c.Load()).Returns(existingCfg);
-        _mockConfig.Setup(c => c.ReconfigureAsync(existingCfg, It.IsAny<CancellationToken>())).Returns(Task.FromResult(existingCfg));
+        _mockConfig.Setup(c => c.ReconfigureAsync(It.IsAny<IStreamShellHost>(), existingCfg, It.IsAny<CancellationToken>())).Returns(Task.FromResult(existingCfg));
 
 
         var result = await _handler.HandleInputAsync(CancellationToken.None);
 
         Assert.Equal(InputResult.Restart, result);
-        _mockConfig.Verify(c => c.ReconfigureAsync(existingCfg, It.IsAny<CancellationToken>()), Times.Once);
+        _mockConfig.Verify(c => c.ReconfigureAsync(It.IsAny<IStreamShellHost>(), existingCfg, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     // ═══════════════════════════════════════════════════════════════════════

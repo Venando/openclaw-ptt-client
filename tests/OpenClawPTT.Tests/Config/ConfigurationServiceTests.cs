@@ -92,81 +92,6 @@ public class ConfigurationServiceTests
     }
 
     [Fact]
-    public void ShouldReconfigure_ReturnsFalse_OnTimeout()
-    {
-        // Arrange
-        var mockStorage = new Mock<IConfigStorage>();
-        mockStorage.Setup(x => x.Load()).Returns(new AppConfig { GatewayUrl = "wss://test.example.com" });
-
-        // Fake console: no keys available
-        var fakeConsole = new Mock<IConsole>();
-        fakeConsole.Setup(x => x.KeyAvailable).Returns(false);
-        fakeConsole.Setup(x => x.ReadKey(true)).Throws(new InvalidOperationException("not available"));
-        fakeConsole.SetupProperty(x => x.ForegroundColor);
-        ConsoleUi.SetConsole(fakeConsole.Object);
-
-        try
-        {
-            var service = new ConfigurationService(mockStorage.Object);
-
-            // Act - use a very short timeout so the test completes fast
-            // We test the private method via reflection
-            var method = typeof(ConfigurationService).GetMethod("ShouldReconfigure",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-            Assert.NotNull(method);
-
-            // Invoke with 50ms timeout
-            var result = (bool)method!.Invoke(null, new object?[] { TimeSpan.FromMilliseconds(50) });
-
-            // Assert - should return false on timeout
-            Assert.False(result);
-        }
-        finally
-        {
-            ConsoleUi.SetConsole(new SystemConsole());
-        }
-    }
-
-    [Fact]
-    public void ShouldReconfigure_CalledTwice_BothReturnCorrectValues()
-    {
-        // Arrange
-        var mockStorage = new Mock<IConfigStorage>();
-        mockStorage.Setup(x => x.Load()).Returns(new AppConfig { GatewayUrl = "wss://test.example.com" });
-
-        // For the first call: no key available, timeout
-        var fakeConsole1 = new Mock<IConsole>();
-        fakeConsole1.Setup(x => x.KeyAvailable).Returns(false);
-        fakeConsole1.Setup(x => x.ReadKey(true)).Throws(new InvalidOperationException("not available"));
-        fakeConsole1.SetupProperty(x => x.ForegroundColor);
-        fakeConsole1.Setup(x => x.WriteLine(It.IsAny<string?>())).Verifiable();
-        ConsoleUi.SetConsole(fakeConsole1.Object);
-
-        var method = typeof(ConfigurationService).GetMethod("ShouldReconfigure",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-
-        // Act - First call: no key, should timeout and return false
-        var result1 = (bool)method!.Invoke(null, new object?[] { TimeSpan.FromMilliseconds(20) });
-
-        // For the second call: R key pressed
-        var fakeConsole2 = new Mock<IConsole>();
-        fakeConsole2.Setup(x => x.KeyAvailable).Returns(true);
-        fakeConsole2.Setup(x => x.ReadKey(true)).Returns(new ConsoleKeyInfo('R', ConsoleKey.R, false, false, false));
-        fakeConsole2.SetupProperty(x => x.ForegroundColor);
-        fakeConsole2.Setup(x => x.WriteLine(It.IsAny<string?>())).Verifiable();
-        ConsoleUi.SetConsole(fakeConsole2.Object);
-
-        // Act - Second call: R key available, should return true
-        var result2 = (bool)method!.Invoke(null, new object?[] { TimeSpan.FromMilliseconds(50) });
-
-        // Assert
-        Assert.False(result1); // timeout - no key available on first check
-        Assert.True(result2);  // R key pressed on second call
-
-        ConsoleUi.SetConsole(new SystemConsole());
-    }
-
-    [Fact]
     public async Task ReconfigureAsync_WithCancellation_HandlesGracefully()
     {
         // Arrange
@@ -175,6 +100,7 @@ public class ConfigurationServiceTests
 
         var service = new ConfigurationService(mockStorage.Object);
         var existing = new AppConfig { GatewayUrl = "wss://old.example.com" };
+        var shellHost = new Mock<IStreamShellHost>();
 
         // Simulate cancellation during setup
         var cts = new CancellationTokenSource();
@@ -191,7 +117,7 @@ public class ConfigurationServiceTests
         try
         {
             // Act & Assert - should not throw, just complete
-            var result = await service.ReconfigureAsync(existing, cts.Token);
+            var result = await service.ReconfigureAsync(shellHost.Object, existing, cts.Token);
             Assert.NotNull(result);
         }
         finally
