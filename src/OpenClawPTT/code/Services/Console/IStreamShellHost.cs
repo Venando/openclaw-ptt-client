@@ -10,6 +10,6 @@ public interface IStreamShellHost
     void AddMessage(string markup);
     void AddCommand(Command command);
     event Action<string>? UserInputSubmitted;
-    void Run();
+    Task Run(CancellationToken cancellationToken = default);
     void Stop();
 }

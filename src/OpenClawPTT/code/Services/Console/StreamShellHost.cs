@@ -25,7 +25,7 @@ public sealed class StreamShellHost : IStreamShellHost, IDisposable
         remove => _host.UserInputSubmitted -= value;
     }
 
-    public void Run() => _host.Run();
+    public async Task Run(CancellationToken cancellationToken = default) => await _host.Run(cancellationToken);
 
     public void Stop() => _host.Stop();
 

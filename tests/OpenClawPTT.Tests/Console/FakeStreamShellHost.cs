@@ -17,7 +17,7 @@ public sealed class FakeStreamShellHost : IStreamShellHost, IDisposable
 
     public void AddCommand(Command command) => Commands.Add(command);
 
-    public void Run() { /* no-op: tests fire events directly */ }
+    public Task Run(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     public void Stop() { /* no-op */ }
 
