@@ -9,8 +9,11 @@ internal static class Program
         var cts = new CancellationTokenSource();
         IConsole console = new SystemConsole();
         IConfigurationService configService = new ConfigurationService();
-        var factory = new ServiceFactory(configService);
         var shellHost = new StreamShellHost();
+        var consoleOutput = new StreamShellConsoleOutput(shellHost, console);
+        var factory = new ServiceFactory(configService, consoleOutput, new MessageComposer(), shellHost);
+
+        ConsoleUi.SetStreamShellHost(shellHost);
 
         var bootstrapper = new AppBootstrapper(console, configService, factory, shellHost);
         var exitCode = await bootstrapper.RunAsync(cts.Token);

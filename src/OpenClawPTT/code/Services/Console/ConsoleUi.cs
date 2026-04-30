@@ -1,15 +1,29 @@
 using System;
 using System.Text;
+using OpenClawPTT.Services;
+using Spectre.Console;
 
 namespace OpenClawPTT;
 
 /// <summary>
 /// Central UI output facade. All display methods are static and delegate to the
 /// current IConsole implementation via SetConsole().
+/// When a StreamShell host is attached (SetStreamShellHost), display methods
+/// route through the host as Spectre markup messages instead of raw console.
 /// </summary>
 public static class ConsoleUi
 {
     private static IConsole _impl = new SystemConsole();
+    private static IStreamShellHost? _shellHost;
+
+    // ── StreamShell bridge ─────────────────────────────────────
+
+    /// <summary>Attach a StreamShell host. All display methods route through it as markup.</summary>
+    public static void SetStreamShellHost(IStreamShellHost? host) => _shellHost = host;
+
+    private static bool ViaShell => _shellHost != null;
+
+    private static void ShellMsg(string markup) => _shellHost?.AddMessage(markup);
 
     // ── IConsole static surface ──────────────────────────────────
 
@@ -41,8 +55,18 @@ public static class ConsoleUi
     /// <summary>Swap the console implementation. Use a mock in tests.</summary>
     public static void SetConsole(IConsole console) => _impl = console;
 
+    // ── Display methods (routed through StreamShell when available) ──
+
     public static void PrintBanner()
     {
+        if (ViaShell)
+        {
+            ShellMsg("[cyan]  ╔═══════════════════════════════════════╗[/]");
+            ShellMsg("[cyan]  ║    🐾  OpenClaw Push-to-Talk  v1.0    ║[/]");
+            ShellMsg("[cyan]  ╚═══════════════════════════════════════╝[/]");
+            return;
+        }
+
         _impl.ForegroundColor = ConsoleColor.Cyan;
         _impl.WriteLine();
         _impl.WriteLine("  ╔═══════════════════════════════════════╗");
@@ -55,6 +79,19 @@ public static class ConsoleUi
     public static void PrintHelpMenu(string hotkeyCombination, bool holdToTalk)
     {
         var modeDescription = holdToTalk ? "Hold-to-talk" : "Toggle recording";
+
+        if (ViaShell)
+        {
+            ShellMsg("[green]  ╔══════════════════════════════════════════╗[/]");
+            ShellMsg("[green]  ║  Push-to-Talk ready                      ║[/]");
+            ShellMsg("[green]  ╠══════════════════════════════════════════╣[/]");
+            ShellMsg($"[green]  ║  [{Markup.Escape(hotkeyCombination)}]  {Markup.Escape(modeDescription)}[/]");
+            ShellMsg("[green]  ║  [Alt+R]  Reconfigure settings[/]");
+            ShellMsg("[green]  ║  [T]      Type a text message[/]");
+            ShellMsg("[green]  ║  [Q]      Quit[/]");
+            ShellMsg("[green]  ╚══════════════════════════════════════════╝[/]");
+            return;
+        }
 
         _impl.ForegroundColor = ConsoleColor.Green;
         _impl.WriteLine("  ╔══════════════════════════════════════════╗");
@@ -87,24 +124,36 @@ public static class ConsoleUi
 
     public static void PrintRecordingIndicator(bool isRecording, string hotkeyCombination, bool holdToTalk)
     {
-        if (isRecording)
+        if (!isRecording) return;
+
+        if (ViaShell)
         {
-            _impl.ForegroundColor = ConsoleColor.Red;
-            _impl.WriteLine();
-            if (holdToTalk)
-            {
-                _impl.Write($"  ● REC — release {hotkeyCombination} to stop ");
-            }
-            else
-            {
-                _impl.Write($"  ● REC — press {hotkeyCombination} again to stop ");
-            }
-            _impl.ResetColor();
+            var action = holdToTalk ? $"release {Markup.Escape(hotkeyCombination)}" : $"press {Markup.Escape(hotkeyCombination)} again";
+            ShellMsg($"[red]  ● REC — {action} to stop[/]");
+            return;
         }
+
+        _impl.ForegroundColor = ConsoleColor.Red;
+        _impl.WriteLine();
+        if (holdToTalk)
+        {
+            _impl.Write($"  ● REC — release {hotkeyCombination} to stop ");
+        }
+        else
+        {
+            _impl.Write($"  ● REC — press {hotkeyCombination} again to stop ");
+        }
+        _impl.ResetColor();
     }
 
     public static void PrintSuccess(string message)
     {
+        if (ViaShell)
+        {
+            ShellMsg($"[green]  ✓ {Markup.Escape(message)}[/]");
+            return;
+        }
+
         _impl.ForegroundColor = ConsoleColor.Green;
         _impl.Write($"  ✓ {message}");
         _impl.ResetColor();
@@ -112,6 +161,7 @@ public static class ConsoleUi
 
     public static void PrintSuccessWordWrap(string prefix, string message, int rightMarginIndent)
     {
+        // Word-wrapped streaming: keep on raw console (doesn't fit message queue model)
         _impl.ForegroundColor = ConsoleColor.Green;
         _impl.Write(prefix);
         var formatter = new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted: true);
@@ -122,6 +172,12 @@ public static class ConsoleUi
 
     public static void PrintWarning(string message)
     {
+        if (ViaShell)
+        {
+            ShellMsg($"[yellow]  ⚠ {Markup.Escape(message)}[/]");
+            return;
+        }
+
         _impl.ForegroundColor = ConsoleColor.Yellow;
         _impl.WriteLine($"  ⚠ {message}");
         _impl.ResetColor();
@@ -129,6 +185,12 @@ public static class ConsoleUi
 
     public static void PrintError(string message)
     {
+        if (ViaShell)
+        {
+            ShellMsg($"[red]  ✗ {Markup.Escape(message)}[/]");
+            return;
+        }
+
         _impl.ForegroundColor = ConsoleColor.Red;
         _impl.WriteLine($"  ✗ {message}");
         _impl.ResetColor();
@@ -136,6 +198,12 @@ public static class ConsoleUi
 
     public static void PrintInfo(string message)
     {
+        if (ViaShell)
+        {
+            ShellMsg($"[grey]  {Markup.Escape(message)}[/]");
+            return;
+        }
+
         _impl.ForegroundColor = ConsoleColor.DarkGray;
         _impl.WriteLine($"  {message}");
         _impl.ResetColor();
@@ -143,6 +211,12 @@ public static class ConsoleUi
 
     public static void PrintInlineInfo(string message)
     {
+        if (ViaShell)
+        {
+            ShellMsg($"[grey]  {Markup.Escape(message)}[/]");
+            return;
+        }
+
         _impl.ForegroundColor = ConsoleColor.DarkGray;
         _impl.WriteLine();
         _impl.Write($"  {message}");
@@ -151,6 +225,12 @@ public static class ConsoleUi
 
     public static void PrintInlineSuccess(string message)
     {
+        if (ViaShell)
+        {
+            ShellMsg($"[green]{Markup.Escape(message)}[/]");
+            return;
+        }
+
         _impl.ForegroundColor = ConsoleColor.DarkGray;
         _impl.WriteLine(message);
         _impl.ResetColor();
@@ -158,6 +238,7 @@ public static class ConsoleUi
 
     public static void PrintAgentReply(string prefix, string body)
     {
+        // Streaming reply: keep on raw console
         _impl.WriteLine();
         _impl.ForegroundColor = ConsoleColor.Cyan;
         _impl.Write(prefix);
@@ -168,6 +249,7 @@ public static class ConsoleUi
 
     public static void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix)
     {
+        // Streaming delta: keep on raw console
         _impl.Write(delta.Replace("\n", "\n" + newlineSuffix));
     }
 
@@ -191,6 +273,16 @@ public static class ConsoleUi
 
     public static void PrintGatewayError(string message, string? detailCode = null, string? recommendedStep = null)
     {
+        if (ViaShell)
+        {
+            ShellMsg($"[red]  Gateway error: {Markup.Escape(message)}[/]");
+            if (detailCode != null)
+                ShellMsg($"  Detail code : {Markup.Escape(detailCode)}");
+            if (recommendedStep != null)
+                ShellMsg($"  Recommended : {Markup.Escape(recommendedStep)}");
+            return;
+        }
+
         _impl.ForegroundColor = ConsoleColor.Red;
         _impl.WriteLine($"\n  Gateway error: {message}");
         _impl.ResetColor();
@@ -203,6 +295,12 @@ public static class ConsoleUi
 
     public static void Log(string tag, string msg)
     {
+        if (ViaShell)
+        {
+            ShellMsg($"[grey]  [{Markup.Escape(tag)}] {Markup.Escape(msg)}[/]");
+            return;
+        }
+
         _impl.ForegroundColor = ConsoleColor.DarkGray;
         _impl.Write($"  [{tag}] ");
         _impl.ResetColor();
@@ -211,6 +309,12 @@ public static class ConsoleUi
 
     public static void LogOk(string tag, string msg)
     {
+        if (ViaShell)
+        {
+            ShellMsg($"[green]  [{Markup.Escape(tag)}] {Markup.Escape(msg)}[/]");
+            return;
+        }
+
         _impl.ForegroundColor = ConsoleColor.Green;
         _impl.Write($"  [{tag}] ");
         _impl.ResetColor();
@@ -219,6 +323,12 @@ public static class ConsoleUi
 
     public static void LogError(string tag, string msg)
     {
+        if (ViaShell)
+        {
+            ShellMsg($"[red]  [{Markup.Escape(tag)}] {Markup.Escape(msg)}[/]");
+            return;
+        }
+
         _impl.ForegroundColor = ConsoleColor.Red;
         _impl.Write($"  [{tag}] ");
         _impl.ResetColor();
