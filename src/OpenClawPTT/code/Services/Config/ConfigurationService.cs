@@ -23,14 +23,14 @@ public class ConfigurationService : IConfigurationService
         _wizard = new ConfigurationWizard();
     }
 
-    public async Task<AppConfig> LoadOrSetupAsync(IStreamShellHost shellHost, bool forceReconfigure = false)
+    public async Task<AppConfig> LoadOrSetupAsync(IStreamShellHost shellHost, bool forceReconfigure = false, CancellationToken ct = default)
     {
         var cfg = _storage.Load();
 
         if (cfg is null)
         {
             shellHost.AddMessage("[cyan2]No configuration found — starting first-time setup.[/]");
-            cfg = await _wizard.RunSetupAsync(shellHost);
+            cfg = await _wizard.RunSetupAsync(shellHost, ct: ct);
             _storage.Save(cfg);
             shellHost.AddMessage("[green]Configuration saved.[/]");
             return cfg;
@@ -53,7 +53,7 @@ public class ConfigurationService : IConfigurationService
             else
                 shellHost.AddMessage("[cyan2]Starting setup wizard to fix missing/invalid fields...[/]");
 
-            cfg = await _wizard.RunSetupAsync(shellHost, cfg);
+            cfg = await _wizard.RunSetupAsync(shellHost, cfg, ct);
             _storage.Save(cfg);
             shellHost.AddMessage("[green]Configuration updated.[/]");
         }
