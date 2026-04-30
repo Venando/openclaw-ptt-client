@@ -16,6 +16,7 @@ publish/
 .claude/
 *.swp
 *.swo
+.zed/
 
 # Runtime data
 ~/.openclaw-ptt/
