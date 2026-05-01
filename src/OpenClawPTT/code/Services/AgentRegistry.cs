@@ -45,6 +45,19 @@ public static class AgentRegistry
         }
     }
 
+    /// <summary>Name of the currently active agent, or null if none.</summary>
+    public static string? ActiveAgentName
+    {
+        get
+        {
+            lock (_lock)
+            {
+                if (_activeSessionKey == null) return null;
+                return _agents.FirstOrDefault(a => a.SessionKey == _activeSessionKey)?.Name;
+            }
+        }
+    }
+
     /// <summary>Currently active session key. Messages from other sessions are filtered out.</summary>
     public static string? ActiveSessionKey
     {

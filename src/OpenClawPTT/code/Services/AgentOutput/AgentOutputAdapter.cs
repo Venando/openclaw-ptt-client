@@ -20,10 +20,6 @@ public sealed class AgentOutputAdapter : IDisposable
     private IAgentReplyFormatter? _formatter;
     private bool _disposed;
 
-    private readonly string _agentReplayPrefix;
-    private readonly string _agentReplayPrefixWithAudio;
-    private readonly string _agentReplayPrefixTextMode;
-
     private string _currentPrefix = "";
     private string _newlineSuffix = "";
     private int _prefixLength;
@@ -35,9 +31,6 @@ public sealed class AgentOutputAdapter : IDisposable
     public AgentOutputAdapter(AppConfig config)
     {
         _config = config;
-        _agentReplayPrefix = $"  🤖 {_config.AgentName}: ";
-        _agentReplayPrefixWithAudio = $"  🤖 🔊 {_config.AgentName}: ";
-        _agentReplayPrefixTextMode = $"  🤖 ✍️ {_config.AgentName}: ";
         var shellHost = ConsoleUi.GetStreamShellHost();
         _toolDisplayHandler = new ToolDisplayHandler(_config.RightMarginIndent, shellHost);
 
@@ -170,17 +163,18 @@ public sealed class AgentOutputAdapter : IDisposable
         _prefixPrinted = true;
 
         var isAudioEnabled = _config.AudioResponseMode?.ToLowerInvariant() != "text-only";
+        var agentName = AgentRegistry.ActiveAgentName ?? _config.AgentName ?? "Agent";
         if (isAudioEnabled && _hasAudioInCurrentMessage)
         {
-            _currentPrefix = _agentReplayPrefixWithAudio;
+            _currentPrefix = $"  🤖 🔊 {agentName}: ";
         }
         else if (isAudioEnabled)
         {
-            _currentPrefix = _agentReplayPrefixTextMode;
+            _currentPrefix = $"  🤖 ✍️ {agentName}: ";
         }
         else
         {
-            _currentPrefix = _agentReplayPrefix;
+            _currentPrefix = $"  🤖 {agentName}: ";
         }
 
         _prefixLength = _currentPrefix.Length;
