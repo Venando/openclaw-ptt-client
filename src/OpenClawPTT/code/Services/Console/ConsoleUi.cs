@@ -9,6 +9,7 @@ namespace OpenClawPTT;
 /// </summary>
 public static class ConsoleUi
 {
+    public const string AppEmoji = "🦞";
     private static IStreamShellHost? _shellHost;
 
     // ── StreamShell bridge ─────────────────────────────────────
@@ -29,9 +30,9 @@ public static class ConsoleUi
     public static void PrintBanner()
     {
         ShellMsg("");
-        ShellMsg("[cyan]  ╔═══════════════════════════════════════╗[/]");
-        ShellMsg("[cyan]  ║    🐾  OpenClaw Push-to-Talk  v1.0    ║[/]");
-        ShellMsg("[cyan]  ╚═══════════════════════════════════════╝[/]");
+        ShellMsg("[deepskyblue3]  ╔═══════════════════════════════════════╗[/]");
+        ShellMsg($"[deepskyblue3]  ║    {AppEmoji}  OpenClaw Push-to-Talk  v1.0    ║[/]");
+        ShellMsg("[deepskyblue3]  ╚═══════════════════════════════════════╝[/]");
         ShellMsg("");
     }
 
@@ -41,7 +42,7 @@ public static class ConsoleUi
         var middleContent = $"  {Markup.Escape($"[{hotkeyCombination}]")}  {modeDescription}  [deepskyblue3]·[/]  /help  [deepskyblue3]·[/]  /quit  ";
         var plain = $"│{hotkeyCombination}  {modeDescription}  ·  /help  ·  /quit│";
         var dashCount = plain.Length + 4; // +4 for the leading/trailing spaces and │ padding
-        var topLineStart = "── 🐾 PTT Active ─";
+        var topLineStart = $"── {AppEmoji} PTT Active ─";
         var topLine = $"[deepskyblue3]╭{topLineStart}{new string('─', dashCount - topLineStart.Length)}╮[/]";
         var bottomLine = $"[deepskyblue3]╰{new string('─', dashCount)}╯[/]";
         ShellMsg("");
@@ -49,6 +50,14 @@ public static class ConsoleUi
         ShellMsg($"[deepskyblue3]│[/]{middleContent}[deepskyblue3]│[/]");
         ShellMsg(bottomLine);
         ShellMsg("");
+
+
+        var activeName = AgentRegistry.ActiveAgentName;
+        if (activeName != null)
+        {
+            ShellMsg($"  {AppEmoji} Agent: [white on gray15]{activeName}[/]  [grey]|[/] type [grey]/crew [/]to list agents [grey]/chat <agent>[/] to switch");
+            ShellMsg("");
+        }
     }
 
     /// <summary>Send a raw Spectre markup message to the StreamShell output.</summary>

@@ -257,14 +257,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
 
             AgentRegistry.SetAgents(agentList);
             ConsoleUi.Log("gateway", $"Loaded {agentList.Count} agent(s). Active session: {AgentRegistry.ActiveSessionKey}");
-
-            var activeName = AgentRegistry.ActiveAgentName;
-            if (activeName != null)
-            {
-                ConsoleUi.PrintMarkup("");
-                ConsoleUi.PrintMarkup($"[green1]  🐾 Agent: [bold]{activeName}[/]  [grey]|[/]  [grey]/crew[/] list  [grey]/chat <agent>[/] switch[/]");
-                ConsoleUi.PrintMarkup("");
-            }
+        }
     }
 
     private async Task CompleteAuthenticationAsync(int tickMs, CancellationToken linkedCt)
