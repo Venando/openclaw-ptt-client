@@ -49,7 +49,8 @@ public sealed class AgentOutputAdapter : IDisposable
         _thinkingPrefix = "  💭 Thinking: ";
         _thinkingInfo = "  💭 Thinking… ";
 
-        _toolDisplayHandler = new ToolDisplayHandler(_config.RightMarginIndent);
+        var shellHost = consoleOutput is StreamShellConsoleOutput ssco ? ssco.GetStreamShellHost() : null;
+        _toolDisplayHandler = new ToolDisplayHandler(_config.RightMarginIndent, shellHost);
 
         if (config.AudioResponseMode?.ToLowerInvariant() != "text-only")
         {
@@ -99,7 +100,7 @@ public sealed class AgentOutputAdapter : IDisposable
 
             if (useCapturing && _capturingConsole != null)
             {
-                _capturingConsole.FlushToStreamShell("cyan");
+                _capturingConsole.FlushToStreamShell(_currentPrefix);
             }
         }
         else
