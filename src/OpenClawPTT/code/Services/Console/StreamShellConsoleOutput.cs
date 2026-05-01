@@ -1,5 +1,4 @@
 using System;
-using System.Text;
 using Spectre.Console;
 
 namespace OpenClawPTT.Services;
@@ -8,53 +7,21 @@ namespace OpenClawPTT.Services;
 /// IConsoleOutput implementation that routes display methods through StreamShell's message queue
 /// as Spectre markup, while keeping raw I/O (ReadKey, Write, ReadLine) on the underlying IConsole.
 /// </summary>
-public sealed class StreamShellConsoleOutput : IConsoleOutput
+public sealed class StreamShellConsoleOutput : IConsoleOutput, IFormattedOutput
 {
     private readonly IStreamShellHost _shellHost;
-    private readonly IConsole _console;
 
-    public StreamShellConsoleOutput(IStreamShellHost shellHost, IConsole console)
+    public StreamShellConsoleOutput(IStreamShellHost shellHost)
     {
         _shellHost = shellHost;
-        _console = console;
     }
 
     /// <summary>Gets the underlying StreamShell host for capturing formatter output.</summary>
     internal IStreamShellHost GetStreamShellHost() => _shellHost;
 
-    public void Write(string? text)
-    {
-        if (text != null)
-            _shellHost.AddMessage(Markup.Escape(text));
-    }
-    
-    public void WriteLine(string? text = null)
-    {
-        _shellHost.AddMessage(Markup.Escape(text ?? ""));
-    }
-
-    public ConsoleColor ForegroundColor
-    {
-        get => _console.ForegroundColor;
-        set => _console.ForegroundColor = value;
-    }
-    public void ResetColor() => _console.ResetColor();
-    public bool KeyAvailable => _console.KeyAvailable;
-    public ConsoleKeyInfo ReadKey(bool intercept = false) => _console.ReadKey(intercept);
-    public int WindowWidth => _console.WindowWidth;
-    public Encoding OutputEncoding
-    {
-        get => _console.OutputEncoding;
-        set => _console.OutputEncoding = value;
-    }
-    public bool TreatControlCAsInput
-    {
-        get => _console.TreatControlCAsInput;
-        set => _console.TreatControlCAsInput = value;
-    }
-
-    public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default)
-        => _console.ReadLineAsync(cancellationToken);
+    void IFormattedOutput.Write(string text) => _shellHost.AddMessage(Markup.Escape(text));
+    void IFormattedOutput.WriteLine() => _shellHost.AddMessage("");
+    int IFormattedOutput.WindowWidth => 80;
 
     // ── IConsoleOutput (display → StreamShell markup) ──
 
@@ -94,15 +61,7 @@ public sealed class StreamShellConsoleOutput : IConsoleOutput
         => _shellHost.AddMessage($"[green]  ✓ {Markup.Escape(message)}[/]");
 
     public void PrintSuccessWordWrap(string prefix, string message, int rightMarginIndent)
-    {
-        // Word-wrap streaming: keep on raw console
-        _console.ForegroundColor = ConsoleColor.Green;
-        _console.Write(prefix);
-        var formatter = new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted: true, consoleWidth: _console.WindowWidth, output: this);
-        formatter.ProcessDelta(message);
-        formatter.Finish();
-        _console.ResetColor();
-    }
+        => throw new NotSupportedException("PrintSuccessWordWrap is not supported on StreamShellConsoleOutput; use ConsoleUiOutput instead");
 
     public void PrintWarning(string message)
         => _shellHost.AddMessage($"[yellow]  ⚠ {Markup.Escape(message)}[/]");
@@ -135,10 +94,10 @@ public sealed class StreamShellConsoleOutput : IConsoleOutput
     }
 
     public void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix)
-    {
-        // Streaming delta — keep on raw console (StreamShell AddMessage is complete-message only)
-        _console.Write(delta.Replace("\n", "\n" + newlineSuffix));
-    }
+        => throw new NotSupportedException("PrintAgentReplyDelta is not supported on StreamShellConsoleOutput; use ConsoleUiOutput instead");
+
+    public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("ReadLineAsync is not supported on StreamShellConsoleOutput; use ConsoleUiOutput instead");
 
     public void Log(string tag, string msg)
         => _shellHost.AddMessage($"[grey]  [{Markup.Escape(tag)}] {Markup.Escape(msg)}[/]");

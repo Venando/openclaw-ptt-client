@@ -1,7 +1,7 @@
 namespace OpenClawPTT.Services;
 
-/// <summary>Abstraction for console output operations, enabling testability. Extends IConsole.</summary>
-public interface IConsoleOutput : OpenClawPTT.IConsole
+/// <summary>Abstraction for console display output operations, enabling testability.</summary>
+public interface IConsoleOutput
 {
     void PrintBanner();
     void PrintHelpMenu(string hotkeyCombination, bool holdToTalk);
@@ -17,7 +17,7 @@ public interface IConsoleOutput : OpenClawPTT.IConsole
     void PrintGatewayError(string message, string? detailCode, string? recommendedStep);
     void PrintAgentReply(string prefix, string body);
     void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix);
-    new ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default);
+    ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default);
     void Log(string tag, string msg);
     void LogOk(string tag, string msg);
     void LogError(string tag, string msg);

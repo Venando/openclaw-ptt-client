@@ -12,6 +12,7 @@ public sealed class AgentOutputAdapter : IDisposable
 {
     private readonly AppConfig _config;
     private readonly IConsoleOutput _consoleOutput;
+    private readonly IConsole _console;
     private readonly ToolDisplayHandler _toolDisplayHandler;
     private readonly AudioResponseHandler? _audioResponseHandler;
 
@@ -39,10 +40,11 @@ public sealed class AgentOutputAdapter : IDisposable
     {
     }
 
-    public AgentOutputAdapter(AppConfig config, IConsoleOutput consoleOutput)
+    public AgentOutputAdapter(AppConfig config, IConsoleOutput consoleOutput, IConsole? console = null)
     {
         _config = config;
         _consoleOutput = consoleOutput;
+        _console = console ?? new SystemConsole();
         _agentReplayPrefix = $"  🤖 {_config.AgentName}: ";
         _agentReplayPrefixWithAudio = $"  🤖 🔊 {_config.AgentName}: ";
         _agentReplayPrefixTextMode = $"  🤖 ✍️ {_config.AgentName}: ";
@@ -116,13 +118,13 @@ public sealed class AgentOutputAdapter : IDisposable
             if (!_prefixPrinted)
             {
                 _prefixPrinted = true;
-                _consoleOutput.WriteLine();
-                _consoleOutput.ForegroundColor = ConsoleColor.DarkGray;
-                _consoleOutput.Write(_thinkingPrefix);
-                _consoleOutput.ResetColor();
+                _console.WriteLine();
+                _console.ForegroundColor = ConsoleColor.DarkGray;
+                _console.Write(_thinkingPrefix);
+                _console.ResetColor();
                 if (_config.EnableWordWrap)
                 {
-                    _thinkingFormatter = new AgentReplyFormatter(_thinkingPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true, consoleWidth: 0, output: _consoleOutput as IConsole);
+                    _thinkingFormatter = new AgentReplyFormatter(_thinkingPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true, output: _consoleOutput as IFormattedOutput);
                 }
             }
             if (_thinkingFormatter != null)
@@ -131,20 +133,20 @@ public sealed class AgentOutputAdapter : IDisposable
                 _thinkingFormatter.Finish();
                 _thinkingFormatter = null;
                 _prefixPrinted = false;
-                _consoleOutput.WriteLine();
+                _console.WriteLine();
             }
             else
             {
-                _consoleOutput.Write(thinking.TrimEnd());
+                _console.Write(thinking.TrimEnd());
             }
         }
         else
         {
-            _consoleOutput.WriteLine();
-            _consoleOutput.ForegroundColor = ConsoleColor.DarkGray;
-            _consoleOutput.WriteLine(_thinkingInfo);
-            _consoleOutput.ResetColor();
-            _consoleOutput.WriteLine();
+            _console.WriteLine();
+            _console.ForegroundColor = ConsoleColor.DarkGray;
+            _console.WriteLine(_thinkingInfo);
+            _console.ResetColor();
+            _console.WriteLine();
             _prefixPrinted = false;
         }
     }
@@ -222,21 +224,21 @@ public sealed class AgentOutputAdapter : IDisposable
         _prefixLength = _currentPrefix.Length;
         _newlineSuffix = new string(' ', _prefixLength);
 
-        _consoleOutput.ForegroundColor = ConsoleColor.Cyan;
-        _consoleOutput.Write(_currentPrefix);
-        _consoleOutput.ResetColor();
+        _console.ForegroundColor = ConsoleColor.Cyan;
+        _console.Write(_currentPrefix);
+        _console.ResetColor();
         if (_config.EnableWordWrap)
         {
             // When StreamShell is active, capture formatter output for final flush to Shell
             if (_consoleOutput is StreamShellConsoleOutput shellOutput)
             {
                 _capturingConsole = new StreamShellCapturingConsole(shellOutput.GetStreamShellHost());
-                _formatter = new AgentReplyFormatter(_currentPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true, consoleWidth: 0, output: _capturingConsole);
+                _formatter = new AgentReplyFormatter(_currentPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true, output: _capturingConsole);
             }
             else
             {
                 _capturingConsole = null;
-                _formatter = new AgentReplyFormatter(_currentPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true, consoleWidth: 0, output: _consoleOutput as IConsole);
+                _formatter = new AgentReplyFormatter(_currentPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true, output: _consoleOutput as IFormattedOutput);
             }
         }
     }
