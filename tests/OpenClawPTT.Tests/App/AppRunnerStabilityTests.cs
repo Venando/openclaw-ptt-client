@@ -50,6 +50,7 @@ public class AppRunnerStabilityTests
         public IPttController CreatePttController(AppConfig cfg, IAudioService audioService, IHotkeyHookFactory? hotkeyHookFactory = null) => PttController.Object;
         public ITextMessageSender CreateTextMessageSender(IGatewayService gateway) => TextSender.Object;
         public IInputHandler CreateInputHandler(ITextMessageSender textSender) => InputHandler.Object;
+        public IStreamShellHost CreateStreamShellHost() => Mock.Of<IStreamShellHost>();
         public IAppLoop CreatePttLoop(
             IAudioService audioService,
             IPttController pttController,
@@ -70,7 +71,7 @@ public class AppRunnerStabilityTests
             .ReturnsAsync(AppLoopExitCode.Ok); // Should never be reached
 
         var cfg = DefaultConfig;
-        using var runner = new AppRunner(cfg, factory);
+        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
 
         var result = await runner.RunAsync(CancellationToken.None);
 
@@ -92,7 +93,7 @@ public class AppRunnerStabilityTests
             .ReturnsAsync(AppLoopExitCode.Ok); // Should never be reached
 
         var cfg = DefaultConfig;
-        using var runner = new AppRunner(cfg, factory);
+        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
 
         var result = await runner.RunAsync(CancellationToken.None);
 
@@ -111,7 +112,7 @@ public class AppRunnerStabilityTests
             .ThrowsAsync(new OperationCanceledException());
 
         var cfg = DefaultConfig;
-        using var runner = new AppRunner(cfg, factory);
+        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
 
         var cts = new CancellationTokenSource();
         cts.Cancel(); // Simulate cancellation
@@ -137,7 +138,7 @@ public class AppRunnerStabilityTests
             .ReturnsAsync(AppLoopExitCode.Restart);
 
         var cfg = DefaultConfig;
-        using var runner = new AppRunner(cfg, factory);
+        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
 
         // Should NOT loop forever — must break after MaxRestartCount
         var result = await runner.RunAsync(CancellationToken.None);
@@ -172,7 +173,7 @@ public class AppRunnerStabilityTests
             });
 
         var cfg = DefaultConfig;
-        using var runner = new AppRunner(cfg, factory);
+        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
 
         var result = await runner.RunAsync(CancellationToken.None);
 
@@ -196,7 +197,7 @@ public class AppRunnerStabilityTests
             .ReturnsAsync(AppLoopExitCode.Ok);
 
         var cfg = DefaultConfig;
-        using var runner = new AppRunner(cfg, factory);
+        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
 
         var result = await runner.RunAsync(CancellationToken.None);
 
@@ -219,7 +220,7 @@ public class AppRunnerStabilityTests
             .ReturnsAsync(AppLoopExitCode.Ok);
 
         var cfg = AltConfig;
-        using var runner = new AppRunner(cfg, factory);
+        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
 
         await runner.RunAsync(CancellationToken.None);
 
@@ -243,7 +244,7 @@ public class AppRunnerStabilityTests
             .ReturnsAsync(AppLoopExitCode.Ok);
 
         var cfg = DefaultConfig;
-        using var runner = new AppRunner(cfg, factory);
+        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
 
         await runner.RunAsync(CancellationToken.None);
 

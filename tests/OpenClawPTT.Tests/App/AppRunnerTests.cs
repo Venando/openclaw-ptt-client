@@ -33,6 +33,7 @@ public class AppRunnerTests
         public IPttController CreatePttController(AppConfig cfg, IAudioService audioService, IHotkeyHookFactory? hotkeyHookFactory = null) => PttController.Object;
         public ITextMessageSender CreateTextMessageSender(IGatewayService gateway) => TextSender.Object;
         public IInputHandler CreateInputHandler(ITextMessageSender textSender) => InputHandler.Object;
+        public IStreamShellHost CreateStreamShellHost() => Mock.Of<IStreamShellHost>();
         public IAppLoop CreatePttLoop(
             IAudioService audioService,
             IPttController pttController,
@@ -48,7 +49,7 @@ public class AppRunnerTests
         var factory = new TestServiceFactory();
         var cfg = DefaultConfig;
 
-        var runner = new AppRunner(cfg, factory);
+        var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
 
         Assert.NotNull(runner);
     }
@@ -65,7 +66,7 @@ public class AppRunnerTests
             .ThrowsAsync(new OperationCanceledException());
 
         var cfg = DefaultConfig;
-        using var runner = new AppRunner(cfg, factory);
+        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
 
         var cts = new CancellationTokenSource();
         cts.Cancel(); // Cancel before RunAsync starts
@@ -90,7 +91,7 @@ public class AppRunnerTests
             .ReturnsAsync(AppLoopExitCode.Ok);
 
         var cfg = DefaultConfig;
-        using var runner = new AppRunner(cfg, factory);
+        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
 
         var result = await runner.RunAsync(CancellationToken.None);
 
@@ -119,7 +120,7 @@ public class AppRunnerTests
             });
 
         var cfg = DefaultConfig;
-        using var runner = new AppRunner(cfg, factory);
+        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
 
         var result = await runner.RunAsync(CancellationToken.None);
 
@@ -144,7 +145,7 @@ public class AppRunnerTests
             .ReturnsAsync(AppLoopExitCode.Ok);
 
         var cfg = DefaultConfig;
-        using var runner = new AppRunner(cfg, factory);
+        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
 
         await runner.RunAsync(CancellationToken.None);
 

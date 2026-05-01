@@ -26,7 +26,7 @@ public sealed class AppBootstrapper : IDisposable
         _configService = configService;
         _factory = factory;
         _shellHost = shellHost;
-        _runnerFactory = runnerFactory ?? ((cfg, f) => new AppRunner(cfg, f));
+        _runnerFactory = runnerFactory ?? ((cfg, f) => new AppRunner(cfg, f, _shellHost, _configService));
     }
 
     /// <summary>Runs the application and returns the exit code.</summary>

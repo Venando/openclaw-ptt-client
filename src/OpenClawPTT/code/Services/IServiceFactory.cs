@@ -12,6 +12,7 @@ public interface IServiceFactory
     IPttController CreatePttController(AppConfig cfg, IAudioService audioService, IHotkeyHookFactory? hotkeyHookFactory = null);
     IInputHandler CreateInputHandler(ITextMessageSender textSender);
     ITextMessageSender CreateTextMessageSender(IGatewayService gateway);
+    IStreamShellHost CreateStreamShellHost();
     public IAppLoop CreatePttLoop(
         IAudioService audioService,
         IPttController pttController,

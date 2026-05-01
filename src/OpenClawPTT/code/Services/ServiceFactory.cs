@@ -42,6 +42,8 @@ public sealed class ServiceFactory : IServiceFactory
     public ITextMessageSender CreateTextMessageSender(IGatewayService gateway)
         => new TextMessageSender(gateway, _configService, _console, _composer);
 
+    public IStreamShellHost CreateStreamShellHost() => _shellHost;
+
     public IAppLoop CreatePttLoop(
         IAudioService audioService,
         IPttController pttController,

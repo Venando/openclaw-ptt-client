@@ -2,6 +2,7 @@ namespace OpenClawPTT;
 
 using System.Net.WebSockets;
 using OpenClawPTT.Services;
+using StreamShell;
 
 /// <summary>
 /// Owns the top-level application composition and run loop.
@@ -11,6 +12,9 @@ public class AppRunner : IDisposable
 {
     private readonly AppConfig _cfg;
     private readonly IServiceFactory _factory;
+    private readonly IStreamShellHost _shellHost;
+    private readonly IConfigurationService _configService;
+    private CancellationTokenSource? _cts;
 
     /// <summary>
     /// Maximum number of consecutive <see cref="AppLoopExitCode.Restart"/> responses
@@ -18,10 +22,12 @@ public class AppRunner : IDisposable
     /// </summary>
     public const int MaxRestartCount = 3;
 
-    public AppRunner(AppConfig cfg, IServiceFactory factory)
+    public AppRunner(AppConfig cfg, IServiceFactory factory, IStreamShellHost shellHost, IConfigurationService configService)
     {
         _cfg = cfg;
         _factory = factory;
+        _shellHost = shellHost;
+        _configService = configService;
     }
 
     /// <summary>
@@ -31,9 +37,13 @@ public class AppRunner : IDisposable
     {
         int result;
         int restartCount = 0;
+
+        _cts?.Dispose();
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
         do
         {
-            result = await RunAppLoopAsync(ct);
+            result = await RunAppLoopAsync(_cts.Token);
             if (result == (int)AppLoopExitCode.Restart)
             {
                 restartCount++;
@@ -75,6 +85,15 @@ public class AppRunner : IDisposable
 
         ConsoleUi.PrintHelpMenu(_cfg.HotkeyCombination, _cfg.HoldToTalk);
 
+        // Register StreamShell commands (/quit, /reconfigure) before PTT loop
+        using var shellCommands = new AppShellCommands(
+            _shellHost,
+            textSender,
+            _configService,
+            () => _cts?.Cancel()
+        );
+        shellCommands.Register();
+
         using IAppLoop pttLoop = _factory.CreatePttLoop(
             audioService, pttController, textSender, inputHandler);
 
@@ -83,7 +102,7 @@ public class AppRunner : IDisposable
 
     public void Dispose()
     {
-        // Nothing to dispose at runner level — all owned disposables
-        // are disposed in their respective loops.
+        _cts?.Dispose();
+        _cts = null;
     }
 }
