@@ -22,10 +22,17 @@ public sealed class StreamShellConsoleOutput : IConsoleOutput
     /// <summary>Gets the underlying StreamShell host for capturing formatter output.</summary>
     internal IStreamShellHost GetStreamShellHost() => _shellHost;
 
-    // ── IConsole (raw I/O stays on the underlying console) ──
+    public void Write(string? text)
+    {
+        if (text != null)
+            _shellHost.AddMessage(Markup.Escape(text));
+    }
+    
+    public void WriteLine(string? text = null)
+    {
+        _shellHost.AddMessage(Markup.Escape(text ?? ""));
+    }
 
-    public void Write(string? text) => _console.Write(text);
-    public void WriteLine(string? text = null) => _console.WriteLine(text);
     public ConsoleColor ForegroundColor
     {
         get => _console.ForegroundColor;
@@ -45,10 +52,7 @@ public sealed class StreamShellConsoleOutput : IConsoleOutput
         get => _console.TreatControlCAsInput;
         set => _console.TreatControlCAsInput = value;
     }
-    public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
-        => new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, _console.WindowWidth, this);
-    public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
-        => new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, consoleWidth, this);
+
     public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default)
         => _console.ReadLineAsync(cancellationToken);
 

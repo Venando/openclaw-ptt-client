@@ -71,11 +71,19 @@ public static class ConsoleUi
     public static void SetConsole(IConsole console) => _impl = console;
 
     // ── Display methods ──
-    // Banner always goes to raw console — must be visible before Run() takes over
 
     public static void PrintBanner()
     {
-        // Always use raw console so the banner is visible before Run() takes over
+        if (ViaShell)
+        {
+            ShellMsg("");
+            ShellMsg("[cyan]  ╔═══════════════════════════════════════╗[/]");
+            ShellMsg("[cyan]  ║    🐾  OpenClaw Push-to-Talk  v1.0    ║[/]");
+            ShellMsg("[cyan]  ╚═══════════════════════════════════════╝[/]");
+            ShellMsg("");
+            return;
+        }
+
         _impl.ForegroundColor = ConsoleColor.Cyan;
         _impl.WriteLine();
         _impl.WriteLine("  ╔═══════════════════════════════════════╗");

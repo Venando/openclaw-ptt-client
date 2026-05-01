@@ -49,7 +49,7 @@ public class AgentReplyFormatterTests
     [Fact]
     public void ProcessDelta_EmptyString_DoesNotThrow()
     {
-        var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 10);
+        var formatter = AgentReplyFormatter.CreateSytemConsoleFormatter(prefix: "  ", rightMarginIndent: 10);
         formatter.ProcessDelta("");
         formatter.Finish();
     }
@@ -57,7 +57,7 @@ public class AgentReplyFormatterTests
     [Fact]
     public void ProcessDelta_MultiLineText_WrapsCorrectly()
     {
-        var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 10);
+        var formatter = AgentReplyFormatter.CreateSytemConsoleFormatter(prefix: "  ", rightMarginIndent: 10);
         formatter.ProcessDelta("line1\nline2");
         formatter.Finish();
     }
@@ -65,7 +65,7 @@ public class AgentReplyFormatterTests
     [Fact]
     public void ProcessDelta_IncrementalChunks_AccumulatesCorrectly()
     {
-        var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 20);
+        var formatter = AgentReplyFormatter.CreateSytemConsoleFormatter(prefix: "  ", rightMarginIndent: 20);
         formatter.ProcessDelta("Hello ");
         formatter.ProcessDelta("World");
         formatter.Finish();
@@ -74,7 +74,7 @@ public class AgentReplyFormatterTests
     [Fact]
     public void Finish_DoesNotThrow()
     {
-        var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 10);
+        var formatter = AgentReplyFormatter.CreateSytemConsoleFormatter(prefix: "  ", rightMarginIndent: 10);
         formatter.ProcessDelta("Some text");
         formatter.Finish();
     }
@@ -82,7 +82,7 @@ public class AgentReplyFormatterTests
     [Fact]
     public void Finish_WithNoContent_DoesNotThrow()
     {
-        var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 10);
+        var formatter = AgentReplyFormatter.CreateSytemConsoleFormatter(prefix: "  ", rightMarginIndent: 10);
         formatter.Finish();
     }
 
@@ -169,7 +169,7 @@ public class AgentReplyFormatterTests
     {
         // Uses ConsoleTextOutput internally, which catches Console.WindowWidth exceptions.
         // This test confirms the 2-param constructor initialises without throwing.
-        var formatter = new AgentReplyFormatter(prefix: "  ", prefixAlreadyPrinted: false);
+        var formatter = AgentReplyFormatter.CreateSytemConsoleFormatter(prefix: "  ", prefixAlreadyPrinted: false);
         formatter.ProcessDelta("hello");
         formatter.Finish(); // must not throw
     }
@@ -221,7 +221,7 @@ public class AgentReplyFormatterTests
     public void Finish_WithoutProcessDelta_DoesNotCrash()
     {
         // Finish() without any prior ProcessDelta must not throw.
-        var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 10);
+        var formatter = AgentReplyFormatter.CreateSytemConsoleFormatter(prefix: "  ", rightMarginIndent: 10);
         formatter.Finish(); // should not throw
     }
 

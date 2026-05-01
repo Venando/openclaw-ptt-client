@@ -32,7 +32,6 @@ public sealed class AppBootstrapper : IDisposable
     /// <summary>Runs the application and returns the exit code.</summary>
     public async Task<int> RunAsync(CancellationToken cancellationToken = default)
     {
-        _console.OutputEncoding = System.Text.Encoding.UTF8;
         ConsoleUi.PrintBanner();
 
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

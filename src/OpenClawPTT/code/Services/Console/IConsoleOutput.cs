@@ -17,8 +17,6 @@ public interface IConsoleOutput : OpenClawPTT.IConsole
     void PrintGatewayError(string message, string? detailCode, string? recommendedStep);
     void PrintAgentReply(string prefix, string body);
     void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix);
-    new OpenClawPTT.IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false);
-    new OpenClawPTT.IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth);
     new ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default);
     void Log(string tag, string msg);
     void LogOk(string tag, string msg);

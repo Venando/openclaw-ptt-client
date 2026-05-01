@@ -13,7 +13,7 @@ public sealed class SystemConsole : IConsole
     public ConsoleColor ForegroundColor
     {
         get => Console.ForegroundColor;
-        set => Console.ForegroundColor = value;
+        set => Console.ForegroundColor = value; 
     }
     public void ResetColor() => Console.ResetColor();
     public bool KeyAvailable => Console.KeyAvailable;
@@ -29,12 +29,6 @@ public sealed class SystemConsole : IConsole
         get => Console.TreatControlCAsInput;
         set => Console.TreatControlCAsInput = value;
     }
-
-    public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
-        => new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted);
-
-    public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
-        => new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, consoleWidth);
 
     public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default)
         => Console.In.ReadLineAsync(cancellationToken);

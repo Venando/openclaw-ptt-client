@@ -7,7 +7,11 @@ internal static class Program
     private static async Task<int> Main()
     {
         var cts = new CancellationTokenSource();
-        IConsole console = new SystemConsole();
+        IConsole console = new SystemConsole
+        {
+            OutputEncoding = System.Text.Encoding.UTF8
+        };
+        
         IConfigurationService configService = new ConfigurationService();
         var shellHost = new StreamShellHost();
         var consoleOutput = new StreamShellConsoleOutput(shellHost, console);

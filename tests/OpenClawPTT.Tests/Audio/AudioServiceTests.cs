@@ -267,9 +267,9 @@ sealed class TestConsole : IConsole
     public bool ResetColorCalled;
     public ConsoleKeyInfo ReadKey(bool intercept) => new ConsoleKeyInfo('A', ConsoleKey.A, false, false, false);
     public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int w, bool prefixPrinted = false)
-        => new AgentReplyFormatter(prefix, w, prefixPrinted);
+        => AgentReplyFormatter.CreateSytemConsoleFormatter(prefix, w, prefixPrinted);
     public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int w, bool prefixPrinted, int cw)
-        => new AgentReplyFormatter(prefix, w, prefixPrinted, cw);
+        => AgentReplyFormatter.CreateSytemConsoleFormatter(prefix, w, prefixPrinted, cw);
     public void Write(string? text) => Writes.Add(text);
     public void WriteLine(string? text = null) => WriteLines.Add(text);
     public void ResetColor() { ResetColorCalled = true; _foregroundColor = ConsoleColor.White; }

@@ -127,13 +127,13 @@ public class UiEventAdapterStabilityTests : IDisposable
         public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
         {
             CreateFormatterCalls.Add((prefix, rightMarginIndent, prefixAlreadyPrinted));
-            return new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, 120);
+            return AgentReplyFormatter.CreateSytemConsoleFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, 120);
         }
 
         public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
         {
             CreateFormatterCalls.Add((prefix, rightMarginIndent, prefixAlreadyPrinted));
-            return new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, consoleWidth);
+            return AgentReplyFormatter.CreateSytemConsoleFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, consoleWidth);
         }
 
         // ── IConsoleOutput display methods (no-op for these tests) ──
@@ -294,7 +294,7 @@ public class UiEventAdapterStabilityTests : IDisposable
         var adapter = new AgentOutputAdapter(cfg, _console);
 
         // ShowThinking=true + EnableWordWrap: _thinkingFormatter is created via
-        // new AgentReplyFormatter(...) directly (not via _console mock).
+        // AgentReplyFormatter.CreateSytemConsoleFormatter(...) directly (not via _console mock).
         adapter.OnAgentThinking("working through the problem");
     }
 

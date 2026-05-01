@@ -18,8 +18,5 @@ public interface IConsole
     int WindowWidth { get; }
     Encoding OutputEncoding { get; set; }
     bool TreatControlCAsInput { get; set; }
-
-    IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false);
-    IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth);
     ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default);
 }
