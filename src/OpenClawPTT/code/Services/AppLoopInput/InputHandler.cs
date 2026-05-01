@@ -4,82 +4,36 @@ using System.Threading.Tasks;
 
 namespace OpenClawPTT.Services;
 
+/// <summary>
+/// Handles user input routed through StreamShell's UserInputSubmitted event.
+/// Non-command text is sent as a PTT transcription message.
+/// This class no longer polls raw console keys — that logic is replaced by
+/// AppShellCommands which registers StreamShell command handlers.
+/// </summary>
 public sealed class InputHandler : IInputHandler
 {
     private readonly ITextMessageSender _textSender;
-    private readonly IConfigurationService _configService;
-    private readonly IConsoleOutput _console;
-    private readonly IStreamShellHost _shellHost;
 
-    public InputHandler(ITextMessageSender textSender, IConfigurationService configService, IConsoleOutput console, IStreamShellHost shellHost)
+    public InputHandler(ITextMessageSender textSender)
     {
         _textSender = textSender;
-        _configService = configService;
-        _console = console;
-        _shellHost = shellHost;
-    }
-    
-    public async Task<InputResult> HandleInputAsync(CancellationToken ct)
-    {
-        // non-blocking key poll
-        if (!ConsoleUi.KeyAvailable)
-        {
-            try { await Task.Delay(50, ct); }
-            catch (TaskCanceledException) { return InputResult.Continue; }
-            return InputResult.Continue;
-        }
-
-        var key = ConsoleUi.ReadKey(intercept: true);
-
-        if (key.Key == ConsoleKey.Q)
-        {
-            ConsoleUi.WriteLine("  Bye!");
-            return InputResult.Quit;
-        }
-
-        if (key.Key == ConsoleKey.T)
-        {
-            await HandleTypeMessageAsync(ct);
-            return InputResult.Continue;
-        }
-        
-        // Alt+R for reconfiguration
-        if (key.Key == ConsoleKey.R && (key.Modifiers & ConsoleModifiers.Alt) != 0)
-        {
-            return await HandleReconfigurationAsync(ct);
-        }
-        
-        return InputResult.Continue;
-    }
-    
-    private async Task HandleTypeMessageAsync(CancellationToken ct)
-    {
-        try
-        {
-            ConsoleUi.WriteLine();
-            ConsoleUi.Write("  ✏️  Type message: ");
-            var text = (await ConsoleUi.ReadLineAsync(ct))?.Trim();
-            if (!string.IsNullOrEmpty(text))
-                await _textSender.SendAsync(text, ct);
-        }
-        catch (Exception)
-        {
-            // Swallow all errors — typing a message is best-effort
-        }
     }
 
-    private async Task<InputResult> HandleReconfigurationAsync(CancellationToken ct)
+    /// <summary>
+    /// No-op: input is now handled via StreamShell UserInputSubmitted events
+    /// in AppShellCommands. This method exists for backward compatibility with AppLoop.
+    /// </summary>
+    public Task<InputResult> HandleInputAsync(CancellationToken ct)
     {
-        _console.PrintWarning("\nStarting reconfiguration wizard...\n");
+        return Task.FromResult(InputResult.Continue);
+    }
 
-        var currentCfg = _configService.Load();
-        if (currentCfg != null)
-        {
-            await _configService.ReconfigureAsync(_shellHost, currentCfg, ct);
-            _console.PrintSuccess("Configuration updated. Reconnecting...\n");
-            return InputResult.Restart;
-        }
+    /// <summary>Send a text message directly (not from user input).</summary>
+    public async Task SendTextAsync(string text, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return;
 
-        return InputResult.Continue;
+        await _textSender.SendAsync(text, ct);
     }
 }

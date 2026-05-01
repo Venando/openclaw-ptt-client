@@ -7,4 +7,6 @@ namespace OpenClawPTT.Services;
 public interface IInputHandler
 {
     Task<InputResult> HandleInputAsync(CancellationToken ct);
+
+    Task SendTextAsync(string text, CancellationToken ct);
 }

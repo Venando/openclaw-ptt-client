@@ -99,7 +99,8 @@ public class AppBootstrapperTests : IDisposable
         var bootstrapper = new AppBootstrapper(
             _fakeConsole.Object,
             _fakeConfig.Object,
-            _fakeFactory.Object);
+            _fakeFactory.Object,
+            _fakeShellHost.Object);
 
         var exitCode = await bootstrapper.RunAsync();
 

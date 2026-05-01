@@ -37,7 +37,7 @@ public sealed class ServiceFactory : IServiceFactory
     }
 
     public IInputHandler CreateInputHandler(ITextMessageSender textSender)
-        => new InputHandler(textSender, _configService, _console, _shellHost);
+        => new InputHandler(textSender);
 
     public ITextMessageSender CreateTextMessageSender(IGatewayService gateway)
         => new TextMessageSender(gateway, _configService, _console, _composer);

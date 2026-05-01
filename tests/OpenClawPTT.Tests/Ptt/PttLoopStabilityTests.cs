@@ -185,6 +185,8 @@ public class PttLoopStabilityTests : IDisposable
             HandleInputAsync_Count++;
             return Task.FromResult(Result);
         }
+
+        public Task SendTextAsync(string text, CancellationToken ct) => Task.CompletedTask;
     }
 
     sealed class FakePttController : IPttController
