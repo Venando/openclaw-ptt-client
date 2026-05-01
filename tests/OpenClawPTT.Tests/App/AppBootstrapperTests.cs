@@ -17,6 +17,7 @@ public class AppBootstrapperTests : IDisposable
     public AppBootstrapperTests()
     {
         _fakeShellHost = new Mock<IStreamShellHost>();
+        _fakeShellHost.Setup(x => x.Run(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         _fakeConsole = new Mock<IConsole>();
         _fakeConsole.Setup(x => x.ForegroundColor).Returns(ConsoleColor.Gray);
         _fakeConsole.Setup(x => x.OutputEncoding).Returns(Encoding.UTF8);
@@ -27,9 +28,32 @@ public class AppBootstrapperTests : IDisposable
         ConsoleUi.SetConsole(_fakeConsole.Object);
 
         _fakeConfig = new Mock<IConfigurationService>();
-        _fakeConfig.Setup(x => x.LoadOrSetupAsync(It.IsAny<IStreamShellHost>(), false))
-            .ReturnsAsync(new AppConfig());
+        _fakeConfig.Setup(x => x.LoadOrSetupAsync(It.IsAny<IStreamShellHost>(), false, It.IsAny<CancellationToken>()))
+            .Returns(async (IStreamShellHost _, bool _, CancellationToken ct) =>
+            {
+                // If cancelled before/during load, throw cancellation
+                if (ct.IsCancellationRequested)
+                    throw new OperationCanceledException();
+                return new AppConfig();
+            });
         _fakeFactory = new Mock<IServiceFactory>();
+        _fakeFactory.Setup(x => x.CreateStreamShellHost()).Returns(_fakeShellHost.Object);
+        _fakeFactory.Setup(x => x.CreateGatewayService(It.IsAny<AppConfig>()))
+            .Returns(new Mock<IGatewayService>().Object);
+        _fakeFactory.Setup(x => x.CreateTextMessageSender(It.IsAny<IGatewayService>()))
+            .Returns(new Mock<ITextMessageSender>().Object);
+        _fakeFactory.Setup(x => x.CreateAudioService(It.IsAny<AppConfig>()))
+            .Returns(new Mock<IAudioService>().Object);
+        _fakeFactory.Setup(x => x.CreatePttController(It.IsAny<AppConfig>(), It.IsAny<IAudioService>(), It.IsAny<IHotkeyHookFactory?>()))
+            .Returns(new Mock<IPttController>().Object);
+        _fakeFactory.Setup(x => x.CreateInputHandler(It.IsAny<ITextMessageSender>()))
+            .Returns(new Mock<IInputHandler>().Object);
+        _fakeFactory.Setup(x => x.CreatePttLoop(
+            It.IsAny<IAudioService>(),
+            It.IsAny<IPttController>(),
+            It.IsAny<ITextMessageSender>(),
+            It.IsAny<IInputHandler>()))
+            .Returns(new Mock<IAppLoop>().Object);
     }
 
     public void Dispose() { }
@@ -39,7 +63,9 @@ public class AppBootstrapperTests : IDisposable
         var mock = new Mock<AppRunner>(
             MockBehavior.Loose,
             new AppConfig(),
-            _fakeFactory.Object);
+            _fakeFactory.Object,
+            _fakeShellHost.Object,
+            _fakeConfig.Object);
         mock.CallBase = false;
         if (throws != null)
             mock.Setup(x => x.RunAsync(It.IsAny<CancellationToken>())).ThrowsAsync(throws);
@@ -93,7 +119,7 @@ public class AppBootstrapperTests : IDisposable
     [Fact]
     public async Task RunAsync_ConfigLoadThrows_ReturnsExitError()
     {
-        _fakeConfig.Setup(x => x.LoadOrSetupAsync(It.IsAny<IStreamShellHost>(), false))
+        _fakeConfig.Setup(x => x.LoadOrSetupAsync(It.IsAny<IStreamShellHost>(), false, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("config broken"));
 
         var bootstrapper = new AppBootstrapper(

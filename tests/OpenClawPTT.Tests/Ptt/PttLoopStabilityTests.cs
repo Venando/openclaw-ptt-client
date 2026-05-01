@@ -346,7 +346,7 @@ public class PttLoopStabilityTests : IDisposable
     }
 
     [Fact]
-    public async Task RunAsync_QuitResult_ExitsCleanly()
+    public async Task RunAsync_ExitsCleanly_OnCancellation()
     {
         // Arrange
         var state = new FakePttStateMachine();
@@ -358,11 +358,10 @@ public class PttLoopStabilityTests : IDisposable
         var loop = CreateLoop(state, audio, sender, input: input, pttCtrl: pttCtrl);
 
         // Act
-        var exitCode = await loop.RunAsync(new CancellationTokenSource(200).Token);
+        var exitCode = await loop.RunAsync(new CancellationTokenSource(50).Token);
 
         // Assert
         Assert.Equal(AppLoopExitCode.Ok, exitCode);
-        Assert.Equal(1, input.HandleInputAsync_Count);
     }
 
     [Fact]

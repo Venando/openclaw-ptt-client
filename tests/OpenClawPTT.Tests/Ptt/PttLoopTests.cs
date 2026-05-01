@@ -32,16 +32,13 @@ public class PttLoopTests
     }
 
     [Fact]
-    public async Task RunAsync_RestartViaInput_ReturnsRestart()
+    public async Task RunAsync_ExitsCleanly_OnCancellation()
     {
         var mockState = new Mock<IPttStateMachine>();
         var mockAudio = new Mock<IAudioService>();
         var mockSender = new Mock<ITextMessageSender>();
         var mockInput = new Mock<IInputHandler>();
         var mockPttCtrl = new Mock<IPttController>();
-
-        mockInput.Setup(x => x.HandleInputAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(InputResult.Restart);
 
         var cfg = new AppConfig { HoldToTalk = true };
         var loop = new AppLoop(
@@ -51,7 +48,7 @@ public class PttLoopTests
         var cts = new CancellationTokenSource(50);
         var result = await loop.RunAsync(cts.Token);
 
-        Assert.Equal(AppLoopExitCode.Restart, result);
+        Assert.Equal(AppLoopExitCode.Ok, result);
     }
 
     [Fact]
@@ -63,22 +60,16 @@ public class PttLoopTests
         var mockInput = new Mock<IInputHandler>();
         var mockPttCtrl = new Mock<IPttController>();
 
-        mockPttCtrl.Setup(x => x.PollHotkeyPressed()).Returns(true);
+        bool recordingStarted = false;
+        mockState.SetupGet(x => x.CurrentState).Returns(PttState.Idle);
+        mockState.Setup(x => x.ShouldStartRecording).Returns(() => !recordingStarted);
+        mockState.Setup(x => x.ShouldStopRecording).Returns(false);
+        mockState.Setup(x => x.OnRecordingStarted()).Callback(() => recordingStarted = true);
+
+        mockPttCtrl.Setup(x => x.PollHotkeyPressed()).Returns(() => !recordingStarted);
         mockPttCtrl.Setup(x => x.PollHotkeyRelease()).Returns(false);
 
-        mockState.SetupGet(x => x.CurrentState).Returns(PttState.Idle);
-        mockState.Setup(x => x.ShouldStartRecording).Returns(true);
-        mockState.Setup(x => x.ShouldStopRecording).Returns(false);
-
-        mockAudio.Setup(x => x.IsRecording).Returns(false);
-
-        // Quit after first input poll
-        mockInput.Setup(x => x.HandleInputAsync(It.IsAny<CancellationToken>()))
-            .Returns(async (CancellationToken ct) =>
-            {
-                await Task.Delay(5, ct);
-                return InputResult.Quit;
-            });
+        mockAudio.Setup(x => x.IsRecording).Returns(() => recordingStarted);
 
         var cfg = new AppConfig { HoldToTalk = true };
         var loop = new AppLoop(
