@@ -1,4 +1,3 @@
-using System;
 using System.Text;
 
 namespace OpenClawPTT;
@@ -16,61 +15,27 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     private int _currentLineLength; // length of current line excluding prefix
     private readonly bool _prefixAlreadyPrinted;
     private readonly int _consoleWidth;
-    private readonly IConsole _output;
+    private readonly IFormattedOutput _output;
 
     /// <summary>
-    /// Convenience constructor using default right-margin indent (10) and auto-detected console width.
-    /// Safe for headless environments — falls back to width 80 when Console.WindowWidth is unavailable.
+    /// Convenience constructor using default right-margin indent (10).
     /// </summary>
-    public AgentReplyFormatter(string prefix, bool prefixAlreadyPrinted, IConsole output)
-        : this(prefix, rightMarginIndent: 10, prefixAlreadyPrinted, GetConsoleWidth(), output)
-    {
-    }
-
-    public AgentReplyFormatter(string prefix, int rightMarginIndent, IConsole output, bool prefixAlreadyPrinted = false)
-        : this(prefix, rightMarginIndent, prefixAlreadyPrinted, GetConsoleWidth(), output)
+    public AgentReplyFormatter(string prefix, bool prefixAlreadyPrinted, IFormattedOutput output)
+        : this(prefix, rightMarginIndent: 10, prefixAlreadyPrinted, output)
     {
     }
 
     /// <summary>
-    /// Constructor with explicit console width and text output abstraction for testability.
-    /// When <paramref name="output"/> is null, falls back to a raw console adapter.
+    /// Constructor with explicit word-wrap parameters.
     /// </summary>
-    public AgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth, IConsole output)
+    public AgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, IFormattedOutput output)
     {
         _prefix = prefix ?? string.Empty;
         _newlineSuffix = new string(' ', _prefix.Length);
         _rightMarginIndent = rightMarginIndent;
         _prefixAlreadyPrinted = prefixAlreadyPrinted;
-        _consoleWidth = consoleWidth > 0 ? consoleWidth : 80;
         _output = output;
-    }
-
-    public static AgentReplyFormatter CreateSytemConsoleFormatter(string prefix, bool prefixAlreadyPrinted)
-    {
-        return new AgentReplyFormatter(prefix, rightMarginIndent: 10, new SystemConsole(), prefixAlreadyPrinted: prefixAlreadyPrinted);
-    }
-
-    public static AgentReplyFormatter CreateSytemConsoleFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
-    {
-        return new AgentReplyFormatter(prefix, rightMarginIndent, new SystemConsole(), prefixAlreadyPrinted);
-    }
-
-    public static AgentReplyFormatter CreateSytemConsoleFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
-    {
-        return new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, consoleWidth, new SystemConsole());
-    }
-
-    private static int GetConsoleWidth()
-    {
-        try
-        {
-            return Console.WindowWidth;
-        }
-        catch
-        {
-            return 80;
-        }
+        _consoleWidth = output.WindowWidth > 0 ? output.WindowWidth : 80;
     }
 
     /// <summary>
