@@ -9,15 +9,21 @@ namespace OpenClawPTT;
 public static class OpenClawCommands
 {
     /// <summary>All known OpenClaw slash command names (without leading /).</summary>
+    /// <remarks>Source: https://github.com/openclaw/openclaw/blob/main/docs/tools/slash-commands.md</remarks>
     public static readonly IReadOnlySet<string> Names = new HashSet<string>
     {
         // Session management
-        "new", "reset", "compact", "btw",
+        "new", "reset", "compact", "stop", "session",
+        "export-session", "export", "export-trajectory", "trajectory",
         // Model & reasoning
-        "model", "models", "reason", "reasoning", "think", "fast",
-        // Diagnostics & settings
-        "status", "whoami", "id", "usage", "trace", "verbose",
-        // Interaction & tools
-        "skill", "tasks", "allowlist", "pair", "voice",
+        "model", "models", "think", "thinking", "reason", "reasoning",
+        "verbose", "v", "trace", "fast", "elevated", "elev", "exec", "queue",
+        // Diagnostics & info
+        "status", "diagnostics", "help", "commands", "tools",
+        "whoami", "id", "usage", "context", "tasks", "crestodian",
+        // Interaction
+        "skill", "allowlist", "approve", "btw",
+        // Sub-agents
+        "subagents", "acp",
     };
 }
