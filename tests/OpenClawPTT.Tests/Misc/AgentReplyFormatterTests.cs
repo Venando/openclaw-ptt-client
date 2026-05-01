@@ -206,4 +206,88 @@ public class AgentReplyFormatterTests
         formatter.Finish();
         Assert.Contains("chunk1 chunk2", output.Result.Replace("\r\n", "\n"));
     }
+
+    // ─── ProcessMarkupDelta tests ──────────────────────────────────────────
+
+    [Fact]
+    public void ProcessMarkupDelta_SimpleMarkup_OutputsWrappedText()
+    {
+        var output = new StringWriterTextOutput();
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta("[bold]Hello World[/]");
+        formatter.Finish();
+        var result = output.Result.Replace("\r\n", "\n");
+        Assert.Contains("[bold]Hello World[/]", result);
+    }
+
+    [Fact]
+    public void ProcessMarkupDelta_EmptyString_DoesNotThrow()
+    {
+        var output = new StringWriterTextOutput();
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        var ex = Record.Exception(() => formatter.ProcessMarkupDelta(""));
+        Assert.Null(ex);
+        formatter.Finish();
+    }
+
+    [Fact]
+    public void ProcessMarkupDelta_TagCharactersInsideText_ParsesCorrectly()
+    {
+        var output = new StringWriterTextOutput();
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta("[green]a [b] c[/]");
+        formatter.Finish();
+        var result = output.Result.Replace("\r\n", "\n").Trim();
+        // [b] looks like a tag but is inside text — should be treated as visible
+        Assert.Contains("[b]", result);
+    }
+
+    [Fact]
+    public void ProcessMarkupDelta_MultiWordLongText_WrapsAcrossLines()
+    {
+        var output = new StringWriterTextOutput();
+        // Narrow width (20) to force wrapping
+        var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 10, prefixAlreadyPrinted: false, output: output);
+        formatter.ProcessMarkupDelta("[red]" + new string('x', 80) + "[/]");
+        formatter.Finish();
+        var result = output.Result.Replace("\r\n", "\n");
+        // Should contain the markup tags and have multiple lines
+        Assert.Contains("[red]", result);
+        Assert.Contains("[/]", result);
+        Assert.Contains("\n", result);
+    }
+
+    [Fact]
+    public void ProcessMarkupDelta_NestedMarkupTags_HandledCorrectly()
+    {
+        var output = new StringWriterTextOutput();
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta("[bold][green]hello[/][/]");
+        formatter.Finish();
+        var result = output.Result.Replace("\r\n", "\n").Trim();
+        Assert.Contains("[bold][green]hello[/][/]", result);
+    }
+
+    [Fact]
+    public void ProcessMarkupDelta_NewlinesInsideMarkup_Respected()
+    {
+        var output = new StringWriterTextOutput();
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta("[grey]line1\nline2[/]");
+        formatter.Finish();
+        var result = output.Result.Replace("\r\n", "\n").Trim();
+        Assert.Contains("[grey]", result);
+        Assert.Contains("\n", result);
+    }
+
+    [Fact]
+    public void ProcessMarkupDelta_TextWithOpeningBracket_DoesNotConfuseParser()
+    {
+        var output = new StringWriterTextOutput();
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta("[yellow]3 > [5] is true[/]");
+        formatter.Finish();
+        var result = output.Result.Replace("\r\n", "\n").Trim();
+        Assert.Contains("3 > [5]", result);
+    }
 }

@@ -51,8 +51,6 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     {
         int consoleWidth = _consoleWidth;
 
-        // When prefix was already printed on current line, available width is from suffix to right margin
-        // When prefix not yet printed, available width is from prefix to right margin
         int effectiveRightMargin = Math.Max(_rightMarginIndent, (int)(consoleWidth * 0.1));
         int available;
         if (_prefixAlreadyPrinted)
@@ -73,7 +71,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     }
 
     /// <summary>
-    /// Process a delta chunk and write formatted output.
+    /// Process a plain-text delta chunk and write formatted output with word-wrap.
     /// </summary>
     public void ProcessDelta(string delta)
     {
@@ -84,7 +82,6 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
             if (c == '\n')
             {
                 FlushWordBuffer(availableWidth);
-                // Explicit newline: break line and start new line with appropriate suffix
                 _output.WriteLine();
                 _output.Write(_newlineSuffix);
                 _currentLineLength = 0;
@@ -94,7 +91,6 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
             if (char.IsWhiteSpace(c))
             {
                 FlushWordBuffer(availableWidth);
-                // Add whitespace to current line if it fits
                 if (_currentLineLength + 1 <= availableWidth)
                 {
                     _output.Write(c.ToString());
@@ -110,10 +106,8 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
             else
             {
                 _wordBuffer.Append(c);
-                // If word exceeds available width, we need to break it
                 if (_wordBuffer.Length > availableWidth)
                 {
-                    // Break the word: output part that fits, keep remainder in buffer
                     int charsThatFit = availableWidth - _currentLineLength;
                     if (charsThatFit > 0)
                     {
@@ -122,12 +116,10 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                         _currentLineLength += charsThatFit;
                         _wordBuffer.Remove(0, charsThatFit);
                     }
-                    // Now current line is full, wrap
                     if (_wordBuffer.Length > 0)
                     {
                         WriteNewLine();
                         _currentLineLength = 0;
-                        // Continue processing remaining word buffer
                     }
                 }
             }
@@ -135,8 +127,8 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     }
 
     /// <summary>
-    /// Process a pre-formatted markup string and write it directly without word-wrapping.
-    /// Use this for strings that already contain Spectre.Console markup tags.
+    /// Process a pre-formatted markup string where [tag]…[/tag] sequences
+    /// have zero visible width. Preserves markup tags in output.
     /// </summary>
     public void ProcessMarkupDelta(string markup)
     {
@@ -146,10 +138,28 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
 
         foreach (char c in markup)
         {
-            if (c == '[') { insideTag = true; _wordBuffer.Append(c); continue; }
-            if (c == ']' && insideTag) { insideTag = false; _wordBuffer.Append(c); continue; }
-            if (insideTag) { _wordBuffer.Append(c); continue; }
+            // ── tag boundary detection ───────────────────────────────
+            if (!insideTag && c == '[')
+            {
+                insideTag = true;
+                _wordBuffer.Append(c);
+                continue;
+            }
 
+            if (insideTag && c == ']')
+            {
+                insideTag = false;
+                _wordBuffer.Append(c);
+                continue;
+            }
+
+            if (insideTag)
+            {
+                _wordBuffer.Append(c);
+                continue;
+            }
+
+            // ── visible (non-tag) characters below ──────────────────
             if (c == '\n')
             {
                 FlushWordBuffer(availableWidth, visibleWordLen);
@@ -178,31 +188,51 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                 continue;
             }
 
+            // Regular visible character
             _wordBuffer.Append(c);
             visibleWordLen++;
+
+            // If remaining space on current line can't fit the visible word, split.
+            int remaining = availableWidth - _currentLineLength;
+            if (visibleWordLen > remaining)
+            {
+                string full = _wordBuffer.ToString();
+                int charsToEmit = Math.Min(remaining, full.Length);
+
+                if (charsToEmit > 0)
+                {
+                    string emitPart = full.Substring(0, charsToEmit);
+                    _output.Write(emitPart);
+                    _currentLineLength += Math.Min(charsToEmit, visibleWordLen);
+                    _wordBuffer.Clear();
+                    _wordBuffer.Append(full.Substring(charsToEmit));
+                    visibleWordLen = Math.Max(0, visibleWordLen - Math.Min(charsToEmit, visibleWordLen));
+                }
+
+                if (_wordBuffer.Length > 0)
+                {
+                    WriteNewLine();
+                    _currentLineLength = 0;
+                }
+            }
         }
 
         FlushWordBuffer(availableWidth, visibleWordLen);
     }
 
-    /// <summary>
-    /// Flush any remaining word buffer and finish the reply.
-    /// </summary>
     public void Finish()
     {
         int availableWidth = GetAvailableWidth();
         FlushWordBuffer(availableWidth);
         _output.WriteLine();
     }
-    
+
+    [Obsolete("Use the overload with visibleLength parameter for markup support")]
     private void FlushWordBuffer_Old(int availableWidth)
     {
-        if (_wordBuffer.Length == 0)
-            return;
-            
+        if (_wordBuffer.Length == 0) return;
         string word = _wordBuffer.ToString();
-        
-        // If word fits on current line, print it
+
         if (_currentLineLength + word.Length <= availableWidth)
         {
             _output.Write(word);
@@ -210,23 +240,17 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
         }
         else
         {
-            // Word doesn't fit; need to wrap
-            if (_currentLineLength > 0)
-                WriteNewLine();
-            
-            // Word may still be longer than available width; split across multiple lines
+            if (_currentLineLength > 0) WriteNewLine();
             int start = 0;
             while (start < word.Length)
             {
                 int chunkLength = Math.Min(availableWidth, word.Length - start);
-                if (start > 0)
-                    WriteNewLine();
+                if (start > 0) WriteNewLine();
                 _output.Write(word.Substring(start, chunkLength));
                 start += chunkLength;
                 _currentLineLength = chunkLength;
             }
         }
-        
         _wordBuffer.Clear();
     }
 
@@ -235,8 +259,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
 
     private void FlushWordBuffer(int availableWidth, int visibleLength)
     {
-        if (_wordBuffer.Length == 0)
-            return;
+        if (_wordBuffer.Length == 0) return;
 
         string word = _wordBuffer.ToString();
 
@@ -249,9 +272,6 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
         {
             if (_currentLineLength > 0)
                 WriteNewLine();
-
-            // Word may still exceed width; split it (markup stays on first chunk)
-            // In practice Spectre markup words are short — this is a safety net.
             _output.Write(word);
             _currentLineLength = visibleLength;
         }
