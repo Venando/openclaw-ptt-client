@@ -24,12 +24,17 @@ public sealed class GatewayService : IGatewayService
     public event Action<string, JsonElement>? EventReceived;
     public event Action<string>? AgentReplyAudio;
 
-    public GatewayService(AppConfig config)
+    /// <summary>
+    /// Initializes the gateway service with the given config and console output.
+    /// </summary>
+    /// <param name="config">Application configuration.</param>
+    /// <param name="consoleOutput">Console output for agent reply display; uses <see cref="ConsoleUiOutput"/> as default.</param>
+    public GatewayService(AppConfig config, IConsoleOutput? consoleOutput = null)
     {
         _config = config;
         _device = new DeviceIdentity(config.DataDir);
         _device.EnsureKeypair();
-        _consoleOutput = new ConsoleUiOutput();
+        _consoleOutput = consoleOutput ?? new ConsoleUiOutput();
         _gatewayClient = CreateGatewayClient();
     }
 

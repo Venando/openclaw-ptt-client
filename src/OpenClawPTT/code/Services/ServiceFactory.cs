@@ -25,7 +25,7 @@ public sealed class ServiceFactory : IServiceFactory
         _shellHost = shellHost;
     }
 
-    public IGatewayService CreateGatewayService(AppConfig cfg) => new GatewayService(cfg);
+    public IGatewayService CreateGatewayService(AppConfig cfg) => new GatewayService(cfg, _console);
 
     public IAudioService CreateAudioService(AppConfig cfg) => new AudioService(cfg);
 
