@@ -1,6 +1,5 @@
 using System;
 using System.Text;
-using OpenClawPTT.Services;
 
 namespace OpenClawPTT;
 
@@ -17,7 +16,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     private int _currentLineLength; // length of current line excluding prefix
     private readonly bool _prefixAlreadyPrinted;
     private readonly int _consoleWidth;
-    private readonly IConsoleTextOutput _output;
+    private readonly IConsole _output;
 
     /// <summary>
     /// Convenience constructor using default right-margin indent (10) and auto-detected console width.
@@ -43,15 +42,16 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
 
     /// <summary>
     /// Constructor with explicit console width and text output abstraction for testability.
+    /// When <paramref name="output"/> is null, falls back to a raw console adapter.
     /// </summary>
-    public AgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth, IConsoleTextOutput? output)
+    public AgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth, IConsole? output)
     {
         _prefix = prefix ?? string.Empty;
         _newlineSuffix = new string(' ', _prefix.Length);
         _rightMarginIndent = rightMarginIndent;
         _prefixAlreadyPrinted = prefixAlreadyPrinted;
         _consoleWidth = consoleWidth > 0 ? consoleWidth : 80;
-        _output = output ?? new ConsoleTextOutput();
+        _output = output ?? new SystemConsole();
     }
 
     private static int GetConsoleWidth()

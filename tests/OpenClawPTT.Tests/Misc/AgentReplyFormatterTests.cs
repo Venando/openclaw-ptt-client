@@ -1,7 +1,6 @@
 using System;
 using System.Text;
-using OpenClawPTT;
-using OpenClawPTT.Services;
+using System.Threading;
 using Xunit;
 
 namespace OpenClawPTT.Tests;
@@ -11,14 +10,40 @@ namespace OpenClawPTT.Tests;
 /// </summary>
 public class AgentReplyFormatterTests
 {
-    private sealed class StringWriterTextOutput : IConsoleTextOutput
+    private sealed class StringWriterTextOutput : IConsole
     {
         private readonly StringBuilder _sb = new StringBuilder();
         public string Result => _sb.ToString();
 
         public void Write(string? text) => _sb.Append(text);
-        public void WriteLine() => _sb.AppendLine();
+        public void WriteLine(string? text = null) => _sb.AppendLine(text);
         public int WindowWidth => 80;
+
+        // IConsole members not used by AgentReplyFormatter — throw if called
+        public ConsoleColor ForegroundColor
+        {
+            get => ConsoleColor.Gray;
+            set => throw new NotSupportedException();
+        }
+        public void ResetColor() => throw new NotSupportedException();
+        public bool KeyAvailable => throw new NotSupportedException();
+        public ConsoleKeyInfo ReadKey(bool intercept = false) => throw new NotSupportedException();
+        public Encoding OutputEncoding
+        {
+            get => Encoding.UTF8;
+            set => throw new NotSupportedException();
+        }
+        public bool TreatControlCAsInput
+        {
+            get => false;
+            set => throw new NotSupportedException();
+        }
+        public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
+            => throw new NotSupportedException();
+        public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
+            => throw new NotSupportedException();
+        public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
     }
 
     [Fact]

@@ -43,9 +43,9 @@ public sealed class StreamShellConsoleOutput : IConsoleOutput
         set => _console.TreatControlCAsInput = value;
     }
     public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
-        => new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted);
+        => new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, _console.WindowWidth, this);
     public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
-        => new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, consoleWidth);
+        => new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, consoleWidth, this);
     public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default)
         => _console.ReadLineAsync(cancellationToken);
 
