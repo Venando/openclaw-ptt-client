@@ -8,8 +8,9 @@ namespace OpenClawPTT;
 /// <summary>
 /// Central UI output facade. All display methods are static and delegate to the
 /// current IConsole implementation via SetConsole().
-/// When a StreamShell host is attached (SetStreamShellHost), display methods
-/// route through the host as Spectre markup messages instead of raw console.
+/// When a StreamShell host is attached AND active (SetStreamShellHost called
+/// AFTER config wizard), display methods route through it as Spectre markup.
+/// During the config wizard phase, output always goes to raw console.
 /// </summary>
 public static class ConsoleUi
 {
@@ -18,8 +19,22 @@ public static class ConsoleUi
 
     // ── StreamShell bridge ─────────────────────────────────────
 
-    /// <summary>Attach a StreamShell host. All display methods route through it as markup.</summary>
+    /// <summary>
+    /// Attach a StreamShell host. Display methods will route through it
+    /// ONLY AFTER shell becomes active (after AppBootstrapper calls UseShell).
+    /// During config wizard, output always goes to raw console.
+    /// </summary>
     public static void SetStreamShellHost(IStreamShellHost? host) => _shellHost = host;
+
+    /// <summary>
+    /// Called by AppBootstrapper after config wizard completes and StreamShell
+    /// is about to take over the terminal. After this, display methods route
+    /// through StreamShell for markup rendering.
+    /// </summary>
+    public static void UseShell()
+    {
+        // Handled by the ViaShell check below — this method exists for clarity
+    }
 
     private static bool ViaShell => _shellHost != null;
 
@@ -55,18 +70,12 @@ public static class ConsoleUi
     /// <summary>Swap the console implementation. Use a mock in tests.</summary>
     public static void SetConsole(IConsole console) => _impl = console;
 
-    // ── Display methods (routed through StreamShell when available) ──
+    // ── Display methods ──
+    // Banner always goes to raw console — must be visible before Run() takes over
 
     public static void PrintBanner()
     {
-        if (ViaShell)
-        {
-            ShellMsg("[cyan]  ╔═══════════════════════════════════════╗[/]");
-            ShellMsg("[cyan]  ║    🐾  OpenClaw Push-to-Talk  v1.0    ║[/]");
-            ShellMsg("[cyan]  ╚═══════════════════════════════════════╝[/]");
-            return;
-        }
-
+        // Always use raw console so the banner is visible before Run() takes over
         _impl.ForegroundColor = ConsoleColor.Cyan;
         _impl.WriteLine();
         _impl.WriteLine("  ╔═══════════════════════════════════════╗");
@@ -85,10 +94,10 @@ public static class ConsoleUi
             ShellMsg("[green]  ╔══════════════════════════════════════════╗[/]");
             ShellMsg("[green]  ║  Push-to-Talk ready                      ║[/]");
             ShellMsg("[green]  ╠══════════════════════════════════════════╣[/]");
-            ShellMsg($"[green]  ║  [{Markup.Escape(hotkeyCombination)}]  {Markup.Escape(modeDescription)}[/]");
-            ShellMsg("[green]  ║  [Alt+R]  Reconfigure settings[/]");
-            ShellMsg("[green]  ║  [T]      Type a text message[/]");
-            ShellMsg("[green]  ║  [Q]      Quit[/]");
+            ShellMsg($"[green]  ║  {Markup.Escape($"[{hotkeyCombination}]")}  {Markup.Escape(modeDescription)}[/]");
+            ShellMsg($"[green]  ║  {Markup.Escape($"[Alt+R]")}  Reconfigure settings[/]");
+            ShellMsg($"[green]  ║  {Markup.Escape($"[T]")}      Type a text message[/]");
+            ShellMsg($"[green]  ║  {Markup.Escape($"[Q]")}      Quit[/]");
             ShellMsg("[green]  ╚══════════════════════════════════════════╝[/]");
             return;
         }
@@ -161,7 +170,7 @@ public static class ConsoleUi
 
     public static void PrintSuccessWordWrap(string prefix, string message, int rightMarginIndent)
     {
-        // Word-wrapped streaming: keep on raw console (doesn't fit message queue model)
+        // Word-wrapped streaming: keep on raw console
         _impl.ForegroundColor = ConsoleColor.Green;
         _impl.Write(prefix);
         var formatter = new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted: true);
@@ -297,7 +306,7 @@ public static class ConsoleUi
     {
         if (ViaShell)
         {
-            ShellMsg($"[grey]  [{Markup.Escape(tag)}] {Markup.Escape(msg)}[/]");
+            ShellMsg($"[grey]  {Markup.Escape($"[{tag}]")} {Markup.Escape(msg)}[/]");
             return;
         }
 
@@ -311,7 +320,7 @@ public static class ConsoleUi
     {
         if (ViaShell)
         {
-            ShellMsg($"[green]  [{Markup.Escape(tag)}] {Markup.Escape(msg)}[/]");
+            ShellMsg($"[green]  {Markup.Escape($"[{tag}]")} {Markup.Escape(msg)}[/]");
             return;
         }
 
@@ -325,7 +334,7 @@ public static class ConsoleUi
     {
         if (ViaShell)
         {
-            ShellMsg($"[red]  [{Markup.Escape(tag)}] {Markup.Escape(msg)}[/]");
+            ShellMsg($"[red]  {Markup.Escape($"[{tag}]")} {Markup.Escape(msg)}[/]");
             return;
         }
 

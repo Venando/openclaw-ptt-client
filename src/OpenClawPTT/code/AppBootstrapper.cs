@@ -19,13 +19,13 @@ public sealed class AppBootstrapper : IDisposable
         IConsole console,
         IConfigurationService configService,
         IServiceFactory factory,
-        IStreamShellHost? shellHost = null,
+        IStreamShellHost shellHost,
         Func<AppConfig, IServiceFactory, AppRunner>? runnerFactory = null)
     {
         _console = console;
         _configService = configService;
         _factory = factory;
-        _shellHost = shellHost ?? new StreamShellHost();
+        _shellHost = shellHost;
         _runnerFactory = runnerFactory ?? ((cfg, f) => new AppRunner(cfg, f));
     }
 
@@ -47,7 +47,6 @@ public sealed class AppBootstrapper : IDisposable
             var shellTask = _shellHost.Run(_cts.Token);
 
             var cfg = await _configService.LoadOrSetupAsync(_shellHost, ct: _cts.Token);
-
 
             using var runner = _runnerFactory(cfg, _factory);
             runnerExitCode = await runner.RunAsync(_cts.Token);
