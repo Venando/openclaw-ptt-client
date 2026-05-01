@@ -34,6 +34,6 @@ public sealed class InputHandler : IInputHandler
         if (string.IsNullOrWhiteSpace(text))
             return;
 
-        await _textSender.SendAsync(text, ct);
+        await _textSender.SendAsync(text.Trim(), ct);
     }
 }
