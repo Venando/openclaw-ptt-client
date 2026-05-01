@@ -155,6 +155,23 @@ public static class ConsoleUi
         _impl.ResetColor();
     }
 
+    /// <summary>
+    /// Display user's own text message — routes through StreamShell when active.
+    /// </summary>
+    public static void PrintUserMessage(string text)
+    {
+        if (ViaShell)
+        {
+            ShellMsg($"[green]  You:[/] {Markup.Escape(text)}");
+            return;
+        }
+
+        _impl.ForegroundColor = ConsoleColor.Green;
+        _impl.Write("  You: ");
+        _impl.ResetColor();
+        _impl.WriteLine(text);
+    }
+
     public static void PrintSuccess(string message)
     {
         if (ViaShell)

@@ -6,6 +6,7 @@ public interface IConsoleOutput : OpenClawPTT.IConsole
     void PrintBanner();
     void PrintHelpMenu(string hotkeyCombination, bool holdToTalk);
     void PrintRecordingIndicator(bool isRecording, string hotkeyCombination, bool holdToTalk);
+    void PrintUserMessage(string text);
     void PrintSuccess(string message);
     void PrintSuccessWordWrap(string prefix, string message, int rightMarginIndent);
     void PrintWarning(string message);

@@ -154,6 +154,7 @@ public class PttLoopStabilityTests : IDisposable
         public void PrintBanner() { }
         public void PrintHelpMenu(string hotkeyCombination, bool holdToTalk) { }
         public void PrintRecordingIndicator(bool isRecording, string hotkeyCombination, bool holdToTalk) { }
+        public void PrintUserMessage(string text) { }
         public void PrintSuccess(string message) { }
         public void PrintSuccessWordWrap(string prefix, string message, int rightMarginIndent) { }
         public void PrintWarning(string message) { }

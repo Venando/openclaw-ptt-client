@@ -26,6 +26,7 @@ public sealed class TextMessageSender : ITextMessageSender
             ?? throw new InvalidOperationException("Configuration not loaded");
 
         var composed = _composer.ComposeOutgoing(text, cfg);
+        _console.PrintUserMessage(composed);
         _console.PrintInlineInfo("Sending… ");
         try
         {

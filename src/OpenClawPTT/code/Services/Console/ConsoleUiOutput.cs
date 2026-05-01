@@ -43,6 +43,7 @@ public sealed class ConsoleUiOutput : IConsoleOutput
         => ConsoleUi.PrintHelpMenu(hotkeyCombination, holdToTalk);
     public void PrintRecordingIndicator(bool isRecording, string hotkeyCombination, bool holdToTalk)
         => ConsoleUi.PrintRecordingIndicator(isRecording, hotkeyCombination, holdToTalk);
+    public void PrintUserMessage(string text) => ConsoleUi.PrintUserMessage(text);
     public void PrintSuccess(string message) => ConsoleUi.PrintSuccess(message);
     public void PrintSuccessWordWrap(string prefix, string message, int rightMarginIndent)
         => ConsoleUi.PrintSuccessWordWrap(prefix, message, rightMarginIndent);

@@ -78,6 +78,11 @@ public sealed class StreamShellConsoleOutput : IConsoleOutput
         _shellHost.AddMessage($"[red]  ● REC — {action} to stop[/]");
     }
 
+    public void PrintUserMessage(string text)
+    {
+        _shellHost.AddMessage($"[green]  You:[/] {Markup.Escape(text)}");
+    }
+
     public void PrintSuccess(string message)
         => _shellHost.AddMessage($"[green]  ✓ {Markup.Escape(message)}[/]");
 
