@@ -66,6 +66,10 @@ public sealed class AppLoop : IAppLoop
             }
 
             // Console input is now handled by StreamShell via AppShellCommands
+
+            // Yield: prevent spin-loop. Without this the while-loop burns 100% CPU
+            // polling hotkey flags that are almost always false.
+            await Task.Delay(50, ct);
         }
 
         return AppLoopExitCode.Ok;
