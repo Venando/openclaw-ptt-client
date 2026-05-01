@@ -65,10 +65,7 @@ public sealed class AppLoop : IAppLoop
                 _pttStateMachine.OnProcessingCompleted();
             }
 
-            // Handle console input
-            var inputResult = await _inputHandler.HandleInputAsync(ct);
-            if (inputResult == InputResult.Quit) return AppLoopExitCode.Ok;
-            if (inputResult == InputResult.Restart) return AppLoopExitCode.Restart;
+            // Console input is now handled by StreamShell via AppShellCommands
         }
 
         return AppLoopExitCode.Ok;
