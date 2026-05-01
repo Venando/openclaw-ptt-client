@@ -3,6 +3,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using OpenClawPTT.Services;
 
 namespace OpenClawPTT;
 
@@ -217,7 +218,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
             && authEl.TryGetProperty("deviceToken", out var dtEl))
         {
             _cfg.DeviceToken = dtEl.GetString();
-            new ConfigManager().Save(_cfg);
+            new ConfigurationService().Save(_cfg);
         }
     }
 

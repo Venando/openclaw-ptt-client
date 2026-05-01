@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using Spectre.Console;
 using System.Threading.Tasks;
 
@@ -7,7 +8,6 @@ namespace OpenClawPTT.Services;
 
 public class ConfigurationService : IConfigurationService
 {
-    private readonly ConfigManager _configManager;
     private readonly IConfigStorage _storage;
     private readonly ConfigurationWizard _wizard;
 
@@ -19,7 +19,6 @@ public class ConfigurationService : IConfigurationService
     public ConfigurationService(IConfigStorage storage)
     {
         _storage = storage;
-        _configManager = new ConfigManager();
         _wizard = new ConfigurationWizard();
     }
 
@@ -36,7 +35,7 @@ public class ConfigurationService : IConfigurationService
             return cfg;
         }
 
-        var issues = _configManager.Validate(cfg);
+        var issues = Validate(cfg);
         bool needsSetup = issues.Count > 0 || forceReconfigure;
 
         if (issues.Count > 0)
@@ -84,5 +83,30 @@ public class ConfigurationService : IConfigurationService
 
     public void Save(AppConfig cfg) => _storage.Save(cfg);
 
-    public List<string> Validate(AppConfig cfg) => _configManager.Validate(cfg);
+    public List<string> Validate(AppConfig cfg)
+    {
+        var issues = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(cfg.GatewayUrl))
+            issues.Add("Gateway URL is required.");
+
+        if (!Uri.TryCreate(cfg.GatewayUrl, UriKind.Absolute, out var uri)
+            || (uri.Scheme != "ws" && uri.Scheme != "wss"))
+            issues.Add("Gateway URL must start with ws:// or wss://");
+
+        if (string.IsNullOrWhiteSpace(cfg.AuthToken)
+            && string.IsNullOrWhiteSpace(cfg.DeviceToken))
+            issues.Add("Auth token or device token is required.");
+
+        if (cfg.SampleRate is < 8000 or > 48000)
+            issues.Add("Sample rate must be between 8000 and 48000.");
+
+        if (cfg.ReconnectDelaySeconds <= 0)
+            issues.Add("Reconnect delay must be positive.");
+
+        if (cfg.VisualMode < VisualMode.SolidDot || cfg.VisualMode > VisualMode.GlowDot)
+            issues.Add("VisualMode must be 1 (SolidDot) or 2 (GlowDot).");
+
+        return issues;
+    }
 }
