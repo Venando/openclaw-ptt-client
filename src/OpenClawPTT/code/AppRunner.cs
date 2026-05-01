@@ -86,7 +86,7 @@ public class AppRunner : IDisposable
         ConsoleUi.PrintHelpMenu(_cfg.HotkeyCombination, _cfg.HoldToTalk);
 
         // Register StreamShell commands (/quit, /reconfigure) before PTT loop
-        using var shellCommands = new AppShellCommands(
+        using var shellCommands = new StreamShellInputHandler(
             _shellHost,
             textSender,
             _configService,

@@ -8,13 +8,11 @@ namespace OpenClawPTT;
 public sealed class ServiceFactory : IServiceFactory
 {
     private readonly IConfigurationService _configService;
-    private readonly IMessageComposer _composer;
     private readonly IStreamShellHost _shellHost;
 
-    public ServiceFactory(IConfigurationService configService, IMessageComposer composer, IStreamShellHost shellHost)
+    public ServiceFactory(IConfigurationService configService, IStreamShellHost shellHost)
     {
         _configService = configService;
-        _composer = composer;
         _shellHost = shellHost;
     }
 
@@ -33,7 +31,7 @@ public sealed class ServiceFactory : IServiceFactory
         => new InputHandler(textSender);
 
     public ITextMessageSender CreateTextMessageSender(IGatewayService gateway)
-        => new TextMessageSender(gateway, _configService, _composer);
+        => new TextMessageSender(gateway);
 
     public IStreamShellHost CreateStreamShellHost() => _shellHost;
 

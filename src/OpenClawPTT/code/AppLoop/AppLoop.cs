@@ -65,7 +65,7 @@ public sealed class AppLoop : IAppLoop
                 _pttStateMachine.OnProcessingCompleted();
             }
 
-            // Console input is now handled by StreamShell via AppShellCommands
+            // Console input is now handled by StreamShell via StreamShellInputHandler
 
             // Yield: prevent spin-loop. Without this the while-loop burns 100% CPU
             // polling hotkey flags that are almost always false.

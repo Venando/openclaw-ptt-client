@@ -9,7 +9,7 @@ namespace OpenClawPTT.Tests;
 /// <summary>
 /// Stability tests for InputHandler.
 /// InputHandler is now a simplified facade that no longer polls console keys.
-/// Non-command text is sent via StreamShell's UserInputSubmitted events (AppShellCommands).
+/// Non-command text is sent via StreamShell's UserInputSubmitted events (StreamShellInputHandler).
 /// HandleInputAsync is a no-op; SendTextAsync sends messages directly.
 /// </summary>
 public class InputHandlerStabilityTests

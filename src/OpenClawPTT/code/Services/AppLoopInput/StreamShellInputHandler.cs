@@ -5,17 +5,18 @@ using StreamShell;
 namespace OpenClawPTT;
 
 /// <summary>
-/// Registers StreamShell commands (/quit, /reconfigure) and wires up
-/// non-command user text input to the text sender.
+/// Integrates StreamShell with the PTT client — registers StreamShell commands
+/// (/quit, /reconfigure, OpenClaw slash commands) and wires up non-command
+/// user text input to the gateway text sender.
 /// </summary>
-public sealed class AppShellCommands : IDisposable
+public sealed class StreamShellInputHandler : IDisposable
 {
     private readonly IStreamShellHost _host;
     private readonly ITextMessageSender _textSender;
     private readonly IConfigurationService _configService;
     private readonly Action _onQuit;
 
-    public AppShellCommands(
+    public StreamShellInputHandler(
         IStreamShellHost host,
         ITextMessageSender textSender,
         IConfigurationService configService,

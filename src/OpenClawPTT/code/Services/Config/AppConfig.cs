@@ -52,10 +52,7 @@ public sealed class AppConfig
     public bool DebugToolCalls { get; set; } = false;
     public string AgentName { get; set; } = "Agent";
     public string TranscriptionPromptPrefix { get; set; } = "[It's a raw speech-to-text transcription]: ";
-    public string? AudioWrapPrompt { get; set; } = "[Wrap spoken in [audio]...[/audio] tags. But be more concise, also can separate written and spoken parts]";
-
-    [JsonIgnore]
-    public bool IsAudioEnabled => AudioResponseMode?.ToLowerInvariant() != "text-only";
+    // AudioWrapPrompt and IsAudioEnabled removed — no longer needed
     public int GroqRetryCount { get; set; } = 0;
     public int GroqRetryDelayMs { get; set; } = 1000;
     public double GroqRetryBackoffFactor { get; set; } = 2.0;

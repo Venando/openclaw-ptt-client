@@ -459,7 +459,6 @@ public sealed class ConfigurationWizard
             DebugToolCalls = source.DebugToolCalls,
             AgentName = source.AgentName,
             TranscriptionPromptPrefix = source.TranscriptionPromptPrefix,
-            AudioWrapPrompt = source.AudioWrapPrompt,
             GroqRetryCount = source.GroqRetryCount,
             GroqRetryDelayMs = source.GroqRetryDelayMs,
             GroqRetryBackoffFactor = source.GroqRetryBackoffFactor,

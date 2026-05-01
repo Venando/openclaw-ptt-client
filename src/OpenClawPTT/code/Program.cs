@@ -10,7 +10,7 @@ internal static class Program
         IConfigurationService configService = new ConfigurationService();
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         var shellHost = new StreamShellHost();
-        var factory = new ServiceFactory(configService, new MessageComposer(), shellHost);
+        var factory = new ServiceFactory(configService, shellHost);
 
         ConsoleUi.SetStreamShellHost(shellHost);
 

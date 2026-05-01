@@ -24,7 +24,7 @@ public class ServiceFactoryTests
     private static ServiceFactory CreateFactory()
     {
         var configService = new ConfigurationService();
-        return new ServiceFactory(configService, new MessageComposer(), new StreamShellHost());
+        return new ServiceFactory(configService, new StreamShellHost());
     }
 
     /// <summary>

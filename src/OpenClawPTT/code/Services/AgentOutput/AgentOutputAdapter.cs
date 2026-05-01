@@ -169,11 +169,12 @@ public sealed class AgentOutputAdapter : IDisposable
         if (_prefixPrinted) return;
         _prefixPrinted = true;
 
-        if (_config.IsAudioEnabled && _hasAudioInCurrentMessage)
+        var isAudioEnabled = _config.AudioResponseMode?.ToLowerInvariant() != "text-only";
+        if (isAudioEnabled && _hasAudioInCurrentMessage)
         {
             _currentPrefix = _agentReplayPrefixWithAudio;
         }
-        else if (_config.IsAudioEnabled)
+        else if (isAudioEnabled)
         {
             _currentPrefix = _agentReplayPrefixTextMode;
         }

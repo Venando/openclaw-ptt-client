@@ -8,7 +8,7 @@ namespace OpenClawPTT.Services;
 /// Handles user input routed through StreamShell's UserInputSubmitted event.
 /// Non-command text is sent as a PTT transcription message.
 /// This class no longer polls raw console keys — that logic is replaced by
-/// AppShellCommands which registers StreamShell command handlers.
+/// StreamShellInputHandler which registers StreamShell command handlers.
 /// </summary>
 public sealed class InputHandler : IInputHandler
 {
@@ -21,7 +21,7 @@ public sealed class InputHandler : IInputHandler
 
     /// <summary>
     /// No-op: input is now handled via StreamShell UserInputSubmitted events
-    /// in AppShellCommands. This method exists for backward compatibility with AppLoop.
+    /// in StreamShellInputHandler. This method exists for backward compatibility with AppLoop.
     /// </summary>
     public Task<InputResult> HandleInputAsync(CancellationToken ct)
     {
