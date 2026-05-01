@@ -36,7 +36,6 @@ public sealed class AppShellCommands : IDisposable
     {
         // OpenClawPTT commands (StreamShell auto-executes these)
         _host.AddCommand(new Command("quit", "Exit the application", QuitHandler));
-        _host.AddCommand(new Command("q", "Short alias for /quit", QuitHandler));
         _host.AddCommand(new Command("reconfigure", "Run reconfiguration wizard", ReconfigureHandler));
 
         // OpenClaw tool commands (for StreamShell hint support)

@@ -38,11 +38,16 @@ public static class ConsoleUi
     public static void PrintHelpMenu(string hotkeyCombination, bool holdToTalk)
     {
         var modeDescription = holdToTalk ? "Hold-to-talk" : "Toggle recording";
-
+        var middleContent = $"  {Markup.Escape($"[{hotkeyCombination}]")}  {modeDescription}  [deepskyblue3]·[/]  /help  [deepskyblue3]·[/]  /quit  ";
+        var plain = $"│{hotkeyCombination}  {modeDescription}  ·  /help  ·  /quit│";
+        var dashCount = plain.Length + 4; // +4 for the leading/trailing spaces and │ padding
+        var topLineStart = "── 🐾 PTT Active ─";
+        var topLine = $"[deepskyblue3]╭{topLineStart}{new string('─', dashCount - topLineStart.Length)}╮[/]";
+        var bottomLine = $"[deepskyblue3]╰{new string('─', dashCount)}╯[/]";
         ShellMsg("");
-        ShellMsg("[deepskyblue3]╭── 🐾 PTT Active ──────────────────────╮[/]");
-        ShellMsg($"[deepskyblue3]│[/]  {Markup.Escape($"[{hotkeyCombination}]")}  {Markup.Escape(modeDescription)}  [deepskyblue3]·[/]  /reconfigure  [deepskyblue3]·[/]  /quit  [deepskyblue3]│[/]");
-        ShellMsg("[deepskyblue3]╰──────────────────────────────────────────╯[/]");
+        ShellMsg(topLine);
+        ShellMsg($"[deepskyblue3]│[/]{middleContent}[deepskyblue3]│[/]");
+        ShellMsg(bottomLine);
         ShellMsg("");
     }
 
