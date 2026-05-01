@@ -342,7 +342,7 @@ public class GatewayMessager : IDisposable
 
         if (payload.TryGetProperty("command", out var cmd))
             ConsoleUi.PrintInfo($"    $ {cmd.GetString()}");
-        Console.WriteLine("     (auto-approving from PTT client)");
+        ConsoleUi.PrintInfo("(auto-approving from PTT client)");
 
         if (payload.TryGetProperty("id", out var idEl))
         {
