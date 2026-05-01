@@ -201,11 +201,8 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
         {
             string prettyHello = JsonSerializer.Serialize(hello, options);
             string extraPretty = Regex.Replace(prettyHello, "(?m)^(  )+", m => new string(' ', m.Length * 2));
-            Console.ForegroundColor = ConsoleColor.Magenta;
-            Console.WriteLine("--- SERVER HELLO PAYLOAD ---");
-            Console.WriteLine(extraPretty);
-            Console.WriteLine("----------------------------");
-            Console.ResetColor();
+            var lines = $"--- SERVER HELLO PAYLOAD ---\n{extraPretty}\n----------------------------".Split('\n');
+            foreach (var line in lines) ConsoleUi.Log("ws", line);
         }
 
         PersistDeviceTokenIfIssued(hello);
@@ -233,11 +230,8 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
         {
             var options = new JsonSerializerOptions { WriteIndented = true };
             string prettySnapshot = JsonSerializer.Serialize(snapshot, options);
-            Console.ForegroundColor = ConsoleColor.Magenta;
-            Console.WriteLine("--- SERVER SNAPSHOT PAYLOAD ---");
-            Console.WriteLine(prettySnapshot);
-            Console.WriteLine("----------------------------");
-            Console.ResetColor();
+            var lines = $"--- SERVER SNAPSHOT PAYLOAD ---\n{prettySnapshot}\n----------------------------".Split('\n');
+            foreach (var line in lines) ConsoleUi.Log("ws", line);
         }
 
         if (snapshot.TryGetProperty("sessionDefaults", out var defaults)

@@ -180,7 +180,7 @@ public class GatewayMessager : IDisposable
             {
                 var toolName = nameEl.GetString() ?? string.Empty;
                 var args = argsEl.GetRawText();
-                if (_cfg.DebugToolCalls) Console.WriteLine($"[DEBUG] ToolCall: {toolName}({args})");
+                if (_cfg.DebugToolCalls) ConsoleUi.Log("debug", $"ToolCall: {toolName}({args})");
                 _events.RaiseAgentToolCall(toolName, args);
             }
             else if (type == "text" && block.TryGetProperty("text", out var textEl))
@@ -217,7 +217,7 @@ public class GatewayMessager : IDisposable
             }
             else
             {
-                Console.WriteLine($"[DEBUG] Unknown block type=\"{type}\": {block}");
+                ConsoleUi.Log("debug", $"Unknown block type=\"{type}\": {block}");
             }
         }
 
@@ -335,17 +335,13 @@ public class GatewayMessager : IDisposable
 
     private void HandleApprovalRequest(JsonElement payload)
     {
-        Console.ForegroundColor = ConsoleColor.Yellow;
-        Console.WriteLine();
-        Console.WriteLine("  ⚠  Exec approval requested");
+        ConsoleUi.PrintWarning("Exec approval requested");
 
         if (payload.TryGetProperty("description", out var d))
-            Console.WriteLine($"     {d.GetString()}");
+            ConsoleUi.PrintInfo($"    {d.GetString()}");
 
         if (payload.TryGetProperty("command", out var cmd))
-            Console.WriteLine($"     $ {cmd.GetString()}");
-
-        Console.ResetColor();
+            ConsoleUi.PrintInfo($"    $ {cmd.GetString()}");
         Console.WriteLine("     (auto-approving from PTT client)");
 
         if (payload.TryGetProperty("id", out var idEl))
