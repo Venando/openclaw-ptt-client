@@ -57,7 +57,7 @@ public sealed class AudioService : IAudioService
         
         var wav = _recorder.StopRecording();
         _visualFeedback.Hide();
-        Console.WriteLine("■");
+        ConsoleUi.PrintInlineInfo("■");
         
         if (wav.Length < 1024)
         {
@@ -65,7 +65,7 @@ public sealed class AudioService : IAudioService
             return null;
         }
 
-        Console.WriteLine();
+        ConsoleUi.WriteLine();
         ConsoleUi.PrintInfo($"Sending to Groq {wav.Length / 1024.0:F1} KB…");
         
         try
