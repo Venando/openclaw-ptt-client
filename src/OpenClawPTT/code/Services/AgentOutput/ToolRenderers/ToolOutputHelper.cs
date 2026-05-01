@@ -9,7 +9,12 @@ namespace OpenClawPTT.Services;
 /// </summary>
 public sealed class ToolOutputHelper : IToolOutput
 {
-    private readonly IStreamShellHost _shellHost;
+    //private readonly IStreamShellHost _shellHost;
+
+    private readonly AgentReplyFormatter _agentReplayFormatter;
+    private readonly StreamShellCapturingConsole _streamShellCapturingConsole;
+
+    private string _prefix;
 
     /// <summary>
     /// Creates a ToolOutputHelper.
@@ -17,7 +22,27 @@ public sealed class ToolOutputHelper : IToolOutput
     /// <param name="shellHost">StreamShell host for markup output.</param>
     public ToolOutputHelper(IStreamShellHost shellHost)
     {
-        _shellHost = shellHost;
+        //_shellHost = shellHost;
+
+        _streamShellCapturingConsole = new StreamShellCapturingConsole(shellHost);
+
+        _agentReplayFormatter = new AgentReplyFormatter("", 10, prefixAlreadyPrinted: false, output: _streamShellCapturingConsole);
+
+    }
+
+    public void Start(string prefix)
+    {
+        _agentReplayFormatter.Reconfigure(prefix);
+    }
+
+    public void Finish()
+    {
+        _agentReplayFormatter.Finish();
+    }
+
+    public void Flush()
+    {
+        _streamShellCapturingConsole.FlushToStreamShell(_prefix);
     }
 
     private void WriteToShell(string text, ConsoleColor color)
@@ -34,7 +59,9 @@ public sealed class ToolOutputHelper : IToolOutput
             ConsoleColor.DarkYellow => "olive",
             _ => "default"
         };
-        _shellHost.AddMessage($"[{colorName}]{Markup.Escape(text)}[/]");
+        
+        _agentReplayFormatter.ProcessMarkupDelta($"[{colorName}]{Markup.Escape(text)}[/]");
+        //_shellHost.AddMessage($"[{colorName}]{Markup.Escape(text)}[/]");
     }
 
     public void Print(string text, ConsoleColor color = ConsoleColor.White)
@@ -44,7 +71,7 @@ public sealed class ToolOutputHelper : IToolOutput
 
     public void PrintLine(string text, ConsoleColor color = ConsoleColor.White)
     {
-        WriteToShell(text, color);
+        WriteToShell(text + "\n", color);
     }
 
     public void PrintTruncated(string text, string continuationPrefix, int rightMarginIndent, ConsoleColor color = ConsoleColor.White)
@@ -58,11 +85,9 @@ public sealed class ToolOutputHelper : IToolOutput
         foreach (var line in displayLines)
         {
             if (!string.IsNullOrWhiteSpace(line))
-                WriteToShell(line, color);
+                PrintLine(line, color);
         }
         if (hasMore)
-            WriteToShell($"... ({allLines.Length - 4} more lines)", ConsoleColor.DarkGray);
+            PrintLine($"... ({allLines.Length - 4} more lines)", ConsoleColor.DarkGray);
     }
-
-    public void ResetColor() { }
 }

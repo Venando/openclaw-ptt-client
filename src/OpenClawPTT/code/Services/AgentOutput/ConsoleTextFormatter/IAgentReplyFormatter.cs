@@ -11,6 +11,11 @@ public interface IAgentReplyFormatter
     void ProcessDelta(string delta);
 
     /// <summary>
+    /// Process a pre-formatted markup string directly without word-wrapping.
+    /// </summary>
+    void ProcessMarkupDelta(string markup);
+
+    /// <summary>
     /// Flush any remaining word buffer and finish the reply.
     /// </summary>
     void Finish();

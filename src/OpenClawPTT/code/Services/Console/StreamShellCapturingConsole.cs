@@ -24,7 +24,7 @@ public sealed class StreamShellCapturingConsole : IFormattedOutput
     /// The <paramref name="cyanPrefix"/> is rendered in cyan, and the captured body
     /// (everything after the prefix) is rendered in the default StreamShell color.
     /// </summary>
-    public void FlushToStreamShell(string cyanPrefix)
+    public void FlushToStreamShell(string prefix)
     {
         if (_buffer.Length == 0)
             return;
@@ -34,15 +34,12 @@ public sealed class StreamShellCapturingConsole : IFormattedOutput
             return;
 
         // First part of captured text is the prefix (already written via _consoleOutput.Write)
-        // Everything after is the agent reply body.
-        // Render prefix in cyan, body in default color, separated by newlines for clarity.
-        _shellHost.AddMessage($"[cyan]{Markup.Escape(cyanPrefix)}[/]");
-
         // Split body into lines and add each as a default-color message
         var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        foreach (var line in lines)
+        for (int i = 0; i < lines.Length; i++)
         {
-            _shellHost.AddMessage(Markup.Escape(line));
+            string? line = Markup.Escape(lines[i]);
+            _shellHost.AddMessage(i == 0 ? prefix + line : line);
         }
 
         _buffer.Clear();
@@ -52,7 +49,7 @@ public sealed class StreamShellCapturingConsole : IFormattedOutput
 
     public void Write(string text) => _buffer.Append(text);
 
-    public void WriteLine() => _buffer.AppendLine();
+    public void WriteLine() => _buffer.Append('\n');
 
     public int WindowWidth
     {

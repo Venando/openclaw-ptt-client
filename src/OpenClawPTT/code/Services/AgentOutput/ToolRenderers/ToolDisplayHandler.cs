@@ -71,15 +71,17 @@ public sealed class ToolDisplayHandler
 
         string icon = ToolIcons.TryGetValue(toolName, out var i) ? i : "🔧";
         string displayName = string.Join(" ", toolName.Split('_').Select(w => char.ToUpper(w[0]) + w[1..]));
-        string headerLine = $"[grey]  {icon} {displayName}  [/]";
+        string headerLine = $"[grey]  {icon}[/] [gray93 on grey13]{displayName}  [/]";
 
-        _shellHost?.AddMessage(headerLine);
 
         if (string.IsNullOrWhiteSpace(arguments))
         {
+            _shellHost?.AddMessage(headerLine);
             _shellHost?.AddMessage("");
             return;
         }
+
+        _output.Start(headerLine);
 
         try
         {
@@ -100,6 +102,9 @@ public sealed class ToolDisplayHandler
             _shellHost?.AddMessage($"[grey]  {Markup.Escape(arguments)}[/]");
         }
 
-        _shellHost?.AddMessage("");
+        _output.PrintLine("");
+
+        _output.Finish();
+        _output.Flush();
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Text.Json;
+using Spectre.Console;
 
 namespace OpenClawPTT.Services;
 
@@ -82,13 +83,15 @@ public sealed class AgentOutputAdapter : IDisposable
 
             if (useCapturing && _capturingConsole != null)
             {
-                _capturingConsole.FlushToStreamShell(_currentPrefix);
+                _capturingConsole.FlushToStreamShell($"[cyan]{Markup.Escape(_currentPrefix)}[/]");
             }
         }
         else
         {
             ConsoleUi.PrintAgentReply(_currentPrefix, body);
         }
+        
+        _prefixPrinted = false;
     }
 
     public void OnAgentThinking(string thinking)
