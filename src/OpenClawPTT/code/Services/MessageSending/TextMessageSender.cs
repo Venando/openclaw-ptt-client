@@ -24,12 +24,10 @@ public sealed class TextMessageSender : ITextMessageSender
             ?? throw new InvalidOperationException("Configuration not loaded");
 
         var composed = _composer.ComposeOutgoing(text, cfg);
-        ConsoleUi.PrintUserMessage(composed);
-        ConsoleUi.PrintInlineInfo("Sending… ");
         try
         {
             await _gateway.SendTextAsync(composed, ct);
-            ConsoleUi.PrintInlineSuccess("sent.");
+            ConsoleUi.PrintUserMessage(composed);
         }
         catch (Exception ex)
         {

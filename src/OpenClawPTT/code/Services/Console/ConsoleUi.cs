@@ -39,14 +39,11 @@ public static class ConsoleUi
     {
         var modeDescription = holdToTalk ? "Hold-to-talk" : "Toggle recording";
 
-        ShellMsg("[green]  ╔══════════════════════════════════════════╗[/]");
-        ShellMsg("[green]  ║  Push-to-Talk ready                      ║[/]");
-        ShellMsg("[green]  ╠══════════════════════════════════════════╣[/]");
-        ShellMsg($"[green]  ║  {Markup.Escape($"[{hotkeyCombination}]")}  {Markup.Escape(modeDescription)}[/]");
-        ShellMsg($"[green]  ║  {Markup.Escape($"[Alt+R]")}  Reconfigure settings[/]");
-        ShellMsg($"[green]  ║  {Markup.Escape($"[T]")}      Type a text message[/]");
-        ShellMsg($"[green]  ║  {Markup.Escape($"[Q]")}      Quit[/]");
-        ShellMsg("[green]  ╚══════════════════════════════════════════╝[/]");
+        ShellMsg("");
+        ShellMsg("[deepskyblue3]╭── 🐾 PTT Active ──────────────────────╮[/]");
+        ShellMsg($"[deepskyblue3]│[/]  {Markup.Escape($"[{hotkeyCombination}]")}  {Markup.Escape(modeDescription)}  [deepskyblue3]·[/]  /reconfigure  [deepskyblue3]·[/]  /quit  [deepskyblue3]│[/]");
+        ShellMsg("[deepskyblue3]╰──────────────────────────────────────────╯[/]");
+        ShellMsg("");
     }
 
     public static void PrintRecordingIndicator(bool isRecording, string hotkeyCombination, bool holdToTalk)
@@ -93,11 +90,6 @@ public static class ConsoleUi
     public static void PrintInlineInfo(string message)
     {
         ShellMsg($"[grey]  {Markup.Escape(message)}[/]");
-    }
-
-    public static void PrintInlineSuccess(string message)
-    {
-        ShellMsg($"[green]{Markup.Escape(message)}[/]");
     }
 
     public static void PrintAgentReply(string prefix, string body)

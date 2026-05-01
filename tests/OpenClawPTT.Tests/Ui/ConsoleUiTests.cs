@@ -79,11 +79,11 @@ public class ConsoleUiTests : IDisposable
     }
 
     [Fact]
-    public void PrintHelpMenu_SendsGreenMarkup()
+    public void PrintHelpMenu_SendsDeepSkyBlueMarkup()
     {
         _shellHost.Setup(h => h.AddMessage(It.IsAny<string>())).Verifiable();
         ConsoleUi.PrintHelpMenu("Alt+=", true);
-        _shellHost.Verify(h => h.AddMessage(It.Is<string>(m => m.Contains("[green]"))), Times.AtLeastOnce);
+        _shellHost.Verify(h => h.AddMessage(It.Is<string>(m => m.Contains("[deepskyblue3]"))), Times.AtLeastOnce);
     }
 
     #endregion
