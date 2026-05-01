@@ -235,37 +235,28 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
             foreach (var line in lines) ConsoleUi.Log("ws", line);
         }
 
-        // string mainKey;
-
-        // if (snapshot.TryGetProperty("sessionDefaults", out var defaults))
-        // {
-        //     if (defaults.TryGetProperty("mainSessionKey", out var keyEl))
-        //     {
-        //         _cfg.SessionKey = keyEl.GetString();
-        //         ConsoleUi.Log("gateway", $"Session initialized: {_cfg.SessionKey}");
-        //     }
-
-        //     if (defaults.TryGetProperty("mainKey", out var mainKeyJson))
-        //     {
-        //         mainKey = mainKeyJson.GetString();
-        //     }
-        // }
-
-        if (snapshot.TryGetProperty("health", out var health))
+        if (snapshot.TryGetProperty("health", out var health)
+            && health.TryGetProperty("agents", out var agents))
         {
-            if (health.TryGetProperty("agents", out var agents))
+            var agentList = new List<AgentInfo>();
+            foreach (JsonElement agent in agents.EnumerateArray())
             {
-                foreach (JsonElement agent in agents.EnumerateArray())
-                {
-                    //TODO: Save agents info. And Set active session to the agent with isDefault enabled or first
+                string agentId = agent.GetProperty("agentId").GetString() ?? "";
+                string name = agent.GetProperty("name").GetString() ?? "";
+                bool isDefault = agent.GetProperty("isDefault").GetBoolean();
+                string sessionKey = $"agent:{agentId}:main";
 
-                    string agentId = agent.GetProperty("agentId").GetString() ?? "Missing Id";
-                    string name = agent.GetProperty("name").GetString() ?? "Missing Name";
-                    bool isDefault = agent.GetProperty("isDefault").GetBoolean();
-                    // I'm not sure how to get proper session name
-                    string assumedSessionKey = $"agent:{agentId}:main";
-                }
+                agentList.Add(new AgentInfo
+                {
+                    AgentId = agentId,
+                    Name = name,
+                    IsDefault = isDefault,
+                    SessionKey = sessionKey
+                });
             }
+
+            AgentRegistry.SetAgents(agentList);
+            ConsoleUi.Log("gateway", $"Loaded {agentList.Count} agent(s). Active session: {AgentRegistry.ActiveSessionKey}");
         }
     }
 
@@ -275,6 +266,30 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
         ConsoleUi.Log("gateway", $"Keepalive every {tickMs}ms.");
 
         await SubscribeToSessionAsync(linkedCt);
+
+        // When the user switches active agent via StreamShell command, resubscribe
+        AgentRegistry.ActiveSessionChanged += OnActiveSessionChanged;
+    }
+
+    private void OnActiveSessionChanged(string? newSessionKey)
+    {
+        if (newSessionKey == null) return;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var subscribeParams = new Dictionary<string, object?>
+                {
+                    ["sessionKey"] = newSessionKey
+                };
+                await SendRequestAsync("sessions.subscribe", subscribeParams, CancellationToken.None);
+                ConsoleUi.Log("gateway", $"Switched to session: {newSessionKey}");
+            }
+            catch (Exception ex)
+            {
+                ConsoleUi.LogError("gateway", $"Failed to subscribe to new session: {ex.Message}");
+            }
+        });
     }
 
     private int ExtractTickIntervalMs(JsonElement hello)
@@ -287,9 +302,10 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
 
     private async Task SubscribeToSessionAsync(CancellationToken linkedCt)
     {
+        var sessionKey = AgentRegistry.ActiveSessionKey ?? "main";
         var subscribeParams = new Dictionary<string, object?>
         {
-            ["sessionKey"] = _cfg.SessionKey
+            ["sessionKey"] = sessionKey
         };
 
         await SendRequestAsync("sessions.subscribe", subscribeParams, linkedCt);

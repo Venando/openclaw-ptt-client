@@ -104,9 +104,6 @@ public sealed class AppConfig
     public string? TtsVoiceId { get; set; } // Default ElevenLabs voice
 
     [JsonIgnore]
-    public string? SessionKey { get; set; }
-
-    [JsonIgnore]
     public string ClientVersion => "1.0.0";
 
 

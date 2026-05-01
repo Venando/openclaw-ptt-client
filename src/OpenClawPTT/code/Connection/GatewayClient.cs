@@ -37,7 +37,7 @@ public sealed class GatewayClient : IGatewayClient
 
     public bool IsConnected => _lifecycle?.IsConnected ?? false;
 
-    public string? SessionKey => _cfg.SessionKey;
+    public string? SessionKey => AgentRegistry.ActiveSessionKey;
 
     public string? AgentId => null; // Not implemented in this version
 
@@ -72,7 +72,7 @@ public sealed class GatewayClient : IGatewayClient
         ThrowIfDisposed();
         if (_lifecycle == null || !_lifecycle.IsConnected)
             throw new InvalidOperationException("Not connected. Call ConnectAsync first.");
-        var sessionKey = !string.IsNullOrEmpty(_cfg.SessionKey) ? _cfg.SessionKey : "main";
+        var sessionKey = AgentRegistry.ActiveSessionKey ?? "main";
         var chatParams = new Dictionary<string, object?>
         {
             ["sessionKey"] = sessionKey,
@@ -113,7 +113,7 @@ public sealed class GatewayClient : IGatewayClient
         {
             await File.WriteAllBytesAsync(tempPath, wavBytes, ct);
 
-            var sessionKey = !string.IsNullOrEmpty(_cfg.SessionKey) ? _cfg.SessionKey : "main";
+            var sessionKey = AgentRegistry.ActiveSessionKey ?? "main";
 
             var chatParams = new Dictionary<string, object?>
             {

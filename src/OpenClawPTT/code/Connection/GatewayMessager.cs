@@ -127,10 +127,12 @@ public class GatewayMessager : IDisposable
         if (_framing != null)
             _framing.ResolveEventWaiter(name, payload);
 
-        if (payload.TryGetProperty("sessionKey", out JsonElement sessionKey))
+        // Filter messages not belonging to the active agent session
+        if (payload.TryGetProperty("sessionKey", out JsonElement sessionKeyEl))
         {
-            //TODO: Check if the message from active session, if not quit.
-            sessionKey.ToString();
+            var msgSessionKey = sessionKeyEl.GetString();
+            if (!AgentRegistry.IsMessageForActiveSession(msgSessionKey))
+                return;
         }
 
         switch (name)

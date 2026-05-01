@@ -359,14 +359,13 @@ public class GatewayConnectionLifecycleTests : IDisposable
     // ─── ProcessSnapshotIfPresent ──────────────────────────────────
 
     [Fact]
-    public void ProcessSnapshotIfPresent_WithSessionDefaults_SetsSessionKey()
+    public void ProcessSnapshotIfPresent_WithHealthAgents_SetsAgentRegistry()
     {
         var cfg = new AppConfig
         {
             CustomDataDir = Path.GetTempPath(),
             GatewayUrl = "wss://127.0.0.1:9999/test",
-            AuthToken = "test-token",
-            SessionKey = null
+            AuthToken = "test-token"
         };
         var dev = new DeviceIdentity(cfg.DataDir);
         dev.EnsureKeypair();
@@ -374,12 +373,12 @@ public class GatewayConnectionLifecycleTests : IDisposable
         var lifecycle = new GatewayConnectionLifecycle(cfg, dev, events, () => new Mock<IClientWebSocket>().Object);
 
         var json = JsonDocument.Parse(/* lang=json */ """
-            {"snapshot":{"sessionDefaults":{"mainSessionKey":"agent:main:main"}}}
+            {"snapshot":{"health":{"agents":[{"agentId":"default","name":"Default Agent","isDefault":true}]}}}
             """).RootElement;
 
         InvokeVoid(lifecycle, "ProcessSnapshotIfPresent", json);
 
-        Assert.Equal("agent:main:main", cfg.SessionKey);
+        Assert.Equal("agent:default:main", AgentRegistry.ActiveSessionKey);
         lifecycle.Dispose();
     }
 
@@ -432,7 +431,7 @@ public class GatewayConnectionLifecycleTests : IDisposable
               "type": "hello-ok",
               "policy": {"tickIntervalMs": 20000},
               "auth": {"deviceToken": "tok"},
-              "snapshot": {"sessionDefaults": {"mainSessionKey": "agent:test:1"}}
+              "snapshot": {"health":{"agents":[{"agentId":"test","name":"Test Agent","isDefault":true}]}}
             }
             """).RootElement;
 
@@ -440,7 +439,7 @@ public class GatewayConnectionLifecycleTests : IDisposable
 
         Assert.Equal(20_000, tickMs);
         Assert.Equal("tok", cfg.DeviceToken);
-        Assert.Equal("agent:test:1", cfg.SessionKey);
+        Assert.Equal("agent:test:main", AgentRegistry.ActiveSessionKey);
         lifecycle.Dispose();
     }
 

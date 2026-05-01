@@ -34,6 +34,8 @@ public sealed class StreamShellInputHandler : IDisposable
         // OpenClawPTT commands (StreamShell auto-executes these)
         _host.AddCommand(new Command("quit", "Exit the application", QuitHandler));
         _host.AddCommand(new Command("reconfigure", "Run reconfiguration wizard", ReconfigureHandler));
+        _host.AddCommand(new Command("agents", "List available agents", AgentsHandler));
+        _host.AddCommand(new Command("agent", "Switch active agent by name or ID: /agent <name|id>", AgentHandler));
 
         // OpenClaw tool commands (for StreamShell hint support)
         foreach (var name in OpenClawCommands.Names)
@@ -133,6 +135,55 @@ public sealed class StreamShellInputHandler : IDisposable
     /// Handler for registered OpenClaw tool commands.
     /// Reconstructs the command text from parsed args and sends it to the gateway.
     /// </summary>
+    private Task AgentsHandler(string[] args, Dictionary<string, string> named)
+    {
+        var agents = AgentRegistry.Agents;
+        var activeKey = AgentRegistry.ActiveSessionKey;
+
+        if (agents.Count == 0)
+        {
+            _host.AddMessage("[yellow]  No agents available. Make sure you're connected.[/]");
+            return Task.CompletedTask;
+        }
+
+        _host.AddMessage("[cyan2]  Available agents:[/]");
+        foreach (var agent in agents)
+        {
+            var isActive = agent.SessionKey == activeKey;
+            var marker = isActive ? " ►" : "  ";
+            _host.AddMessage($"  {marker} [bold]{Markup.Escape(agent.Name)}[/] [grey]({Markup.Escape(agent.AgentId)})[/]");
+        }
+        _host.AddMessage("[grey]  Use /agent &lt;name|id&gt; to switch[/]");
+        return Task.CompletedTask;
+    }
+
+    private Task AgentHandler(string[] args, Dictionary<string, string> named)
+    {
+        if (args.Length == 0)
+        {
+            _host.AddMessage("[yellow]  Usage: /agent &lt;name|id&gt;[/]");
+            return Task.CompletedTask;
+        }
+
+        var search = string.Join(" ", args);
+        var matched = AgentRegistry.Agents.FirstOrDefault(a =>
+            a.Name.Equals(search, StringComparison.OrdinalIgnoreCase) ||
+            a.AgentId.Equals(search, StringComparison.OrdinalIgnoreCase));
+
+        if (matched == null)
+        {
+            _host.AddMessage($"[red]  Agent not found: {Markup.Escape(search)}[/]");
+            return Task.CompletedTask;
+        }
+
+        if (AgentRegistry.SetActiveAgent(matched.AgentId))
+            _host.AddMessage($"[green]  Switched to agent: {Markup.Escape(matched.Name)}[/]");
+        else
+            _host.AddMessage("[yellow]  That agent is already active.[/]");
+
+        return Task.CompletedTask;
+    }
+
     private async Task OpenClawCommandHandler(string commandName, string[] args, Dictionary<string, string> named)
     {
         // Reconstruct the command text

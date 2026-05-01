@@ -490,7 +490,6 @@ public sealed class ConfigurationWizard
             AudioResponseMode = source.AudioResponseMode,
             TtsApiKey = source.TtsApiKey,
             TtsVoiceId = source.TtsVoiceId,
-            SessionKey = source.SessionKey,
             CustomDataDir = source.CustomDataDir,
         };
     }

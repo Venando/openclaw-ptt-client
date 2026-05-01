@@ -176,13 +176,15 @@ public class GatewayClientTests : IDisposable
     }
 
     [Fact]
-    public void SessionKey_ReturnsConfigSessionKey()
+    public void SessionKey_ReturnsActiveSessionKey()
     {
         var mockLifecycle = new Mock<IGatewayConnectionLifecycle>();
-        var cfg = new AppConfig { CustomDataDir = Path.GetTempPath(), GatewayUrl = "wss://test", AuthToken = "test", SessionKey = "agent:main:main" };
+        var cfg = new AppConfig { CustomDataDir = Path.GetTempPath(), GatewayUrl = "wss://test", AuthToken = "test" };
         var dev = new DeviceIdentity(cfg.DataDir);
         dev.EnsureKeypair();
         var events = new GatewayEventSource();
+
+        AgentRegistry.SetAgents(new[] { new AgentInfo { AgentId = "main", Name = "Main", SessionKey = "agent:main:main", IsDefault = true } });
 
         var client = new GatewayClient(cfg, dev, events, () => mockLifecycle.Object);
         Assert.Equal("agent:main:main", client.SessionKey);
