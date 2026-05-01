@@ -23,9 +23,7 @@ public sealed class AgentOutputAdapter : IDisposable
     private readonly string _agentReplayPrefix;
     private readonly string _agentReplayPrefixWithAudio;
     private readonly string _agentReplayPrefixTextMode;
-    private readonly string _thinkingPrefix;
-    private readonly string _thinkingInfo;
-    private IAgentReplyFormatter? _thinkingFormatter;
+
     private string _currentPrefix = "";
     private string _newlineSuffix = "";
     private int _prefixLength;
@@ -40,9 +38,6 @@ public sealed class AgentOutputAdapter : IDisposable
         _agentReplayPrefix = $"  🤖 {_config.AgentName}: ";
         _agentReplayPrefixWithAudio = $"  🤖 🔊 {_config.AgentName}: ";
         _agentReplayPrefixTextMode = $"  🤖 ✍️ {_config.AgentName}: ";
-        _thinkingPrefix = "  💭 Thinking: ";
-        _thinkingInfo = "  💭 Thinking… ";
-
         var shellHost = ConsoleUi.GetStreamShellHost();
         _toolDisplayHandler = new ToolDisplayHandler(_config.RightMarginIndent, shellHost);
 
@@ -107,38 +102,12 @@ public sealed class AgentOutputAdapter : IDisposable
     {
         if (_config.ShowThinking)
         {
-            if (!_prefixPrinted)
-            {
-                _prefixPrinted = true;
-                Console.WriteLine();
-                Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.Write(_thinkingPrefix);
-                Console.ResetColor();
-                if (_config.EnableWordWrap)
-                {
-                    _thinkingFormatter = new AgentReplyFormatter(_thinkingPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true, output: null);
-                }
-            }
-            if (_thinkingFormatter != null)
-            {
-                _thinkingFormatter.ProcessDelta(thinking);
-                _thinkingFormatter.Finish();
-                _thinkingFormatter = null;
-                _prefixPrinted = false;
-                Console.WriteLine();
-            }
-            else
-            {
-                Console.Write(thinking.TrimEnd());
-            }
+            // Route through ConsoleUi — goes to StreamShell when active
+            ConsoleUi.Log("agent-think", thinking);
+            _prefixPrinted = false;
         }
         else
         {
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.WriteLine(_thinkingInfo);
-            Console.ResetColor();
-            Console.WriteLine();
             _prefixPrinted = false;
         }
     }
@@ -216,9 +185,6 @@ public sealed class AgentOutputAdapter : IDisposable
         _prefixLength = _currentPrefix.Length;
         _newlineSuffix = new string(' ', _prefixLength);
 
-        Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.Write(_currentPrefix);
-        Console.ResetColor();
         if (_config.EnableWordWrap)
         {
             // When StreamShell is active, capture formatter output for final flush to Shell
