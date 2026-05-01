@@ -77,16 +77,12 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
 
         if (devicePaths.Count == 0)
         {
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("  [hotkey] No accessible keyboard devices found in /dev/input/.");
-            Console.WriteLine("  [hotkey] Fix: sudo usermod -aG input $USER  (then re-login)");
-            Console.ResetColor();
+            ConsoleUi.Log("hotkey", "No accessible keyboard devices found in /dev/input/.");
+            ConsoleUi.Log("hotkey", "Fix: sudo usermod -aG input $USER  (then re-login)");
             return;
         }
 
-        Console.ForegroundColor = ConsoleColor.DarkGray;
-        Console.WriteLine($"  [hotkey] Watching {devicePaths.Count} keyboard device(s) for hotkey");
-        Console.ResetColor();
+        ConsoleUi.Log("hotkey", $"Watching {devicePaths.Count} keyboard device(s) for hotkey");
 
         var ct = _cts.Token;
 

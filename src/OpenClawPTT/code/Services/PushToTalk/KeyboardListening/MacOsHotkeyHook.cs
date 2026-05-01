@@ -48,11 +48,9 @@ internal sealed class MacOsHotkeyHook : IGlobalHotkeyHook
         // Check permission first — tap will be created but dead without it
         if (!AXIsProcessTrusted())
         {
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("  [hotkey] Accessibility permission required.");
-            Console.WriteLine("  [hotkey] System Settings → Privacy & Security → Accessibility");
-            Console.WriteLine("  [hotkey] → enable your terminal app, then restart.");
-            Console.ResetColor();
+            ConsoleUi.Log("hotkey", "Accessibility permission required.");
+            ConsoleUi.Log("hotkey", "System Settings → Privacy & Security → Accessibility");
+            ConsoleUi.Log("hotkey", "→ enable your terminal app, then restart.");
             return;
         }
 
@@ -70,9 +68,7 @@ internal sealed class MacOsHotkeyHook : IGlobalHotkeyHook
 
         if (_eventTap == IntPtr.Zero)
         {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("  [hotkey] CGEventTapCreate failed — check permissions.");
-            Console.ResetColor();
+            ConsoleUi.LogError("hotkey", "CGEventTapCreate failed — check permissions.");
             _selfHandle.Free();
             return;
         }
