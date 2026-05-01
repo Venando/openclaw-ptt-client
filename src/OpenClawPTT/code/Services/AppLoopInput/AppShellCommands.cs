@@ -34,9 +34,19 @@ public sealed class AppShellCommands : IDisposable
     /// <summary>Register all commands and the UserInputSubmitted handler.</summary>
     public void Register()
     {
+        // OpenClawPTT commands (StreamShell auto-executes these)
         _host.AddCommand(new Command("quit", "Exit the application", QuitHandler));
         _host.AddCommand(new Command("q", "Short alias for /quit", QuitHandler));
         _host.AddCommand(new Command("reconfigure", "Run reconfiguration wizard", ReconfigureHandler));
+
+        // OpenClaw tool commands (for StreamShell hint support)
+        foreach (var name in OpenClawCommands.Names)
+        {
+            var cmdName = name; // Capture for closure
+            _host.AddCommand(new Command(name, $"Send {name} to OpenClaw",
+                (args, named) => OpenClawToolHandler(cmdName, args, named)));
+        }
+
         _host.UserInputSubmitted += OnUserInput;
     }
 
@@ -119,6 +129,31 @@ public sealed class AppShellCommands : IDisposable
         catch (Exception ex)
         {
             _host.AddMessage($"[red]  Failed to send message: {Markup.Escape(ex.Message)}[/]");
+        }
+    }
+
+    /// <summary>
+    /// Handler for registered OpenClaw tool commands.
+    /// Reconstructs the command text from parsed args and sends it to the gateway.
+    /// </summary>
+    private async Task OpenClawToolHandler(string commandName, string[] args, Dictionary<string, string> named)
+    {
+        // Reconstruct the command text
+        var parts = new List<string> { "/" + commandName };
+        parts.AddRange(args);
+        foreach (var kvp in named)
+            parts.Add($"{kvp.Key}={kvp.Value}");
+
+        var commandText = string.Join(" ", parts);
+
+        try
+        {
+            await _textSender.SendAsync(commandText, CancellationToken.None);
+            _host.AddMessage($"[cyan]⚡[/] {Markup.Escape(commandText)}");
+        }
+        catch (Exception ex)
+        {
+            _host.AddMessage($"[red]  Failed to send command: {Markup.Escape(ex.Message)}[/]");
         }
     }
 }
