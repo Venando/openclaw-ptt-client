@@ -34,8 +34,8 @@ public sealed class StreamShellInputHandler : IDisposable
         // OpenClawPTT commands (StreamShell auto-executes these)
         _host.AddCommand(new Command("quit", "Exit the application", QuitHandler));
         _host.AddCommand(new Command("reconfigure", "Run reconfiguration wizard", ReconfigureHandler));
-        _host.AddCommand(new Command("agents", "List available agents", AgentsHandler));
-        _host.AddCommand(new Command("agent", "Switch active agent by name or ID: /agent <name|id>", AgentHandler));
+        _host.AddCommand(new Command("crew", "List available agents", CrewHandler));
+        _host.AddCommand(new Command("chat", "Switch active agent by name or ID: /chat <name|id>", ChatHandler));
 
         // OpenClaw tool commands (for StreamShell hint support)
         foreach (var name in OpenClawCommands.Names)
@@ -135,7 +135,7 @@ public sealed class StreamShellInputHandler : IDisposable
     /// Handler for registered OpenClaw tool commands.
     /// Reconstructs the command text from parsed args and sends it to the gateway.
     /// </summary>
-    private Task AgentsHandler(string[] args, Dictionary<string, string> named)
+    private Task CrewHandler(string[] args, Dictionary<string, string> named)
     {
         var agents = AgentRegistry.Agents;
         var activeKey = AgentRegistry.ActiveSessionKey;
@@ -153,15 +153,15 @@ public sealed class StreamShellInputHandler : IDisposable
             var marker = isActive ? " ►" : "  ";
             _host.AddMessage($"  {marker} [bold]{Markup.Escape(agent.Name)}[/] [grey]({Markup.Escape(agent.AgentId)})[/]");
         }
-        _host.AddMessage("[grey]  Use /agent &lt;name|id&gt; to switch[/]");
+        _host.AddMessage("[grey]  Use /chat &lt;name|id&gt; to switch[/]");
         return Task.CompletedTask;
     }
 
-    private Task AgentHandler(string[] args, Dictionary<string, string> named)
+    private Task ChatHandler(string[] args, Dictionary<string, string> named)
     {
         if (args.Length == 0)
         {
-            _host.AddMessage("[yellow]  Usage: /agent &lt;name|id&gt;[/]");
+            _host.AddMessage("[yellow]  Usage: /chat &lt;name|id&gt;[/]");
             return Task.CompletedTask;
         }
 
