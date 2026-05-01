@@ -45,7 +45,7 @@ public sealed class ToolDisplayHandler
     /// Legacy constructor for backward compatibility.
     /// </summary>
     public ToolDisplayHandler(int rightMarginIndent, IStreamShellHost? shellHost = null)
-        : this(new ToolOutputHelper(shellHost: shellHost), BuildDefaultRenderers(new ToolOutputHelper(shellHost: shellHost)), rightMarginIndent, shellHost)
+        : this(new ToolOutputHelper(shellHost!), BuildDefaultRenderers(new ToolOutputHelper(shellHost!)), rightMarginIndent, shellHost)
     {
     }
 
@@ -68,31 +68,17 @@ public sealed class ToolDisplayHandler
     public void Handle(string toolName, string arguments)
     {
         if (string.IsNullOrEmpty(toolName))
-        {
-            Console.WriteLine();
             return;
-        }
 
         string icon = ToolIcons.TryGetValue(toolName, out var i) ? i : "🔧";
         string displayName = string.Join(" ", toolName.Split('_').Select(w => char.ToUpper(w[0]) + w[1..]));
         string headerLine = $"[grey]  {icon} {displayName}  [/]";
 
-        if (_shellHost != null)
-        {
-            _shellHost.AddMessage(headerLine);
-        }
-        else
-        {
-            Console.ForegroundColor = ConsoleColor.Gray;
-            Console.Write(headerLine);
-            Console.ResetColor();
-        }
+        _shellHost?.AddMessage(headerLine);
 
         if (string.IsNullOrWhiteSpace(arguments))
         {
-            Console.WriteLine();
-            if (_shellHost != null)
-                _shellHost.AddMessage("");
+            _shellHost?.AddMessage("");
             return;
         }
 
@@ -112,15 +98,9 @@ public sealed class ToolDisplayHandler
         }
         catch
         {
-            var msg = $"[grey]  {Markup.Escape(arguments)}[/]";
-            if (_shellHost != null)
-                _shellHost.AddMessage(msg);
-            else
-                Console.Write(arguments);
+            _shellHost?.AddMessage($"[grey]  {Markup.Escape(arguments)}[/]");
         }
 
-        Console.WriteLine();
-        if (_shellHost != null)
-            _shellHost.AddMessage("");
+        _shellHost?.AddMessage("");
     }
 }
