@@ -127,6 +127,12 @@ public class GatewayMessager : IDisposable
         if (_framing != null)
             _framing.ResolveEventWaiter(name, payload);
 
+        if (payload.TryGetProperty("sessionKey", out JsonElement sessionKey))
+        {
+            //TODO: Check if the message from active session, if not quit.
+            sessionKey.ToString();
+        }
+
         switch (name)
         {
             case "session.message":

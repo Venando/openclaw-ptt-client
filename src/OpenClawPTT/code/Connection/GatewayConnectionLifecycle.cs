@@ -235,11 +235,37 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
             foreach (var line in lines) ConsoleUi.Log("ws", line);
         }
 
-        if (snapshot.TryGetProperty("sessionDefaults", out var defaults)
-            && defaults.TryGetProperty("mainSessionKey", out var keyEl))
+        // string mainKey;
+
+        // if (snapshot.TryGetProperty("sessionDefaults", out var defaults))
+        // {
+        //     if (defaults.TryGetProperty("mainSessionKey", out var keyEl))
+        //     {
+        //         _cfg.SessionKey = keyEl.GetString();
+        //         ConsoleUi.Log("gateway", $"Session initialized: {_cfg.SessionKey}");
+        //     }
+
+        //     if (defaults.TryGetProperty("mainKey", out var mainKeyJson))
+        //     {
+        //         mainKey = mainKeyJson.GetString();
+        //     }
+        // }
+
+        if (snapshot.TryGetProperty("health", out var health))
         {
-            _cfg.SessionKey = keyEl.GetString();
-            ConsoleUi.Log("gateway", $"Session initialized: {_cfg.SessionKey}");
+            if (health.TryGetProperty("agents", out var agents))
+            {
+                foreach (JsonElement agent in agents.EnumerateArray())
+                {
+                    //TODO: Save agents info. And Set active session to the agent with isDefault enabled or first
+
+                    string agentId = agent.GetProperty("agentId").GetString() ?? "Missing Id";
+                    string name = agent.GetProperty("name").GetString() ?? "Missing Name";
+                    bool isDefault = agent.GetProperty("isDefault").GetBoolean();
+                    // I'm not sure how to get proper session name
+                    string assumedSessionKey = $"agent:{agentId}:main";
+                }
+            }
         }
     }
 
