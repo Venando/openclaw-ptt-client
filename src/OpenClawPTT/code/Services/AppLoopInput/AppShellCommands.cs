@@ -74,23 +74,47 @@ public sealed class AppShellCommands : IDisposable
     }
 
     /// <summary>
-    /// Handles non-command user input — sends it as a text message.
-    /// StreamShell fires UserInputSubmitted for all input that isn't a command.
+    /// Handles user input from StreamShell.
+    /// For plain text, sends it as a message. For commands, StreamShell auto-executes
+    /// via command registration — nothing to do here.
+    /// Attachments (e.g. file paste) are included at the beginning of the message.
     /// </summary>
-    private async void OnUserInput(string input)
+    private async void OnUserInput(string input, StreamShell.InputType type, System.Collections.Generic.IReadOnlyList<StreamShell.Attachment> attachments)
     {
-        if (string.IsNullOrWhiteSpace(input))
+        // Commands are auto-executed by StreamShell — skip
+        if (type == StreamShell.InputType.Command)
             return;
 
-        input = input.Trim();
+        // Prepend attachment content to the message text
+        var message = input;
+        if (attachments != null && attachments.Count > 0)
+        {
+            var attachmentTexts = new List<string>();
+            foreach (var attachment in attachments)
+            {
+                var text = attachment.Content;
+                // Truncate to first 6 lines or 600 chars, whichever is less
+                var lines = text.Split('\n');
+                if (lines.Length > 6)
+                    text = string.Join("\n", lines.Take(6)) + "\n...";
+                if (text.Length > 600)
+                    text = text[..600] + "...";
+                attachmentTexts.Add(text);
+            }
+            var attachmentPrefix = string.Join("\n", attachmentTexts);
+            message = string.IsNullOrWhiteSpace(message)
+                ? attachmentPrefix
+                : attachmentPrefix + "\n" + message;
+        }
 
-        // Ignore command prefixes
-        if (input.StartsWith("/"))
+        if (string.IsNullOrWhiteSpace(message))
             return;
+
+        message = message.Trim();
 
         try
         {
-            await _textSender.SendAsync(input, CancellationToken.None);
+            await _textSender.SendAsync(message, CancellationToken.None);
         }
         catch (Exception ex)
         {

@@ -75,7 +75,7 @@ public sealed class ConfigurationWizard
         return _tcs.Task;
     }
 
-    private void OnUserInputSubmitted(string input)
+    private void OnUserInputSubmitted(string input, StreamShell.InputType type, System.Collections.Generic.IReadOnlyList<StreamShell.Attachment> attachments)
     {
         if (_host == null || _tcs == null)
             return;

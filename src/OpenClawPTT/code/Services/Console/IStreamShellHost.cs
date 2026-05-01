@@ -1,5 +1,3 @@
-using StreamShell;
-
 namespace OpenClawPTT.Services;
 
 /// <summary>
@@ -8,8 +6,8 @@ namespace OpenClawPTT.Services;
 public interface IStreamShellHost
 {
     void AddMessage(string markup);
-    void AddCommand(Command command);
-    event Action<string>? UserInputSubmitted;
+    void AddCommand(StreamShell.Command command);
+    event Action<string, StreamShell.InputType, System.Collections.Generic.IReadOnlyList<StreamShell.Attachment>>? UserInputSubmitted;
     Task Run(CancellationToken cancellationToken = default);
     void Stop();
 }
