@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using OpenClawPTT.Services;
 using Spectre.Console;
 using StreamShell;
@@ -42,8 +38,8 @@ public sealed class AppShellCommands : IDisposable
         foreach (var name in OpenClawCommands.Names)
         {
             var cmdName = name; // Capture for closure
-            _host.AddCommand(new Command(name, $"Send {name} to OpenClaw",
-                (args, named) => OpenClawToolHandler(cmdName, args, named)));
+            _host.AddCommand(new Command(name, Markup.Escape(OpenClawCommands.Descriptions[name]),
+                (args, named) => OpenClawCommandHandler(cmdName, args, named)));
         }
 
         _host.UserInputSubmitted += OnUserInput;
@@ -88,10 +84,10 @@ public sealed class AppShellCommands : IDisposable
     /// via command registration — nothing to do here.
     /// Attachments (e.g. file paste) are included at the beginning of the message.
     /// </summary>
-    private async void OnUserInput(string input, StreamShell.InputType type, System.Collections.Generic.IReadOnlyList<StreamShell.Attachment> attachments)
+    private async void OnUserInput(string input, InputType type, IReadOnlyList<Attachment> attachments)
     {
         // Commands are auto-executed by StreamShell — skip
-        if (type == StreamShell.InputType.Command)
+        if (type == InputType.Command)
             return;
 
         // Prepend attachment content to the message text
@@ -124,6 +120,7 @@ public sealed class AppShellCommands : IDisposable
         try
         {
             await _textSender.SendAsync(message, CancellationToken.None);
+            ConsoleUi.PrintUserMessage(message);
         }
         catch (Exception ex)
         {
@@ -135,7 +132,7 @@ public sealed class AppShellCommands : IDisposable
     /// Handler for registered OpenClaw tool commands.
     /// Reconstructs the command text from parsed args and sends it to the gateway.
     /// </summary>
-    private async Task OpenClawToolHandler(string commandName, string[] args, Dictionary<string, string> named)
+    private async Task OpenClawCommandHandler(string commandName, string[] args, Dictionary<string, string> named)
     {
         // Reconstruct the command text
         var parts = new List<string> { "/" + commandName };
@@ -148,7 +145,9 @@ public sealed class AppShellCommands : IDisposable
         try
         {
             await _textSender.SendAsync(commandText, CancellationToken.None);
-            _host.AddMessage($"[cyan]⚡[/] {Markup.Escape(commandText)}");
+
+            ConsoleUi.PrintMarkupedUserMessage($"[blue on gray15]⚡ {Markup.Escape(commandText)} [/]");
+
         }
         catch (Exception ex)
         {

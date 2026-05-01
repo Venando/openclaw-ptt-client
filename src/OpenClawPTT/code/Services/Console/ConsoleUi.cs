@@ -67,6 +67,11 @@ public static class ConsoleUi
         ShellMsg($"[green]  You:[/] {Markup.Escape(text)}");
     }
 
+    public static void PrintMarkupedUserMessage(string text)
+    {
+        ShellMsg($"[green]  You:[/] {text}");
+    }
+
     public static void PrintSuccess(string message)
     {
         ShellMsg($"[green]  ✓ {Markup.Escape(message)}[/]");

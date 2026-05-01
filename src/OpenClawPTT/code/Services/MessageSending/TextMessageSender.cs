@@ -27,7 +27,6 @@ public sealed class TextMessageSender : ITextMessageSender
         try
         {
             await _gateway.SendTextAsync(composed, ct);
-            ConsoleUi.PrintUserMessage(composed);
         }
         catch (Exception ex)
         {
