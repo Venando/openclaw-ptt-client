@@ -35,7 +35,7 @@ public sealed class StreamShellInputHandler : IDisposable
         _host.AddCommand(new Command("quit", "Exit the application", QuitHandler));
         _host.AddCommand(new Command("reconfigure", "Run reconfiguration wizard", ReconfigureHandler));
         _host.AddCommand(new Command("crew", "List available agents", CrewHandler));
-        _host.AddCommand(new Command("chat", "Switch active agent by name or ID: /chat <name|id>", ChatHandler));
+        _host.AddCommand(new Command("chat", "<name|id> Switch active agent by name or ID", ChatHandler));
 
         // OpenClaw tool commands (for StreamShell hint support)
         foreach (var name in OpenClawCommands.Names)
@@ -153,7 +153,7 @@ public sealed class StreamShellInputHandler : IDisposable
             var marker = isActive ? " ►" : "  ";
             _host.AddMessage($"  {marker} [bold]{Markup.Escape(agent.Name)}[/] [grey]({Markup.Escape(agent.AgentId)})[/]");
         }
-        _host.AddMessage("[grey]  Use /chat &lt;name|id&gt; to switch[/]");
+        _host.AddMessage("[grey]  Use /chat <name|id> to switch[/]");
         return Task.CompletedTask;
     }
 
@@ -161,7 +161,7 @@ public sealed class StreamShellInputHandler : IDisposable
     {
         if (args.Length == 0)
         {
-            _host.AddMessage("[yellow]  Usage: /chat &lt;name|id&gt;[/]");
+            _host.AddMessage("[yellow]  Usage: /chat <name|id>[/]");
             return Task.CompletedTask;
         }
 
