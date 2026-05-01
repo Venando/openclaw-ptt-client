@@ -31,6 +31,10 @@ public sealed class AgentOutputAdapter : IDisposable
     private string _newlineSuffix = "";
     private int _prefixLength;
 
+    // Capturing console used when StreamShell is active — accumulates formatter output
+    // then pushes the complete reply as a single StreamShell message.
+    private StreamShellCapturingConsole? _capturingConsole;
+
     public AgentOutputAdapter(AppConfig config) : this(config, new ConsoleUiOutput())
     {
     }
@@ -81,12 +85,22 @@ public sealed class AgentOutputAdapter : IDisposable
 
     public void OnAgentReplyFull(string body)
     {
+        // When StreamShell is active, use a capturing console for word-wrapped replies
+        // so the complete formatted reply gets pushed as a single StreamShell message.
+        bool useCapturing = _consoleOutput is StreamShellConsoleOutput;
+
         EnsurePrefixPrinted();
+
         if (_formatter != null)
         {
             _formatter.ProcessDelta(body);
             _formatter.Finish();
             _formatter = null;
+
+            if (useCapturing && _capturingConsole != null)
+            {
+                _capturingConsole.FlushToStreamShell("cyan");
+            }
         }
         else
         {
@@ -101,13 +115,13 @@ public sealed class AgentOutputAdapter : IDisposable
             if (!_prefixPrinted)
             {
                 _prefixPrinted = true;
-                Console.WriteLine();
-                Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.Write(_thinkingPrefix);
-                Console.ResetColor();
+                _consoleOutput.WriteLine();
+                _consoleOutput.ForegroundColor = ConsoleColor.DarkGray;
+                _consoleOutput.Write(_thinkingPrefix);
+                _consoleOutput.ResetColor();
                 if (_config.EnableWordWrap)
                 {
-                    _thinkingFormatter = new AgentReplyFormatter(_thinkingPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true);
+                    _thinkingFormatter = new AgentReplyFormatter(_thinkingPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true, consoleWidth: 0, output: _consoleOutput as IConsole);
                 }
             }
             if (_thinkingFormatter != null)
@@ -116,20 +130,20 @@ public sealed class AgentOutputAdapter : IDisposable
                 _thinkingFormatter.Finish();
                 _thinkingFormatter = null;
                 _prefixPrinted = false;
-                Console.WriteLine();
+                _consoleOutput.WriteLine();
             }
             else
             {
-                Console.Write(thinking.TrimEnd());
+                _consoleOutput.Write(thinking.TrimEnd());
             }
         }
         else
         {
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.WriteLine(_thinkingInfo);
-            Console.ResetColor();
-            Console.WriteLine();
+            _consoleOutput.WriteLine();
+            _consoleOutput.ForegroundColor = ConsoleColor.DarkGray;
+            _consoleOutput.WriteLine(_thinkingInfo);
+            _consoleOutput.ResetColor();
+            _consoleOutput.WriteLine();
             _prefixPrinted = false;
         }
     }
@@ -207,12 +221,22 @@ public sealed class AgentOutputAdapter : IDisposable
         _prefixLength = _currentPrefix.Length;
         _newlineSuffix = new string(' ', _prefixLength);
 
-        Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.Write(_currentPrefix);
-        Console.ResetColor();
+        _consoleOutput.ForegroundColor = ConsoleColor.Cyan;
+        _consoleOutput.Write(_currentPrefix);
+        _consoleOutput.ResetColor();
         if (_config.EnableWordWrap)
         {
-            _formatter = _consoleOutput.CreateAgentReplyFormatter(_currentPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true);
+            // When StreamShell is active, capture formatter output for final flush to Shell
+            if (_consoleOutput is StreamShellConsoleOutput shellOutput)
+            {
+                _capturingConsole = new StreamShellCapturingConsole(shellOutput.GetStreamShellHost());
+                _formatter = new AgentReplyFormatter(_currentPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true, consoleWidth: 0, output: _capturingConsole);
+            }
+            else
+            {
+                _capturingConsole = null;
+                _formatter = new AgentReplyFormatter(_currentPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true, consoleWidth: 0, output: _consoleOutput as IConsole);
+            }
         }
     }
 

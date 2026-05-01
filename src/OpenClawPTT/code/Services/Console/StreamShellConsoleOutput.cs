@@ -19,6 +19,9 @@ public sealed class StreamShellConsoleOutput : IConsoleOutput
         _console = console;
     }
 
+    /// <summary>Gets the underlying StreamShell host for capturing formatter output.</summary>
+    internal IStreamShellHost GetStreamShellHost() => _shellHost;
+
     // ── IConsole (raw I/O stays on the underlying console) ──
 
     public void Write(string? text) => _console.Write(text);
@@ -91,7 +94,7 @@ public sealed class StreamShellConsoleOutput : IConsoleOutput
         // Word-wrap streaming: keep on raw console
         _console.ForegroundColor = ConsoleColor.Green;
         _console.Write(prefix);
-        var formatter = new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted: true);
+        var formatter = new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted: true, consoleWidth: _console.WindowWidth, output: this);
         formatter.ProcessDelta(message);
         formatter.Finish();
         _console.ResetColor();

@@ -190,7 +190,7 @@ public static class ConsoleUi
         // Word-wrapped streaming: keep on raw console
         _impl.ForegroundColor = ConsoleColor.Green;
         _impl.Write(prefix);
-        var formatter = new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted: true);
+        var formatter = new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted: true, consoleWidth: _impl.WindowWidth, output: _impl);
         formatter.ProcessDelta(message);
         formatter.Finish();
         _impl.ResetColor();
@@ -287,10 +287,10 @@ public static class ConsoleUi
     }
 
     public static IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
-        => new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted);
+        => new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, _impl.WindowWidth, _impl);
 
     public static IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
-        => new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, consoleWidth);
+        => new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted, consoleWidth, _impl);
 
     public static void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix, AppConfig config)
     {
