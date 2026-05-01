@@ -51,6 +51,9 @@ public static class ConsoleUi
         ShellMsg("");
     }
 
+    /// <summary>Send a raw Spectre markup message to the StreamShell output.</summary>
+    public static void PrintMarkup(string markup) => ShellMsg(markup);
+
     public static void PrintRecordingIndicator(bool isRecording, string hotkeyCombination, bool holdToTalk)
     {
         if (!isRecording) return;

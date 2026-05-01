@@ -261,8 +261,9 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
             var activeName = AgentRegistry.ActiveAgentName;
             if (activeName != null)
             {
-                ConsoleUi.PrintInfo($"Connected as: {activeName}");
-                ConsoleUi.PrintInfo("Type /crew to list agents, /chat <name|id> to switch");
+                ConsoleUi.PrintMarkup("");
+                ConsoleUi.PrintMarkup($"[green1]  🐾 Agent: [bold]{activeName}[/]  [grey]|[/]  [grey]/crew[/] list  [grey]/chat <agent>[/] switch[/]");
+                ConsoleUi.PrintMarkup("");
             }
     }
 
