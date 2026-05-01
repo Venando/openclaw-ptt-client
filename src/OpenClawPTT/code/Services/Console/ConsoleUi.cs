@@ -266,8 +266,8 @@ public static class ConsoleUi
     {
         if (ViaShell)
         {
-            // Complete reply — push to StreamShell as a single message
-            ShellMsg($"[cyan]{Markup.Escape(prefix)}{Markup.Escape(body)}[/]");
+            // Prefix in cyan, body in default color
+            ShellMsg($"[cyan]{Markup.Escape(prefix)}[/]{Markup.Escape(body)}");
             return;
         }
 

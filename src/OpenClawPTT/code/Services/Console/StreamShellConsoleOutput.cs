@@ -126,8 +126,8 @@ public sealed class StreamShellConsoleOutput : IConsoleOutput
 
     public void PrintAgentReply(string prefix, string body)
     {
-        // Complete reply — push to StreamShell as a single message
-        _shellHost.AddMessage($"[cyan]{Markup.Escape(prefix)}{Markup.Escape(body)}[/]");
+        // Prefix in cyan, body in default color
+        _shellHost.AddMessage($"[cyan]{Markup.Escape(prefix)}[/]{Markup.Escape(body)}");
     }
 
     public void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix)
