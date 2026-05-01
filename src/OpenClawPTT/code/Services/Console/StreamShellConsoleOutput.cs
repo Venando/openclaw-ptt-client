@@ -118,18 +118,13 @@ public sealed class StreamShellConsoleOutput : IConsoleOutput
 
     public void PrintAgentReply(string prefix, string body)
     {
-        // Streaming reply: keep on raw console
-        _console.WriteLine();
-        _console.ForegroundColor = ConsoleColor.Cyan;
-        _console.Write(prefix);
-        _console.ResetColor();
-        _console.WriteLine(body);
-        _console.WriteLine();
+        // Complete reply — push to StreamShell as a single message
+        _shellHost.AddMessage($"[cyan]{Markup.Escape(prefix)}{Markup.Escape(body)}[/]");
     }
 
     public void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix)
     {
-        // Streaming delta: keep on raw console
+        // Streaming delta — keep on raw console (StreamShell AddMessage is complete-message only)
         _console.Write(delta.Replace("\n", "\n" + newlineSuffix));
     }
 

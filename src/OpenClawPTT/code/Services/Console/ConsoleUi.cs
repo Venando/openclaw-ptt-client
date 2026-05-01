@@ -247,7 +247,14 @@ public static class ConsoleUi
 
     public static void PrintAgentReply(string prefix, string body)
     {
-        // Streaming reply: keep on raw console
+        if (ViaShell)
+        {
+            // Complete reply — push to StreamShell as a single message
+            ShellMsg($"[cyan]{Markup.Escape(prefix)}{Markup.Escape(body)}[/]");
+            return;
+        }
+
+        // Non-streaming fallback: keep on raw console
         _impl.WriteLine();
         _impl.ForegroundColor = ConsoleColor.Cyan;
         _impl.Write(prefix);
@@ -258,7 +265,7 @@ public static class ConsoleUi
 
     public static void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix)
     {
-        // Streaming delta: keep on raw console
+        // Streaming delta — keep on raw console (StreamShell AddMessage is complete-message only)
         _impl.Write(delta.Replace("\n", "\n" + newlineSuffix));
     }
 
