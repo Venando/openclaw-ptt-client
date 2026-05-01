@@ -198,7 +198,7 @@ public class ConsoleUiTests : IDisposable
     [Fact]
     public void Log_FormatsTagAndMessage()
     {
-        _shellHost.Setup(h => h.AddMessage("[grey]  [AGENT] hello[/]"));
+        _shellHost.Setup(h => h.AddMessage("[grey]  [[AGENT]] hello[/]"));
         ConsoleUi.Log("AGENT", "hello");
         _shellHost.VerifyAll();
     }
@@ -214,7 +214,7 @@ public class ConsoleUiTests : IDisposable
     [Fact]
     public void LogOk_FormatsTagAndMessage()
     {
-        _shellHost.Setup(h => h.AddMessage("[green]  [OK] done[/]"));
+        _shellHost.Setup(h => h.AddMessage("[green]  [[OK]] done[/]"));
         ConsoleUi.LogOk("OK", "done");
         _shellHost.VerifyAll();
     }
@@ -230,7 +230,7 @@ public class ConsoleUiTests : IDisposable
     [Fact]
     public void LogError_FormatsTagAndMessage()
     {
-        _shellHost.Setup(h => h.AddMessage("[red]  [ERR] failed[/]"));
+        _shellHost.Setup(h => h.AddMessage("[red]  [[ERR]] failed[/]"));
         ConsoleUi.LogError("ERR", "failed");
         _shellHost.VerifyAll();
     }
