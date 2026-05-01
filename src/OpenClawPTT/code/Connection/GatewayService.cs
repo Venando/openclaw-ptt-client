@@ -10,7 +10,6 @@ public sealed class GatewayService : IGatewayService
 {
     private readonly AppConfig _config;
     private readonly DeviceIdentity _device;
-    private readonly IConsoleOutput _consoleOutput;
     private IGatewayClient _gatewayClient;
     private AgentOutputAdapter? _uiAdapter;
     private bool _disposed;
@@ -25,16 +24,14 @@ public sealed class GatewayService : IGatewayService
     public event Action<string>? AgentReplyAudio;
 
     /// <summary>
-    /// Initializes the gateway service with the given config and console output.
+    /// Initializes the gateway service with the given config.
     /// </summary>
     /// <param name="config">Application configuration.</param>
-    /// <param name="consoleOutput">Console output for agent reply display; uses <see cref="StreamShellConsoleOutput"/> as default.</param>
-    public GatewayService(AppConfig config, IConsoleOutput? consoleOutput = null)
+    public GatewayService(AppConfig config)
     {
         _config = config;
         _device = new DeviceIdentity(config.DataDir);
         _device.EnsureKeypair();
-        _consoleOutput = consoleOutput ?? new StreamShellConsoleOutput(new StreamShellHost());
         _gatewayClient = CreateGatewayClient();
     }
 
@@ -59,7 +56,7 @@ public sealed class GatewayService : IGatewayService
 
     private IGatewayClient CreateGatewayClient()
     {
-        _uiAdapter = new AgentOutputAdapter(_config, _consoleOutput);
+        _uiAdapter = new AgentOutputAdapter(_config);
         var client = new GatewayClient(_config, _device, new GatewayEventSource());
         var events = ((IGatewayClient)client).GetEventSource();
 

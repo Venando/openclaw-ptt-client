@@ -1,7 +1,6 @@
 using OpenClawPTT;
 using OpenClawPTT.Services;
 using System;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -12,7 +11,6 @@ namespace OpenClawPTT.Tests;
 /// Stability and edge-case tests for PttLoop.
 /// Uses simple test doubles for core domain interfaces (IPttStateMachine, IAudioService,
 /// ITextMessageSender, IPttController, IInputHandler).
-/// IConsoleOutput is stub-implemented as a no-op (30+ members would be impractical to hand-write).
 /// </summary>
 public class PttLoopStabilityTests : IDisposable
 {
@@ -122,52 +120,6 @@ public class PttLoopStabilityTests : IDisposable
             if (SendException != null) throw SendException;
             return Task.CompletedTask;
         }
-    }
-
-    /// <summary>
-    /// Complete stub for IConsoleOutput (30+ members).
-    /// Only members called by PttLoop (Write/WriteLine inherited via IConsole) are overridden;
-    /// all others are no-ops.
-    /// </summary>
-    sealed class FakeConsoleOutput : IConsoleOutput
-    {
-        // IConsole
-        public void Write(string? text) { }
-        public void WriteLine(string? text = null) { }
-        public ConsoleColor ForegroundColor { get; set; }
-        public void ResetColor() { }
-        public bool KeyAvailable => false;
-        public ConsoleKeyInfo ReadKey(bool intercept = false) => default;
-        public int WindowWidth => 80;
-        public Encoding OutputEncoding { get; set; } = Encoding.UTF8;
-        public bool TreatControlCAsInput { get; set; }
-
-        public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted = false)
-            => new DummyAgentReplyFormatter();
-        public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, int consoleWidth)
-            => new DummyAgentReplyFormatter();
-
-        public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default)
-            => new ValueTask<string?>(Task.FromResult<string?>(null));
-
-        // IConsoleOutput
-        public void PrintBanner() { }
-        public void PrintHelpMenu(string hotkeyCombination, bool holdToTalk) { }
-        public void PrintRecordingIndicator(bool isRecording, string hotkeyCombination, bool holdToTalk) { }
-        public void PrintUserMessage(string text) { }
-        public void PrintSuccess(string message) { }
-        public void PrintSuccessWordWrap(string prefix, string message, int rightMarginIndent) { }
-        public void PrintWarning(string message) { }
-        public void PrintError(string message) { }
-        public void PrintInfo(string message) { }
-        public void PrintInlineInfo(string message) { }
-        public void PrintInlineSuccess(string message) { }
-        public void PrintGatewayError(string message, string? detailCode, string? recommendedStep) { }
-        public void PrintAgentReply(string prefix, string body) { }
-        public void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix) { }
-        public void Log(string tag, string msg) { }
-        public void LogOk(string tag, string msg) { }
-        public void LogError(string tag, string msg) { }
     }
 
     sealed class DummyAgentReplyFormatter : IAgentReplyFormatter

@@ -32,7 +32,7 @@ public sealed class AppExitHandler : IDisposable
             case Exception ex2:
                 ConsoleUi.PrintError($"Fatal: {ex2.Message}. Press any button");
 #if DEBUG
-                Console.WriteLine(ex2.StackTrace);
+                Console.Error.WriteLine(ex2.StackTrace);
 #endif
                 Console.ReadKey(intercept: true);
                 return ExitError;

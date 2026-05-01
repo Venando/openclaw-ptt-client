@@ -65,7 +65,6 @@ public sealed class AudioService : IAudioService
             return null;
         }
 
-        Console.WriteLine();
         ConsoleUi.PrintInfo($"Sending to Groq {wav.Length / 1024.0:F1} KB…");
         
         try

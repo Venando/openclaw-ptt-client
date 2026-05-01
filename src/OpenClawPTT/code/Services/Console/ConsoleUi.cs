@@ -5,9 +5,7 @@ namespace OpenClawPTT;
 
 /// <summary>
 /// Central UI output facade. All display methods are static and route through
-/// StreamShell for markup rendering when a StreamShell host is attached.
-/// Methods that produce streaming content (word-wrap, delta) write to
-/// System.Console directly.
+/// StreamShell for markup rendering.
 /// </summary>
 public static class ConsoleUi
 {
@@ -21,7 +19,8 @@ public static class ConsoleUi
     /// </summary>
     public static void SetStreamShellHost(IStreamShellHost? host) => _shellHost = host;
 
-    private static bool ViaShell => _shellHost != null;
+    /// <summary>Gets the underlying StreamShell host for capturing formatter output.</summary>
+    public static IStreamShellHost? GetStreamShellHost() => _shellHost;
 
     private static void ShellMsg(string markup) => _shellHost?.AddMessage(markup);
 
@@ -73,13 +72,7 @@ public static class ConsoleUi
 
     public static void PrintSuccessWordWrap(string prefix, string message, int rightMarginIndent)
     {
-        // Word-wrapped streaming: keep on raw console
-        Console.ForegroundColor = ConsoleColor.Green;
-        Console.Write(prefix);
-        var formatter = new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted: true, output: new ConsoleFormattedOutput());
-        formatter.ProcessDelta(message);
-        formatter.Finish();
-        Console.ResetColor();
+        ShellMsg($"[green]  ✓ {Markup.Escape(prefix)}{Markup.Escape(message)}[/]");
     }
 
     public static void PrintWarning(string message)
@@ -109,38 +102,19 @@ public static class ConsoleUi
 
     public static void PrintAgentReply(string prefix, string body)
     {
-        if (ViaShell)
-        {
-            // Prefix in cyan, body in default color
-            ShellMsg($"[cyan]{Markup.Escape(prefix)}[/]{Markup.Escape(body)}");
-            return;
-        }
-
-        // Non-streaming fallback: keep on raw console
-        Console.WriteLine();
-        Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.Write(prefix);
-        Console.ResetColor();
-        Console.WriteLine(body);
-        Console.WriteLine();
+        // Prefix in cyan, body in default color
+        ShellMsg($"[cyan]{Markup.Escape(prefix)}[/]{Markup.Escape(body)}");
     }
 
     public static void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix)
     {
-        // Streaming delta — keep on raw console (StreamShell AddMessage is complete-message only)
-        Console.Write(delta.Replace("\n", "\n" + newlineSuffix));
+        // Streaming delta — push to StreamShell as a complete message
+        ShellMsg(Markup.Escape(delta));
     }
 
     public static void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix, AppConfig config)
     {
-        if (config.EnableWordWrap)
-        {
-            throw new InvalidOperationException("Use CreateAgentReplyFormatter for word-wrapped streaming.");
-        }
-        else
-        {
-            PrintAgentReplyDelta(prefix, delta, newlineSuffix);
-        }
+        PrintAgentReplyDelta(prefix, delta, newlineSuffix);
     }
 
     public static void PrintGatewayError(string message, string? detailCode = null, string? recommendedStep = null)
@@ -165,15 +139,5 @@ public static class ConsoleUi
     public static void LogError(string tag, string msg)
     {
         ShellMsg($"[red]  {Markup.Escape($"[{tag}]")} {Markup.Escape(msg)}[/]");
-    }
-
-    /// <summary>
-    /// Minimal <see cref="IFormattedOutput"/> that writes directly to <see cref="System.Console"/>.
-    /// </summary>
-    private sealed class ConsoleFormattedOutput : IFormattedOutput
-    {
-        public void Write(string text) => Console.Write(text);
-        public void WriteLine() => Console.WriteLine();
-        public int WindowWidth => Console.WindowWidth;
     }
 }

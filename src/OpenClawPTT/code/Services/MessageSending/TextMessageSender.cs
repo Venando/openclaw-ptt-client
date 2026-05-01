@@ -9,14 +9,12 @@ public sealed class TextMessageSender : ITextMessageSender
 {
     private readonly IGatewayService _gateway;
     private readonly IConfigurationService _configService;
-    private readonly IConsoleOutput _console;
     private readonly IMessageComposer _composer;
 
-    public TextMessageSender(IGatewayService gateway, IConfigurationService configService, IConsoleOutput console, IMessageComposer composer)
+    public TextMessageSender(IGatewayService gateway, IConfigurationService configService, IMessageComposer composer)
     {
         _gateway = gateway;
         _configService = configService;
-        _console = console;
         _composer = composer;
     }
 
@@ -26,16 +24,16 @@ public sealed class TextMessageSender : ITextMessageSender
             ?? throw new InvalidOperationException("Configuration not loaded");
 
         var composed = _composer.ComposeOutgoing(text, cfg);
-        _console.PrintUserMessage(composed);
-        _console.PrintInlineInfo("Sending… ");
+        ConsoleUi.PrintUserMessage(composed);
+        ConsoleUi.PrintInlineInfo("Sending… ");
         try
         {
             await _gateway.SendTextAsync(composed, ct);
-            _console.PrintInlineSuccess("sent.");
+            ConsoleUi.PrintInlineSuccess("sent.");
         }
         catch (Exception ex)
         {
-            _console.PrintError($"failed: {ex.Message}");
+            ConsoleUi.PrintError($"failed: {ex.Message}");
         }
     }
 }

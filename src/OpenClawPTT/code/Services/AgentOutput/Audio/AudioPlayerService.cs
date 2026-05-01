@@ -13,11 +13,9 @@ public sealed class AudioPlayerService : IDisposable
 {
     private WaveOutEvent? _waveOut;
     private bool _disposed;
-    private readonly IConsoleOutput? _console;
     
-    public AudioPlayerService(IConsoleOutput? console = null)
+    public AudioPlayerService()
     {
-        _console = console;
     }
     
     /// <summary>
@@ -50,7 +48,7 @@ public sealed class AudioPlayerService : IDisposable
         }
         catch (Exception ex)
         {
-            _console?.PrintError($"Audio playback failed: {ex.Message}");
+            ConsoleUi.PrintError($"Audio playback failed: {ex.Message}");
         }
     }
     
@@ -67,7 +65,7 @@ public sealed class AudioPlayerService : IDisposable
             
             if (!File.Exists(filePath))
             {
-                _console?.PrintError($"Audio file not found: {filePath}");
+                ConsoleUi.PrintError($"Audio file not found: {filePath}");
                 return;
             }
             
@@ -76,7 +74,7 @@ public sealed class AudioPlayerService : IDisposable
         }
         catch (Exception ex)
         {
-            _console?.PrintError($"Audio playback failed: {ex.Message}");
+            ConsoleUi.PrintError($"Audio playback failed: {ex.Message}");
         }
     }
     
@@ -92,7 +90,7 @@ public sealed class AudioPlayerService : IDisposable
     {
         if (e.Exception != null)
         {
-            _console?.PrintError($"Playback error: {e.Exception.Message}");
+            ConsoleUi.PrintError($"Playback error: {e.Exception.Message}");
         }
     }
     

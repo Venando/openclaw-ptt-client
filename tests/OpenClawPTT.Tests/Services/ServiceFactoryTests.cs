@@ -21,6 +21,12 @@ public class ServiceFactoryTests
         AudioResponseMode = "both"
     };
 
+    private static ServiceFactory CreateFactory()
+    {
+        var configService = new ConfigurationService();
+        return new ServiceFactory(configService, new MessageComposer(), new StreamShellHost());
+    }
+
     /// <summary>
     /// Minimal test-double for IGlobalHotkeyHook that does nothing and never touches /dev/input.
     /// </summary>
@@ -47,8 +53,7 @@ public class ServiceFactoryTests
     [Fact]
     public void CreatePttController_Returns_IPttController()
     {
-        var configService = new ConfigurationService();
-        var factory = new ServiceFactory(configService);
+        var factory = CreateFactory();
         var cfg = DefaultConfigWithAudio;
         var mockAudio = new Mock<IAudioService>();
         var noOpFactory = new NoOpHotkeyHookFactory();
@@ -68,8 +73,7 @@ public class ServiceFactoryTests
     [Fact]
     public void CreatePttLoop_Returns_IPttLoop()
     {
-        var configService = new ConfigurationService();
-        var factory = new ServiceFactory(configService);
+        var factory = CreateFactory();
 
         var mockAudio = new Mock<IAudioService>();
         var mockPttController = new Mock<IPttController>();
@@ -95,8 +99,7 @@ public class ServiceFactoryTests
     [Fact]
     public void CreatePttController_ThenDispose_NoDoubleDisposeCrash()
     {
-        var configService = new ConfigurationService();
-        var factory = new ServiceFactory(configService);
+        var factory = CreateFactory();
         var cfg = DefaultConfigWithAudio;
         var mockAudio = new Mock<IAudioService>();
         var noOpFactory = new NoOpHotkeyHookFactory();
@@ -117,8 +120,7 @@ public class ServiceFactoryTests
     [Fact]
     public void CreateAudioService_Returns_IAudioService()
     {
-        var configService = new ConfigurationService();
-        var factory = new ServiceFactory(configService);
+        var factory = CreateFactory();
         var cfg = DefaultConfigWithAudio;
 
         var audio = factory.CreateAudioService(cfg);
@@ -136,8 +138,7 @@ public class ServiceFactoryTests
     [Fact]
     public void CreateGatewayService_Returns_IGatewayService()
     {
-        var configService = new ConfigurationService();
-        var factory = new ServiceFactory(configService);
+        var factory = CreateFactory();
         var cfg = DefaultConfig;
 
         var gateway = factory.CreateGatewayService(cfg);
@@ -155,12 +156,11 @@ public class ServiceFactoryTests
     [Fact]
     public void ServiceFactory_WithDefaultConfig_DoesNotThrow()
     {
-        var configService = new ConfigurationService();
         var cfg = new AppConfig(); // all defaults
 
         var ex = Record.Exception(() =>
         {
-            var factory = new ServiceFactory(configService);
+            var factory = CreateFactory();
             using var gateway = factory.CreateGatewayService(cfg);
             using var audio = factory.CreateAudioService(cfg);
         });
