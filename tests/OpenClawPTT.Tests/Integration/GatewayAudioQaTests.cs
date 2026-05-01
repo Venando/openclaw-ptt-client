@@ -193,20 +193,6 @@ public class GatewayAudioQaTests
     }
 
     [Fact]
-    public async Task HandleAgentReplyAsync_TextOnly_DoesNotThrow()
-    {
-        var cfg = new AppConfig { AudioResponseMode = "text-only" };
-        var handler = new AudioResponseHandler(cfg);
-
-        // Should not throw even with various null/empty inputs
-        await handler.HandleAgentReplyAsync(null, null, null);
-        await handler.HandleAgentReplyAsync("full", null, null);
-        await handler.HandleAgentReplyAsync("full", "audio", "text");
-
-        handler.Dispose();
-    }
-
-    [Fact]
     public void AudioResponseHandler_Dispose_CalledTwice_Safe()
     {
         var cfg = new AppConfig { AudioResponseMode = "text-only" };

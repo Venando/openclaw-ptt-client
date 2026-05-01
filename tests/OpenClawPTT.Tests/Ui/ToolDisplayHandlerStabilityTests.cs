@@ -80,8 +80,7 @@ public class ToolDisplayHandlerStabilityTests
     {
         var handler = new ToolDisplayHandler(rightMarginIndent: 10);
         // {"file": 123} — numeric value where a string is expected.
-        // ReadToolRenderer calls GetString() which returns null for numbers,
-        // GenericKvpToolRenderer does the same. Neither should throw.
+        // ReadToolRenderer calls GetString() which returns null for numbers. Should not throw.
         var ex = Record.Exception(() => handler.Handle("read", "{\"file\":123}"));
         Assert.Null(ex);
     }

@@ -3,7 +3,7 @@ using OpenClawPTT.TTS;
 namespace OpenClawPTT.Services;
 
 /// <summary>
-/// Handles audio responses from the agent - detects [audio] and [text] markers,
+/// Handles audio responses from the agent - detects [audio] markers,
 /// synthesizes speech via TTS, and plays audio output.
 /// </summary>
 public sealed class AudioResponseHandler : IDisposable
@@ -49,77 +49,15 @@ public sealed class AudioResponseHandler : IDisposable
 
         _audioPlayer = new AudioPlayerService();
     }
-    
-    /// <summary>
-    /// Handle an agent reply. Based on config, will:
-    /// - text-only: just print the text
-    /// - audio-only: synthesize TTS and play
-    /// - both: print text AND synthesize and play TTS
-    /// </summary>
-    public async Task HandleAgentReplyAsync(
-        string? fullMessage,
-        string? audioText,
-        string? textContent,
-        CancellationToken ct = default)
-    {
-        if (_disposed) throw new ObjectDisposedException(nameof(AudioResponseHandler));
-        
-        var mode = _config.AudioResponseMode?.ToLowerInvariant() ?? "text-only";
-        
-        switch (mode)
-        {
-            case "audio-only":
-                if (!string.IsNullOrEmpty(audioText))
-                {
-                    await PlayTtsAsync(audioText, ct);
-                }
-                else if (!string.IsNullOrEmpty(fullMessage))
-                {
-                    // Use full message if no explicit [audio] marker
-                    await PlayTtsAsync(fullMessage, ct);
-                }
-                break;
-                
-            case "both":
-                // Print text to console (already handled by GatewayService)
-                if (!string.IsNullOrEmpty(audioText))
-                {
-                    await PlayTtsAsync(audioText, ct);
-                }
-                else if (!string.IsNullOrEmpty(fullMessage) && !string.IsNullOrEmpty(textContent))
-                {
-                    // If full message but no explicit [audio], use text content for TTS
-                    await PlayTtsAsync(textContent, ct);
-                }
-                else if (!string.IsNullOrEmpty(fullMessage))
-                {
-                    await PlayTtsAsync(fullMessage, ct);
-                }
-                break;
-                
-            case "text-only":
-            default:
-                // Just print text - already handled by GatewayService
-                break;
-        }
-    }
-    
+
     /// <summary>
     /// Handle [audio] marker specifically - synthesize and play.
     /// </summary>
     public Task HandleAudioMarkerAsync(string text, CancellationToken ct = default)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(AudioResponseHandler));
-        
+
         return PlayTtsAsync(text, ct);
-    }
-    
-    /// <summary>
-    /// Handle [text] marker specifically - just print (handled elsewhere).
-    /// </summary>
-    public void HandleTextMarker(string text)
-    {
-        // Text handling is done by GatewayService - this is for completeness
     }
 
     private Task PlayTtsAsync(string text, CancellationToken ct)
@@ -152,7 +90,7 @@ public sealed class AudioResponseHandler : IDisposable
 
         return Task.CompletedTask;
     }
-    
+
     /// <summary>
     /// Stop any currently playing audio.
     /// </summary>
@@ -160,12 +98,12 @@ public sealed class AudioResponseHandler : IDisposable
     {
         _audioPlayer.Stop();
     }
-    
+
     /// <summary>
     /// Check if audio is currently playing.
     /// </summary>
     public bool IsPlaying => _audioPlayer.IsPlaying;
-    
+
     public void Dispose()
     {
         if (!_disposed)

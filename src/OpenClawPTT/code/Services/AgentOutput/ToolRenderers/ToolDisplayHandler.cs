@@ -55,7 +55,6 @@ public sealed class ToolDisplayHandler
         yield return new WriteToolRenderer(output);
         yield return new EditToolRenderer(output);
         yield return new ExecToolRenderer(output);
-        yield return new GenericKvpToolRenderer(output); // handles: process, web_search, image_generate
         yield return new WebFetchToolRenderer(output);
         yield return new SessionsListToolRenderer(output);
         yield return new SessionStatusToolRenderer(output);
