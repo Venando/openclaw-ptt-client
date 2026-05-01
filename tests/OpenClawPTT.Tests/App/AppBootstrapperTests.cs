@@ -4,12 +4,10 @@ using Moq;
 using OpenClawPTT;
 using OpenClawPTT.Services;
 using System;
-using System.Text;
 using Xunit;
 
 public class AppBootstrapperTests : IDisposable
 {
-    private readonly Mock<IConsole> _fakeConsole;
     private readonly Mock<IConfigurationService> _fakeConfig;
     private readonly Mock<IServiceFactory> _fakeFactory;
     private readonly Mock<IStreamShellHost> _fakeShellHost;
@@ -18,14 +16,6 @@ public class AppBootstrapperTests : IDisposable
     {
         _fakeShellHost = new Mock<IStreamShellHost>();
         _fakeShellHost.Setup(x => x.Run(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-        _fakeConsole = new Mock<IConsole>();
-        _fakeConsole.Setup(x => x.ForegroundColor).Returns(ConsoleColor.Gray);
-        _fakeConsole.Setup(x => x.OutputEncoding).Returns(Encoding.UTF8);
-        _fakeConsole.Setup(x => x.ReadKey(true))
-            .Returns(new ConsoleKeyInfo(' ', ConsoleKey.Spacebar, false, false, false));
-
-        // Route all static ConsoleUi calls through our mock
-        ConsoleUi.SetConsole(_fakeConsole.Object);
 
         _fakeConfig = new Mock<IConfigurationService>();
         _fakeConfig.Setup(x => x.LoadOrSetupAsync(It.IsAny<IStreamShellHost>(), false, It.IsAny<CancellationToken>()))
@@ -81,7 +71,6 @@ public class AppBootstrapperTests : IDisposable
     {
         var mockRunner = MakeMockRunner(0);
         var bootstrapper = new AppBootstrapper(
-            _fakeConsole.Object,
             _fakeConfig.Object,
             _fakeFactory.Object,
             _fakeShellHost.Object,
@@ -101,7 +90,6 @@ public class AppBootstrapperTests : IDisposable
     {
         var mockRunner = MakeMockRunner(1);
         var bootstrapper = new AppBootstrapper(
-            _fakeConsole.Object,
             _fakeConfig.Object,
             _fakeFactory.Object,
             _fakeShellHost.Object,
@@ -123,7 +111,6 @@ public class AppBootstrapperTests : IDisposable
             .ThrowsAsync(new InvalidOperationException("config broken"));
 
         var bootstrapper = new AppBootstrapper(
-            _fakeConsole.Object,
             _fakeConfig.Object,
             _fakeFactory.Object,
             _fakeShellHost.Object);
@@ -138,7 +125,6 @@ public class AppBootstrapperTests : IDisposable
     {
         var mockRunner = MakeMockRunner(throws: new InvalidOperationException("runner boom"));
         var bootstrapper = new AppBootstrapper(
-            _fakeConsole.Object,
             _fakeConfig.Object,
             _fakeFactory.Object,
             _fakeShellHost.Object,
@@ -160,7 +146,6 @@ public class AppBootstrapperTests : IDisposable
         var mockRunner = MakeMockRunner(0);
 
         var bootstrapper = new AppBootstrapper(
-            _fakeConsole.Object,
             _fakeConfig.Object,
             _fakeFactory.Object,
             _fakeShellHost.Object,
@@ -174,26 +159,6 @@ public class AppBootstrapperTests : IDisposable
 
     #endregion
 
-    #region Console encoding
-
-    [Fact]
-    public async Task RunAsync_SetsConsoleOutputEncoding()
-    {
-        var mockRunner = MakeMockRunner(0);
-        var bootstrapper = new AppBootstrapper(
-            _fakeConsole.Object,
-            _fakeConfig.Object,
-            _fakeFactory.Object,
-            _fakeShellHost.Object,
-            (_, _) => mockRunner.Object);
-
-        await bootstrapper.RunAsync();
-
-        _fakeConsole.VerifySet(x => x.OutputEncoding = Encoding.UTF8);
-    }
-
-    #endregion
-
     #region Dispose
 
     [Fact]
@@ -201,7 +166,6 @@ public class AppBootstrapperTests : IDisposable
     {
         var mockRunner = MakeMockRunner(0);
         var bootstrapper = new AppBootstrapper(
-            _fakeConsole.Object,
             _fakeConfig.Object,
             _fakeFactory.Object,
             _fakeShellHost.Object,

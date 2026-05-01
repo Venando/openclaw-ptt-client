@@ -246,35 +246,10 @@ sealed class MockAudioRecorder : IAudioRecorder
 }
 
 /// <summary>
-/// Test IConsole that records calls for verifying AudioService console output.
-/// Mirrors the RecordingConsole pattern used in ConsoleUiTests.
+/// Placeholder for console output recording — currently unused, kept for future use.
 /// </summary>
-sealed class TestConsole : IConsole
+sealed class TestConsole
 {
-    public readonly List<string?> WriteLines = new();
-    public readonly List<string?> Writes = new();
-    private ConsoleColor _foregroundColor = ConsoleColor.White;
-    public ConsoleColor LastForegroundColorBeforeReset { get; private set; } = ConsoleColor.White;
-    public ConsoleColor ForegroundColor
-    {
-        get => _foregroundColor;
-        set { _foregroundColor = value; LastForegroundColorBeforeReset = value; }
-    }
-    public bool KeyAvailable => false;
-    public Encoding OutputEncoding { get; set; } = Encoding.UTF8;
-    public bool TreatControlCAsInput { get; set; }
-    public int WindowWidth => 120;
-    public bool ResetColorCalled;
-    public ConsoleKeyInfo ReadKey(bool intercept) => new ConsoleKeyInfo('A', ConsoleKey.A, false, false, false);
-    public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int w, bool prefixPrinted = false)
-        => AgentReplyFormatter.CreateSytemConsoleFormatter(prefix, w, prefixPrinted);
-    public IAgentReplyFormatter CreateAgentReplyFormatter(string prefix, int w, bool prefixPrinted, int cw)
-        => AgentReplyFormatter.CreateSytemConsoleFormatter(prefix, w, prefixPrinted, cw);
-    public void Write(string? text) => Writes.Add(text);
-    public void WriteLine(string? text = null) => WriteLines.Add(text);
-    public void ResetColor() { ResetColorCalled = true; _foregroundColor = ConsoleColor.White; }
-    public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default)
-        => ValueTask.FromResult<string?>(null);
 }
 
 // ─── Tests using real AudioService ─────────────────────────────
@@ -285,7 +260,6 @@ public class RealAudioServiceWithMocksTests : IDisposable
     private MockAudioRecorder? _recorder;
     private MockTranscriber? _transcriber;
     private MockVisualFeedback? _visual;
-    private TestConsole? _console;
     private AppConfig? _config;
 
     private void Setup(Func<AppConfig, AudioService> factory)
@@ -294,7 +268,6 @@ public class RealAudioServiceWithMocksTests : IDisposable
         _recorder = new MockAudioRecorder();
         _transcriber = new MockTranscriber();
         _visual = new MockVisualFeedback();
-        _console = new TestConsole();
         _config = new AppConfig
         {
             SampleRate = 16000,
@@ -305,14 +278,12 @@ public class RealAudioServiceWithMocksTests : IDisposable
             RightMarginIndent = 5,
             VisualFeedbackEnabled = false
         };
-        ConsoleUi.SetConsole(_console);
         _service = factory(_config);
     }
 
     public void Dispose()
     {
         _service?.Dispose();
-        ConsoleUi.SetConsole(new SystemConsole());
     }
 
     // ═══════════════════════════════════════════════════════════════

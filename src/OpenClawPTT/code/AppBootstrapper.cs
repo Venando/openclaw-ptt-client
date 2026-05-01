@@ -8,7 +8,6 @@ namespace OpenClawPTT;
 /// </summary>
 public sealed class AppBootstrapper : IDisposable
 {
-    private readonly IConsole _console;
     private readonly IServiceFactory _factory;
     private readonly IConfigurationService _configService;
     private readonly IStreamShellHost _shellHost;
@@ -16,13 +15,11 @@ public sealed class AppBootstrapper : IDisposable
     private CancellationTokenSource? _cts;
 
     public AppBootstrapper(
-        IConsole console,
         IConfigurationService configService,
         IServiceFactory factory,
         IStreamShellHost shellHost,
         Func<AppConfig, IServiceFactory, AppRunner>? runnerFactory = null)
     {
-        _console = console;
         _configService = configService;
         _factory = factory;
         _shellHost = shellHost;
@@ -59,7 +56,7 @@ public sealed class AppBootstrapper : IDisposable
             return runnerExitCode;
 
         if (ex != null)
-            return new AppExitHandler(_console).HandleExit(ex);
+            return new AppExitHandler().HandleExit(ex);
 
         return 0;
     }

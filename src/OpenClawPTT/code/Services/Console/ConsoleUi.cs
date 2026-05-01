@@ -76,7 +76,7 @@ public static class ConsoleUi
         // Word-wrapped streaming: keep on raw console
         Console.ForegroundColor = ConsoleColor.Green;
         Console.Write(prefix);
-        var formatter = new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted: true, output: new SystemConsole());
+        var formatter = new AgentReplyFormatter(prefix, rightMarginIndent, prefixAlreadyPrinted: true, output: new ConsoleFormattedOutput());
         formatter.ProcessDelta(message);
         formatter.Finish();
         Console.ResetColor();
@@ -165,5 +165,15 @@ public static class ConsoleUi
     public static void LogError(string tag, string msg)
     {
         ShellMsg($"[red]  {Markup.Escape($"[{tag}]")} {Markup.Escape(msg)}[/]");
+    }
+
+    /// <summary>
+    /// Minimal <see cref="IFormattedOutput"/> that writes directly to <see cref="System.Console"/>.
+    /// </summary>
+    private sealed class ConsoleFormattedOutput : IFormattedOutput
+    {
+        public void Write(string text) => Console.Write(text);
+        public void WriteLine() => Console.WriteLine();
+        public int WindowWidth => Console.WindowWidth;
     }
 }

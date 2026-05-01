@@ -13,7 +13,7 @@ public sealed class ServiceFactory : IServiceFactory
     private readonly IStreamShellHost _shellHost;
 
     public ServiceFactory(IConfigurationService configService)
-        : this(configService, new ConsoleUiOutput(), new MessageComposer(), new StreamShellHost())
+        : this(configService, new StreamShellConsoleOutput(new StreamShellHost()), new MessageComposer(), new StreamShellHost())
     {
     }
 

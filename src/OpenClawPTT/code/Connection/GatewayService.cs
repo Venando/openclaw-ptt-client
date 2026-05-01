@@ -28,13 +28,13 @@ public sealed class GatewayService : IGatewayService
     /// Initializes the gateway service with the given config and console output.
     /// </summary>
     /// <param name="config">Application configuration.</param>
-    /// <param name="consoleOutput">Console output for agent reply display; uses <see cref="ConsoleUiOutput"/> as default.</param>
+    /// <param name="consoleOutput">Console output for agent reply display; uses <see cref="StreamShellConsoleOutput"/> as default.</param>
     public GatewayService(AppConfig config, IConsoleOutput? consoleOutput = null)
     {
         _config = config;
         _device = new DeviceIdentity(config.DataDir);
         _device.EnsureKeypair();
-        _consoleOutput = consoleOutput ?? new ConsoleUiOutput();
+        _consoleOutput = consoleOutput ?? new StreamShellConsoleOutput(new StreamShellHost());
         _gatewayClient = CreateGatewayClient();
     }
 

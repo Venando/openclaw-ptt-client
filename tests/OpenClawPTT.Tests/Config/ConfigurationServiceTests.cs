@@ -107,23 +107,9 @@ public class ConfigurationServiceTests
         cts.Cancel();
 
         // Fake console with immediate cancellation
-        var fakeConsole = new Mock<IConsole>();
-        fakeConsole.Setup(x => x.ReadLineAsync(It.IsAny<CancellationToken>()))
-            .Throws(new OperationCanceledException());
-        fakeConsole.SetupProperty(x => x.ForegroundColor);
-        fakeConsole.Setup(x => x.WindowWidth).Returns(80);
-        ConsoleUi.SetConsole(fakeConsole.Object);
-
-        try
-        {
-            // Act & Assert - should not throw, just complete
-            var result = await service.ReconfigureAsync(shellHost.Object, existing, cts.Token);
-            Assert.NotNull(result);
-        }
-        finally
-        {
-            ConsoleUi.SetConsole(new SystemConsole());
-        }
+        // Act & Assert - should not throw, just complete
+        var result = await service.ReconfigureAsync(shellHost.Object, existing, cts.Token);
+        Assert.NotNull(result);
     }
 
     [Fact]

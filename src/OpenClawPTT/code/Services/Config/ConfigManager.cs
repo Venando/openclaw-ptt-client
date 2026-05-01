@@ -5,19 +5,12 @@ namespace OpenClawPTT;
 
 public sealed class ConfigManager
 {
-    private readonly IConsole _console;
-
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
         WriteIndented = true
     };
 
-    public ConfigManager() : this(null) { }
-
-    public ConfigManager(IConsole? console)
-    {
-        _console = console ?? new SystemConsole();
-    }
+    public ConfigManager() { }
 
     private string ConfigPath(AppConfig cfg) =>
         Path.Combine(cfg.DataDir, "config.json");
@@ -275,15 +268,15 @@ public sealed class ConfigManager
         while (true)
         {
             var def = string.IsNullOrEmpty(defaultVal) ? "" : $" [{defaultVal}]";
-            _console.Write($"  {label}{def}: ");
+            Console.Write($"  {label}{def}: ");
             string input;
             try
             {
-                input = (await _console.ReadLineAsync(cancellationToken))?.Trim() ?? "";
+                input = (await Console.In.ReadLineAsync(cancellationToken))?.Trim() ?? "";
             }
             catch (OperationCanceledException)
             {
-                _console.WriteLine(); // move to new line after ^C
+                Console.WriteLine(); // move to new line after ^C
                 throw;
             }
 
@@ -293,9 +286,9 @@ public sealed class ConfigManager
             if (validate(input))
                 return input;
 
-            _console.ForegroundColor = ConsoleColor.Yellow;
-            _console.WriteLine("    Invalid value, try again.");
-            _console.ResetColor();
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("    Invalid value, try again.");
+            Console.ResetColor();
         }
     }
 }

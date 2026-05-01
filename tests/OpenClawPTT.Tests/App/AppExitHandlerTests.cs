@@ -1,24 +1,17 @@
 namespace OpenClawPTT.Tests;
 
-using Moq;
 using OpenClawPTT;
 using OpenClawPTT.Services;
 using System;
-using System.Text;
 using Xunit;
 
 public class AppExitHandlerTests : IDisposable
 {
-    private readonly Mock<IConsole> _fakeConsole;
     private readonly AppExitHandler _handler;
 
     public AppExitHandlerTests()
     {
-        _fakeConsole = new Mock<IConsole>();
-        _fakeConsole.Setup(x => x.ForegroundColor).Returns(ConsoleColor.Gray);
-        _fakeConsole.Setup(x => x.ReadKey(true)).Returns(new ConsoleKeyInfo(' ', ConsoleKey.Spacebar, false, false, false));
-        _fakeConsole.Setup(x => x.OutputEncoding).Returns(Encoding.UTF8);
-        _handler = new AppExitHandler(_fakeConsole.Object);
+        _handler = new AppExitHandler();
     }
 
     public void Dispose()

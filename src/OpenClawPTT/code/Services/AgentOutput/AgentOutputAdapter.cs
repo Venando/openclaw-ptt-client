@@ -12,7 +12,6 @@ public sealed class AgentOutputAdapter : IDisposable
 {
     private readonly AppConfig _config;
     private readonly IConsoleOutput _consoleOutput;
-    private readonly IConsole _console;
     private readonly ToolDisplayHandler _toolDisplayHandler;
     private readonly AudioResponseHandler? _audioResponseHandler;
 
@@ -36,15 +35,14 @@ public sealed class AgentOutputAdapter : IDisposable
     // then pushes the complete reply as a single StreamShell message.
     private StreamShellCapturingConsole? _capturingConsole;
 
-    public AgentOutputAdapter(AppConfig config) : this(config, new ConsoleUiOutput())
+    public AgentOutputAdapter(AppConfig config) : this(config, new StreamShellConsoleOutput(new StreamShellHost()))
     {
     }
 
-    public AgentOutputAdapter(AppConfig config, IConsoleOutput consoleOutput, IConsole? console = null)
+    public AgentOutputAdapter(AppConfig config, IConsoleOutput consoleOutput)
     {
         _config = config;
         _consoleOutput = consoleOutput;
-        _console = console ?? new SystemConsole();
         _agentReplayPrefix = $"  🤖 {_config.AgentName}: ";
         _agentReplayPrefixWithAudio = $"  🤖 🔊 {_config.AgentName}: ";
         _agentReplayPrefixTextMode = $"  🤖 ✍️ {_config.AgentName}: ";
@@ -118,10 +116,10 @@ public sealed class AgentOutputAdapter : IDisposable
             if (!_prefixPrinted)
             {
                 _prefixPrinted = true;
-                _console.WriteLine();
-                _console.ForegroundColor = ConsoleColor.DarkGray;
-                _console.Write(_thinkingPrefix);
-                _console.ResetColor();
+                Console.WriteLine();
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.Write(_thinkingPrefix);
+                Console.ResetColor();
                 if (_config.EnableWordWrap)
                 {
                     _thinkingFormatter = new AgentReplyFormatter(_thinkingPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true, output: _consoleOutput as IFormattedOutput);
@@ -133,20 +131,20 @@ public sealed class AgentOutputAdapter : IDisposable
                 _thinkingFormatter.Finish();
                 _thinkingFormatter = null;
                 _prefixPrinted = false;
-                _console.WriteLine();
+                Console.WriteLine();
             }
             else
             {
-                _console.Write(thinking.TrimEnd());
+                Console.Write(thinking.TrimEnd());
             }
         }
         else
         {
-            _console.WriteLine();
-            _console.ForegroundColor = ConsoleColor.DarkGray;
-            _console.WriteLine(_thinkingInfo);
-            _console.ResetColor();
-            _console.WriteLine();
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine(_thinkingInfo);
+            Console.ResetColor();
+            Console.WriteLine();
             _prefixPrinted = false;
         }
     }
@@ -224,9 +222,9 @@ public sealed class AgentOutputAdapter : IDisposable
         _prefixLength = _currentPrefix.Length;
         _newlineSuffix = new string(' ', _prefixLength);
 
-        _console.ForegroundColor = ConsoleColor.Cyan;
-        _console.Write(_currentPrefix);
-        _console.ResetColor();
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.Write(_currentPrefix);
+        Console.ResetColor();
         if (_config.EnableWordWrap)
         {
             // When StreamShell is active, capture formatter output for final flush to Shell
