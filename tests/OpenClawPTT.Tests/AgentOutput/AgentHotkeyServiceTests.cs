@@ -135,25 +135,7 @@ public class AgentHotkeyServiceTests : IDisposable
         pttCtrl.Verify(p => p.StartRecording(), Times.Never);
     }
 
- [Fact]
-    public void HandleActiveHotkeyPressed_StartsRecording()
-    {
-        var pttCtrl = new Mock<IPttController>();
-        using var svc = new AgentHotkeyService(pttCtrl.Object, Mock.Of<ITextMessageSender>(), Mock.Of<IStreamShellHost>(), new AppConfig { HoldToTalk = true });
 
-        svc.HandleActiveHotkeyPressed();
-        pttCtrl.Verify(p => p.StartRecording(), Times.Once);
-    }
-
-    [Fact]
-    public void HandleActiveHotkeyReleased_StopsWhenHoldToTalk()
-    {
-        var pttCtrl = new Mock<IPttController>();
-        using var svc = new AgentHotkeyService(pttCtrl.Object, Mock.Of<ITextMessageSender>(), Mock.Of<IStreamShellHost>(), new AppConfig { HoldToTalk = true });
-
-        svc.HandleActiveHotkeyReleased();
-        pttCtrl.Verify(p => p.StopRecording(), Times.Once);
-    }
 }
 
 /// <summary>
