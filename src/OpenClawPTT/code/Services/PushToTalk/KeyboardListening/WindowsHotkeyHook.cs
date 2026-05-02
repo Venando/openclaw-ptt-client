@@ -11,6 +11,8 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
 {
     public event Action? HotkeyPressed;
     public event Action? HotkeyReleased;
+    public event Action<int>? HotkeyIndexPressed;
+    public event Action<int>? HotkeyIndexReleased;
 
     private readonly Thread _thread;
     private volatile IntPtr _hookHandle = IntPtr.Zero;
@@ -67,6 +69,16 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
         foreach (var mod in Enum.GetValues<Modifier>())
             _modifierDown[mod] = false;
         _hotkeyKeyDown = false;
+    }
+
+    public void SetHotkeys(System.Collections.Generic.IEnumerable<Hotkey> hotkeys)
+    {
+        // Windows single-hotkey hook — use first for now
+        foreach (var hk in hotkeys)
+        {
+            SetHotkey(hk);
+            break;
+        }
     }
 
     public void Start() => _thread.Start();

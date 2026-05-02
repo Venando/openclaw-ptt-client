@@ -22,6 +22,8 @@ public class PttControllerStabilityTests : IDisposable
         private bool _disposed;
         private Action? _hotkeyPressed;
         private Action? _hotkeyReleased;
+        private Action<int>? _hotkeyIndexPressed;
+        private Action<int>? _hotkeyIndexReleased;
         public List<bool> StartCalls { get; } = new();
         public List<bool> DisposeCalls { get; } = new();
 
@@ -35,8 +37,19 @@ public class PttControllerStabilityTests : IDisposable
             add { _hotkeyReleased += value; }
             remove { _hotkeyReleased -= value; }
         }
+        event Action<int>? IGlobalHotkeyHook.HotkeyIndexPressed
+        {
+            add { _hotkeyIndexPressed += value; }
+            remove { _hotkeyIndexPressed -= value; }
+        }
+        event Action<int>? IGlobalHotkeyHook.HotkeyIndexReleased
+        {
+            add { _hotkeyIndexReleased += value; }
+            remove { _hotkeyIndexReleased -= value; }
+        }
 
         public void SetHotkey(Hotkey hotkey) { }
+        public void SetHotkeys(System.Collections.Generic.IEnumerable<Hotkey> hotkeys) { }
         public void Start() { StartCalls.Add(true); }
         public void Dispose()
         {

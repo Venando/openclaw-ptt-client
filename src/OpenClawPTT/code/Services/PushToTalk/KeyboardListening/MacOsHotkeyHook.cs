@@ -10,6 +10,8 @@ internal sealed class MacOsHotkeyHook : IGlobalHotkeyHook
 {
     public event Action? HotkeyPressed;
     public event Action? HotkeyReleased;
+    public event Action<int>? HotkeyIndexPressed;
+    public event Action<int>? HotkeyIndexReleased;
 
     private readonly CancellationTokenSource _cts = new();
     private Thread? _thread;
@@ -35,6 +37,16 @@ internal sealed class MacOsHotkeyHook : IGlobalHotkeyHook
         _hotkeyKeyCode = HotkeyMapping.GetPlatformKeyCode(hotkey.Key);
         _modifierFlagsMask = HotkeyMapping.GetPlatformModifierFlags(hotkey.Modifiers);
         _hotkeyKeyDown = false;
+    }
+
+    public void SetHotkeys(System.Collections.Generic.IEnumerable<Hotkey> hotkeys)
+    {
+        // macOS single-hotkey hook — use first for now
+        foreach (var hk in hotkeys)
+        {
+            SetHotkey(hk);
+            break;
+        }
     }
 
     public void Start()

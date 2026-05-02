@@ -34,7 +34,10 @@ public class ServiceFactoryTests
     {
         public event Action? HotkeyPressed { add { } remove { } }
         public event Action? HotkeyReleased { add { } remove { } }
+        public event Action<int>? HotkeyIndexPressed { add { } remove { } }
+        public event Action<int>? HotkeyIndexReleased { add { } remove { } }
         public void SetHotkey(Hotkey mapping) { }
+        public void SetHotkeys(System.Collections.Generic.IEnumerable<Hotkey> hotkeys) { }
         public void Start() { }
         public void Dispose() { }
     }

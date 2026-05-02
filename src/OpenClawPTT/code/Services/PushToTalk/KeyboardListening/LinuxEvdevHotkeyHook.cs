@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
@@ -15,6 +16,8 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
 {
     public event Action? HotkeyPressed;
     public event Action? HotkeyReleased;
+    public event Action<int>? HotkeyIndexPressed;
+    public event Action<int>? HotkeyIndexReleased;
 
     private readonly CancellationTokenSource _cts = new();
     private Thread? _thread;
@@ -40,27 +43,28 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
     private const int EVENT_SIZE = 24;
 
     // Hotkey configuration
-    private Hotkey? _hotkey;
-    private int _hotkeyKeyCode;
-    private HashSet<Modifier> _modifiers = new();
+    private List<Hotkey> _hotkeys = new();
     // Modifier down counts (for left/right variants)
     private int _altDownCount;
     private int _ctrlDownCount;
     private int _shiftDownCount;
     private int _metaDownCount;
-    private bool _hotkeyKeyDown;
+    private int _activeHotkeyIndex = -1;
 
     public void SetHotkey(Hotkey hotkey)
     {
-        _hotkey = hotkey;
-        _hotkeyKeyCode = HotkeyMapping.GetPlatformKeyCode(hotkey.Key);
-        _modifiers = hotkey.Modifiers;
+        SetHotkeys(new[] { hotkey });
+    }
+
+    public void SetHotkeys(IEnumerable<Hotkey> hotkeys)
+    {
+        _hotkeys = hotkeys.ToList();
         // Reset states
         _altDownCount = 0;
         _ctrlDownCount = 0;
         _shiftDownCount = 0;
         _metaDownCount = 0;
-        _hotkeyKeyDown = false;
+        _activeHotkeyIndex = -1;
     }
 
     public void Start()
@@ -175,31 +179,50 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
                 break;
         }
 
-        // Check hotkey key
-        if (code == _hotkeyKeyCode)
+        // Check all configured hotkeys
+        int matchedIndex = FindMatchingHotkeyIndex(code);
+        if (matchedIndex >= 0)
         {
-            if (value == VALUE_DOWN && !_hotkeyKeyDown)
+            if (value == VALUE_DOWN && _activeHotkeyIndex < 0)
             {
-                if (ModifiersMatch())
+                _activeHotkeyIndex = matchedIndex;
+                int capturedIndex = matchedIndex;
+                ThreadPool.QueueUserWorkItem(_ =>
                 {
-                    _hotkeyKeyDown = true;
-                    ThreadPool.QueueUserWorkItem(_ => HotkeyPressed?.Invoke());
-                }
+                    HotkeyPressed?.Invoke();
+                    HotkeyIndexPressed?.Invoke(capturedIndex);
+                });
             }
-            else if (value == VALUE_UP && _hotkeyKeyDown)
+            else if (value == VALUE_UP && _activeHotkeyIndex >= 0)
             {
-                _hotkeyKeyDown = false;
-                ThreadPool.QueueUserWorkItem(_ => HotkeyReleased?.Invoke());
+                int capturedIndex = _activeHotkeyIndex;
+                _activeHotkeyIndex = -1;
+                ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    HotkeyReleased?.Invoke();
+                    HotkeyIndexReleased?.Invoke(capturedIndex);
+                });
             }
         }
     }
 
-    private bool ModifiersMatch()
+    private int FindMatchingHotkeyIndex(ushort keyCode)
     {
-        bool altRequired = _modifiers.Contains(Modifier.Alt);
-        bool ctrlRequired = _modifiers.Contains(Modifier.Ctrl);
-        bool shiftRequired = _modifiers.Contains(Modifier.Shift);
-        bool winRequired = _modifiers.Contains(Modifier.Win);
+        for (int i = 0; i < _hotkeys.Count; i++)
+        {
+            var hk = _hotkeys[i];
+            if (HotkeyMapping.GetPlatformKeyCode(hk.Key) == keyCode && ModifiersMatch(hk.Modifiers))
+                return i;
+        }
+        return -1;
+    }
+
+    private bool ModifiersMatch(HashSet<Modifier> modifiers)
+    {
+        bool altRequired = modifiers.Contains(Modifier.Alt);
+        bool ctrlRequired = modifiers.Contains(Modifier.Ctrl);
+        bool shiftRequired = modifiers.Contains(Modifier.Shift);
+        bool winRequired = modifiers.Contains(Modifier.Win);
 
         bool altPressed = Volatile.Read(ref _altDownCount) > 0;
         bool ctrlPressed = Volatile.Read(ref _ctrlDownCount) > 0;
