@@ -50,6 +50,17 @@ public sealed class AudioService : IAudioService
         _visualFeedback.Show();
     }
     
+    public void StopDiscard()
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(AudioService));
+        if (!_recorder.IsRecording) return;
+
+        _recorder.StopRecording();
+        _visualFeedback.Hide();
+        ConsoleUi.PrintInlineInfo("■");
+        ConsoleUi.Log("audio", "Recording discarded (Escape pressed)");
+    }
+
     public async Task<string?> StopAndTranscribeAsync(CancellationToken ct)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(AudioService));

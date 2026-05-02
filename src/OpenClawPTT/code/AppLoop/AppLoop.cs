@@ -51,11 +51,7 @@ public sealed class AppLoop : IAppLoop
             if (_pttController.PollCancelRecording())
             {
                 _pttStateMachine.Reset();
-                if (_audioService.IsRecording)
-                {
-                    // Discard the recording without transcribing
-                    await _audioService.StopAndTranscribeAsync(ct);
-                }
+                _audioService.StopDiscard();
             }
 
             // Handle state-driven recording actions

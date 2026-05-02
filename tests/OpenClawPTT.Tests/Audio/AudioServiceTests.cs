@@ -94,6 +94,13 @@ sealed class FakeAudioService : IAudioService
         _visual.Show();
     }
 
+    public void StopDiscard()
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(FakeAudioService));
+        _recording = false;
+        _visual.Hide();
+    }
+
     public async Task<string?> StopAndTranscribeAsync(CancellationToken ct = default)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(FakeAudioService));

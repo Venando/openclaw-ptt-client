@@ -104,6 +104,7 @@ public class PttLoopStabilityTests : IDisposable
         public void StartRecording() => StartRecording_Count++;
         public Task<string?> StopAndTranscribeAsync(CancellationToken ct = default)
             => Task.FromResult<string?>(null);
+        public void StopDiscard() { }
         public void Dispose() => Dispose_Count++;
     }
 
