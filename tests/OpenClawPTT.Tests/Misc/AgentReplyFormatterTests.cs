@@ -546,4 +546,16 @@ items.map(i => console.log(i));
         formatter.Finish();
         ValidateMarkup(output);
     }
+
+    [Fact]
+    public void ProcessMarkupDelta_Link()
+    {
+        var spectreMarkup = "[link=https://example.com]Link[/]";
+        var output = new StringWriterTextOutput { WindowWidth = 80 };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta(spectreMarkup);
+        formatter.Finish();
+        ValidateMarkup(output);
+    }
+    
 }
