@@ -353,7 +353,6 @@ public sealed class StreamShellInputHandler : IDisposable
         if (AgentRegistry.SetActiveAgent(matched.AgentId))
         {
             ConsoleUi.PrintAgentIntroduction(_appConfig);
-            // _host.AddMessage($"[green]  Switched to agent: {Markup.Escape(matched.Name)}[/]");
         }
         else
             _host.AddMessage("[yellow]  That agent is already active.[/]");
