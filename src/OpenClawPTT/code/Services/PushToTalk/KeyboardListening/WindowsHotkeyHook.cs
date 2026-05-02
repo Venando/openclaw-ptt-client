@@ -120,9 +120,16 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
                     // Verify modifiers match
                     if (ModifiersMatch())
                     {
-                        ConsoleUi.Log("hook", $"Hotkey MATCH — firing HotkeyPressed");
+                        ConsoleUi.Log("hook", $"Hotkey MATCH — firing HotkeyPressed and HotkeyIndexPressed");
                         _hotkeyKeyDown = true;
-                        ThreadPool.QueueUserWorkItem(_ => HotkeyPressed?.Invoke());
+                        int capturedIndex = 0; // Windows hook only supports single hotkey
+                        ThreadPool.QueueUserWorkItem(_ =>
+                        {
+                            HotkeyPressed?.Invoke();
+                            HotkeyIndexPressed?.Invoke(capturedIndex);
+                        });
+                        // Block the keystroke so it doesn't reach the console/StreamShell
+                        return new IntPtr(1);
                     }
                     else
                     {
@@ -131,9 +138,16 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
                 }
                 else if (isUp && _hotkeyKeyDown)
                 {
-                    ConsoleUi.Log("hook", $"Hotkey release — firing HotkeyReleased");
+                    ConsoleUi.Log("hook", $"Hotkey release — firing HotkeyReleased and HotkeyIndexReleased");
                     _hotkeyKeyDown = false;
-                    ThreadPool.QueueUserWorkItem(_ => HotkeyReleased?.Invoke());
+                    int capturedIndex = 0;
+                    ThreadPool.QueueUserWorkItem(_ =>
+                    {
+                        HotkeyReleased?.Invoke();
+                        HotkeyIndexReleased?.Invoke(capturedIndex);
+                    });
+                    // Block the keystroke release too
+                    return new IntPtr(1);
                 }
             }
         }
