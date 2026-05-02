@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
@@ -22,12 +23,12 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
     private volatile bool _disposed;
     
     // Hotkey configuration
-    private Hotkey? _hotkey;
-    private int _hotkeyKeyCode;
-    private HashSet<Modifier> _modifiers = new();
+    private List<HotkeyConfig> _hotkeyConfigs = new();
     private Dictionary<Modifier, List<int>> _modifierKeyCodes = new();
     private Dictionary<Modifier, bool> _modifierDown = new();
-    private bool _hotkeyKeyDown;
+    private int _activeHotkeyIndex = -1;
+
+    private sealed record HotkeyConfig(int KeyCode, HashSet<Modifier> Modifiers);
 
     private const int WH_KEYBOARD_LL = 13;
     private const int WM_KEYDOWN = 0x0100;
@@ -65,30 +66,25 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
 
     public void SetHotkey(Hotkey hotkey)
     {
-        _hotkey = hotkey;
-        _hotkeyKeyCode = HotkeyMapping.GetPlatformKeyCode(hotkey.Key);
-        _modifiers = hotkey.Modifiers;
-        // Reset states
-        foreach (var mod in Enum.GetValues<Modifier>())
-            _modifierDown[mod] = false;
-        _hotkeyKeyDown = false;
+        SetHotkeys(new[] { hotkey });
     }
 
     public void SetHotkeys(System.Collections.Generic.IEnumerable<Hotkey> hotkeys)
     {
-        // Windows single-hotkey hook — use first for now
-        foreach (var hk in hotkeys)
-        {
-            SetHotkey(hk);
-            break;
-        }
+        _hotkeyConfigs = hotkeys
+            .Select(h => new HotkeyConfig(HotkeyMapping.GetPlatformKeyCode(h.Key), h.Modifiers))
+            .ToList();
+        // Reset states
+        foreach (var mod in Enum.GetValues<Modifier>())
+            _modifierDown[mod] = false;
+        _activeHotkeyIndex = -1;
     }
 
     public void Start() => _thread.Start();
 
     private IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0 && _hotkey != null)
+        if (nCode >= 0 && _hotkeyConfigs.Count > 0)
         {
             var info = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
             int msg = wParam.ToInt32();
@@ -113,29 +109,26 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
                 return new IntPtr(1);
             }
 
-            // Check if this is the hotkey key
-            if (info.vkCode == _hotkeyKeyCode)
+            // Check all configured hotkeys
+            int matchedIndex = FindMatchingHotkeyIndex((int)info.vkCode);
+            if (matchedIndex >= 0)
             {
-                if (isDown && !_hotkeyKeyDown)
+                if (isDown && _activeHotkeyIndex < 0)
                 {
-                    // Verify modifiers match
-                    if (ModifiersMatch())
+                    _activeHotkeyIndex = matchedIndex;
+                    int capturedIndex = matchedIndex;
+                    ThreadPool.QueueUserWorkItem(_ =>
                     {
-                        _hotkeyKeyDown = true;
-                        int capturedIndex = 0; // Windows hook only supports single hotkey
-                        ThreadPool.QueueUserWorkItem(_ =>
-                        {
-                            HotkeyPressed?.Invoke();
-                            HotkeyIndexPressed?.Invoke(capturedIndex);
-                        });
-                        // Block the keystroke so it doesn't reach the console/StreamShell
-                        return new IntPtr(1);
-                    }
+                        HotkeyPressed?.Invoke();
+                        HotkeyIndexPressed?.Invoke(capturedIndex);
+                    });
+                    // Block the keystroke so it doesn't reach the console/StreamShell
+                    return new IntPtr(1);
                 }
-                else if (isUp && _hotkeyKeyDown)
+                else if (isUp && _activeHotkeyIndex >= 0)
                 {
-                    _hotkeyKeyDown = false;
-                    int capturedIndex = 0;
+                    int capturedIndex = _activeHotkeyIndex;
+                    _activeHotkeyIndex = -1;
                     ThreadPool.QueueUserWorkItem(_ =>
                     {
                         HotkeyReleased?.Invoke();
@@ -150,14 +143,22 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
         return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
     }
 
-    /// <summary>
-    /// Returns true if the currently pressed modifiers exactly match the configured modifiers.
-    /// </summary>
-    private bool ModifiersMatch()
+    private int FindMatchingHotkeyIndex(int vkCode)
+    {
+        for (int i = 0; i < _hotkeyConfigs.Count; i++)
+        {
+            var cfg = _hotkeyConfigs[i];
+            if (cfg.KeyCode == vkCode && ModifiersMatch(cfg.Modifiers))
+                return i;
+        }
+        return -1;
+    }
+
+    private bool ModifiersMatch(HashSet<Modifier> modifiers)
     {
         foreach (var mod in Enum.GetValues<Modifier>())
         {
-            bool shouldBePressed = _modifiers.Contains(mod);
+            bool shouldBePressed = modifiers.Contains(mod);
             bool isPressed = _modifierDown[mod];
             if (shouldBePressed != isPressed)
                 return false;
