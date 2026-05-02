@@ -573,5 +573,24 @@ items.map(i => console.log(i));
         formatter.Finish();
         ValidateMarkup(output);
     }
-    
+
+    [Theory]
+    [InlineData(5, 30)]
+    [InlineData(10, 30)]
+    [InlineData(15, 30)]
+    [InlineData(20, 30)]
+    [InlineData(20, 60)]
+    [InlineData(25, 60)]
+    [InlineData(40, 60)]
+    [InlineData(50, 60)]
+    public void ProcessMarkupDelta_DoubleTrippleMarkupsWithLineBreaks(int repeats, int widowWidth)
+    {
+        var spectreMarkup = Enumerable.Repeat("[bold yellow strikethrough]some text line[/]", repeats).Aggregate((old, next) => old + next);
+        var output = new StringWriterTextOutput { WindowWidth = widowWidth };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta(spectreMarkup);
+        formatter.Finish();
+        ValidateMarkup(output);
+    }
+
 }
