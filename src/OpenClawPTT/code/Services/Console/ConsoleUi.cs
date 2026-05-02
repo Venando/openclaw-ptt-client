@@ -36,12 +36,26 @@ public static class ConsoleUi
         ShellMsg("");
     }
 
-    public static void PrintHelpMenu(string hotkeyCombination, bool holdToTalk)
+    public static void PrintHelpMenu(AppConfig appConfig)
     {
-        var modeDescription = holdToTalk ? "Hold-to-talk" : "Toggle recording";
-        var middleContent = $"  {Markup.Escape($"[{hotkeyCombination}]")}  {modeDescription}  [deepskyblue3]·[/]  /help  [deepskyblue3]·[/]  /quit  ";
-        var plain = $"│{hotkeyCombination}  {modeDescription}  ·  /help  ·  /quit│";
-        var dashCount = plain.Length + 4; // +4 for the leading/trailing spaces and │ padding
+        PrintAgentIntroduction(appConfig);
+        ShellMsg("    type [grey]/crew [/]to list agents [grey]/chat <agent>[/] to switch");
+        ShellMsg("");
+    }
+
+    public static void PrintAgentIntroduction(AppConfig appConfig)
+    {
+        if (!AgentRegistry.IsActiveAgentAvailable)
+        {
+            //TODO throw some error?
+            return;
+        }
+
+        var hotkeyCombination = AgentRegistry.GetPersistedHotkey(AgentRegistry.ActiveSessionKey!) ?? appConfig.HotkeyCombination;
+        AgentRegistry.GetActiveNameAndEmoji(out var agentName, out var emoji);
+        var modeDescription = appConfig.HoldToTalk ? "Hold-to-talk" : "Toggle recording";
+        var middleContent = $"   Agent: [white on gray15]{emoji} {agentName}[/] [deepskyblue3]·[/] [white on gray15]{Markup.Escape($"[{hotkeyCombination}]")}[/] [deepskyblue3]·[/] {modeDescription} [deepskyblue3]·[/] /help [deepskyblue3]·[/] /quit    ";
+        var dashCount = Markup.Remove(middleContent).Length; // +4 for the leading/trailing spaces and │ padding
         var topLineStart = $"── {AppEmoji} PTT Active ─";
         var topLine = $"[deepskyblue3]╭{topLineStart}{new string('─', dashCount - topLineStart.Length)}╮[/]";
         var bottomLine = $"[deepskyblue3]╰{new string('─', dashCount)}╯[/]";
@@ -50,14 +64,6 @@ public static class ConsoleUi
         ShellMsg($"[deepskyblue3]│[/]{middleContent}[deepskyblue3]│[/]");
         ShellMsg(bottomLine);
         ShellMsg("");
-
-
-        var activeName = AgentRegistry.ActiveAgentName;
-        if (activeName != null)
-        {
-            ShellMsg($"  {AppEmoji} Agent: [white on gray15]{activeName}[/]  [grey]|[/] type [grey]/crew [/]to list agents [grey]/chat <agent>[/] to switch");
-            ShellMsg("");
-        }
     }
 
     /// <summary>Send a raw Spectre markup message to the StreamShell output.</summary>

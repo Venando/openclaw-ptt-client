@@ -76,7 +76,7 @@ public sealed class AgentHotkeyService : IDisposable
         else
         {
             AgentRegistry.SetActiveAgent(agent.AgentId);
-            _shellHost.AddMessage($"[green]  Switched to {agent.Name}. Press hotkey again to record.[/]");
+            ConsoleUi.PrintAgentIntroduction(_cfg);
         }
     }
 

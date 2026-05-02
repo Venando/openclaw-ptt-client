@@ -283,7 +283,6 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
                     ["sessionKey"] = newSessionKey
                 };
                 await SendRequestAsync("sessions.subscribe", subscribeParams, CancellationToken.None);
-                ConsoleUi.Log("gateway", $"Switched to session: {newSessionKey}");
             }
             catch (Exception ex)
             {

@@ -88,14 +88,15 @@ public class AppRunner : IDisposable
         using var agentHotkeyService = new AgentHotkeyService(
             pttController, textSender, _shellHost, _cfg);
 
-        ConsoleUi.PrintHelpMenu(_cfg.HotkeyCombination, _cfg.HoldToTalk);
+        ConsoleUi.PrintHelpMenu(_cfg);
 
         // Register StreamShell commands (/quit, /reconfigure) before PTT loop
         using var shellCommands = new StreamShellInputHandler(
             _shellHost,
             textSender,
             _configService,
-            () => _cts?.Cancel()
+            _cfg,
+            onQuit: () => _cts?.Cancel()
         );
         shellCommands.Register();
 

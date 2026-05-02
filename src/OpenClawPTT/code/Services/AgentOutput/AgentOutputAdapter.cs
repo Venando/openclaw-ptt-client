@@ -166,12 +166,9 @@ public sealed class AgentOutputAdapter : IDisposable
         _prefixPrinted = true;
 
         var isAudioEnabled = _config.AudioResponseMode?.ToLowerInvariant() != "text-only";
-        var agentName = AgentRegistry.ActiveAgentName ?? _config.AgentName ?? "Agent";
-        var activeKey = AgentRegistry.ActiveSessionKey;
-        var emoji = AgentRegistry.Agents
-            .Where(a => a.SessionKey == activeKey)
-            .Select(a => AgentRegistry.GetPersistedEmoji(a.AgentId))
-            .FirstOrDefault() ?? "🤖";
+        
+        AgentRegistry.GetActiveNameAndEmoji(out var agentName, out var emoji, _config.AgentName);
+
         if (isAudioEnabled && _hasAudioInCurrentMessage)
         {
             _currentPrefix = $"  {emoji} 🔊 {agentName}: ";

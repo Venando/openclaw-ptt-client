@@ -15,18 +15,21 @@ public sealed class StreamShellInputHandler : IDisposable
     private readonly IStreamShellHost _host;
     private readonly ITextMessageSender _textSender;
     private readonly IConfigurationService _configService;
+    private readonly AppConfig _appConfig;
     private readonly Action _onQuit;
 
     public StreamShellInputHandler(
         IStreamShellHost host,
         ITextMessageSender textSender,
         IConfigurationService configService,
+        AppConfig appConfig,
         Action onQuit)
     {
         _host = host;
         _textSender = textSender;
         _configService = configService;
         _onQuit = onQuit;
+        _appConfig = appConfig;
     }
 
     /// <summary>Register all commands and the UserInputSubmitted handler.</summary>
@@ -348,7 +351,10 @@ public sealed class StreamShellInputHandler : IDisposable
         }
 
         if (AgentRegistry.SetActiveAgent(matched.AgentId))
-            _host.AddMessage($"[green]  Switched to agent: {Markup.Escape(matched.Name)}[/]");
+        {
+            ConsoleUi.PrintAgentIntroduction(_appConfig);
+            // _host.AddMessage($"[green]  Switched to agent: {Markup.Escape(matched.Name)}[/]");
+        }
         else
             _host.AddMessage("[yellow]  That agent is already active.[/]");
 

@@ -13,8 +13,8 @@ public static class AgentRegistry
     private static readonly object _lock = new();
     private static List<AgentInfo> _agents = new();
     private static string? _activeSessionKey;
-    private static Dictionary<string, string?> _persistedHotkeys = new(System.StringComparer.OrdinalIgnoreCase);
-    private static Dictionary<string, string?> _persistedEmojis = new(System.StringComparer.OrdinalIgnoreCase);
+    private static Dictionary<string, string?> _persistedHotkeys = new(StringComparer.OrdinalIgnoreCase);
+    private static Dictionary<string, string?> _persistedEmojis = new(StringComparer.OrdinalIgnoreCase);
     private static AgentSettingsService? _settingsService;
 
     /// <summary>Event raised when the active session changes.</summary>
@@ -163,6 +163,17 @@ public static class AgentRegistry
         }
     }
 
+    public static bool IsActiveAgentAvailable
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return ActiveAgentName != null;
+            }
+        }
+    }
+
     /// <summary>Currently active session key. Messages from other sessions are filtered out.</summary>
     public static string? ActiveSessionKey
     {
@@ -212,5 +223,18 @@ public static class AgentRegistry
     {
         if (sessionKey == null) return true;
         lock (_lock) return _activeSessionKey == null || sessionKey == _activeSessionKey;
+    }
+
+    public static void GetActiveNameAndEmoji(out object agentName, out object emoji, string defaultName = "Agent", string defaultEmoji = "🤖")
+    {
+        lock (_lock)
+        {
+            agentName = ActiveAgentName ?? defaultName;
+            var activeKey = ActiveSessionKey;
+            emoji = Agents
+                .Where(a => a.SessionKey == activeKey)
+                .Select(a => GetPersistedEmoji(a.AgentId))
+                .FirstOrDefault() ?? defaultEmoji;
+        }
     }
 }
