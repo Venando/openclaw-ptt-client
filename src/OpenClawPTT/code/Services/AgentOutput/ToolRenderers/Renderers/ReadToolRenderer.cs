@@ -15,7 +15,7 @@ public sealed class ReadToolRenderer : IToolRenderer
 
     public void Render(JsonElement args, int rightMarginIndent)
     {
-        if (args.TryGetProperty("file", out var fileProp))
+        if (args.TryGetProperty("file", out var fileProp) || args.TryGetProperty("path", out fileProp))
         {
             _output.Print(fileProp.GetString() ?? "", ConsoleColor.Gray);
         }

@@ -1,4 +1,5 @@
 using System.Text;
+using Spectre.Console;
 
 namespace OpenClawPTT;
 
@@ -15,7 +16,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     private readonly IFormattedOutput _output;
 
     private string _prefix;
-    private string _newlineSuffix;
+    private string _newlinePrefixLenght;
     private bool _prefixAlreadyPrinted;
 
     // Tracks currently open Spectre markup tags (e.g. "grey", "bold") for
@@ -42,8 +43,8 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
 
     private void Init(string prefix, bool prefixAlreadyPrinted, IFormattedOutput output)
     {
-        _prefix = prefix ?? string.Empty;
-        _newlineSuffix = new string(' ', _prefix.Length);
+        _prefix = Markup.Remove(prefix ?? string.Empty);
+        _newlinePrefixLenght = new string(' ', _prefix.Length);
         _prefixAlreadyPrinted = prefixAlreadyPrinted;
         _consoleWidth = output.WindowWidth > 0 ? output.WindowWidth : 80;
     }
@@ -59,8 +60,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
         int available;
         if (_prefixAlreadyPrinted)
         {
-            int suffixLength = _newlineSuffix.Length;
-            available = consoleWidth - suffixLength - effectiveRightMargin;
+            available = consoleWidth - _newlinePrefixLenght.Length - effectiveRightMargin;
         }
         else
         {
@@ -87,7 +87,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
             {
                 FlushWordBuffer(availableWidth);
                 _output.WriteLine();
-                _output.Write(_newlineSuffix);
+                _output.Write(_newlinePrefixLenght);
                 _currentLineLength = 0;
                 continue;
             }
@@ -307,9 +307,9 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
         }
 
         _output.WriteLine();
-        _output.Write(_newlineSuffix);
+        _output.Write(_newlinePrefixLenght);
 
-        // Re-emit all open markup tags after the newline and suffix
+        // Re-emit all open markup tags after the newline and prefix
         // so the next line is also self-contained.
         foreach (string tag in _openMarkupTags)
         {
