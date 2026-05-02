@@ -180,6 +180,38 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     };
 
     /// <summary>
+    /// Normalizes tag content to match Spectre.Console's expected format.
+    /// Spectre requires link=url without spaces around the '=', but agent
+    /// output may contain a space before '=' (e.g. "link = url").
+    /// This normalization strips spaces adjacent to '=' so the tag is valid.
+    /// </summary>
+    private static string NormalizeTagContent(string tagContent)
+    {
+        if (string.IsNullOrEmpty(tagContent))
+            return tagContent;
+        int eqIdx = tagContent.IndexOf('=');
+        if (eqIdx < 0)
+            return tagContent;
+        // Only normalize if there are spaces before '='
+        if (eqIdx > 0 && tagContent[eqIdx - 1] == ' ')
+        {
+            // Remove spaces immediately before '='
+            int trimEnd = eqIdx - 1;
+            while (trimEnd >= 0 && tagContent[trimEnd] == ' ')
+                trimEnd--;
+            // Also remove spaces immediately after '='
+            int trimStart = eqIdx + 1;
+            while (trimStart < tagContent.Length && tagContent[trimStart] == ' ')
+                trimStart++;
+            // Rebuild: part before spaces + '=' + part after spaces
+            string before = tagContent.Substring(0, trimEnd + 1);
+            string after = tagContent.Substring(trimStart);
+            return before + "=" + after;
+        }
+        return tagContent;
+    }
+
+    /// <summary>
     /// Returns true if <paramref name="tagName"/> is a known Spectre.Console
     /// tag/style. Only used for rejecting improbable tag names that appeared
     /// after whitespace in content.
@@ -189,7 +221,8 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
         if (string.IsNullOrEmpty(tagName))
             return false;
         // Strip any style attributes like "on color" or "link=url"
-        if (tagName.StartsWith("link=", StringComparison.OrdinalIgnoreCase))
+        if (tagName.StartsWith("link=", StringComparison.OrdinalIgnoreCase)
+            || tagName.StartsWith("link ", StringComparison.OrdinalIgnoreCase))
             return true;
         int spaceIdx = tagName.IndexOf(' ');
         string baseName = spaceIdx >= 0 ? tagName.Substring(0, spaceIdx) : tagName;
@@ -311,6 +344,24 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                     _wordBuffer.Append("]]");
                     visibleWordLen += tagContent.Length + 4; // [[ + content + ]]
                     continue;
+                }
+
+                // ── Normalize Spectre tag format ────────────────────
+                // Spectre.Console requires link=url without spaces around
+                // the '=', but agent output may produce link = url.
+                // Normalize by removing spaces adjacent to '=' in tag content.
+                string normalizedTag = NormalizeTagContent(tagContent);
+                if (normalizedTag != tagContent)
+                {
+                    // Update the buffer to use normalized tag
+                    _wordBuffer.Remove(openPos, closePos - openPos + 1);
+                    _wordBuffer.Length = openPos;
+                    _wordBuffer.Append("[");
+                    _wordBuffer.Append(normalizedTag);
+                    _wordBuffer.Append("]");
+                    tagContent = normalizedTag;
+                    // Recalculate closePos since buffer changed
+                    closePos = _wordBuffer.Length - 1;
                 }
 
                 if (tagContent == "/")
