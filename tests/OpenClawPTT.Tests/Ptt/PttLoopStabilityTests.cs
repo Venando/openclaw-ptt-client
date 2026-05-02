@@ -125,6 +125,7 @@ public class PttLoopStabilityTests : IDisposable
     sealed class DummyAgentReplyFormatter : IAgentReplyFormatter
     {
         public void ProcessDelta(string delta) { }
+        public void ProcessMarkupDelta(string markup) { }
         public void Finish() { }
     }
 

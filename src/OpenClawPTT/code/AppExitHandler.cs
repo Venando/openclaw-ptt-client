@@ -26,7 +26,7 @@ public sealed class AppExitHandler : IDisposable
 
             case GatewayException gex:
                 ConsoleUi.PrintGatewayError(gex.Message, gex.DetailCode, gex.RecommendedStep);
-                Console.ReadKey(intercept: true);
+                TryReadKey();
                 return ExitError;
 
             case Exception ex2:
@@ -34,12 +34,18 @@ public sealed class AppExitHandler : IDisposable
 #if DEBUG
                 Console.Error.WriteLine(ex2.StackTrace);
 #endif
-                Console.ReadKey(intercept: true);
+                TryReadKey();
                 return ExitError;
 
             default:
                 return ExitCancelled;
         }
+    }
+
+    private static void TryReadKey()
+    {
+        try { Console.ReadKey(intercept: true); }
+        catch (InvalidOperationException) { /* no console in test runner */ }
     }
 
     public void Dispose() { }

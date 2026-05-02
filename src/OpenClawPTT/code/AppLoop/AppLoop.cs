@@ -69,7 +69,8 @@ public sealed class AppLoop : IAppLoop
 
             // Yield: prevent spin-loop. Without this the while-loop burns 100% CPU
             // polling hotkey flags that are almost always false.
-            await Task.Delay(50, ct);
+            try { await Task.Delay(50, ct); }
+            catch (OperationCanceledException) { break; }
         }
 
         return AppLoopExitCode.Ok;

@@ -73,7 +73,22 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
 
     private void ReadLoop()
     {
-        var devicePaths = DiscoverKeyboardDevices();
+        List<string> devicePaths;
+        try
+        {
+            devicePaths = DiscoverKeyboardDevices();
+        }
+        catch (DirectoryNotFoundException ex)
+        {
+            ConsoleUi.Log("hotkey", $"Keyboard device directory not found: {ex.Message}");
+            return;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            ConsoleUi.Log("hotkey", $"No permission to access keyboard devices: {ex.Message}");
+            ConsoleUi.Log("hotkey", "Fix: sudo usermod -aG input $USER  (then re-login)");
+            return;
+        }
 
         if (devicePaths.Count == 0)
         {

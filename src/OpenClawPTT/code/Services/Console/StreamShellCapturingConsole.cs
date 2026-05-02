@@ -39,7 +39,7 @@ public sealed class StreamShellCapturingConsole : IFormattedOutput
         for (int i = 0; i < lines.Length; i++)
         {
             string? line = Markup.Escape(lines[i]);
-            _shellHost.AddMessage(i == 0 ? prefix + line : line);
+            _shellHost?.AddMessage(i == 0 ? prefix + line : line);
         }
 
         _buffer.Clear();

@@ -32,6 +32,7 @@ public sealed class ToolOutputHelper : IToolOutput
 
     public void Start(string prefix)
     {
+        _prefix = prefix;
         _agentReplayFormatter.Reconfigure(prefix);
     }
 

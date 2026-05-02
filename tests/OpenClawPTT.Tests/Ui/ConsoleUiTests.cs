@@ -41,13 +41,13 @@ public class ConsoleUiTests : IDisposable
     }
 
     [Fact]
-    public void PrintBanner_SendsCyanMarkup()
+    public void PrintBanner_SendsDeepSkyBlueMarkup()
     {
         var messages = new List<string>();
         _shellHost.Setup(h => h.AddMessage(It.IsAny<string>()))
             .Callback<string>(m => messages.Add(m));
         ConsoleUi.PrintBanner();
-        Assert.All(messages.Skip(1).Take(3), m => Assert.Contains("[cyan]", m));
+        Assert.All(messages.Skip(1).Take(3), m => Assert.Contains("[deepskyblue3]", m));
     }
 
     #endregion
