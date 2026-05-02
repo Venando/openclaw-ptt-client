@@ -18,6 +18,10 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     private string _newlineSuffix;
     private bool _prefixAlreadyPrinted;
 
+    // Tracks currently open Spectre markup tags (e.g. "grey", "bold") for
+    // re-emission on word-wrap line breaks, so markup is never split across lines.
+    private readonly Stack<string> _openMarkupTags = new Stack<string>();
+
     /// <summary>
     /// Convenience constructor using default right-margin indent (10).
     /// </summary>
@@ -150,6 +154,21 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
             {
                 insideTag = false;
                 _wordBuffer.Append(c);
+                // Determine whether this is an opening tag or closing tag
+                // by inspecting the tag content (everything between '[' and ']').
+                // The buffer now ends with "...]", so we search backwards.
+                int closePos = _wordBuffer.Length - 1;
+                int openPos = _wordBuffer.ToString().LastIndexOf('[', closePos - 1);
+                string tagContent = _wordBuffer.ToString(openPos + 1, closePos - openPos - 1);
+                if (tagContent == "/")
+                {
+                    if (_openMarkupTags.Count > 0)
+                        _openMarkupTags.Pop();
+                }
+                else if (!string.IsNullOrEmpty(tagContent))
+                {
+                    _openMarkupTags.Push(tagContent);
+                }
                 continue;
             }
 
@@ -164,8 +183,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
             {
                 FlushWordBuffer(availableWidth, visibleWordLen);
                 visibleWordLen = 0;
-                _output.WriteLine();
-                _output.Write(_newlineSuffix);
+                WriteNewLine();
                 _currentLineLength = 0;
                 continue;
             }
@@ -281,7 +299,21 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
 
     private void WriteNewLine()
     {
+        // Close all currently open markup tags before the line break
+        // so the current line is self-contained markup.
+        foreach (string tag in _openMarkupTags)
+        {
+            _output.Write("[/]");
+        }
+
         _output.WriteLine();
         _output.Write(_newlineSuffix);
+
+        // Re-emit all open markup tags after the newline and suffix
+        // so the next line is also self-contained.
+        foreach (string tag in _openMarkupTags)
+        {
+            _output.Write($"[{tag}]");
+        }
     }
 }
