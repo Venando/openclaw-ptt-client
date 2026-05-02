@@ -13,8 +13,7 @@ public static class AgentRegistry
     private static readonly object _lock = new();
     private static List<AgentInfo> _agents = new();
     private static string? _activeSessionKey;
-    private static Dictionary<string, string?> _persistedHotkeys = new(StringComparer.OrdinalIgnoreCase);
-    private static Dictionary<string, string?> _persistedEmojis = new(StringComparer.OrdinalIgnoreCase);
+    private static Dictionary<string, AgentPersistedSettings> _agentSettings = new(StringComparer.OrdinalIgnoreCase);
     private static AgentSettingsService? _settingsService;
 
     /// <summary>Event raised when the active session changes.</summary>
@@ -31,7 +30,7 @@ public static class AgentRegistry
     {
         lock (_lock)
         {
-            return _persistedHotkeys.TryGetValue(agentId, out var hk) ? hk : null;
+            return _agentSettings.TryGetValue(agentId, out var s) ? s.HotkeyCombination : null;
         }
     }
 
@@ -40,10 +39,12 @@ public static class AgentRegistry
     {
         lock (_lock)
         {
-            if (hotkeyCombo != null)
-                _persistedHotkeys[agentId] = hotkeyCombo;
-            else
-                _persistedHotkeys.Remove(agentId);
+            if (!_agentSettings.TryGetValue(agentId, out var s))
+            {
+                s = new AgentPersistedSettings { AgentId = agentId };
+                _agentSettings[agentId] = s;
+            }
+            s.HotkeyCombination = hotkeyCombo;
 
             _settingsService?.SetHotkey(agentId, hotkeyCombo);
             _settingsService?.Save();
@@ -56,7 +57,7 @@ public static class AgentRegistry
     {
         lock (_lock)
         {
-            return _persistedEmojis.TryGetValue(agentId, out var emoji) ? emoji : null;
+            return _agentSettings.TryGetValue(agentId, out var s) ? s.Emoji : null;
         }
     }
 
@@ -65,10 +66,12 @@ public static class AgentRegistry
     {
         lock (_lock)
         {
-            if (emoji != null)
-                _persistedEmojis[agentId] = emoji;
-            else
-                _persistedEmojis.Remove(agentId);
+            if (!_agentSettings.TryGetValue(agentId, out var s))
+            {
+                s = new AgentPersistedSettings { AgentId = agentId };
+                _agentSettings[agentId] = s;
+            }
+            s.Emoji = emoji;
 
             _settingsService?.SetEmoji(agentId, emoji);
             _settingsService?.Save();
@@ -83,7 +86,7 @@ public static class AgentRegistry
         {
             lock (_lock)
             {
-                return _agents.Select(a => (a, _persistedHotkeys.TryGetValue(a.AgentId, out var hk) ? hk : (string?)null)).ToList().AsReadOnly();
+                return _agents.Select(a => (a, _agentSettings.TryGetValue(a.AgentId, out var s) ? s.HotkeyCombination : (string?)null)).ToList().AsReadOnly();
             }
         }
     }
@@ -95,11 +98,10 @@ public static class AgentRegistry
         {
             lock (_lock)
             {
-                return _agents.Select(a => (
-                    a,
-                    _persistedHotkeys.TryGetValue(a.AgentId, out var hk) ? hk : (string?)null,
-                    _persistedEmojis.TryGetValue(a.AgentId, out var em) ? em : (string?)null
-                )).ToList().AsReadOnly();
+                return _agents.Select(a => {
+                    _agentSettings.TryGetValue(a.AgentId, out var s);
+                    return (a, s?.HotkeyCombination, s?.Emoji);
+                }).ToList().AsReadOnly();
             }
         }
     }
@@ -111,10 +113,7 @@ public static class AgentRegistry
         {
             foreach (var s in persisted.Agents)
             {
-                if (s.HotkeyCombination != null)
-                    _persistedHotkeys[s.AgentId] = s.HotkeyCombination;
-                if (s.Emoji != null)
-                    _persistedEmojis[s.AgentId] = s.Emoji;
+                _agentSettings[s.AgentId] = s;
             }
         }
     }
