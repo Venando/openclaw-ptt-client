@@ -2,6 +2,8 @@
 
 Desktop PTT client for [OpenClaw](https://github.com/openclaw/openclaw) AI gateway. Voice-controlled agent interaction via microphone, with multi-agent session management.
 
+<img width="830" height="471" alt="image" src="https://github.com/user-attachments/assets/bd257035-bab4-4e83-959b-764ccc30417a" />
+
 ## Quick Start
 
 ```bash
