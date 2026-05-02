@@ -88,12 +88,6 @@ public class AppRunner : IDisposable
         using var agentHotkeyService = new AgentHotkeyService(
             pttController, textSender, _shellHost, _cfg);
 
-        // If no agents configured, fall back to PttController's own internal hook
-        if (AgentRegistry.Agents.Count == 0)
-        {
-            pttController.SetHotkey(_cfg.HotkeyCombination, _cfg.HoldToTalk);
-        }
-
         ConsoleUi.PrintHelpMenu(_cfg.HotkeyCombination, _cfg.HoldToTalk);
 
         // Register StreamShell commands (/quit, /reconfigure) before PTT loop

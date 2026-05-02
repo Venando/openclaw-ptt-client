@@ -18,6 +18,7 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
     public event Action? HotkeyReleased;
     public event Action<int>? HotkeyIndexPressed;
     public event Action<int>? HotkeyIndexReleased;
+    public event Action? EscapePressed;
 
     private readonly CancellationTokenSource _cts = new();
     private Thread? _thread;
@@ -29,6 +30,7 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
     private const int VALUE_UP = 0;
 
     // Linux key codes for modifiers (left/right)
+    private const ushort KEY_ESC = 1;
     private const ushort KEY_LEFTALT = 56;
     private const ushort KEY_RIGHTALT = 100;
     private const ushort KEY_LEFTCTRL = 29;
@@ -177,6 +179,13 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
                 if (value == VALUE_DOWN) Interlocked.Increment(ref _metaDownCount);
                 else if (value == VALUE_UP) Interlocked.Decrement(ref _metaDownCount);
                 break;
+        }
+
+        // Check for Escape key (cancel recording)
+        if (code == KEY_ESC && value == VALUE_DOWN)
+        {
+            ConsoleUi.Log("hook", "Escape pressed — firing EscapePressed");
+            ThreadPool.QueueUserWorkItem(_ => EscapePressed?.Invoke());
         }
 
         // Check all configured hotkeys

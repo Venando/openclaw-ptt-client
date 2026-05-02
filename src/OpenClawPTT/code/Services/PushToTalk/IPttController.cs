@@ -15,4 +15,10 @@ public interface IPttController : IDisposable
 
     /// <summary>External trigger: simulate hotkey release (used by AgentHotkeyService).</summary>
     void StopRecording();
+
+    /// <summary>External trigger: cancel current recording without sending (used by Escape key).</summary>
+    void CancelRecording();
+
+    /// <summary>Returns true once when a recording cancellation has been requested.</summary>
+    bool PollCancelRecording();
 }

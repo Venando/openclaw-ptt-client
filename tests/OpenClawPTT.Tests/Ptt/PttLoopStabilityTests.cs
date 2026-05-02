@@ -176,6 +176,8 @@ public class PttLoopStabilityTests : IDisposable
 
         public void StartRecording() { }
         public void StopRecording() { }
+        public void CancelRecording() { }
+        public bool PollCancelRecording() => false;
         public void SetHotkey(string hotkeyCombination, bool holdToTalk) { }
         public void Start() { }
         public void Stop() { }

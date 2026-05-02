@@ -14,6 +14,9 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
     public event Action? HotkeyReleased;
     public event Action<int>? HotkeyIndexPressed;
     public event Action<int>? HotkeyIndexReleased;
+    public event Action? EscapePressed;
+
+    private const int VK_ESCAPE = 0x1B;
 
     private readonly Thread _thread;
     private volatile IntPtr _hookHandle = IntPtr.Zero;
@@ -110,6 +113,14 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
                     _modifierDown[mod] = isDown;
                     break;
                 }
+            }
+
+            // Check for Escape key (cancel recording)
+            if (info.vkCode == VK_ESCAPE && isDown)
+            {
+                ConsoleUi.Log("hook", "Escape pressed — firing EscapePressed");
+                ThreadPool.QueueUserWorkItem(_ => EscapePressed?.Invoke());
+                return new IntPtr(1);
             }
 
             // Check if this is the hotkey key

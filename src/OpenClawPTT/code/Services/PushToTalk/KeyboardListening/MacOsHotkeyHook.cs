@@ -12,6 +12,7 @@ internal sealed class MacOsHotkeyHook : IGlobalHotkeyHook
     public event Action? HotkeyReleased;
     public event Action<int>? HotkeyIndexPressed;
     public event Action<int>? HotkeyIndexReleased;
+    public event Action? EscapePressed;
 
     private readonly CancellationTokenSource _cts = new();
     private Thread? _thread;

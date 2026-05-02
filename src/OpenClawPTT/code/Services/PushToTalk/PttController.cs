@@ -13,6 +13,7 @@ internal sealed class PttController : IPttController
 
     private volatile bool _externalHotkeyPressed;
     private volatile bool _externalHotkeyRelease;
+    private volatile bool _cancelRecording;
 
     public PttController(IHotkeyHookFactory? hotkeyHookFactory = null)
     {
@@ -80,6 +81,24 @@ internal sealed class PttController : IPttController
     {
         _externalHotkeyPressed = false;
         _externalHotkeyRelease = true;
+    }
+
+    public void CancelRecording()
+    {
+        _cancelRecording = true;
+        _externalHotkeyPressed = false;
+        _externalHotkeyRelease = false;
+    }
+
+    /// <summary>Returns true if the current recording should be cancelled (Escape pressed).</summary>
+    public bool PollCancelRecording()
+    {
+        if (_cancelRecording)
+        {
+            _cancelRecording = false;
+            return true;
+        }
+        return false;
     }
 
     public void Dispose()

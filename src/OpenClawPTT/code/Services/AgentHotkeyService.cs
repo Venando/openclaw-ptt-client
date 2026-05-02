@@ -31,19 +31,21 @@ public sealed class AgentHotkeyService : IDisposable
         _shellHost = shellHost;
         _cfg = cfg;
 
-        // If there are agents with hotkeys, set up multi-hotkey hook
+        // Always create a hook — at minimum for Escape key cancellation.
+        // Create hook directly via GlobalHotkeyHookFactory to avoid passing
+        // a dummy hotkey through HotkeyHookFactory.Create() which calls
+        // SetHotkey(validating mapping) on Windows and crashes.
+        _hook = GlobalHotkeyHookFactory.Create();
+
         if (AgentRegistry.Agents.Count > 0)
         {
-            // Create hook directly via GlobalHotkeyHookFactory to avoid passing
-            // a dummy hotkey through HotkeyHookFactory.Create() which calls
-            // SetHotkey(validating mapping) on Windows and crashes.
-            // We call SetHotkeys() immediately after creation anyway.
-            _hook = GlobalHotkeyHookFactory.Create();
             RegisterAllAgentHotkeys();
             _hook.HotkeyIndexPressed += OnHotkeyPressed;
             _hook.HotkeyIndexReleased += OnHotkeyReleased;
-            _hook.Start();
         }
+
+        _hook.EscapePressed += OnEscapePressed;
+        _hook.Start();
     }
 
     private void RegisterAllAgentHotkeys()
@@ -115,6 +117,11 @@ public sealed class AgentHotkeyService : IDisposable
 
     private void OnHotkeyPressed(int index) => HandleHotkeyPressed(index);
     private void OnHotkeyReleased(int index) => HandleHotkeyReleased(index);
+    private void OnEscapePressed()
+    {
+        ConsoleUi.Log("hotkey", "EscapePressed — cancelling recording via PttController.CancelRecording()");
+        _pttController.CancelRecording();
+    }
 
     public void Dispose()
     {
@@ -122,6 +129,7 @@ public sealed class AgentHotkeyService : IDisposable
         {
             _hook.HotkeyIndexPressed -= OnHotkeyPressed;
             _hook.HotkeyIndexReleased -= OnHotkeyReleased;
+            _hook.EscapePressed -= OnEscapePressed;
             _hook.Dispose();
         }
     }

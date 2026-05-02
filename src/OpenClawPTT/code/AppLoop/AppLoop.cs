@@ -47,6 +47,17 @@ public sealed class AppLoop : IAppLoop
             if (_pttController.PollHotkeyRelease())
                 _pttStateMachine.OnHotkeyReleased();
 
+            // Check for cancellation (Escape key pressed during recording)
+            if (_pttController.PollCancelRecording())
+            {
+                _pttStateMachine.Reset();
+                if (_audioService.IsRecording)
+                {
+                    // Discard the recording without transcribing
+                    await _audioService.StopAndTranscribeAsync(ct);
+                }
+            }
+
             // Handle state-driven recording actions
             if (_pttStateMachine.ShouldStartRecording && !_audioService.IsRecording)
             {

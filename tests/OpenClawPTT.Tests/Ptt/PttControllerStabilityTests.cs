@@ -24,6 +24,7 @@ public class PttControllerStabilityTests : IDisposable
         private Action? _hotkeyReleased;
         private Action<int>? _hotkeyIndexPressed;
         private Action<int>? _hotkeyIndexReleased;
+        private Action? _escapePressed;
         public List<bool> StartCalls { get; } = new();
         public List<bool> DisposeCalls { get; } = new();
 
@@ -46,6 +47,11 @@ public class PttControllerStabilityTests : IDisposable
         {
             add { _hotkeyIndexReleased += value; }
             remove { _hotkeyIndexReleased -= value; }
+        }
+        event Action? IGlobalHotkeyHook.EscapePressed
+        {
+            add { _escapePressed += value; }
+            remove { _escapePressed -= value; }
         }
 
         public void SetHotkey(Hotkey hotkey) { }

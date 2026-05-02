@@ -20,5 +20,8 @@ public interface IGlobalHotkeyHook : IDisposable
     /// <summary>Replace all hotkeys with the given list.</summary>
     void SetHotkeys(IEnumerable<Hotkey> hotkeys);
 
+    /// <summary>Fired when the Escape key is pressed (for cancelling recording).</summary>
+    event Action? EscapePressed;
+
     void Start();
 }
