@@ -86,7 +86,8 @@ public class AppRunner : IDisposable
         var pttController = new PttController();
 
         using var agentHotkeyService = new AgentHotkeyService(
-            pttController, textSender, _shellHost, _cfg);
+            pttController, textSender, _shellHost, _cfg,
+            gatewayService: gateway);
 
         ConsoleUi.PrintHelpMenu(_cfg);
 
@@ -100,6 +101,7 @@ public class AppRunner : IDisposable
             onQuit: () => _cts?.Cancel()
         );
         shellCommands.Register();
+        ConsoleUi.Log("debug", "[History] StreamShell registered, initial history will be fetched");
 
         using IAppLoop pttLoop = _factory.CreatePttLoop(
             audioService, pttController, textSender, inputHandler,

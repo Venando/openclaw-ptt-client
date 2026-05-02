@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -147,26 +148,82 @@ public sealed class GatewayClient : IGatewayClient
     {
         ThrowIfDisposed();
         if (_lifecycle == null || !_lifecycle.IsConnected)
+        {
+            ConsoleUi.Log("debug", "[History] Disconnected, can't fetch history");
             return null;
+        }
+
+        // Log the request
+        ConsoleUi.Log("debug", $"[History] Fetching history for sessionKey={sessionKey}, limit={limit}");
 
         var parameters = new Dictionary<string, object?>
         {
             ["sessionKey"] = sessionKey,
-            ["maxMessages"] = limit,
         };
 
         try
         {
+            // Try chat.history first (primary RPC for chat history)
             var result = await TrySendAsync("chat.history", parameters, CancellationToken.None);
-            if (result.ValueKind == JsonValueKind.Undefined || result.ValueKind == JsonValueKind.Null)
-                return null;
 
-            if (!result.TryGetProperty("messages", out var messagesEl) || messagesEl.ValueKind != JsonValueKind.Array)
+            ConsoleUi.Log("debug", $"[History] chat.history response kind={result.ValueKind}");
+
+            if (result.ValueKind == JsonValueKind.Undefined || result.ValueKind == JsonValueKind.Null)
+            {
+                ConsoleUi.Log("debug", "[History] Undefined/null response, trying sessions.preview...");
+                // Fallback: try sessions.preview
+                result = await TrySendAsync("sessions.preview", new Dictionary<string, object?>
+                {
+                    ["sessionKey"] = sessionKey,
+                }, CancellationToken.None);
+                ConsoleUi.Log("debug", $"[History] sessions.preview response kind={result.ValueKind}");
+
+                if (result.ValueKind == JsonValueKind.Undefined || result.ValueKind == JsonValueKind.Null)
+                    return null;
+            }
+
+            // Log the full response for debugging (truncated)
+            var rawText = result.GetRawText();
+            ConsoleUi.Log("debug", $"[History] Raw response length={rawText.Length}, preview={rawText[..Math.Min(rawText.Length, 500)]}");
+
+            // Try different response shapes:
+            // 1. chat.history returns { messages: [...] }
+            // 2. sessions.preview might return { preview: [...] } or just an array
+            // Try to find the messages array
+            JsonElement messagesEl = default;
+            bool found = false;
+
+            if (result.TryGetProperty("messages", out var msgs) && msgs.ValueKind == JsonValueKind.Array)
+            {
+                messagesEl = msgs;
+                found = true;
+            }
+            else if (result.TryGetProperty("preview", out var prev) && prev.ValueKind == JsonValueKind.Array)
+            {
+                messagesEl = prev;
+                found = true;
+            }
+            else if (result.ValueKind == JsonValueKind.Array)
+            {
+                messagesEl = result;
+                found = true;
+            }
+
+            if (!found)
+            {
+                ConsoleUi.Log("debug", $"[History] No messages array found in response. Properties: {string.Join(", ", result.EnumerateObject().Select(p => p.Name))}");
                 return null;
+            }
+
+            ConsoleUi.Log("debug", $"[History] Found {messagesEl.GetArrayLength()} entries");
 
             var entries = new List<ChatHistoryEntry>(limit);
+            int count = 0;
             foreach (JsonElement msg in messagesEl.EnumerateArray())
             {
+                if (count >= limit) break;
+                count++;
+
                 var role = msg.TryGetProperty("role", out var r) ? r.GetString() ?? "" : "";
                 var content = ExtractMessageContent(msg);
                 var createdAt = msg.TryGetProperty("createdAt", out var c)
@@ -174,7 +231,10 @@ public sealed class GatewayClient : IGatewayClient
                     : null;
 
                 if (string.IsNullOrWhiteSpace(content) || IsNoReply(content))
+                {
+                    ConsoleUi.Log("debug", $"[History] Skipping entry role={role} (empty or NO_REPLY)");
                     continue;
+                }
 
                 entries.Add(new ChatHistoryEntry
                 {
@@ -184,10 +244,12 @@ public sealed class GatewayClient : IGatewayClient
                 });
             }
 
+            ConsoleUi.Log("debug", $"[History] Returning {entries.Count} entries");
             return entries;
         }
-        catch
+        catch (Exception ex)
         {
+            ConsoleUi.Log("debug", $"[History] Exception: {ex.GetType().Name}: {ex.Message}");
             return null;
         }
     }

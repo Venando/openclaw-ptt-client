@@ -1,3 +1,4 @@
+using Spectre.Console;
 using System;
 using System.Linq;
 using System.Threading;
@@ -17,6 +18,7 @@ public sealed class AgentHotkeyService : IDisposable
     private readonly ITextMessageSender _textSender;
     private readonly IStreamShellHost _shellHost;
     private readonly AppConfig _cfg;
+    private readonly IGatewayService? _gatewayService;
     private readonly IGlobalHotkeyHook? _hook;
 
     public AgentHotkeyService(
@@ -24,12 +26,14 @@ public sealed class AgentHotkeyService : IDisposable
         ITextMessageSender textSender,
         IStreamShellHost shellHost,
         AppConfig cfg,
+        IGatewayService? gatewayService = null,
         IHotkeyHookFactory? hookFactory = null)
     {
         _pttController = pttController;
         _textSender = textSender;
         _shellHost = shellHost;
         _cfg = cfg;
+        _gatewayService = gatewayService;
 
         // Always create a hook — at minimum for Escape key cancellation.
         if (hookFactory != null)
@@ -83,6 +87,9 @@ public sealed class AgentHotkeyService : IDisposable
         {
             AgentRegistry.SetActiveAgent(agent.AgentId);
             ConsoleUi.PrintAgentIntroduction(_cfg);
+            // Fetch and print session history (fire-and-forget)
+            if (_gatewayService != null)
+                _ = PrintHistoryAfterSwitchAsync(agent.SessionKey);
         }
     }
 
@@ -101,6 +108,29 @@ public sealed class AgentHotkeyService : IDisposable
         if (agent.SessionKey == activeKey)
         {
             _pttController.StopRecording();
+        }
+    }
+
+    private async Task PrintHistoryAfterSwitchAsync(string sessionKey)
+    {
+        ConsoleUi.Log("debug", $"[History] Hotkey switch: fetching history for {sessionKey}");
+        var history = await _gatewayService!.FetchSessionHistoryAsync(sessionKey, limit: 5);
+        if (history == null || history.Count == 0)
+        {
+            ConsoleUi.Log("debug", "[History] Hotkey switch: no history returned");
+            return;
+        }
+
+        _shellHost.AddMessage("  [grey]── previous messages ──[/]");
+        foreach (var entry in history)
+        {
+            var content = entry.Content;
+            if (content.Length > 200) content = content[..200] + "...";
+            var escaped = Markup.Escape(content);
+            if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
+                _shellHost.AddMessage($"  🟢 [green]You:[/] {escaped}");
+            else
+                _shellHost.AddMessage($"  🤖 [cyan]{Markup.Escape(AgentRegistry.ActiveAgentName ?? "Agent")}:[/] {escaped}");
         }
     }
 

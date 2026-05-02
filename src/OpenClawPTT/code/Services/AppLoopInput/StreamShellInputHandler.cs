@@ -52,6 +52,9 @@ public sealed class StreamShellInputHandler : IDisposable
                 (args, named) => OpenClawCommandHandler(cmdName, args, named)));
         }
 
+        // Fetch initial agent session history after connection
+        _ = FetchInitialHistoryAsync();
+
         _host.UserInputSubmitted += OnUserInput;
     }
 
@@ -393,10 +396,16 @@ public sealed class StreamShellInputHandler : IDisposable
 
     private async Task PrintSessionHistory(string sessionKey)
     {
+        ConsoleUi.Log("debug", $"[History] PrintSessionHistory for sessionKey={sessionKey}");
+
         var history = await _gatewayService.FetchSessionHistoryAsync(sessionKey, limit: 5);
         if (history == null || history.Count == 0)
+        {
+            ConsoleUi.Log("debug", $"[History] No history returned (null or empty)");
             return;
+        }
 
+        ConsoleUi.Log("debug", $"[History] Got {history.Count} entries, printing...");
         _host.AddMessage("  [grey]── previous messages ──[/]");
         foreach (var entry in history)
         {
@@ -414,6 +423,17 @@ public sealed class StreamShellInputHandler : IDisposable
                 var agentName = AgentRegistry.ActiveAgentName ?? "Agent";
                 _host.AddMessage($"  🤖 [cyan]{Markup.Escape(agentName)}:[/] {escapedContent}");
             }
+        }
+        ConsoleUi.Log("debug", "[History] Done printing");
+    }
+
+    private async Task FetchInitialHistoryAsync()
+    {
+        var sessionKey = AgentRegistry.ActiveSessionKey;
+        if (sessionKey != null)
+        {
+            ConsoleUi.Log("debug", $"[History] Fetching initial history for sessionKey={sessionKey}");
+            await PrintSessionHistory(sessionKey);
         }
     }
 
