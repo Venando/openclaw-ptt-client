@@ -70,15 +70,13 @@ public sealed class ToolOutputHelper : IToolOutput
 
     public void PrintLine(string text, ConsoleColor color = ConsoleColor.White)
     {
-        if (text.Length == 0)
+        if (text.Length > 0)
         {
             WriteToShell(text, color);
         }
-        else
-        {
-            WriteToShell(text, color);
-        }
-        // Always write newline after the markup tag, not inside it.
+        // Write newline after the markup tag, not inside it.
+        // For empty text, skip WriteToShell entirely to avoid injecting
+        // an empty markup pair like "[white][/]" into the output.
         _agentReplayFormatter.ProcessDelta("\n");
     }
 

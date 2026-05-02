@@ -16,7 +16,7 @@ public class AgentReplyFormatterTests
 
         public void Write(string text) => _sb.Append(text);
         public void WriteLine() => _sb.AppendLine();
-        public int WindowWidth => 80;
+        public int WindowWidth { get; set; } = 80;
     }
 
     [Fact]
@@ -289,5 +289,20 @@ public class AgentReplyFormatterTests
         formatter.Finish();
         var result = output.Result.Replace("\r\n", "\n").Trim();
         Assert.Contains("3 > [5]", result);
+    }
+
+    [Fact]
+    public void ProcessMarkupDelta_NarrowWidth_FitsSmallMarkupWithoutNewline()
+    {
+        // Console width 10 with right margin 5 gives available width of ~5.
+        // [white]1[/][gray]2[/] has only 2 visible characters ("1" and "2").
+        // Tags have zero visible width. Everything should fit on one line.
+        var output = new StringWriterTextOutput { WindowWidth = 10 };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta("[white]1[/][gray]2[/]");
+        formatter.Finish();
+        var result = output.Result.Replace("\r\n", "\n");
+        Assert.DoesNotContain("\n", result.Trim());
+        Assert.Contains("[white]1[/][gray]2[/]", result);
     }
 }
