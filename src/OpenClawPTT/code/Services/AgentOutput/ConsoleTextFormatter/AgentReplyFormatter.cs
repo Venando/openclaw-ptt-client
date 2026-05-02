@@ -212,10 +212,12 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
             // ── tag boundary detection ───────────────────────────────
             if (!insideTag && c == '[')
             {
-                // Spectre uses [[ to represent a literal '['. If the next
-                // char is also '[', emit one '[' and skip both.
+                // Spectre uses [[ to represent a literal '['. Preserve
+                // the double-bracket escape in the output so Spectre's
+                // markup parser will render it as a literal '['.
                 if (i + 1 < markup.Length && markup[i + 1] == '[')
                 {
+                    _wordBuffer.Append(c);
                     _wordBuffer.Append(c);
                     i++; // skip the second '['
                     visibleWordLen++;
@@ -354,6 +356,17 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
             }
 
             // ── visible (non-tag) characters below ──────────────────
+            // Spectre uses ]] to represent a literal ']'. Preserve
+            // the double-bracket escape in the output so Spectre's
+            // markup parser will render it as a literal ']'.
+            if (!insideTag && c == ']' && i + 1 < markup.Length && markup[i + 1] == ']')
+            {
+                _wordBuffer.Append("]]");
+                i++; // skip the second ']'
+                visibleWordLen++;
+                continue;
+            }
+
             if (c == '\n')
             {
                 FlushWordBuffer(availableWidth, visibleWordLen);
