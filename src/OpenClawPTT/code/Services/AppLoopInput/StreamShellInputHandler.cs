@@ -14,6 +14,7 @@ public sealed class StreamShellInputHandler : IDisposable
 {
     private readonly IStreamShellHost _host;
     private readonly ITextMessageSender _textSender;
+    private readonly IGatewayService _gatewayService;
     private readonly IConfigurationService _configService;
     private readonly AppConfig _appConfig;
     private readonly Action _onQuit;
@@ -21,12 +22,14 @@ public sealed class StreamShellInputHandler : IDisposable
     public StreamShellInputHandler(
         IStreamShellHost host,
         ITextMessageSender textSender,
+        IGatewayService gatewayService,
         IConfigurationService configService,
         AppConfig appConfig,
         Action onQuit)
     {
         _host = host;
         _textSender = textSender;
+        _gatewayService = gatewayService;
         _configService = configService;
         _onQuit = onQuit;
         _appConfig = appConfig;

@@ -94,6 +94,7 @@ public class AppRunner : IDisposable
         using var shellCommands = new StreamShellInputHandler(
             _shellHost,
             textSender,
+            gateway,
             _configService,
             _cfg,
             onQuit: () => _cts?.Cancel()
