@@ -71,7 +71,7 @@ public sealed class ToolDisplayHandler
 
         string icon = ToolIcons.TryGetValue(toolName, out var i) ? i : "🔧";
         string displayName = string.Join(" ", toolName.Split('_').Select(w => char.ToUpper(w[0]) + w[1..]));
-        string headerLine = $"[grey]  {icon}[/] [gray93 on grey13]{displayName}  [/]";
+        string headerLine = $"[grey]  {icon}[/] [gray93 on #333333]{displayName}  [/]";
 
 
         if (string.IsNullOrWhiteSpace(arguments))
