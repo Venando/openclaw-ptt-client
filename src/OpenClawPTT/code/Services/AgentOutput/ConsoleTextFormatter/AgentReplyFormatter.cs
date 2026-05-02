@@ -147,7 +147,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
             return false;
         foreach (char ch in tagContent)
         {
-            if (!char.IsLetterOrDigit(ch) && ch != '-' && ch != '.' && ch != '_' && ch != '#' && ch != ' ')
+            if (!char.IsLetterOrDigit(ch) && ch != '-' && ch != '.' && ch != '_' && ch != '#' && ch != ' ' && ch != '=' && ch != ':' && ch != '/')
                 return false;
         }
         return true;
