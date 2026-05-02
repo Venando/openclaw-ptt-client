@@ -47,7 +47,6 @@ public static class ConsoleUi
     {
         if (!AgentRegistry.IsActiveAgentAvailable)
         {
-            //TODO throw some error?
             return;
         }
 

@@ -274,33 +274,6 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
         _output.WriteLine();
     }
 
-    [Obsolete("Use the overload with visibleLength parameter for markup support")]
-    private void FlushWordBuffer_Old(int availableWidth)
-    {
-        if (_wordBuffer.Length == 0) return;
-        string word = _wordBuffer.ToString();
-
-        if (_currentLineLength + word.Length <= availableWidth)
-        {
-            _output.Write(word);
-            _currentLineLength += word.Length;
-        }
-        else
-        {
-            if (_currentLineLength > 0) WriteNewLine();
-            int start = 0;
-            while (start < word.Length)
-            {
-                int chunkLength = Math.Min(availableWidth, word.Length - start);
-                if (start > 0) WriteNewLine();
-                _output.Write(word.Substring(start, chunkLength));
-                start += chunkLength;
-                _currentLineLength = chunkLength;
-            }
-        }
-        _wordBuffer.Clear();
-    }
-
     private void FlushWordBuffer(int availableWidth)
         => FlushWordBuffer(availableWidth, _wordBuffer.Length);
 

@@ -104,18 +104,6 @@ public sealed class AgentHotkeyService : IDisposable
         }
     }
 
-    /// <summary>Fallback when no agents configured — directly trigger recording.</summary>
-    public void HandleActiveHotkeyPressed()
-    {
-        _pttController.StartRecording();
-    }
-
-    /// <summary>Fallback when no agents configured — stop recording on release.</summary>
-    public void HandleActiveHotkeyReleased()
-    {
-        if (_cfg.HoldToTalk)
-            _pttController.StopRecording();
-    }
 
     private void OnHotkeyPressed(int index) => HandleHotkeyPressed(index);
     private void OnHotkeyReleased(int index) => HandleHotkeyReleased(index);

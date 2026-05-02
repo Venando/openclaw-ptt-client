@@ -8,9 +8,6 @@ internal sealed class PttController : IPttController
     private IGlobalHotkeyHook? _hotkeyHook;
     private bool _disposed;
 
-    private volatile bool _hotkeyPressed;
-    private volatile bool _hotkeyReleased;
-
     private volatile bool _externalHotkeyPressed;
     private volatile bool _externalHotkeyRelease;
     private volatile bool _cancelRecording;
@@ -38,22 +35,13 @@ internal sealed class PttController : IPttController
         
         _hotkeyHook.Start();
 
-        if (holdToTalk)
-        {
-            _hotkeyHook.HotkeyPressed += () => _hotkeyPressed = true;
-            _hotkeyHook.HotkeyReleased += () => _hotkeyReleased = true;
-        }
-        else
-        {
-            _hotkeyHook.HotkeyPressed += () => _hotkeyPressed = true;
-        }
+
     }
 
     public bool PollHotkeyPressed()
     {
-        if (_hotkeyPressed || _externalHotkeyPressed)
+        if (_externalHotkeyPressed)
         {
-            _hotkeyPressed = false;
             _externalHotkeyPressed = false;
             return true;
         }
@@ -62,9 +50,8 @@ internal sealed class PttController : IPttController
 
     public bool PollHotkeyRelease()
     {
-        if (_hotkeyReleased || _externalHotkeyRelease)
+        if (_externalHotkeyRelease)
         {
-            _hotkeyReleased = false;
             _externalHotkeyRelease = false;
             return true;
         }
