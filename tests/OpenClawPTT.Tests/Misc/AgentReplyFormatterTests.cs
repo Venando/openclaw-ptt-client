@@ -186,6 +186,7 @@ public class AgentReplyFormatterTests
         formatter.ProcessDelta("hello");
         formatter.Finish();
         Assert.Contains("hello", output.Result);
+        ValidateMarkup(output);
     }
 
     [Fact]
@@ -205,6 +206,7 @@ public class AgentReplyFormatterTests
         formatter.ProcessDelta("chunk2");
         formatter.Finish();
         Assert.Contains("chunk1 chunk2", output.Result.Replace("\r\n", "\n"));
+        ValidateMarkup(output);
     }
 
     // ─── ProcessMarkupDelta tests ──────────────────────────────────────────
@@ -218,6 +220,7 @@ public class AgentReplyFormatterTests
         formatter.Finish();
         var result = output.Result.Replace("\r\n", "\n");
         Assert.Contains("[bold]Hello World[/]", result);
+        ValidateMarkup(output);
     }
 
     [Fact]
@@ -240,6 +243,7 @@ public class AgentReplyFormatterTests
         var result = output.Result.Replace("\r\n", "\n").Trim();
         // [b] looks like a tag but is inside text — should be escaped as [[b]]
         Assert.Contains("[[b]]", result);
+        ValidateMarkup(output);
     }
 
     [Fact]
@@ -255,6 +259,7 @@ public class AgentReplyFormatterTests
         Assert.Contains("[red]", result);
         Assert.Contains("[/]", result);
         Assert.Contains("\n", result);
+        ValidateMarkup(output);
     }
 
     [Fact]
@@ -266,6 +271,7 @@ public class AgentReplyFormatterTests
         formatter.Finish();
         var result = output.Result.Replace("\r\n", "\n").Trim();
         Assert.Contains("[bold][green]hello[/][/]", result);
+        ValidateMarkup(output);
     }
 
     [Fact]
@@ -278,6 +284,7 @@ public class AgentReplyFormatterTests
         var result = output.Result.Replace("\r\n", "\n").Trim();
         Assert.Contains("[grey]", result);
         Assert.Contains("\n", result);
+        ValidateMarkup(output);
     }
 
     [Fact]
@@ -291,6 +298,7 @@ public class AgentReplyFormatterTests
         // [5] is not a known tag so it gets escaped to [[5]] (proper
         // Spectre escape for literal bracket content).
         Assert.Contains("[[5]]", result);
+        ValidateMarkup(output);
     }
 
     [Fact]
@@ -306,6 +314,7 @@ public class AgentReplyFormatterTests
         var result = output.Result.Replace("\r\n", "\n");
         Assert.DoesNotContain("\n", result.Trim());
         Assert.Contains("[white]1[/][gray]2[/]", result);
+        ValidateMarkup(output);
     }
 
     [Fact]
@@ -321,6 +330,7 @@ public class AgentReplyFormatterTests
         var result = output.Result.Replace("\r\n", "\n");
         var validateResult = MarkupValidator.Validate(result);
         Assert.True(validateResult.IsValid, $"Invalid markup in message: '{result.Replace("\n", "\\n")}'\n{validateResult}");
+        ValidateMarkup(output);
     }
 
     [Fact]
@@ -340,6 +350,7 @@ public class AgentReplyFormatterTests
         // Literal brackets in output, no tag confusion
         Assert.DoesNotContain("[dim][dim]", result);
         Assert.DoesNotContain("[/][/]", result);
+        ValidateMarkup(output);
     }
 
     [Fact]
@@ -353,6 +364,7 @@ public class AgentReplyFormatterTests
         var msg = output.Result.Replace("\r\n", "\n");
         var validateResult = MarkupValidator.Validate(msg);
         Assert.True(validateResult.IsValid, $"Invalid markup in message: {msg}\n{validateResult}");
+        ValidateMarkup(output);
     }
 
     [Fact]
@@ -370,6 +382,7 @@ public class AgentReplyFormatterTests
         Assert.Contains("\n", result.Trim());
         var validateResult = MarkupValidator.Validate(result);
         Assert.True(validateResult.IsValid, $"Invalid markup in message: '{result.Replace("\n", "\\n")}'\n{validateResult}");
+        ValidateMarkup(output);
     }
 
     [Fact]
@@ -392,6 +405,7 @@ items.map(i => console.log(i));
         var result = output.Result.Replace("\r\n", "\n");
         var validateResult = MarkupValidator.Validate(result);
         Assert.True(validateResult.IsValid, $"Invalid markup in message: '{result.Replace("\n", "\\n")}'\n{validateResult}");
+        ValidateMarkup(output);
     }
 
     [Fact]
@@ -422,6 +436,7 @@ items.map(i => console.log(i));
         // The formatter output is invalid due to unescaped brackets in input,
         // but it must not produce [/][/] doubled close tags
         Assert.DoesNotContain("[/][/]", result);
+        ValidateMarkup(output);
     }
 
     [Fact]
@@ -439,6 +454,11 @@ items.map(i => console.log(i));
         var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
         formatter.ProcessMarkupDelta(converterOutput);
         formatter.Finish();
+        ValidateMarkup(output);
+    }
+
+    private static void ValidateMarkup(StringWriterTextOutput output)
+    {
         var result = output.Result.Replace("\r\n", "\n");
         var validateResult = MarkupValidator.Validate(result);
         Assert.True(validateResult.IsValid, $"Invalid markup in message: '{result.Replace("\n", "\\n")}'\n{validateResult}");
@@ -466,6 +486,7 @@ items.map(i => console.log(i));
         // decoration) or unescaped ] tokens due to the formatter's handling
         // of escaped brackets. But it must NOT produce [/][/] doubled closes.
         Assert.DoesNotContain("[/][/]", result);
+        ValidateMarkup(output);
     }
 
     [Theory]
@@ -483,6 +504,7 @@ items.map(i => console.log(i));
         var result = output.Result.Replace("\r\n", "\n");
         var validateResult = MarkupValidator.Validate(result);
         Assert.True(validateResult.IsValid, $"Invalid markup in message: '{result.Replace("\n", "\\n")}'\n{validateResult}");
+        ValidateMarkup(output);
     }
 
     [Fact]
@@ -500,5 +522,6 @@ items.map(i => console.log(i));
         // The formatter output is invalid due to unescaped [text] in input,
         // but it must not produce [/][/] doubled close tags
         Assert.DoesNotContain("[/][/]", result);
+        ValidateMarkup(output);
     }
 }
