@@ -44,6 +44,25 @@ public class StreamShellCapturingConsoleTests
         }
     }
 
+
+    [Fact]
+    public void FlushToStreamShell_ShouldNotProduceMessagesWithBrokenMarkup2()
+    {
+        var shellHost = new CapturingStreamShellHost();
+        var handler = new ToolDisplayHandler(rightMarginIndent: 10, shellHost: shellHost);
+
+        handler.Handle("read", "{\"file\":\"/verylongpath/verylongpath/verylongpath/verylongpathverylongpath/verylongpath/verylongpath/verylongpath/verylongpath/verylongpath/verylongpath/verylongpath/path.txt\"}");
+
+        // Check that no message contains an unclosed opening tag or a stray closing tag
+        string[] messages = shellHost.Messages.ToArray();
+        foreach (string msg in messages)
+        {
+            var result = MarkupValidator.Validate(msg);
+            Assert.True(result.IsValid,
+                $"Invalid markup in message: '{msg.Replace("\n", "\\n")}'\n{result}");
+        }
+    }
+
     private sealed class CapturingStreamShellHost : IStreamShellHost
     {
         public readonly List<string> Messages = new();
