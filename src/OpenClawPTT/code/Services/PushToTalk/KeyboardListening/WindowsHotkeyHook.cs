@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
@@ -92,6 +93,14 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
 
             bool isDown = msg is WM_KEYDOWN or WM_SYSKEYDOWN;
             bool isUp = msg is WM_KEYUP or WM_SYSKEYUP;
+            bool isSysKey = msg is WM_SYSKEYDOWN or WM_SYSKEYUP;
+
+            // Debug: log every key event on the hotkey's vkCode
+            if (info.vkCode == _hotkeyKeyCode || info.vkCode is 0xA4 or 0xA5)
+            {
+                ConsoleUi.Log("hook", $"vkCode=0x{info.vkCode:X4} msg=0x{msg:X4} isDown={isDown} isSysKey={isSysKey} modifiers=[" +
+                    string.Join(",", Enum.GetValues<Modifier>().Where(m => _modifierDown[m]).Select(m => m.ToString())) + "]");
+            }
 
             // Update modifier states
             foreach (var (mod, vkList) in _modifierKeyCodes)
@@ -111,16 +120,26 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
                     // Verify modifiers match
                     if (ModifiersMatch())
                     {
+                        ConsoleUi.Log("hook", $"Hotkey MATCH — firing HotkeyPressed");
                         _hotkeyKeyDown = true;
                         ThreadPool.QueueUserWorkItem(_ => HotkeyPressed?.Invoke());
+                    }
+                    else
+                    {
+                        ConsoleUi.Log("hook", $"Hotkey key down but modifier mismatch");
                     }
                 }
                 else if (isUp && _hotkeyKeyDown)
                 {
+                    ConsoleUi.Log("hook", $"Hotkey release — firing HotkeyReleased");
                     _hotkeyKeyDown = false;
                     ThreadPool.QueueUserWorkItem(_ => HotkeyReleased?.Invoke());
                 }
             }
+        }
+        else if (nCode < 0)
+        {
+            ConsoleUi.Log("hook", $"nCode < 0 ({nCode}), no hotkey configured");
         }
 
         return CallNextHookEx(_hookHandle, nCode, wParam, lParam);

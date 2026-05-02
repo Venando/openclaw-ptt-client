@@ -60,17 +60,23 @@ public sealed class AgentHotkeyService : IDisposable
     {
         var agents = AgentRegistry.Agents;
         if (agentIndex < 0 || agentIndex >= agents.Count)
+        {
+            ConsoleUi.Log("hotkey", $"HandleHotkeyPressed index {agentIndex} out of range (count {agents.Count})");
             return;
+        }
 
         var agent = agents[agentIndex];
         var activeKey = AgentRegistry.ActiveSessionKey;
+        ConsoleUi.Log("hotkey", $"HandleHotkeyPressed: agent={agent.Name} activeKey={activeKey} agentKey={agent.SessionKey}");
 
         if (agent.SessionKey == activeKey)
         {
+            ConsoleUi.Log("hotkey", "Active agent — starting recording via PttController.StartRecording()");
             _pttController.StartRecording();
         }
         else
         {
+            ConsoleUi.Log("hotkey", $"Inactive agent — switching to {agent.Name}");
             AgentRegistry.SetActiveAgent(agent.AgentId);
             _shellHost.AddMessage($"[green]  Switched to {agent.Name}. Press hotkey again to record.[/]");
         }
