@@ -1,3 +1,4 @@
+using System.Linq;
 using OpenClawPTT.Services;
 using Spectre.Console;
 using StreamShell;
@@ -137,6 +138,10 @@ public sealed class StreamShellInputHandler : IDisposable
     /// </summary>
     private Task CrewHandler(string[] args, Dictionary<string, string> named)
     {
+        // Subcommand: /crew hotkey
+        if (args.Length > 0 && args[0].Equals("hotkey", System.StringComparison.OrdinalIgnoreCase))
+            return HandleHotkeyCommand(args.Skip(1).ToArray());
+
         var agents = AgentRegistry.Agents;
         var activeKey = AgentRegistry.ActiveSessionKey;
 
@@ -153,7 +158,72 @@ public sealed class StreamShellInputHandler : IDisposable
             var marker = isActive ? " ►" : "  ";
             _host.AddMessage($"  {marker} [bold]{Markup.Escape(agent.Name)}[/] [grey]({Markup.Escape(agent.AgentId)})[/]");
         }
-        _host.AddMessage("[grey]  Use /chat <name|id> to switch[/]");
+        _host.AddMessage("[grey]  Use /chat <name|id> to switch or /crew hotkey to manage hotkeys[/]");
+        return Task.CompletedTask;
+    }
+
+    private Task HandleHotkeyCommand(string[] args)
+    {
+        var agents = AgentRegistry.AllAgentsWithHotkeys;
+        var globalHotkey = _configService.Load()?.HotkeyCombination ?? "Alt+=";
+
+        if (args.Length == 0)
+        {
+            // List all agents with hotkey info
+            _host.AddMessage("[cyan2]  Agent hotkey settings:[/]");
+            foreach (var (agent, hotkey) in agents)
+            {
+                var displayHk = hotkey != null
+                    ? Markup.Escape(hotkey)
+                    : $"[grey](global: {Markup.Escape(globalHotkey)})[/]";
+                var isActive = agent.SessionKey == AgentRegistry.ActiveSessionKey;
+                var marker = isActive ? " ►" : "  ";
+                _host.AddMessage($"  {marker} [bold]{Markup.Escape(agent.Name)}[/] [grey]({Markup.Escape(agent.AgentId)})[/] — {displayHk}");
+            }
+            return Task.CompletedTask;
+        }
+
+        // Look up agent
+        var search = args[0];
+        var matched = AgentRegistry.Agents.FirstOrDefault(a =>
+            a.Name.Equals(search, StringComparison.OrdinalIgnoreCase) ||
+            a.AgentId.Equals(search, StringComparison.OrdinalIgnoreCase));
+
+        if (matched == null)
+        {
+            _host.AddMessage($"[red]  Agent not found: {Markup.Escape(search)}[/]");
+            return Task.CompletedTask;
+        }
+
+        if (args.Length == 1)
+        {
+            // Show current hotkey for this agent
+            var hk = AgentRegistry.GetPersistedHotkey(matched.AgentId);
+            var display = hk ?? $"(global: {globalHotkey})";
+            _host.AddMessage($"  [bold]{Markup.Escape(matched.Name)}[/] hotkey: {Markup.Escape(display)}");
+            return Task.CompletedTask;
+        }
+
+        if (args[1].Equals("--clear", StringComparison.OrdinalIgnoreCase))
+        {
+            AgentRegistry.SetPersistedHotkey(matched.AgentId, null);
+            _host.AddMessage($"[green]  Cleared hotkey override for {Markup.Escape(matched.Name)}[/]");
+            return Task.CompletedTask;
+        }
+
+        // Set hotkey
+        var combo = string.Join(" ", args.Skip(1));
+        try
+        {
+            HotkeyMapping.Parse(combo);
+            AgentRegistry.SetPersistedHotkey(matched.AgentId, combo);
+            _host.AddMessage($"[green]  Set hotkey for {Markup.Escape(matched.Name)}: {Markup.Escape(combo)}[/]");
+        }
+        catch (Exception ex)
+        {
+            _host.AddMessage($"[red]  Invalid hotkey: {Markup.Escape(ex.Message)}[/]");
+        }
+
         return Task.CompletedTask;
     }
 

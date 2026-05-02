@@ -79,9 +79,14 @@ public class AppRunner : IDisposable
     private async Task<int> RunPttLoopAsync(IGatewayService gateway, CancellationToken ct)
     {
         using var audioService = _factory.CreateAudioService(_cfg);
-        var pttController = _factory.CreatePttController(_cfg, audioService);
         var textSender = _factory.CreateTextMessageSender(gateway);
         var inputHandler = _factory.CreateInputHandler(textSender);
+
+        // Agent settings (loaded in AppBootstrapper, already merged into AgentRegistry)
+        var pttController = new PttController();
+
+        using var agentHotkeyService = new AgentHotkeyService(
+            pttController, textSender, _shellHost, _cfg);
 
         ConsoleUi.PrintHelpMenu(_cfg.HotkeyCombination, _cfg.HoldToTalk);
 
