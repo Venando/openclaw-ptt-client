@@ -373,7 +373,7 @@ public sealed class StreamShellInputHandler : IDisposable
 
         try
         {
-            await _textSender.SendAsync(commandText, CancellationToken.None);
+            await _textSender.SendAsync(commandText, CancellationToken.None, printMessage: false);
 
             ConsoleUi.PrintMarkupedUserMessage($"[blue on gray15]⚡ {Markup.Escape(commandText)} [/]");
 

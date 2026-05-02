@@ -71,7 +71,7 @@ public sealed class AppLoop : IAppLoop
                 {
                     if (_requireConfirmBeforeSend)
                     {
-                        ConsoleUi.PrintMarkup("[deepskyblue3]  ─[/] [bold]Press hotkey to send[/] [grey]or Escape to discard[/] [deepskyblue3]─[/]");
+                        ConsoleUi.PrintMarkup("[deepskyblue3]  ─[/] [bold][gray62]Press hotkey to send[/][/] [grey]or Escape to discard[/] [deepskyblue3]─[/]");
                         bool sent = false;
                         while (!ct.IsCancellationRequested)
                         {

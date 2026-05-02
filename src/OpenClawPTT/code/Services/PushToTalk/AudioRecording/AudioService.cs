@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using OpenClawPTT;
 using OpenClawPTT.Transcriber;
 using OpenClawPTT.VisualFeedback;
+using Spectre.Console;
 
 namespace OpenClawPTT.Services;
 
@@ -62,8 +63,7 @@ public sealed class AudioService : IAudioService
 
         _recorder.StopRecording();
         _visualFeedback.Hide();
-        ConsoleUi.PrintInlineInfo("■");
-        ConsoleUi.Log("audio", "Recording discarded (Escape pressed)");
+        ConsoleUi.PrintMarkup("[grey]  ─ Recording discarded ─[/]");
     }
 
     public async Task<string?> StopAndTranscribeAsync(CancellationToken ct)
@@ -73,7 +73,7 @@ public sealed class AudioService : IAudioService
         
         var wav = _recorder.StopRecording();
         _visualFeedback.Hide();
-        ConsoleUi.PrintInlineInfo("■");
+        ConsoleUi.PrintInlineInfo("■ Recording stopped");
         
         if (wav.Length < 1024)
         {
@@ -84,13 +84,14 @@ public sealed class AudioService : IAudioService
         try
         {
             var transcribed = await _transcriber.TranscribeAsync(wav, ct: ct);
-            ConsoleUi.PrintSuccessWordWrap($"Transcribed ({wav.Length / 1024.0:F1} KB): ", transcribed, _rightMarginIndent);
+            var shellHost = ConsoleUi.GetStreamShellHost();
+            var prefix = $"Transcribed ({wav.Length / 1024.0:F1} KB): ";
+            ConsoleUi.PrintMarkup($"[green][dim]  ✓ {Markup.Escape(prefix)}[/][/] [green]{Markup.Escape(transcribed)}[/]");
             return transcribed;
         }
         catch (Exception ex)
         {
             ConsoleUi.PrintError($"Transcription failed ({wav.Length / 1024.0:F1} KB): {ex.Message}");
-            return null;
             return null;
         }
     }
