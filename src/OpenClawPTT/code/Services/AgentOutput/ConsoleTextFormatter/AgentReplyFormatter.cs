@@ -247,6 +247,15 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
             // ── tag boundary detection ───────────────────────────────
             if (!insideTag && c == '[')
             {
+                // Flush any pending visible word before entering tag mode.
+                // This prevents the visible word from being split mid-word
+                // by the word-wrap logic when the NEXT characters are a tag
+                // (like [/]) rather than visible text. Without this, the
+                // visibleWordLen > remaining check can trigger a split right
+                // at the '[' of a [/] close tag, corrupting the markup.
+                FlushWordBuffer(availableWidth, visibleWordLen);
+                visibleWordLen = 0;
+
                 // Spectre uses [[ to represent a literal '['. Preserve
                 // the double-bracket escape in the output so Spectre's
                 // markup parser will render it as a literal '['.
@@ -380,6 +389,16 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                     // Opening tag like [dim], [bold] — push onto stack
                     _openMarkupTags.Push(tagContent);
                 }
+
+                // Flush the processed tag text to output immediately.
+                // This prevents subsequent visible characters from being
+                // combined with the tag in the word buffer, which could
+                // cause the mid-word split logic to cut through the
+                // middle of a tag (like splitting [bold yellow...] into
+                // [bold yellow st
+                // rikethrough]some text line).
+                int tagVisibleLen = 0; // tags have zero visible width
+                FlushWordBuffer(availableWidth, tagVisibleLen);
                 continue;
             }
 
