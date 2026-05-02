@@ -347,6 +347,18 @@ public class AgentReplyFormatterTests
         var msg = output.Result.Replace("\r\n", "\n");
         var validateResult = MarkupValidator.Validate(msg);
         Assert.True(validateResult.IsValid, $"Invalid markup in message: {msg}\n{validateResult}");
+
+        // Also test explicit [/dim] close to ensure no doubled dim tags
+        var output2 = new StringWriterTextOutput { WindowWidth = 45 };
+        var formatter2 = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output2);
+        string markup2 = "[dim]" + new string('x', 25) + "[/dim] " + new string('x', 20);
+        formatter2.ProcessMarkupDelta(markup2);
+        formatter2.Finish();
+        var result2 = output2.Result.Replace("\r\n", "\n");
+        Assert.Contains("[dim]", result2);
+        Assert.Contains("[/dim]", result2);
+        Assert.Contains("\n", result2.Trim());
+        Assert.DoesNotContain("[/][/]", result2);
     }
 
     [Fact]
