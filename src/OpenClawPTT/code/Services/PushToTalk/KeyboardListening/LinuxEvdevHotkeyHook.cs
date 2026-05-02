@@ -19,6 +19,7 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
     public event Action<int>? HotkeyIndexPressed;
     public event Action<int>? HotkeyIndexReleased;
     public event Action? EscapePressed;
+    public bool BlockEscape { get; set; }
 
     private readonly CancellationTokenSource _cts = new();
     private Thread? _thread;
@@ -184,8 +185,10 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
         // Check for Escape key (cancel recording)
         if (code == KEY_ESC && value == VALUE_DOWN)
         {
-            ConsoleUi.Log("hook", "Escape pressed — firing EscapePressed");
-            ThreadPool.QueueUserWorkItem(_ => EscapePressed?.Invoke());
+            if (BlockEscape)
+            {
+                ThreadPool.QueueUserWorkItem(_ => EscapePressed?.Invoke());
+            }
         }
 
         // Check all configured hotkeys

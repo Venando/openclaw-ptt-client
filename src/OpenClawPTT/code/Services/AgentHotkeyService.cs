@@ -75,6 +75,8 @@ public sealed class AgentHotkeyService : IDisposable
 
         if (agent.SessionKey == activeKey)
         {
+            // Block Escape from reaching StreamShell while recording
+            if (_hook != null) _hook.BlockEscape = true;
             _pttController.StartRecording();
         }
         else
@@ -124,6 +126,8 @@ public sealed class AgentHotkeyService : IDisposable
 
     private void OnEscapePressed()
     {
+        // Unblock Escape so the next press reaches StreamShell for input clearing
+        if (_hook != null) _hook.BlockEscape = false;
         _pttController.CancelRecording();
     }
 
