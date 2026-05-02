@@ -46,6 +46,8 @@ public sealed class AgentHotkeyService : IDisposable
 
         _hook.EscapePressed += OnEscapePressed;
         _hook.Start();
+
+        AgentRegistry.PersistedSettingsChanged += OnPersistedSettingsChanged;
     }
 
     private void RegisterAllAgentHotkeys()
@@ -111,6 +113,11 @@ public sealed class AgentHotkeyService : IDisposable
 
     private void OnHotkeyPressed(int index) => HandleHotkeyPressed(index);
     private void OnHotkeyReleased(int index) => HandleHotkeyReleased(index);
+    private void OnPersistedSettingsChanged()
+    {
+        RegisterAllAgentHotkeys();
+    }
+
     private void OnEscapePressed()
     {
         _pttController.CancelRecording();
@@ -118,6 +125,8 @@ public sealed class AgentHotkeyService : IDisposable
 
     public void Dispose()
     {
+        AgentRegistry.PersistedSettingsChanged -= OnPersistedSettingsChanged;
+
         if (_hook != null)
         {
             _hook.HotkeyIndexPressed -= OnHotkeyPressed;
