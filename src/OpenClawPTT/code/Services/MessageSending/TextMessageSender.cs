@@ -1,7 +1,3 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace OpenClawPTT.Services;
 
 /// <summary>Unified text message sender that sends text directly to the gateway.</summary>
