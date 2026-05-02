@@ -57,7 +57,7 @@ public class ConsoleUiTests : IDisposable
     #region PrintHelpMenu
 
     [Fact]
-    public void PrintHelpMenu_HoldToTalkMode_IncludesCorrectModeDescription()
+    public void PrintHelpMenu_HelpLine_SendsCrewAndChatCommandInfo()
     {
         AgentRegistry.SetAgents(new List<AgentInfo>
         {
@@ -69,6 +69,8 @@ public class ConsoleUiTests : IDisposable
         ConsoleUi.PrintHelpMenu(new AppConfig { HotkeyCombination = "Alt+=", HoldToTalk = true });
         var allOutput = string.Join("", messages.Where(s => s != null));
         Assert.Contains("PTT Active", allOutput);
+        Assert.Contains("/crew", allOutput);
+        Assert.Contains("/chat", allOutput);
     }
 
     [Fact]
