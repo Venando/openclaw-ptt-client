@@ -127,7 +127,6 @@ public sealed class StreamShellInputHandler : IDisposable
         try
         {
             await _textSender.SendAsync(message, CancellationToken.None);
-            ConsoleUi.PrintUserMessage(message);
         }
         catch (Exception ex)
         {
