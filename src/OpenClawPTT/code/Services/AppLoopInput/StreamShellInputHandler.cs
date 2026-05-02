@@ -361,12 +361,12 @@ public sealed class StreamShellInputHandler : IDisposable
             (target, value) => AgentRegistry.SetPersistedEmoji(target.AgentId, value));
     }
 
-    private Task ChatHandler(string[] args, Dictionary<string, string> named)
+    private async Task ChatHandler(string[] args, Dictionary<string, string> named)
     {
         if (args.Length == 0)
         {
             _host.AddMessage("[yellow]  Usage: /chat <name|id>[/]");
-            return Task.CompletedTask;
+            return;
         }
 
         var search = string.Join(" ", args);
@@ -377,17 +377,44 @@ public sealed class StreamShellInputHandler : IDisposable
         if (matched == null)
         {
             _host.AddMessage($"[red]  Agent not found: {Markup.Escape(search)}[/]");
-            return Task.CompletedTask;
+            return;
         }
 
         if (AgentRegistry.SetActiveAgent(matched.AgentId))
         {
             ConsoleUi.PrintAgentIntroduction(_appConfig);
+            await PrintSessionHistory(matched.SessionKey);
         }
         else
             _host.AddMessage("[yellow]  That agent is already active.[/]");
 
-        return Task.CompletedTask;
+        return;
+    }
+
+    private async Task PrintSessionHistory(string sessionKey)
+    {
+        var history = await _gatewayService.FetchSessionHistoryAsync(sessionKey, limit: 5);
+        if (history == null || history.Count == 0)
+            return;
+
+        _host.AddMessage("  [grey]── previous messages ──[/]");
+        foreach (var entry in history)
+        {
+            var content = entry.Content;
+            if (content.Length > 200)
+                content = content[..200] + "...";
+
+            var escapedContent = Markup.Escape(content);
+            if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
+            {
+                _host.AddMessage($"  🟢 [green]You:[/] {escapedContent}");
+            }
+            else
+            {
+                var agentName = AgentRegistry.ActiveAgentName ?? "Agent";
+                _host.AddMessage($"  🤖 [cyan]{Markup.Escape(agentName)}:[/] {escapedContent}");
+            }
+        }
     }
 
     private async Task OpenClawCommandHandler(string commandName, string[] args, Dictionary<string, string> named)
