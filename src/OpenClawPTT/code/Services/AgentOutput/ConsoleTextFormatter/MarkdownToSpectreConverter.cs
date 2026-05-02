@@ -64,10 +64,18 @@ public static class MarkdownToSpectreConverter
             // ── Fenced code block ────────────────────────────────────────────
             if (FencePattern.IsMatch(line))
             {
+
                 inFencedBlock = !inFencedBlock;
+
+                if (inFencedBlock)
+                    result.MyAppendLine("[dim]─────────────────[italic]code[/]─────────────────[/]");
+                else
+                    result.MyAppendLine("[dim]──────────────────────────────────────[/]");
+
                 // Don't emit the fence delimiter itself.
-                if (i < lines.Length - 1)
-                    result.MyAppendLine();
+                // if (i < lines.Length - 1)
+                //     result.MyAppendLine();
+
                 continue;
             }
 
@@ -75,7 +83,9 @@ public static class MarkdownToSpectreConverter
             {
                 // Emit code lines verbatim (but escape brackets so Spectre
                 // doesn't try to interpret them as markup tags).
-                result.MyAppendLine($"[dim]{EscapeBrackets(line)}[/]");
+
+                result.MyAppendLine($"[default on gray15]{EscapeBrackets(line)}[/]");
+
                 continue;
             }
 
@@ -149,7 +159,7 @@ public static class MarkdownToSpectreConverter
         text = ItalicStars.Replace(text, "[italic]$1[/]");
         text = ItalicUnderscores.Replace(text, "[italic]$1[/]");
         text = Strikethrough.Replace(text, "[strikethrough]$1[/]");
-        text = InlineCode.Replace(text, "[bold yellow]$1[/]");
+        text = InlineCode.Replace(text, "[bold gray89 on darkblue]$1[/]");
         text = Link.Replace(text, "[link=$2]$1[/]");
 
         return text;
