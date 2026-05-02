@@ -54,6 +54,11 @@ public sealed class GatewayService : IGatewayService
         _gatewayClient = CreateGatewayClient();
     }
 
+    public async Task<List<ChatHistoryEntry>?> FetchSessionHistoryAsync(string sessionKey, int limit = 5)
+    {
+        return await _gatewayClient.FetchSessionHistoryAsync(sessionKey, limit);
+    }
+
     private IGatewayClient CreateGatewayClient()
     {
         _uiAdapter = new AgentOutputAdapter(_config);

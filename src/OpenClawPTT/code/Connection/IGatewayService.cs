@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json;
 
 namespace OpenClawPTT.Services;
@@ -24,4 +25,7 @@ public interface IGatewayService : IDisposable, IGatewayUIEvents
     Task ConnectAsync(CancellationToken ct = default);
     Task SendTextAsync(string text, CancellationToken ct = default);
     void RecreateWithConfig(AppConfig newConfig);
+
+    /// <summary>Fetches recent chat history for a session. Returns null if unavailable.</summary>
+    Task<List<ChatHistoryEntry>?> FetchSessionHistoryAsync(string sessionKey, int limit = 5);
 }
