@@ -11,6 +11,9 @@ internal sealed class PttController : IPttController
     private volatile bool _hotkeyPressed;
     private volatile bool _hotkeyReleased;
 
+    private volatile bool _externalHotkeyPressed;
+    private volatile bool _externalHotkeyRelease;
+
     public PttController(IHotkeyHookFactory? hotkeyHookFactory = null)
     {
         _hotkeyHookFactory = hotkeyHookFactory;
@@ -47,9 +50,10 @@ internal sealed class PttController : IPttController
 
     public bool PollHotkeyPressed()
     {
-        if (_hotkeyPressed)
+        if (_hotkeyPressed || _externalHotkeyPressed)
         {
             _hotkeyPressed = false;
+            _externalHotkeyPressed = false;
             return true;
         }
         return false;
@@ -57,12 +61,25 @@ internal sealed class PttController : IPttController
 
     public bool PollHotkeyRelease()
     {
-        if (_hotkeyReleased)
+        if (_hotkeyReleased || _externalHotkeyRelease)
         {
             _hotkeyReleased = false;
+            _externalHotkeyRelease = false;
             return true;
         }
         return false;
+    }
+
+    public void StartRecording()
+    {
+        _externalHotkeyPressed = true;
+        _externalHotkeyRelease = false;
+    }
+
+    public void StopRecording()
+    {
+        _externalHotkeyPressed = false;
+        _externalHotkeyRelease = true;
     }
 
     public void Dispose()

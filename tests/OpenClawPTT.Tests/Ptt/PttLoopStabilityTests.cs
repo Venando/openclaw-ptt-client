@@ -175,6 +175,7 @@ public class PttLoopStabilityTests : IDisposable
             => Task.FromResult(StopAndTranscribeAsync_Return());
 
         public void StartRecording() { }
+        public void StopRecording() { }
         public void SetHotkey(string hotkeyCombination, bool holdToTalk) { }
         public void Start() { }
         public void Stop() { }
