@@ -17,6 +17,11 @@ public class AgentReplyFormatterTests
         public void Write(string text) => _sb.Append(text);
         public void WriteLine() => _sb.AppendLine();
         public int WindowWidth { get; set; } = 80;
+        public string[] Flush()
+        {
+            var text = _sb.ToString().TrimEnd();
+            return text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        }
     }
 
     [Fact]
@@ -561,8 +566,8 @@ items.map(i => console.log(i));
     [Fact]
     public void ProcessMarkupDelta_VeryLongMarkupLine()
     {
-        var spectreMarkup = "This [bold yellow]sentence[/] has [bold]everything[/]: [italic]italics[/] [strikethrough]strikethrough[/] [bold yellow]code[/] [link = https://openclaw.ai]links[/] [bold italic]bold italic[/] more [bold yellow][[code]][/] with [bold yellow][[brackets]][/] and [bold yellow][[\"arrays\"]][/] and[bold]Check[/]";
-        var output = new StringWriterTextOutput { WindowWidth = 80 };
+        var spectreMarkup = "This [bold yellow]sentence[/] has [bold]everything[/]: [italic]italics[/] [strikethrough]strikethrough[/] [bold yellow]code[/] [link=https://openclaw.ai]links[/] [bold italic]bold italic[/] more [bold yellow][[code]][/] with [bold yellow][[brackets]][/] and [bold yellow][[\"arrays\"]][/] and[bold]Check[/]";
+        var output = new StringWriterTextOutput { WindowWidth = 70 };
         var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
         formatter.ProcessMarkupDelta(spectreMarkup);
         formatter.Finish();
