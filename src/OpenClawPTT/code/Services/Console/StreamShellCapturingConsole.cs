@@ -30,8 +30,15 @@ public sealed class StreamShellCapturingConsole : IFormattedOutput
             return;
 
         var text = _buffer.ToString().TrimEnd();
+
+        // If after trimming we have nothing (e.g. only trailing whitespace from newline suffix),
+        // send the prefix itself as a single message so the header still appears.
         if (string.IsNullOrEmpty(text))
+        {
+            _shellHost?.AddMessage(prefix);
+            _buffer.Clear();
             return;
+        }
 
         // First part of captured text is the prefix (already written via _consoleOutput.Write)
         // Split body into lines and add each as a default-color message

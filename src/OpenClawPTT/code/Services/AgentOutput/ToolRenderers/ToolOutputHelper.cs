@@ -59,6 +59,7 @@ public sealed class ToolOutputHelper : IToolOutput
         };
         
         _agentReplayFormatter.ProcessMarkupDelta($"[{colorName}]{Markup.Escape(text)}[/]");
+
         //_shellHost.AddMessage($"[{colorName}]{Markup.Escape(text)}[/]");
     }
 
@@ -69,7 +70,16 @@ public sealed class ToolOutputHelper : IToolOutput
 
     public void PrintLine(string text, ConsoleColor color = ConsoleColor.White)
     {
-        WriteToShell(text + "\n", color);
+        if (text.Length == 0)
+        {
+            WriteToShell(text, color);
+        }
+        else
+        {
+            WriteToShell(text, color);
+        }
+        // Always write newline after the markup tag, not inside it.
+        _agentReplayFormatter.ProcessDelta("\n");
     }
 
     public void PrintTruncated(string text, string continuationPrefix, int rightMarginIndent, ConsoleColor color = ConsoleColor.White)

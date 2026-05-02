@@ -42,11 +42,17 @@ public sealed class ToolDisplayHandler
     }
 
     /// <summary>
-    /// Legacy constructor for backward compatibility.
+    /// Convenience constructor that creates a ToolOutputHelper and default renderers
+    /// all connected to the same output, so renderer output is captured for Flush().
     /// </summary>
     public ToolDisplayHandler(int rightMarginIndent, IStreamShellHost? shellHost = null)
-        : this(new ToolOutputHelper(shellHost!), BuildDefaultRenderers(new ToolOutputHelper(shellHost!)), rightMarginIndent, shellHost)
     {
+        _rightMarginIndent = rightMarginIndent;
+        _shellHost = shellHost;
+        _output = new ToolOutputHelper(shellHost!);
+        _renderers = BuildDefaultRenderers(_output)
+            .Where(r => !string.IsNullOrEmpty(r.ToolName))
+            .ToDictionary(r => r.ToolName, r => r, StringComparer.OrdinalIgnoreCase);
     }
 
     private static IEnumerable<IToolRenderer> BuildDefaultRenderers(IToolOutput output)
