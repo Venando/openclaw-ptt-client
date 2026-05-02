@@ -327,12 +327,13 @@ public class AgentReplyFormatterTests
         // must be escaped before passing to ProcessMarkupDelta.
         var output = new StringWriterTextOutput { WindowWidth = 120 };
         var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 10, prefixAlreadyPrinted: true, output: output);
-        formatter.ProcessMarkupDelta("[dim]const items = [[[[" + new string('x', 5) + "]]]];[/]");
+        formatter.ProcessMarkupDelta("[dim]const items = [[x]][/]");
         formatter.Finish();
         var result = output.Result.Replace("\r\n", "\n");
-        int openBrackets = result.Count(c => c == '[');
-        int closeBrackets = result.Count(c => c == ']');
-        Assert.Equal(openBrackets, closeBrackets);
+        // Literal brackets in output, no tag confusion
+        Assert.DoesNotContain("[dim][dim]", result);
+        Assert.DoesNotContain("[/][/]", result);
+        Assert.Contains("[x]", result); // literal brackets rendered in output
     }
 
     [Fact]
@@ -364,6 +365,25 @@ public class AgentReplyFormatterTests
         Assert.Contains("[dim]", result);
         Assert.Contains("[/dim]", result);
         Assert.Contains("\n", result.Trim());
+        Assert.DoesNotContain("[/][/]", result);
+    }
+
+    [Fact]
+    public void ProcessMarkupDelta_ConvertedFencedCodeBlock_NoDoubledCloseTags()
+    {
+        // End-to-end: converter output fed into the formatter must not
+        // produce doubled [/][/] tags.
+        var markdown = @"```js
+// Some JS for flavor
+const items = [""a"", ""b"", ""c""];
+items.map(i => console.log(i));
+```";
+        var spectreMarkup = MarkdownToSpectreConverter.Convert(markdown);
+        var output = new StringWriterTextOutput { WindowWidth = 80 };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta(spectreMarkup);
+        formatter.Finish();
+        var result = output.Result.Replace("\r\n", "\n");
         Assert.DoesNotContain("[/][/]", result);
     }
 }

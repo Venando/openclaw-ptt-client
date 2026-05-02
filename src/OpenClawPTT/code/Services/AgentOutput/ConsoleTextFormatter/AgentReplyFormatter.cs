@@ -143,11 +143,23 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
         bool insideTag = false;
         int visibleWordLen = 0;
 
-        foreach (char c in markup)
+        for (int i = 0; i < markup.Length; i++)
         {
+            char c = markup[i];
+
             // ── tag boundary detection ───────────────────────────────
             if (!insideTag && c == '[')
             {
+                // Spectre uses [[ to represent a literal '['. If the next
+                // char is also '[', emit one '[' and skip both.
+                if (i + 1 < markup.Length && markup[i + 1] == '[')
+                {
+                    _wordBuffer.Append(c);
+                    i++; // skip the second '['
+                    visibleWordLen++;
+                    continue;
+                }
+                // Enter tag mode and start accumulating tag content.
                 insideTag = true;
                 _wordBuffer.Append(c);
                 continue;
@@ -175,8 +187,6 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                     string closeTagName = tagContent.Substring(1);
                     if (!string.IsNullOrEmpty(closeTagName) && _openMarkupTags.Count > 0)
                     {
-                        // Pop from top until we find the matching tag
-                        // (handles proper nesting as well as mismatched close tags)
                         var tempStack = new Stack<string>();
                         bool found = false;
                         while (_openMarkupTags.Count > 0)
@@ -189,7 +199,6 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                             }
                             tempStack.Push(top);
                         }
-                        // Restore any tags that were above the matched one
                         while (tempStack.Count > 0)
                         {
                             _openMarkupTags.Push(tempStack.Pop());
