@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.WebSockets;
 using System.Text;
@@ -137,6 +138,91 @@ public sealed class GatewayClient : IGatewayClient
         if (_lifecycle == null || !_lifecycle.IsConnected)
             throw new InvalidOperationException("Not connected. Call ConnectAsync first.");
         return await TrySendAsync(eventName, parameters, ct);
+    }
+
+    // ─── session history ────────────────────────────────────────────────
+
+    /// <summary>Fetches recent chat history for a session. Returns null if unavailable.</summary>
+    public async Task<List<ChatHistoryEntry>?> FetchSessionHistoryAsync(string sessionKey, int limit = 5)
+    {
+        ThrowIfDisposed();
+        if (_lifecycle == null || !_lifecycle.IsConnected)
+            return null;
+
+        var parameters = new Dictionary<string, object?>
+        {
+            ["sessionKey"] = sessionKey,
+            ["maxMessages"] = limit,
+        };
+
+        try
+        {
+            var result = await TrySendAsync("chat.history", parameters, CancellationToken.None);
+            if (result.ValueKind == JsonValueKind.Undefined || result.ValueKind == JsonValueKind.Null)
+                return null;
+
+            if (!result.TryGetProperty("messages", out var messagesEl) || messagesEl.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var entries = new List<ChatHistoryEntry>(limit);
+            foreach (JsonElement msg in messagesEl.EnumerateArray())
+            {
+                var role = msg.TryGetProperty("role", out var r) ? r.GetString() ?? "" : "";
+                var content = ExtractMessageContent(msg);
+                var createdAt = msg.TryGetProperty("createdAt", out var c)
+                    ? DateTime.TryParse(c.GetString(), out var dt) ? dt : (DateTime?)null
+                    : null;
+
+                if (string.IsNullOrWhiteSpace(content) || IsNoReply(content))
+                    continue;
+
+                entries.Add(new ChatHistoryEntry
+                {
+                    Role = role,
+                    Content = content,
+                    CreatedAt = createdAt,
+                });
+            }
+
+            return entries;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string ExtractMessageContent(JsonElement msg)
+    {
+        if (!msg.TryGetProperty("content", out var contentEl))
+            return "";
+
+        if (contentEl.ValueKind == JsonValueKind.String)
+            return contentEl.GetString() ?? "";
+
+        if (contentEl.ValueKind == JsonValueKind.Array)
+        {
+            var parts = new List<string>();
+            foreach (JsonElement block in contentEl.EnumerateArray())
+            {
+                if (block.TryGetProperty("type", out var typeEl) && typeEl.GetString() == "text"
+                    && block.TryGetProperty("text", out var textEl))
+                {
+                    parts.Add(textEl.GetString() ?? "");
+                }
+            }
+            return string.Join("", parts);
+        }
+
+        return "";
+    }
+
+    private static bool IsNoReply(string content)
+    {
+        if (string.IsNullOrEmpty(content)) return true;
+        var trimmed = content.Trim();
+        return trimmed.Equals("NO_REPLY", StringComparison.OrdinalIgnoreCase)
+            || trimmed.Equals("no_reply", StringComparison.OrdinalIgnoreCase);
     }
 
     // ─── recreate ───────────────────────────────────────────────────

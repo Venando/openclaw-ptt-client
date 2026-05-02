@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,6 +22,8 @@ public interface IGatewayClient : IDisposable
     Task<JsonElement> SendTextAsync(string body, CancellationToken ct);
     Task<JsonElement> SendAudioAsync(byte[] wavBytes, CancellationToken ct);
     Task<JsonElement> SendEventAsync(string eventName, object? parameters, CancellationToken ct);
+    /// <summary>Fetches recent chat history for a session. Returns null if unavailable.</summary>
+    Task<List<ChatHistoryEntry>?> FetchSessionHistoryAsync(string sessionKey, int limit = 5);
     void RecreateWithConfig(AppConfig newConfig);
     IGatewayEventSource? GetEventSource();
 }
