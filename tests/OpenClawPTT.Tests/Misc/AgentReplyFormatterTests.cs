@@ -557,5 +557,16 @@ items.map(i => console.log(i));
         formatter.Finish();
         ValidateMarkup(output);
     }
+
+    [Fact]
+    public void ProcessMarkupDelta_Code()
+    {
+        var spectreMarkup = "This [bold yellow]sentence[/] has [bold]everything[/]: [italic]italics[/] [strikethrough]strikethrough[/] [bold yellow]code[/] [link = https://openclaw.ai]links[/] [bold italic]bold italic[/] more [bold yellow][[code]][/] with [bold yellow][[brackets]][/] and [bold yellow][[\"arrays\"]][/] and[bold]Check[/]";
+        var output = new StringWriterTextOutput { WindowWidth = 80 };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta(spectreMarkup);
+        formatter.Finish();
+        ValidateMarkup(output);
+    }
     
 }
