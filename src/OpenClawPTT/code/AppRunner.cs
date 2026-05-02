@@ -101,7 +101,8 @@ public class AppRunner : IDisposable
         shellCommands.Register();
 
         using IAppLoop pttLoop = _factory.CreatePttLoop(
-            audioService, pttController, textSender, inputHandler);
+            audioService, pttController, textSender, inputHandler,
+            requireConfirmBeforeSend: _cfg.RequireConfirmBeforeSend);
 
         return (int)(await pttLoop.RunAsync(ct));
     }

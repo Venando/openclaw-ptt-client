@@ -56,6 +56,7 @@ public class PttControllerStabilityTests : IDisposable
 
         public void SetHotkey(Hotkey hotkey) { }
         public void SetHotkeys(System.Collections.Generic.IEnumerable<Hotkey> hotkeys) { }
+        public bool BlockEscape { get; set; }
         public void Start() { StartCalls.Add(true); }
         public void Dispose()
         {

@@ -114,7 +114,7 @@ public class PttLoopStabilityTests : IDisposable
         public string? LastText { get; private set; }
         public int SendAsync_Count { get; private set; }
 
-        public Task SendAsync(string text, CancellationToken ct)
+        public Task SendAsync(string text, CancellationToken ct, bool printMessage = true)
         {
             SendAsync_Count++;
             LastText = text;

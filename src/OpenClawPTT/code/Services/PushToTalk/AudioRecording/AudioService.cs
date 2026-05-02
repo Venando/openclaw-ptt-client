@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using OpenClawPTT;
 using OpenClawPTT.Transcriber;
 using OpenClawPTT.VisualFeedback;
+using Spectre.Console;
 
 namespace OpenClawPTT.Services;
 
@@ -46,7 +47,12 @@ public sealed class AudioService : IAudioService
         if (_disposed) throw new ObjectDisposedException(nameof(AudioService));
         
         _recorder.StartRecording();
-        ConsoleUi.PrintRecordingIndicator(true, _hotkeyCombination, _holdToTalk);
+        // Use per-agent hotkey if set, else fall back to global config default
+        var activeAgentId = AgentRegistry.ActiveAgentId;
+        var effectiveHotkey = activeAgentId != null
+            ? (AgentRegistry.GetPersistedHotkey(activeAgentId) ?? _hotkeyCombination)
+            : _hotkeyCombination;
+        ConsoleUi.PrintRecordingIndicator(true, effectiveHotkey, _holdToTalk);
         _visualFeedback.Show();
     }
     
@@ -57,8 +63,7 @@ public sealed class AudioService : IAudioService
 
         _recorder.StopRecording();
         _visualFeedback.Hide();
-        ConsoleUi.PrintInlineInfo("■");
-        ConsoleUi.Log("audio", "Recording discarded (Escape pressed)");
+        ConsoleUi.PrintMarkup("[grey]  ─ Recording discarded ─[/]");
     }
 
     public async Task<string?> StopAndTranscribeAsync(CancellationToken ct)
@@ -68,7 +73,7 @@ public sealed class AudioService : IAudioService
         
         var wav = _recorder.StopRecording();
         _visualFeedback.Hide();
-        ConsoleUi.PrintInlineInfo("■");
+        ConsoleUi.PrintInlineInfo("■ Recording stopped");
         
         if (wav.Length < 1024)
         {
@@ -76,17 +81,17 @@ public sealed class AudioService : IAudioService
             return null;
         }
 
-        ConsoleUi.PrintInfo($"Sending to Groq {wav.Length / 1024.0:F1} KB…");
-        
         try
         {
             var transcribed = await _transcriber.TranscribeAsync(wav, ct: ct);
-            ConsoleUi.PrintSuccessWordWrap("  ✓ Transcribed: ", transcribed, _rightMarginIndent);
+            var shellHost = ConsoleUi.GetStreamShellHost();
+            var prefix = $"Transcribed ({wav.Length / 1024.0:F1} KB): ";
+            ConsoleUi.PrintMarkup($"[green][dim]  ✓ {Markup.Escape(prefix)}[/][/] [green]{Markup.Escape(transcribed)}[/]");
             return transcribed;
         }
         catch (Exception ex)
         {
-            ConsoleUi.PrintError($"Transcription failed: {ex.Message}");
+            ConsoleUi.PrintError($"Transcription failed ({wav.Length / 1024.0:F1} KB): {ex.Message}");
             return null;
         }
     }

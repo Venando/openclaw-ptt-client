@@ -38,7 +38,8 @@ public class AppRunnerTests
             IAudioService audioService,
             IPttController pttController,
             ITextMessageSender textSender,
-            IInputHandler inputHandler) => PttLoop.Object;
+            IInputHandler inputHandler,
+            bool requireConfirmBeforeSend = false) => PttLoop.Object;
     }
 
     #region Test 1: AppRunner_Constructs_WithValidDeps

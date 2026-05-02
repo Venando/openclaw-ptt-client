@@ -49,6 +49,7 @@ public sealed class AppConfig
     public string HotkeyCombination { get; set; } = "Alt+=";
     public bool HoldToTalk { get; set; } = false;
     public bool ShowThinking { get; set; } = false;
+    public bool RequireConfirmBeforeSend { get; set; } = false;
     public bool DebugToolCalls { get; set; } = false;
     public string AgentName { get; set; } = "Agent";
     public string TranscriptionPromptPrefix { get; set; } = "[It's a raw speech-to-text transcription]: ";

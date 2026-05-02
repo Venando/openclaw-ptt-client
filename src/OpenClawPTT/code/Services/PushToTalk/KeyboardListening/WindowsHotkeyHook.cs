@@ -27,6 +27,7 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
     private Dictionary<Modifier, List<int>> _modifierKeyCodes = new();
     private Dictionary<Modifier, bool> _modifierDown = new();
     private int _activeHotkeyIndex = -1;
+    private volatile bool _blockEscape;
 
     private sealed record HotkeyConfig(int KeyCode, HashSet<Modifier> Modifiers);
 
@@ -80,6 +81,12 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
         _activeHotkeyIndex = -1;
     }
 
+    public bool BlockEscape
+    {
+        get => _blockEscape;
+        set => _blockEscape = value;
+    }
+
     public void Start() => _thread.Start();
 
     private IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam)
@@ -105,8 +112,12 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
             // Check for Escape key (cancel recording)
             if (info.vkCode == VK_ESCAPE && isDown)
             {
-                ThreadPool.QueueUserWorkItem(_ => EscapePressed?.Invoke());
-                return new IntPtr(1);
+                if (_blockEscape)
+                {
+                    ThreadPool.QueueUserWorkItem(_ => EscapePressed?.Invoke());
+                    return new IntPtr(1);
+                }
+                // When not recording, let Escape pass through to StreamShell for input clearing
             }
 
             // Check all configured hotkeys

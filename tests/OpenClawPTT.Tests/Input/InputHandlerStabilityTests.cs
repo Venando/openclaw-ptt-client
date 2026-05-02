@@ -23,7 +23,7 @@ public class InputHandlerStabilityTests
         public Exception? ExceptionToThrow;
         public bool ThrowOnSend;
 
-        public Task SendAsync(string text, CancellationToken ct)
+        public Task SendAsync(string text, CancellationToken ct, bool printMessage = true)
         {
             ct.ThrowIfCancellationRequested();
             if (ThrowOnSend && ExceptionToThrow != null)

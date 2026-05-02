@@ -32,10 +32,14 @@ public sealed class AgentHotkeyService : IDisposable
         _cfg = cfg;
 
         // Always create a hook — at minimum for Escape key cancellation.
-        // Create hook directly via GlobalHotkeyHookFactory to avoid passing
-        // a dummy hotkey through HotkeyHookFactory.Create() which calls
-        // SetHotkey(validating mapping) on Windows and crashes.
-        _hook = GlobalHotkeyHookFactory.Create();
+        if (hookFactory != null)
+        {
+            _hook = hookFactory.Create(new Hotkey(new Key(' '), new HashSet<Modifier>()));
+        }
+        else
+        {
+            _hook = GlobalHotkeyHookFactory.Create();
+        }
 
         if (AgentRegistry.Agents.Count > 0)
         {
@@ -71,6 +75,8 @@ public sealed class AgentHotkeyService : IDisposable
 
         if (agent.SessionKey == activeKey)
         {
+            // Block Escape from reaching StreamShell while recording
+            if (_hook != null) _hook.BlockEscape = true;
             _pttController.StartRecording();
         }
         else
@@ -120,6 +126,8 @@ public sealed class AgentHotkeyService : IDisposable
 
     private void OnEscapePressed()
     {
+        // Unblock Escape so the next press reaches StreamShell for input clearing
+        if (_hook != null) _hook.BlockEscape = false;
         _pttController.CancelRecording();
     }
 

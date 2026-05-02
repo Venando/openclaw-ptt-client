@@ -13,9 +13,10 @@ public interface IServiceFactory
     IInputHandler CreateInputHandler(ITextMessageSender textSender);
     ITextMessageSender CreateTextMessageSender(IGatewayService gateway);
     IStreamShellHost CreateStreamShellHost();
-    public IAppLoop CreatePttLoop(
+    IAppLoop CreatePttLoop(
         IAudioService audioService,
         IPttController pttController,
         ITextMessageSender textSender,
-        IInputHandler inputHandler);
+        IInputHandler inputHandler,
+        bool requireConfirmBeforeSend = false);
 }

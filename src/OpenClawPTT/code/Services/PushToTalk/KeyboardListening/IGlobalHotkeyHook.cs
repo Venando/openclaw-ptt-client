@@ -23,5 +23,8 @@ public interface IGlobalHotkeyHook : IDisposable
     /// <summary>Fired when the Escape key is pressed (for cancelling recording).</summary>
     event Action? EscapePressed;
 
+    /// <summary>When true, the hook blocks Escape from reaching the console and fires EscapePressed instead.</summary>
+    bool BlockEscape { get; set; }
+
     void Start();
 }

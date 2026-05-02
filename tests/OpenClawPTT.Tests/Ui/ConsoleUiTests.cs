@@ -21,12 +21,14 @@ public class ConsoleUiTests : IDisposable
 
     public ConsoleUiTests()
     {
+        AgentRegistry.SetAgents(new List<AgentInfo>());
         _shellHost = new Mock<IStreamShellHost>(MockBehavior.Strict);
         ConsoleUi.SetStreamShellHost(_shellHost.Object);
     }
 
     public void Dispose()
     {
+        AgentRegistry.SetAgents(new List<AgentInfo>());
         ConsoleUi.SetStreamShellHost(null);
     }
 
@@ -57,21 +59,45 @@ public class ConsoleUiTests : IDisposable
     [Fact]
     public void PrintHelpMenu_HelpLine_SendsCrewAndChatCommandInfo()
     {
+        AgentRegistry.SetAgents(new List<AgentInfo>
+        {
+            new() { AgentId = "a1", Name = "Alpha", SessionKey = "agent:a1:main", IsDefault = true }
+        });
         var messages = new List<string>();
         _shellHost.Setup(h => h.AddMessage(It.IsAny<string>()))
             .Callback<string>(m => messages.Add(m));
-        ConsoleUi.PrintHelpMenu(new AppConfig());
+        ConsoleUi.PrintHelpMenu(new AppConfig { HotkeyCombination = "Alt+=", HoldToTalk = true });
         var allOutput = string.Join("", messages.Where(s => s != null));
+        Assert.Contains("PTT Active", allOutput);
         Assert.Contains("/crew", allOutput);
         Assert.Contains("/chat", allOutput);
     }
 
     [Fact]
-    public void PrintHelpMenu_HelpLine_SendsGreyMarkup()
+    public void PrintHelpMenu_ToggleMode_IncludesCorrectModeDescription()
     {
+        AgentRegistry.SetAgents(new List<AgentInfo>
+        {
+            new() { AgentId = "a1", Name = "Alpha", SessionKey = "agent:a1:main", IsDefault = true }
+        });
+        var messages = new List<string>();
+        _shellHost.Setup(h => h.AddMessage(It.IsAny<string>()))
+            .Callback<string>(m => messages.Add(m));
+        ConsoleUi.PrintHelpMenu(new AppConfig { HotkeyCombination = "Space", HoldToTalk = false });
+        var allOutput = string.Join("", messages.Where(s => s != null));
+        Assert.Contains("Toggle", allOutput);
+    }
+
+    [Fact]
+    public void PrintHelpMenu_SendsDeepSkyBlueMarkup()
+    {
+        AgentRegistry.SetAgents(new List<AgentInfo>
+        {
+            new() { AgentId = "a1", Name = "Alpha", SessionKey = "agent:a1:main", IsDefault = true }
+        });
         _shellHost.Setup(h => h.AddMessage(It.IsAny<string>())).Verifiable();
-        ConsoleUi.PrintHelpMenu(new AppConfig());
-        _shellHost.Verify(h => h.AddMessage(It.Is<string>(m => m.Contains("[grey]"))), Times.AtLeastOnce);
+        ConsoleUi.PrintHelpMenu(new AppConfig { HotkeyCombination = "Alt+=", HoldToTalk = true });
+        _shellHost.Verify(h => h.AddMessage(It.Is<string>(m => m.Contains("[deepskyblue3]"))), Times.AtLeastOnce);
     }
 
     #endregion
