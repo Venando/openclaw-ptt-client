@@ -137,8 +137,9 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     /// <summary>
     /// Returns true if <paramref name="tagContent"/> looks like a valid
     /// Spectre.Console tag name (alphanumeric, hyphens, dots, underscores,
-    /// and color names). Tags containing quotes, spaces, or other
-    /// special characters are likely literal bracket content.
+    /// color names, and spaces for compound tags like "bold underline").
+    /// Tags containing quotes or other special characters are likely
+    /// literal bracket content.
     /// </summary>
     private static bool IsValidTagName(string tagContent)
     {
@@ -146,7 +147,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
             return false;
         foreach (char ch in tagContent)
         {
-            if (!char.IsLetterOrDigit(ch) && ch != '-' && ch != '.' && ch != '_' && ch != '#')
+            if (!char.IsLetterOrDigit(ch) && ch != '-' && ch != '.' && ch != '_' && ch != '#' && ch != ' ')
                 return false;
         }
         return true;
