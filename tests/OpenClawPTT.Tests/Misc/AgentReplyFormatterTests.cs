@@ -307,30 +307,62 @@ public class AgentReplyFormatterTests
     }
 
     [Fact]
+    public void ProcessMarkupDelta_BracketsInStringLiteral_WrapWithoutDoubledClosingTags()
+    {
+        // Regression test: when the formatter word-wraps inside a [dim] region
+        // that contains self-referential brackets (e.g. [["a"]]), WriteNewLine()
+        // re-emits open tags and Finish() calls FlushWordBuffer for the trailing [/].
+        // Both paths must not duplicate the [/] closing tag.
+        var output = new StringWriterTextOutput { WindowWidth = 30 };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta("[dim]const items = [[\"a\", \"b\", \"c\"]];[/]");
+        formatter.Finish();
+        var result = output.Result.Replace("\r\n", "\n");
+        Assert.DoesNotContain("[/][/]", result);
+    }
+
+    [Fact]
+    public void ProcessMarkupDelta_ArrayLiteralWithNestedBrackets_OutputLengthNotExcessive()
+    {
+        var output = new StringWriterTextOutput { WindowWidth = 120 };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 10, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta("[dim]const items = [[\"a\", \"b\", \"c\"]];[/]");
+        formatter.Finish();
+        var result = output.Result.Replace("\r\n", "\n");
+        int openBrackets = result.Count(c => c == '[');
+        int closeBrackets = result.Count(c => c == ']');
+        Assert.Equal(openBrackets, closeBrackets);
+    }
+
+    [Fact]
     public void ProcessMarkupDelta_FencedCodeBlock_WrapsWithoutDoubledDimTags()
     {
-        // Spectre.Console fenced code blocks use [dim] tag with explicit [/dim] close.
-        // When word-wrapping breaks across lines, WriteNewLine() emits [/] then [dim]
-        // for the stack-managed tags. The [/dim] in the input must pop "dim" from the
-        // stack so subsequent line breaks don't emit [/][/] (doubled close tags).
+        // Simulates a fenced code block converted via MarkdownToSpectreConverter:
+        var output = new StringWriterTextOutput { WindowWidth = 40 };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta("[dim]// Some JS for flavor[/]");
+        formatter.ProcessMarkupDelta("[dim]const items = [[\"a\", \"b\", \"c\"]];[/]");
+        formatter.ProcessMarkupDelta("[dim]items.map(i => console.log(i));[/]");
+        formatter.Finish();
+        var msg = output.Result.Replace("\r\n", "\n");
+        var validateResult = MarkupValidator.Validate(msg);
+        Assert.True(validateResult.IsValid, $"Invalid markup in message: {msg}\n{validateResult}");
+    }
+
+    [Fact]
+    public void ProcessMarkupDelta_ExplicitCloseTags_DontDoubleOnWrap()
+    {
+        // Explicit [/dim] close must pop "dim" from the stack so wrapping
+        // after the close doesn't emit [/][/] (doubled close tags).
         var output = new StringWriterTextOutput { WindowWidth = 45 };
         var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
-        // Available width: 45 - 0 - 5 = 40.
-        // We need wrapping to happen AFTER the [/dim] close. Use:
-        // [dim]xxx[/dim] + enough text after to force wrapping.
-        // The [dim]xxx[/dim] internal wrapping is handled by WriteNewLine.
-        // After [/dim] the stack should be clean (no dim tag).
-        // If the bug exists, [/dim] pushes "/dim" onto stack, causing doubled closes.
         string markup = "[dim]" + new string('x', 25) + "[/dim] " + new string('x', 20);
         formatter.ProcessMarkupDelta(markup);
         formatter.Finish();
         var result = output.Result.Replace("\r\n", "\n");
-        // The [dim] tag should appear
         Assert.Contains("[dim]", result);
         Assert.Contains("[/dim]", result);
-        // The output should have wrapped (visible text > available width)
         Assert.Contains("\n", result.Trim());
-        // Should NOT contain doubled close tags [/][/]
         Assert.DoesNotContain("[/][/]", result);
     }
 }

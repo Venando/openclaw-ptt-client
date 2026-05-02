@@ -69,6 +69,7 @@ public sealed class AgentOutputAdapter : IDisposable
 
     public void OnAgentReplyFull(string body)
     {
+        var markdownBody = MarkdownToSpectreConverter.Convert(body);
         // When StreamShell is active, use a capturing console for word-wrapped replies
         // so the complete formatted reply gets pushed as a single StreamShell message.
         bool useCapturing = ConsoleUi.GetStreamShellHost() != null;
@@ -77,7 +78,7 @@ public sealed class AgentOutputAdapter : IDisposable
 
         if (_formatter != null)
         {
-            _formatter.ProcessDelta(body);
+            _formatter.ProcessMarkupDelta(markdownBody);
             _formatter.Finish();
             _formatter = null;
 
@@ -88,7 +89,7 @@ public sealed class AgentOutputAdapter : IDisposable
         }
         else
         {
-            ConsoleUi.PrintAgentReply(_currentPrefix, body);
+            ConsoleUi.PrintAgentReplyWithMarkdown(_currentPrefix, markdownBody);
         }
         
         _prefixPrinted = false;

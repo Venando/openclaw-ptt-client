@@ -126,6 +126,12 @@ public static class ConsoleUi
         ShellMsg($"[cyan]{Markup.Escape(prefix)}[/]{Markup.Escape(body)}");
     }
 
+    public static void PrintAgentReplyWithMarkdown(string prefix, string body)
+    {
+        // Prefix in cyan, body in default color
+        ShellMsg($"[cyan]{Markup.Escape(prefix)}[/]{body}");
+    }
+
     public static void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix)
     {
         // Streaming delta — push to StreamShell as a complete message
