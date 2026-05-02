@@ -38,7 +38,7 @@ public sealed class StreamShellCapturingConsole : IFormattedOutput
         var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         for (int i = 0; i < lines.Length; i++)
         {
-            string? line = Markup.Escape(lines[i]);
+            string line = lines[i];
             _shellHost?.AddMessage(i == 0 ? prefix + line : line);
         }
 
