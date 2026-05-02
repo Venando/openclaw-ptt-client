@@ -133,6 +133,25 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
         }
     }
 
+    // ── helper: validate a Spectre tag name ──────────────────────────
+    /// <summary>
+    /// Returns true if <paramref name="tagContent"/> looks like a valid
+    /// Spectre.Console tag name (alphanumeric, hyphens, dots, underscores,
+    /// and color names). Tags containing quotes, spaces, or other
+    /// special characters are likely literal bracket content.
+    /// </summary>
+    private static bool IsValidTagName(string tagContent)
+    {
+        if (string.IsNullOrEmpty(tagContent))
+            return false;
+        foreach (char ch in tagContent)
+        {
+            if (!char.IsLetterOrDigit(ch) && ch != '-' && ch != '.' && ch != '_' && ch != '#')
+                return false;
+        }
+        return true;
+    }
+
     /// <summary>
     /// Process a pre-formatted markup string where [tag]…[/tag] sequences
     /// have zero visible width. Preserves markup tags in output.
@@ -175,6 +194,29 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                 int closePos = _wordBuffer.Length - 1;
                 int openPos = _wordBuffer.ToString().LastIndexOf('[', closePos - 1);
                 string tagContent = _wordBuffer.ToString(openPos + 1, closePos - openPos - 1);
+
+                // ── Validate tag content ────────────────────────────────
+                // If the content between [ and ] doesn't look like a valid
+                // Spectre tag name (e.g. ["a"] is not valid), treat the
+                // brackets as escaped literal content: remove the [ and ]
+                // from the buffer and replace with [[ and ]].
+                if (tagContent != "/"
+                    && tagContent.Length > 0
+                    && !tagContent.StartsWith("/")
+                    && !IsValidTagName(tagContent))
+                {
+                    // Back out: replace raw brackets with escaped ones
+                    // so they render as literal characters.
+                    _wordBuffer.Remove(openPos, closePos - openPos + 1);
+                    _wordBuffer.Length = openPos;
+                    // Re-append with escaped brackets
+                    _wordBuffer.Append("[[");
+                    _wordBuffer.Append(tagContent);
+                    _wordBuffer.Append("]]");
+                    visibleWordLen += tagContent.Length + 4; // [[ + content + ]]
+                    continue;
+                }
+
                 if (tagContent == "/")
                 {
                     // Generic close [/] — pop the most recent tag
