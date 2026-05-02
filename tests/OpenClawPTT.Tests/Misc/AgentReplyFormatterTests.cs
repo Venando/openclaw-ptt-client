@@ -238,8 +238,8 @@ public class AgentReplyFormatterTests
         formatter.ProcessMarkupDelta("[green]a [b] c[/]");
         formatter.Finish();
         var result = output.Result.Replace("\r\n", "\n").Trim();
-        // [b] looks like a tag but is inside text — should be treated as visible
-        Assert.Contains("[b]", result);
+        // [b] looks like a tag but is inside text — should be escaped as [[b]]
+        Assert.Contains("[[b]]", result);
     }
 
     [Fact]
@@ -288,7 +288,9 @@ public class AgentReplyFormatterTests
         formatter.ProcessMarkupDelta("[yellow]3 > [5] is true[/]");
         formatter.Finish();
         var result = output.Result.Replace("\r\n", "\n").Trim();
-        Assert.Contains("3 > [5]", result);
+        // [5] is not a known tag so it gets escaped to [[5]] (proper
+        // Spectre escape for literal bracket content).
+        Assert.Contains("[[5]]", result);
     }
 
     [Fact]
@@ -408,6 +410,70 @@ items.map(i => console.log(i));
         formatter.Finish();
         var result = output.Result.Replace("\r\n", "\n");
         // This fails right now: the output contains [/][/] due to tag confusion
+        Assert.DoesNotContain("[/][/]", result);
+    }
+
+    [Fact]
+    public void ProcessMarkupDelta_FencedCodeBlockJS_NoDoubledCloseTags()
+    {
+        // This reproduces the exact runtime path: MarkdownToSpectreConverter
+        // output fed into ProcessMarkupDelta. The converter escapes brackets
+        // as [[ and ]]. But ProcessMarkupDelta must handle ]] correctly.
+        var converterOutput = @"
+[dim]const items = [[""a"", ""b"", ""c""]];[/]
+[dim]items.map(i => console.log(i));[/]";
+        var output = new StringWriterTextOutput { WindowWidth = 40 };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta(converterOutput);
+        formatter.Finish();
+        var result = output.Result.Replace("\r\n", "\n");
+        Assert.DoesNotContain("[/][/]", result);
+    }
+
+    [Theory]
+    [InlineData("[dim]a[[b]][/]")]
+    [InlineData("[dim][[b]] = x[/]")]
+    [InlineData("[dim]items[[0]][/]")]
+    [InlineData("[dim]array[[i]] = value[/]")]
+    public void ProcessMarkupDelta_EscapedBracketPairs_DontProduceDoubledClose(string markup)
+    {
+        // Various escaped bracket patterns that might confuse the parser:
+        // [[b]] = escaped [b], which should be treated as content, not a tag.
+        var output = new StringWriterTextOutput { WindowWidth = 80 };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta(markup);
+        formatter.Finish();
+        var result = output.Result.Replace("\r\n", "\n");
+        Assert.DoesNotContain("[/][/]", result);
+    }
+
+    [Theory]
+    [InlineData("[dim][x][/]")]
+    [InlineData("[dim]value[x]value[/]")]
+    [InlineData("[dim]a[b]c[/]")]
+    public void ProcessMarkupDelta_SingleLetterBrackets_DontProduceDoubledClose(string markup)
+    {
+        // Single-letter tokens like [x] should be treated as valid Spectre tags
+        // (they open a tag named "x"). But if the tag is not known to Spectre,
+        // the validator should catch it. The formatter must not produce [/][/].
+        var output = new StringWriterTextOutput { WindowWidth = 80 };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta(markup);
+        formatter.Finish();
+        var result = output.Result.Replace("\r\n", "\n");
+        Assert.DoesNotContain("[/][/]", result);
+    }
+
+    [Fact]
+    public void ProcessMarkupDelta_HangingClosingBracket_NoDoubledClose()
+    {
+        // Text like "some [text]" where the brackets are NOT valid tags:
+        // the closing bracket ] after "text" should be treated as content.
+        var output = new StringWriterTextOutput { WindowWidth = 80 };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta("[grey]some [text] here[/]");
+        formatter.Finish();
+        var result = output.Result.Replace("\r\n", "\n");
         Assert.DoesNotContain("[/][/]", result);
     }
 }
