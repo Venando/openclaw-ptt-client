@@ -46,7 +46,12 @@ public sealed class AudioService : IAudioService
         if (_disposed) throw new ObjectDisposedException(nameof(AudioService));
         
         _recorder.StartRecording();
-        ConsoleUi.PrintRecordingIndicator(true, _hotkeyCombination, _holdToTalk);
+        // Use per-agent hotkey if set, else fall back to global config default
+        var activeAgentId = AgentRegistry.ActiveAgentId;
+        var effectiveHotkey = activeAgentId != null
+            ? (AgentRegistry.GetPersistedHotkey(activeAgentId) ?? _hotkeyCombination)
+            : _hotkeyCombination;
+        ConsoleUi.PrintRecordingIndicator(true, effectiveHotkey, _holdToTalk);
         _visualFeedback.Show();
     }
     
