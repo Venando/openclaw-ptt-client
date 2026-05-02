@@ -386,4 +386,28 @@ items.map(i => console.log(i));
         var result = output.Result.Replace("\r\n", "\n");
         Assert.DoesNotContain("[/][/]", result);
     }
+
+    [Fact]
+    public void ProcessMarkupDelta_RawUnescapedBrackets_ReproducesDeliveryBug()
+    {
+        // This matches the reported delivery symptom: the formatter receives
+        // markup with unescaped brackets (bypassing MarkdownToSpectreConverter)
+        // and produces [/][/] in the middle of fenced code block lines.
+        //
+        // The input below has raw ["a", "b", "c"] inside [dim] — the brackets
+        // are NOT escaped as [["a", "b", "c"]] because this path skips the converter.
+        //
+        // When ProcessMarkupDelta sees ["a", it enters tag mode looking for a
+        // closing ] to form a Spectre tag. It finds ] after "a", interprets
+        // ["a" as tag content, and pushes it onto the stack. This corrupts the
+        // markup and produces [/][/] doubled close tags in the output.
+        //
+        var output = new StringWriterTextOutput { WindowWidth = 80 };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta("[dim]const items = [\"a\", \"b\", \"c\"];[/]");
+        formatter.Finish();
+        var result = output.Result.Replace("\r\n", "\n");
+        // This fails right now: the output contains [/][/] due to tag confusion
+        Assert.DoesNotContain("[/][/]", result);
+    }
 }
