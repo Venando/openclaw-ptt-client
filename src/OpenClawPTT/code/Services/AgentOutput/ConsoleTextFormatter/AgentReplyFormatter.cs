@@ -259,30 +259,11 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                     continue;
                 }
 
-                // ── Context check: previous visible char heuristic ────
-                // If the character before '[' in the original markup is
-                // a letter, digit, or code-relevant punctuation (not
-                // whitespace), this is likely a literal bracket
-                // (e.g. array[i], func[x]), not a Spectre tag. In that
-                // case, output the '[' as a literal character instead
-                // of entering tag mode.
-                // Exception: if '[' is followed by '/' (closing tag like
-                // [/]), always enter tag mode regardless of context.
-                if (i > 0 && !insideTag
-                    && !(i + 1 < markup.Length && markup[i + 1] == '/'))
-                {
-                    char prev = markup[i - 1];
-                    if (char.IsLetterOrDigit(prev) || prev == ')' || prev == '>' || prev == '}'
-                        || prev == '"' || prev == '\'')
-                    {
-                        // Treat as literal bracket content
-                        _wordBuffer.Append(c);
-                        visibleWordLen++;
-                        continue;
-                    }
-                }
-
                 // Enter tag mode and start accumulating tag content.
+                // Let the tag validator at ']' decide if it's a valid
+                // Spectre tag or literal content. This is safer than
+                // heuristic context checks, which can fail for patterns
+                // like "and[bold]" where the bracket follows a letter.
                 insideTag = true;
                 _wordBuffer.Append(c);
                 continue;
@@ -470,6 +451,23 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
 
                 if (_wordBuffer.Length > 0)
                 {
+                    // Before calling WriteNewLine, write any pending markup tags
+                    // from the buffer to the current line output. This ensures
+                    // WriteNewLine's close/reopen has matching open tags on the
+                    // current line.
+                    string fullBuf = _wordBuffer.ToString();
+                    int rawLen = fullBuf.Length;
+                    int tagLen = rawLen - visibleWordLen;
+
+                    if (tagLen > 0 && remaining <= 0)
+                    {
+                        string pendingTags = fullBuf.Substring(0, tagLen);
+                        _output.Write(pendingTags);
+                        // Tags have zero visible width, so _currentLineLength unchanged.
+                        // Remove the emitted tags from the buffer.
+                        _wordBuffer.Remove(0, tagLen);
+                    }
+
                     WriteNewLine();
                     _currentLineLength = 0;
                 }
