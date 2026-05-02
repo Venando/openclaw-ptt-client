@@ -559,7 +559,7 @@ items.map(i => console.log(i));
     }
 
     [Fact]
-    public void ProcessMarkupDelta_Code()
+    public void ProcessMarkupDelta_VeryLongMarkupLine()
     {
         var spectreMarkup = "This [bold yellow]sentence[/] has [bold]everything[/]: [italic]italics[/] [strikethrough]strikethrough[/] [bold yellow]code[/] [link = https://openclaw.ai]links[/] [bold italic]bold italic[/] more [bold yellow][[code]][/] with [bold yellow][[brackets]][/] and [bold yellow][[\"arrays\"]][/] and[bold]Check[/]";
         var output = new StringWriterTextOutput { WindowWidth = 80 };
