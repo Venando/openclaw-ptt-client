@@ -76,17 +76,15 @@ public sealed class AudioService : IAudioService
             return null;
         }
 
-        ConsoleUi.PrintInfo($"Sending to Groq {wav.Length / 1024.0:F1} KB…");
-        
         try
         {
             var transcribed = await _transcriber.TranscribeAsync(wav, ct: ct);
-            ConsoleUi.PrintSuccessWordWrap("  ✓ Transcribed: ", transcribed, _rightMarginIndent);
+            ConsoleUi.PrintSuccessWordWrap("Transcribed ({wav.Length / 1024.0:F1} KB): ", transcribed, _rightMarginIndent);
             return transcribed;
         }
         catch (Exception ex)
         {
-            ConsoleUi.PrintError($"Transcription failed: {ex.Message}");
+            ConsoleUi.PrintError($"Transcription failed ({wav.Length / 1024.0:F1} KB): {ex.Message}");
             return null;
         }
     }

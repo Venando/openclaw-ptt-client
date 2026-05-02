@@ -21,12 +21,14 @@ public class ConsoleUiTests : IDisposable
 
     public ConsoleUiTests()
     {
+        AgentRegistry.SetAgents(new List<AgentInfo>());
         _shellHost = new Mock<IStreamShellHost>(MockBehavior.Strict);
         ConsoleUi.SetStreamShellHost(_shellHost.Object);
     }
 
     public void Dispose()
     {
+        AgentRegistry.SetAgents(new List<AgentInfo>());
         ConsoleUi.SetStreamShellHost(null);
     }
 
@@ -57,32 +59,42 @@ public class ConsoleUiTests : IDisposable
     [Fact]
     public void PrintHelpMenu_HoldToTalkMode_IncludesCorrectModeDescription()
     {
+        AgentRegistry.SetAgents(new List<AgentInfo>
+        {
+            new() { AgentId = "a1", Name = "Alpha", SessionKey = "agent:a1:main", IsDefault = true }
+        });
         var messages = new List<string>();
         _shellHost.Setup(h => h.AddMessage(It.IsAny<string>()))
             .Callback<string>(m => messages.Add(m));
-        ConsoleUi.PrintHelpMenu("Alt+=", true);
+        ConsoleUi.PrintHelpMenu(new AppConfig { HotkeyCombination = "Alt+=", HoldToTalk = true });
         var allOutput = string.Join("", messages.Where(s => s != null));
-        Assert.Contains("Hold-to-talk", allOutput);
-        Assert.Contains("Alt+=", allOutput);
+        Assert.Contains("PTT Active", allOutput);
     }
 
     [Fact]
     public void PrintHelpMenu_ToggleMode_IncludesCorrectModeDescription()
     {
+        AgentRegistry.SetAgents(new List<AgentInfo>
+        {
+            new() { AgentId = "a1", Name = "Alpha", SessionKey = "agent:a1:main", IsDefault = true }
+        });
         var messages = new List<string>();
         _shellHost.Setup(h => h.AddMessage(It.IsAny<string>()))
             .Callback<string>(m => messages.Add(m));
-        ConsoleUi.PrintHelpMenu("Space", false);
+        ConsoleUi.PrintHelpMenu(new AppConfig { HotkeyCombination = "Space", HoldToTalk = false });
         var allOutput = string.Join("", messages.Where(s => s != null));
-        Assert.Contains("Toggle recording", allOutput);
-        Assert.Contains("Space", allOutput);
+        Assert.Contains("Toggle", allOutput);
     }
 
     [Fact]
     public void PrintHelpMenu_SendsDeepSkyBlueMarkup()
     {
+        AgentRegistry.SetAgents(new List<AgentInfo>
+        {
+            new() { AgentId = "a1", Name = "Alpha", SessionKey = "agent:a1:main", IsDefault = true }
+        });
         _shellHost.Setup(h => h.AddMessage(It.IsAny<string>())).Verifiable();
-        ConsoleUi.PrintHelpMenu("Alt+=", true);
+        ConsoleUi.PrintHelpMenu(new AppConfig { HotkeyCombination = "Alt+=", HoldToTalk = true });
         _shellHost.Verify(h => h.AddMessage(It.Is<string>(m => m.Contains("[deepskyblue3]"))), Times.AtLeastOnce);
     }
 

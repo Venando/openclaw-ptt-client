@@ -71,7 +71,7 @@ public sealed class AppLoop : IAppLoop
                 {
                     if (_requireConfirmBeforeSend)
                     {
-                        ConsoleUi.PrintWarning("Press hotkey to send or Escape to discard");
+                        ConsoleUi.PrintMarkup("[deepskyblue3]  ─[/] [bold]Press hotkey to send[/] [grey]or Escape to discard[/] [deepskyblue3]─[/]");
                         bool sent = false;
                         while (!ct.IsCancellationRequested)
                         {
@@ -83,7 +83,7 @@ public sealed class AppLoop : IAppLoop
                             }
                             if (_pttController.PollCancelRecording())
                             {
-                                ConsoleUi.PrintWarning("Message discarded.");
+                                ConsoleUi.PrintMarkup("[grey]  ─ Message discarded ─[/]");
                                 break;
                             }
                         }

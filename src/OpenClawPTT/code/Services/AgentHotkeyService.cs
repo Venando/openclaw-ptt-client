@@ -32,10 +32,14 @@ public sealed class AgentHotkeyService : IDisposable
         _cfg = cfg;
 
         // Always create a hook — at minimum for Escape key cancellation.
-        // Create hook directly via GlobalHotkeyHookFactory to avoid passing
-        // a dummy hotkey through HotkeyHookFactory.Create() which calls
-        // SetHotkey(validating mapping) on Windows and crashes.
-        _hook = GlobalHotkeyHookFactory.Create();
+        if (hookFactory != null)
+        {
+            _hook = hookFactory.Create(new Hotkey(new Key(' '), new HashSet<Modifier>()));
+        }
+        else
+        {
+            _hook = GlobalHotkeyHookFactory.Create();
+        }
 
         if (AgentRegistry.Agents.Count > 0)
         {
@@ -76,7 +80,7 @@ public sealed class AgentHotkeyService : IDisposable
         else
         {
             AgentRegistry.SetActiveAgent(agent.AgentId);
-            ConsoleUi.PrintAgentIntroduction(_cfg);
+            _shellHost.AddMessage($"[green]  Switched to {agent.Name}. Press hotkey again to record.[/]");
         }
     }
 
