@@ -51,7 +51,7 @@ public static class ConsoleUi
             return;
         }
 
-        var hotkeyCombination = AgentRegistry.GetPersistedHotkey(AgentRegistry.ActiveSessionKey!) ?? appConfig.HotkeyCombination;
+        var hotkeyCombination = AgentRegistry.GetPersistedHotkey(AgentRegistry.ActiveAgentId!) ?? appConfig.HotkeyCombination;
         AgentRegistry.GetActiveNameAndEmoji(out var agentName, out var emoji);
         var modeDescription = appConfig.HoldToTalk ? "Hold-to-talk" : "Toggle recording";
         var middleContent = $"   Agent: [white on gray15]{emoji} {agentName}[/] [deepskyblue3]·[/] [white on gray15]{Markup.Escape($"[{hotkeyCombination}]")}[/] [deepskyblue3]·[/] {modeDescription} [deepskyblue3]·[/] /help [deepskyblue3]·[/] /quit    ";

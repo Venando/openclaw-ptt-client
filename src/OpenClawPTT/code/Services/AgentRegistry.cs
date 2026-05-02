@@ -174,6 +174,18 @@ public static class AgentRegistry
         }
     }
 
+    public static string? ActiveAgentId
+    {
+        get
+        {
+            lock (_lock)
+            {
+                if (_activeSessionKey == null) return null;
+                return _agents.FirstOrDefault(a => a.SessionKey == _activeSessionKey)?.AgentId;
+            }
+        }
+    }
+
     /// <summary>Currently active session key. Messages from other sessions are filtered out.</summary>
     public static string? ActiveSessionKey
     {
