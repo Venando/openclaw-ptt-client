@@ -13,9 +13,70 @@ public static class AgentRegistry
     private static readonly object _lock = new();
     private static List<AgentInfo> _agents = new();
     private static string? _activeSessionKey;
+    private static Dictionary<string, string?> _persistedHotkeys = new(System.StringComparer.OrdinalIgnoreCase);
+    private static AgentSettingsService? _settingsService;
 
     /// <summary>Event raised when the active session changes.</summary>
     public static event Action<string?>? ActiveSessionChanged;
+
+    /// <summary>Register the settings service so SetPersistedHotkey auto-saves.</summary>
+    public static void RegisterSettingsService(AgentSettingsService service)
+    {
+        lock (_lock) { _settingsService = service; }
+    }
+
+    /// <summary>Get per-agent hotkey override, or null for global default.</summary>
+    public static string? GetPersistedHotkey(string agentId)
+    {
+        lock (_lock)
+        {
+            return _persistedHotkeys.TryGetValue(agentId, out var hk) ? hk : null;
+        }
+    }
+
+    /// <summary>Set or clear per-agent hotkey override. Fires PersistedSettingsChanged.</summary>
+    public static void SetPersistedHotkey(string agentId, string? hotkeyCombo)
+    {
+        lock (_lock)
+        {
+            if (hotkeyCombo != null)
+                _persistedHotkeys[agentId] = hotkeyCombo;
+            else
+                _persistedHotkeys.Remove(agentId);
+
+            _settingsService?.SetHotkey(agentId, hotkeyCombo);
+            _settingsService?.Save();
+        }
+        PersistedSettingsChanged?.Invoke();
+    }
+
+    /// <summary>All agents with their effective hotkey (override or null).</summary>
+    public static System.Collections.Generic.IReadOnlyList<(AgentInfo Agent, string? Hotkey)> AllAgentsWithHotkeys
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _agents.Select(a => (a, _persistedHotkeys.TryGetValue(a.AgentId, out var hk) ? hk : (string?)null)).ToList().AsReadOnly();
+            }
+        }
+    }
+
+    /// <summary>Merge persisted settings from agents.json into the registry.</summary>
+    public static void MergePersistedSettings(AgentsConfig persisted)
+    {
+        lock (_lock)
+        {
+            foreach (var s in persisted.Agents)
+            {
+                if (s.HotkeyCombination != null)
+                    _persistedHotkeys[s.AgentId] = s.HotkeyCombination;
+            }
+        }
+    }
+
+    /// <summary>Fired when persisted settings change via SetPersistedHotkey.</summary>
+    public static event System.Action? PersistedSettingsChanged;
 
     /// <summary>Replaces the entire agent list. Resets active session if no longer valid.</summary>
     public static void SetAgents(IReadOnlyList<AgentInfo> agents)
