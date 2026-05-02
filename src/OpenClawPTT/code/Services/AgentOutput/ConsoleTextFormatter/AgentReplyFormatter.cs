@@ -72,6 +72,9 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     public void Reconfigure(string prefix, bool prefixAlreadyPrinted = false)
     {
         Init(prefix, prefixAlreadyPrinted, _output);
+        _openMarkupTags.Clear();
+        _wordBuffer.Clear();
+        _currentLineLength = 0;
     }
 
     /// <summary>
@@ -271,6 +274,14 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     {
         int availableWidth = GetAvailableWidth();
         FlushWordBuffer(availableWidth);
+        // Close all open markup tags so the output is valid self-contained markup.
+        // This also resets the open-tag stack for reuse across multiple
+        // ProcessMarkupDelta calls (e.g. one per code block line).
+        foreach (string _ in _openMarkupTags)
+        {
+            _output.Write("[/]");
+        }
+        _openMarkupTags.Clear();
         _output.WriteLine();
     }
 

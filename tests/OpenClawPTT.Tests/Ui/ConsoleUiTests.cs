@@ -55,35 +55,23 @@ public class ConsoleUiTests : IDisposable
     #region PrintHelpMenu
 
     [Fact]
-    public void PrintHelpMenu_HoldToTalkMode_IncludesCorrectModeDescription()
+    public void PrintHelpMenu_HelpLine_SendsCrewAndChatCommandInfo()
     {
         var messages = new List<string>();
         _shellHost.Setup(h => h.AddMessage(It.IsAny<string>()))
             .Callback<string>(m => messages.Add(m));
-        ConsoleUi.PrintHelpMenu("Alt+=", true);
+        ConsoleUi.PrintHelpMenu(new AppConfig());
         var allOutput = string.Join("", messages.Where(s => s != null));
-        Assert.Contains("Hold-to-talk", allOutput);
-        Assert.Contains("Alt+=", allOutput);
+        Assert.Contains("/crew", allOutput);
+        Assert.Contains("/chat", allOutput);
     }
 
     [Fact]
-    public void PrintHelpMenu_ToggleMode_IncludesCorrectModeDescription()
-    {
-        var messages = new List<string>();
-        _shellHost.Setup(h => h.AddMessage(It.IsAny<string>()))
-            .Callback<string>(m => messages.Add(m));
-        ConsoleUi.PrintHelpMenu("Space", false);
-        var allOutput = string.Join("", messages.Where(s => s != null));
-        Assert.Contains("Toggle recording", allOutput);
-        Assert.Contains("Space", allOutput);
-    }
-
-    [Fact]
-    public void PrintHelpMenu_SendsDeepSkyBlueMarkup()
+    public void PrintHelpMenu_HelpLine_SendsGreyMarkup()
     {
         _shellHost.Setup(h => h.AddMessage(It.IsAny<string>())).Verifiable();
-        ConsoleUi.PrintHelpMenu("Alt+=", true);
-        _shellHost.Verify(h => h.AddMessage(It.Is<string>(m => m.Contains("[deepskyblue3]"))), Times.AtLeastOnce);
+        ConsoleUi.PrintHelpMenu(new AppConfig());
+        _shellHost.Verify(h => h.AddMessage(It.Is<string>(m => m.Contains("[grey]"))), Times.AtLeastOnce);
     }
 
     #endregion
