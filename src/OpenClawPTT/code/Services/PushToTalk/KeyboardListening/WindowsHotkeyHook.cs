@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
@@ -96,14 +95,6 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
 
             bool isDown = msg is WM_KEYDOWN or WM_SYSKEYDOWN;
             bool isUp = msg is WM_KEYUP or WM_SYSKEYUP;
-            bool isSysKey = msg is WM_SYSKEYDOWN or WM_SYSKEYUP;
-
-            // Debug: log every key event on the hotkey's vkCode
-            if (info.vkCode == _hotkeyKeyCode || info.vkCode is 0xA4 or 0xA5)
-            {
-                ConsoleUi.Log("hook", $"vkCode=0x{info.vkCode:X4} msg=0x{msg:X4} isDown={isDown} isSysKey={isSysKey} modifiers=[" +
-                    string.Join(",", Enum.GetValues<Modifier>().Where(m => _modifierDown[m]).Select(m => m.ToString())) + "]");
-            }
 
             // Update modifier states
             foreach (var (mod, vkList) in _modifierKeyCodes)
@@ -118,7 +109,6 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
             // Check for Escape key (cancel recording)
             if (info.vkCode == VK_ESCAPE && isDown)
             {
-                ConsoleUi.Log("hook", "Escape pressed — firing EscapePressed");
                 ThreadPool.QueueUserWorkItem(_ => EscapePressed?.Invoke());
                 return new IntPtr(1);
             }
@@ -131,7 +121,6 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
                     // Verify modifiers match
                     if (ModifiersMatch())
                     {
-                        ConsoleUi.Log("hook", $"Hotkey MATCH — firing HotkeyPressed and HotkeyIndexPressed");
                         _hotkeyKeyDown = true;
                         int capturedIndex = 0; // Windows hook only supports single hotkey
                         ThreadPool.QueueUserWorkItem(_ =>
@@ -142,14 +131,9 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
                         // Block the keystroke so it doesn't reach the console/StreamShell
                         return new IntPtr(1);
                     }
-                    else
-                    {
-                        ConsoleUi.Log("hook", $"Hotkey key down but modifier mismatch");
-                    }
                 }
                 else if (isUp && _hotkeyKeyDown)
                 {
-                    ConsoleUi.Log("hook", $"Hotkey release — firing HotkeyReleased and HotkeyIndexReleased");
                     _hotkeyKeyDown = false;
                     int capturedIndex = 0;
                     ThreadPool.QueueUserWorkItem(_ =>
@@ -161,10 +145,6 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
                     return new IntPtr(1);
                 }
             }
-        }
-        else if (nCode < 0)
-        {
-            ConsoleUi.Log("hook", $"nCode < 0 ({nCode}), no hotkey configured");
         }
 
         return CallNextHookEx(_hookHandle, nCode, wParam, lParam);

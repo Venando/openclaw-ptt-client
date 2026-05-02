@@ -90,9 +90,6 @@ public sealed class StreamShellInputHandler : IDisposable
     /// </summary>
     private async void OnUserInput(string input, InputType type, IReadOnlyList<Attachment> attachments)
     {
-        // Debug: log all user input
-        ConsoleUi.Log("input", $"OnUserInput: type={type} input='{input.Replace("\n", "\\n")}' attachments={attachments?.Count ?? 0}");
-
         // Commands are auto-executed by StreamShell — skip
         if (type == InputType.Command)
             return;
