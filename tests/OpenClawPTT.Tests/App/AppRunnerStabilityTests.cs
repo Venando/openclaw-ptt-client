@@ -55,7 +55,8 @@ public class AppRunnerStabilityTests
             IAudioService audioService,
             IPttController pttController,
             ITextMessageSender textSender,
-            IInputHandler inputHandler) => PttLoop.Object;
+            IInputHandler inputHandler,
+            bool requireConfirmBeforeSend = false) => PttLoop.Object;
     }
 
     #region Test 1: ConnectAsync throws IOException → RunAsync returns Error(1)

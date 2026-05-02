@@ -39,9 +39,11 @@ public sealed class ServiceFactory : IServiceFactory
         IAudioService audioService,
         IPttController pttController,
         ITextMessageSender textSender,
-        IInputHandler inputHandler)
+        IInputHandler inputHandler,
+        bool requireConfirmBeforeSend = false)
     {
         var stateMachine = new PttStateMachine();
-        return new AppLoop(stateMachine, audioService, textSender, inputHandler, pttController);
+        return new AppLoop(stateMachine, audioService, textSender, inputHandler, pttController,
+            requireConfirmBeforeSend);
     }
 }

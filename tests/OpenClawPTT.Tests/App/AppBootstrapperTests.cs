@@ -42,7 +42,8 @@ public class AppBootstrapperTests : IDisposable
             It.IsAny<IAudioService>(),
             It.IsAny<IPttController>(),
             It.IsAny<ITextMessageSender>(),
-            It.IsAny<IInputHandler>()))
+            It.IsAny<IInputHandler>(),
+            It.IsAny<bool>()))
             .Returns(new Mock<IAppLoop>().Object);
     }
 

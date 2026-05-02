@@ -15,6 +15,7 @@ public sealed class AppLoop : IAppLoop
     private readonly ITextMessageSender _textSender;
     private readonly IInputHandler _inputHandler;
     private readonly IPttController _pttController;
+    private readonly bool _requireConfirmBeforeSend;
     private bool _disposed;
 
     public AppLoop(
@@ -22,13 +23,15 @@ public sealed class AppLoop : IAppLoop
         IAudioService audioService,
         ITextMessageSender textSender,
         IInputHandler inputHandler,
-        IPttController pttController)
+        IPttController pttController,
+        bool requireConfirmBeforeSend = false)
     {
         _pttStateMachine = stateMachine;
         _audioService = audioService;
         _textSender = textSender;
         _inputHandler = inputHandler;
         _pttController = pttController;
+        _requireConfirmBeforeSend = requireConfirmBeforeSend;
     }
 
     public AppLoopExitCode ExitCode { get; private set; } = AppLoopExitCode.Ok;
@@ -66,8 +69,36 @@ public sealed class AppLoop : IAppLoop
                 var transcribed = await _audioService.StopAndTranscribeAsync(ct);
                 if (transcribed != null)
                 {
-                    try { await _textSender.SendAsync(transcribed, ct); }
-                    catch { /* swallow: network/send errors do not kill the PTT loop */ }
+                    if (_requireConfirmBeforeSend)
+                    {
+                        ConsoleUi.PrintWarning("Press hotkey to send or Escape to discard");
+                        bool sent = false;
+                        while (!ct.IsCancellationRequested)
+                        {
+                            await Task.Delay(50, ct);
+                            if (_pttController.PollHotkeyPressed())
+                            {
+                                sent = true;
+                                break;
+                            }
+                            if (_pttController.PollCancelRecording())
+                            {
+                                ConsoleUi.PrintWarning("Message discarded.");
+                                break;
+                            }
+                        }
+
+                        if (sent)
+                        {
+                            try { await _textSender.SendAsync(transcribed, ct); }
+                            catch { /* swallow */ }
+                        }
+                    }
+                    else
+                    {
+                        try { await _textSender.SendAsync(transcribed, ct); }
+                        catch { /* swallow: network/send errors do not kill the PTT loop */ }
+                    }
                 }
                 _pttStateMachine.OnProcessingCompleted();
             }
