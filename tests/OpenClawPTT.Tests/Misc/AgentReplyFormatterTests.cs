@@ -524,4 +524,26 @@ items.map(i => console.log(i));
         Assert.DoesNotContain("[/][/]", result);
         ValidateMarkup(output);
     }
+
+    [Fact]
+    public void ProcessMarkupDelta_DoubleMarkdown()
+    {
+        var spectreMarkup = "[bold underline]Heading[/]";
+        var output = new StringWriterTextOutput { WindowWidth = 80 };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta(spectreMarkup);
+        formatter.Finish();
+        ValidateMarkup(output);
+    }
+
+    [Fact]
+    public void ProcessMarkupDelta_Multiple_AtOnce()
+    {
+        var spectreMarkup = "Some [bold]bold[/] and [italic]italic[/] and [bold italic]both[/] text with [strikethrough]strikethrough[/] and [bold yellow]inline code[/].";
+        var output = new StringWriterTextOutput { WindowWidth = 80 };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta(spectreMarkup);
+        formatter.Finish();
+        ValidateMarkup(output);
+    }
 }

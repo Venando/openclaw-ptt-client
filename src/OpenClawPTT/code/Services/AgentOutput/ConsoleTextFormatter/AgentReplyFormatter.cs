@@ -203,6 +203,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     {
         int availableWidth = GetAvailableWidth();
         bool insideTag = false;
+        int realVisibleWordLen = Markup.Remove(markup).Length;
         int visibleWordLen = 0;
 
         for (int i = 0; i < markup.Length; i++)
