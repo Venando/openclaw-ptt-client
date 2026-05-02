@@ -162,11 +162,40 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                 string tagContent = _wordBuffer.ToString(openPos + 1, closePos - openPos - 1);
                 if (tagContent == "/")
                 {
+                    // Generic close [/] — pop the most recent tag
                     if (_openMarkupTags.Count > 0)
                         _openMarkupTags.Pop();
                 }
+                else if (tagContent.StartsWith("/"))
+                {
+                    // Explicit close like [/dim], [/bold] — pop matching tag
+                    string closeTagName = tagContent.Substring(1);
+                    if (!string.IsNullOrEmpty(closeTagName) && _openMarkupTags.Count > 0)
+                    {
+                        // Pop from top until we find the matching tag
+                        // (handles proper nesting as well as mismatched close tags)
+                        var tempStack = new Stack<string>();
+                        bool found = false;
+                        while (_openMarkupTags.Count > 0)
+                        {
+                            string top = _openMarkupTags.Pop();
+                            if (string.Equals(top, closeTagName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                found = true;
+                                break;
+                            }
+                            tempStack.Push(top);
+                        }
+                        // Restore any tags that were above the matched one
+                        while (tempStack.Count > 0)
+                        {
+                            _openMarkupTags.Push(tempStack.Pop());
+                        }
+                    }
+                }
                 else if (!string.IsNullOrEmpty(tagContent))
                 {
+                    // Opening tag like [dim], [bold] — push onto stack
                     _openMarkupTags.Push(tagContent);
                 }
                 continue;

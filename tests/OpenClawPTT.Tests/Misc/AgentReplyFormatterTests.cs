@@ -305,4 +305,32 @@ public class AgentReplyFormatterTests
         Assert.DoesNotContain("\n", result.Trim());
         Assert.Contains("[white]1[/][gray]2[/]", result);
     }
+
+    [Fact]
+    public void ProcessMarkupDelta_FencedCodeBlock_WrapsWithoutDoubledDimTags()
+    {
+        // Spectre.Console fenced code blocks use [dim] tag with explicit [/dim] close.
+        // When word-wrapping breaks across lines, WriteNewLine() emits [/] then [dim]
+        // for the stack-managed tags. The [/dim] in the input must pop "dim" from the
+        // stack so subsequent line breaks don't emit [/][/] (doubled close tags).
+        var output = new StringWriterTextOutput { WindowWidth = 45 };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        // Available width: 45 - 0 - 5 = 40.
+        // We need wrapping to happen AFTER the [/dim] close. Use:
+        // [dim]xxx[/dim] + enough text after to force wrapping.
+        // The [dim]xxx[/dim] internal wrapping is handled by WriteNewLine.
+        // After [/dim] the stack should be clean (no dim tag).
+        // If the bug exists, [/dim] pushes "/dim" onto stack, causing doubled closes.
+        string markup = "[dim]" + new string('x', 25) + "[/dim] " + new string('x', 20);
+        formatter.ProcessMarkupDelta(markup);
+        formatter.Finish();
+        var result = output.Result.Replace("\r\n", "\n");
+        // The [dim] tag should appear
+        Assert.Contains("[dim]", result);
+        Assert.Contains("[/dim]", result);
+        // The output should have wrapped (visible text > available width)
+        Assert.Contains("\n", result.Trim());
+        // Should NOT contain doubled close tags [/][/]
+        Assert.DoesNotContain("[/][/]", result);
+    }
 }

@@ -34,8 +34,11 @@ public sealed class AgentHotkeyService : IDisposable
         // If there are agents with hotkeys, set up multi-hotkey hook
         if (AgentRegistry.Agents.Count > 0)
         {
-            var factory = hookFactory ?? new HotkeyHookFactory();
-            _hook = factory.Create(new Hotkey(new Key(' '), new HashSet<Modifier>()));
+            // Create hook directly via GlobalHotkeyHookFactory to avoid passing
+            // a dummy hotkey through HotkeyHookFactory.Create() which calls
+            // SetHotkey(validating mapping) on Windows and crashes.
+            // We call SetHotkeys() immediately after creation anyway.
+            _hook = GlobalHotkeyHookFactory.Create();
             RegisterAllAgentHotkeys();
             _hook.HotkeyIndexPressed += OnHotkeyPressed;
             _hook.HotkeyIndexReleased += OnHotkeyReleased;
