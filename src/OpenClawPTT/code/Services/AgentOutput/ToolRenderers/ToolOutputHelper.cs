@@ -14,7 +14,7 @@ public sealed class ToolOutputHelper : IToolOutput
     private readonly AgentReplyFormatter _agentReplayFormatter;
     private readonly StreamShellCapturingConsole _streamShellCapturingConsole;
 
-    private string _prefix;
+    private string? _prefix = null;
 
     /// <summary>
     /// Creates a ToolOutputHelper.
@@ -22,10 +22,7 @@ public sealed class ToolOutputHelper : IToolOutput
     /// <param name="shellHost">StreamShell host for markup output.</param>
     public ToolOutputHelper(IStreamShellHost shellHost)
     {
-        //_shellHost = shellHost;
-
         _streamShellCapturingConsole = new StreamShellCapturingConsole(shellHost);
-
         _agentReplayFormatter = new AgentReplyFormatter("", 10, prefixAlreadyPrinted: false, output: _streamShellCapturingConsole);
 
     }
@@ -43,7 +40,7 @@ public sealed class ToolOutputHelper : IToolOutput
 
     public void Flush()
     {
-        _streamShellCapturingConsole.FlushToStreamShell(_prefix);
+        _streamShellCapturingConsole.FlushToStreamShell(_prefix ?? "");
     }
 
     private void WriteToShell(string text, ConsoleColor color)

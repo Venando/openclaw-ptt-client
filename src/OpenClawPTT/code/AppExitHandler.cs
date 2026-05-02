@@ -44,8 +44,12 @@ public sealed class AppExitHandler : IDisposable
 
     private static void TryReadKey()
     {
-        try { Console.ReadKey(intercept: true); }
-        catch (InvalidOperationException) { /* no console in test runner */ }
+        try
+        {
+            if (Console.KeyAvailable)
+                Console.ReadKey(intercept: true);
+        }
+        catch (InvalidOperationException) { /* no console or stdin redirected */ }
     }
 
     public void Dispose() { }
