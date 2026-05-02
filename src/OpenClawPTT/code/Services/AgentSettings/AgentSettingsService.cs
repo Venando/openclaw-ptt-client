@@ -54,20 +54,31 @@ public sealed class AgentSettingsService
     }
 
     public void SetHotkey(string agentId, string? hotkeyCombo)
+        => SetField(agentId, s => s.HotkeyCombination = hotkeyCombo);
+
+    public string? GetEmoji(string agentId)
+    {
+        var entry = _settings.FirstOrDefault(s =>
+            s.AgentId.Equals(agentId, System.StringComparison.OrdinalIgnoreCase));
+        return entry?.Emoji;
+    }
+
+    public void SetEmoji(string agentId, string? emoji)
+        => SetField(agentId, s => s.Emoji = emoji);
+
+    private void SetField(string agentId, System.Action<AgentPersistedSettings> setter)
     {
         var entry = _settings.FirstOrDefault(s =>
             s.AgentId.Equals(agentId, System.StringComparison.OrdinalIgnoreCase));
         if (entry != null)
         {
-            entry.HotkeyCombination = hotkeyCombo;
+            setter(entry);
         }
         else
         {
-            _settings.Add(new AgentPersistedSettings
-            {
-                AgentId = agentId,
-                HotkeyCombination = hotkeyCombo
-            });
+            entry = new AgentPersistedSettings { AgentId = agentId };
+            setter(entry);
+            _settings.Add(entry);
         }
     }
 

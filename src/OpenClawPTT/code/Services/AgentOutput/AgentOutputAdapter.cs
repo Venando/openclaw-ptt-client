@@ -167,17 +167,22 @@ public sealed class AgentOutputAdapter : IDisposable
 
         var isAudioEnabled = _config.AudioResponseMode?.ToLowerInvariant() != "text-only";
         var agentName = AgentRegistry.ActiveAgentName ?? _config.AgentName ?? "Agent";
+        var activeKey = AgentRegistry.ActiveSessionKey;
+        var emoji = AgentRegistry.Agents
+            .Where(a => a.SessionKey == activeKey)
+            .Select(a => AgentRegistry.GetPersistedEmoji(a.AgentId))
+            .FirstOrDefault() ?? "🤖";
         if (isAudioEnabled && _hasAudioInCurrentMessage)
         {
-            _currentPrefix = $"  🤖 🔊 {agentName}: ";
+            _currentPrefix = $"  {emoji} 🔊 {agentName}: ";
         }
         else if (isAudioEnabled)
         {
-            _currentPrefix = $"  🤖 ✍️ {agentName}: ";
+            _currentPrefix = $"  {emoji} ✍️ {agentName}: ";
         }
         else
         {
-            _currentPrefix = $"  🤖 {agentName}: ";
+            _currentPrefix = $"  {emoji} {agentName}: ";
         }
 
         _prefixLength = _currentPrefix.Length;

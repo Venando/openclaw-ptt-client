@@ -14,6 +14,7 @@ public static class AgentRegistry
     private static List<AgentInfo> _agents = new();
     private static string? _activeSessionKey;
     private static Dictionary<string, string?> _persistedHotkeys = new(System.StringComparer.OrdinalIgnoreCase);
+    private static Dictionary<string, string?> _persistedEmojis = new(System.StringComparer.OrdinalIgnoreCase);
     private static AgentSettingsService? _settingsService;
 
     /// <summary>Event raised when the active session changes.</summary>
@@ -50,6 +51,31 @@ public static class AgentRegistry
         PersistedSettingsChanged?.Invoke();
     }
 
+    /// <summary>Get per-agent emoji override, or null for default (🤖).</summary>
+    public static string? GetPersistedEmoji(string agentId)
+    {
+        lock (_lock)
+        {
+            return _persistedEmojis.TryGetValue(agentId, out var emoji) ? emoji : null;
+        }
+    }
+
+    /// <summary>Set or clear per-agent emoji override. Fires PersistedSettingsChanged.</summary>
+    public static void SetPersistedEmoji(string agentId, string? emoji)
+    {
+        lock (_lock)
+        {
+            if (emoji != null)
+                _persistedEmojis[agentId] = emoji;
+            else
+                _persistedEmojis.Remove(agentId);
+
+            _settingsService?.SetEmoji(agentId, emoji);
+            _settingsService?.Save();
+        }
+        PersistedSettingsChanged?.Invoke();
+    }
+
     /// <summary>All agents with their effective hotkey (override or null).</summary>
     public static System.Collections.Generic.IReadOnlyList<(AgentInfo Agent, string? Hotkey)> AllAgentsWithHotkeys
     {
@@ -58,6 +84,22 @@ public static class AgentRegistry
             lock (_lock)
             {
                 return _agents.Select(a => (a, _persistedHotkeys.TryGetValue(a.AgentId, out var hk) ? hk : (string?)null)).ToList().AsReadOnly();
+            }
+        }
+    }
+
+    /// <summary>All agents with their effective hotkey and emoji.</summary>
+    public static System.Collections.Generic.IReadOnlyList<(AgentInfo Agent, string? Hotkey, string? Emoji)> AllAgentSettings
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _agents.Select(a => (
+                    a,
+                    _persistedHotkeys.TryGetValue(a.AgentId, out var hk) ? hk : (string?)null,
+                    _persistedEmojis.TryGetValue(a.AgentId, out var em) ? em : (string?)null
+                )).ToList().AsReadOnly();
             }
         }
     }
@@ -71,6 +113,8 @@ public static class AgentRegistry
             {
                 if (s.HotkeyCombination != null)
                     _persistedHotkeys[s.AgentId] = s.HotkeyCombination;
+                if (s.Emoji != null)
+                    _persistedEmojis[s.AgentId] = s.Emoji;
             }
         }
     }

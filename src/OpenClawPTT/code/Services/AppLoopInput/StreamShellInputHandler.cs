@@ -138,9 +138,13 @@ public sealed class StreamShellInputHandler : IDisposable
     /// </summary>
     private Task CrewHandler(string[] args, Dictionary<string, string> named)
     {
-        // Subcommand: /crew hotkey
-        if (args.Length > 0 && args[0].Equals("hotkey", System.StringComparison.OrdinalIgnoreCase))
-            return HandleHotkeyCommand(args.Skip(1).ToArray());
+        if (args.Length > 0)
+        {
+            if (args[0].Equals("hotkey", System.StringComparison.OrdinalIgnoreCase))
+                return HandleHotkeyCommand(args.Skip(1).ToArray());
+            if (args[0].Equals("emoji", System.StringComparison.OrdinalIgnoreCase))
+                return HandleEmojiCommand(args.Skip(1).ToArray());
+        }
 
         var agents = AgentRegistry.Agents;
         var activeKey = AgentRegistry.ActiveSessionKey;
@@ -156,20 +160,34 @@ public sealed class StreamShellInputHandler : IDisposable
         {
             var isActive = agent.SessionKey == activeKey;
             var marker = isActive ? " ►" : "  ";
-            _host.AddMessage($"  {marker} [bold]{Markup.Escape(agent.Name)}[/] [grey]({Markup.Escape(agent.AgentId)})[/]");
+            var emoji = AgentRegistry.GetPersistedEmoji(agent.AgentId);
+            var emojiStr = emoji != null ? $"{emoji} " : "";
+            _host.AddMessage($"  {marker} {emojiStr}[bold]{Markup.Escape(agent.Name)}[/] [grey]({Markup.Escape(agent.AgentId)})[/]");
         }
-        _host.AddMessage("[grey]  Use /chat <name|id> to switch or /crew hotkey to manage hotkeys[/]");
+        _host.AddMessage("[grey]  Use /chat <name|id> to switch, /crew hotkey or /crew emoji to manage settings[/]");
         return Task.CompletedTask;
+    }
+
+    private AgentInfo? ResolveAgent(string nameOrId)
+    {
+        // Try exact name/ID match
+        var matched = AgentRegistry.Agents.FirstOrDefault(a =>
+            a.Name.Equals(nameOrId, StringComparison.OrdinalIgnoreCase) ||
+            a.AgentId.Equals(nameOrId, StringComparison.OrdinalIgnoreCase));
+        if (matched != null) return matched;
+
+        // Fall back to active agent
+        var activeKey = AgentRegistry.ActiveSessionKey;
+        return AgentRegistry.Agents.FirstOrDefault(a => a.SessionKey == activeKey);
     }
 
     private Task HandleHotkeyCommand(string[] args)
     {
-        var agents = AgentRegistry.AllAgentsWithHotkeys;
         var globalHotkey = _configService.Load()?.HotkeyCombination ?? "Alt+=";
 
         if (args.Length == 0)
         {
-            // List all agents with hotkey info
+            var agents = AgentRegistry.AllAgentsWithHotkeys;
             _host.AddMessage("[cyan2]  Agent hotkey settings:[/]");
             foreach (var (agent, hotkey) in agents)
             {
@@ -178,24 +196,20 @@ public sealed class StreamShellInputHandler : IDisposable
                     : $"[grey](global: {Markup.Escape(globalHotkey)})[/]";
                 var isActive = agent.SessionKey == AgentRegistry.ActiveSessionKey;
                 var marker = isActive ? " ►" : "  ";
-                _host.AddMessage($"  {marker} [bold]{Markup.Escape(agent.Name)}[/] [grey]({Markup.Escape(agent.AgentId)})[/] — {displayHk}");
+                var emoji = AgentRegistry.GetPersistedEmoji(agent.AgentId);
+                var emojiStr = emoji != null ? $"{emoji} " : "";
+                _host.AddMessage($"  {marker} {emojiStr}[bold]{Markup.Escape(agent.Name)}[/] [grey]({Markup.Escape(agent.AgentId)})[/] — {displayHk}");
             }
             return Task.CompletedTask;
         }
 
-        // Look up agent
-        var search = args[0];
-        var matched = AgentRegistry.Agents.FirstOrDefault(a =>
-            a.Name.Equals(search, StringComparison.OrdinalIgnoreCase) ||
-            a.AgentId.Equals(search, StringComparison.OrdinalIgnoreCase));
+        // Resolve agent: if args[0] matches a name/id, use that agent; otherwise use active
+        var matched = ResolveAgent(args[0]);
+        bool nameIsAgentRef = matched != null && !IsHotkeyString(args[0]);
+        AgentInfo target;
+        int comboStart;
 
-        if (matched == null)
-        {
-            _host.AddMessage($"[red]  Agent not found: {Markup.Escape(search)}[/]");
-            return Task.CompletedTask;
-        }
-
-        if (args.Length == 1)
+        if (nameIsAgentRef && args.Length == 1)
         {
             // Show current hotkey for this agent
             var hk = AgentRegistry.GetPersistedHotkey(matched.AgentId);
@@ -204,25 +218,112 @@ public sealed class StreamShellInputHandler : IDisposable
             return Task.CompletedTask;
         }
 
-        if (args[1].Equals("--clear", StringComparison.OrdinalIgnoreCase))
+        if (nameIsAgentRef && args.Length >= 2)
         {
-            AgentRegistry.SetPersistedHotkey(matched.AgentId, null);
-            _host.AddMessage($"[green]  Cleared hotkey override for {Markup.Escape(matched.Name)}[/]");
+            target = matched;
+            comboStart = 1;
+        }
+        else
+        {
+            // Use active agent
+            var activeAgent = AgentRegistry.Agents.FirstOrDefault(a => a.SessionKey == AgentRegistry.ActiveSessionKey);
+            if (activeAgent == null)
+            {
+                _host.AddMessage("[yellow]  No active agent to configure.[/]");
+                return Task.CompletedTask;
+            }
+            target = activeAgent;
+            comboStart = 0;
+        }
+
+        var comboArgs = args.Skip(comboStart).ToArray();
+
+        if (comboArgs.Length > 0 && comboArgs[0].Equals("--clear", StringComparison.OrdinalIgnoreCase))
+        {
+            AgentRegistry.SetPersistedHotkey(target.AgentId, null);
+            _host.AddMessage($"[green]  Cleared hotkey override for {Markup.Escape(target.Name)}[/]");
             return Task.CompletedTask;
         }
 
-        // Set hotkey
-        var combo = string.Join(" ", args.Skip(1));
+        var combo = string.Join(" ", comboArgs);
         try
         {
             HotkeyMapping.Parse(combo);
-            AgentRegistry.SetPersistedHotkey(matched.AgentId, combo);
-            _host.AddMessage($"[green]  Set hotkey for {Markup.Escape(matched.Name)}: {Markup.Escape(combo)}[/]");
+            AgentRegistry.SetPersistedHotkey(target.AgentId, combo);
+            _host.AddMessage($"[green]  Set hotkey for {Markup.Escape(target.Name)}: {Markup.Escape(combo)}[/]");
         }
         catch (Exception ex)
         {
             _host.AddMessage($"[red]  Invalid hotkey: {Markup.Escape(ex.Message)}[/]");
         }
+
+        return Task.CompletedTask;
+    }
+
+    private static bool IsHotkeyString(string s)
+    {
+        return s.Contains('+') || s.Equals("--clear", System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    private Task HandleEmojiCommand(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            var agents = AgentRegistry.AllAgentSettings;
+            _host.AddMessage("[cyan2]  Agent emoji settings:[/]");
+            foreach (var (agent, _, emoji) in agents)
+            {
+                var isActive = agent.SessionKey == AgentRegistry.ActiveSessionKey;
+                var marker = isActive ? " ►" : "  ";
+                var display = emoji != null ? Markup.Escape(emoji) : "[grey](default 🤖)[/]";
+                _host.AddMessage($"  {marker} [bold]{Markup.Escape(agent.Name)}[/] [grey]({Markup.Escape(agent.AgentId)})[/] — {display}");
+            }
+            return Task.CompletedTask;
+        }
+
+        // Resolve agent
+        var matched = ResolveAgent(args[0]);
+        bool nameIsAgentRef = matched != null;
+        AgentInfo target;
+        int valueArgPos;
+
+        if (nameIsAgentRef && args.Length == 1)
+        {
+            // Show current emoji for this agent
+            var emoji = AgentRegistry.GetPersistedEmoji(matched.AgentId);
+            var display = emoji != null ? Markup.Escape(emoji) : "(default 🤖)";
+            _host.AddMessage($"  [bold]{Markup.Escape(matched.Name)}[/] emoji: {display}");
+            return Task.CompletedTask;
+        }
+
+        if (nameIsAgentRef && args.Length >= 2)
+        {
+            target = matched;
+            valueArgPos = 1;
+        }
+        else
+        {
+            var activeAgent = AgentRegistry.Agents.FirstOrDefault(a => a.SessionKey == AgentRegistry.ActiveSessionKey);
+            if (activeAgent == null)
+            {
+                _host.AddMessage("[yellow]  No active agent to configure.[/]");
+                return Task.CompletedTask;
+            }
+            target = activeAgent;
+            valueArgPos = 0;
+        }
+
+        var valueArg = args[valueArgPos];
+
+        if (valueArg.Equals("--clear", StringComparison.OrdinalIgnoreCase))
+        {
+            AgentRegistry.SetPersistedEmoji(target.AgentId, null);
+            _host.AddMessage($"[green]  Cleared emoji override for {Markup.Escape(target.Name)}[/]");
+            return Task.CompletedTask;
+        }
+
+        AgentRegistry.SetPersistedEmoji(target.AgentId, valueArg);
+        _host.AddMessage($"[green]  Set emoji for {Markup.Escape(target.Name)}: {Markup.Escape(valueArg)}[/]");
 
         return Task.CompletedTask;
     }
