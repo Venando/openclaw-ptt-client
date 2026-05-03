@@ -15,8 +15,8 @@ namespace OpenClawPTT;
 /// </summary>
 public sealed class TextMessageComposer
 {
-    private const int MaxAttachmentLines = 6;
-    private const int MaxAttachmentChars = 600;
+    private const int MaxAttachmentLines = 300;
+    private const int MaxAttachmentChars = 5000;
 
     private readonly IStreamShellHost _host;
     private readonly ITextMessageSender _textSender;
@@ -27,19 +27,26 @@ public sealed class TextMessageComposer
         _textSender = textSender;
     }
 
-    /// <summary>
-    /// Composes the message by prepending attachment content, then sends it.
-    /// Returns true if the message was sent successfully.
-    /// </summary>
-    public async Task<bool> SendWithAttachmentsAsync(string input, IReadOnlyList<Attachment>? attachments, CancellationToken ct)
+    public bool TryToComposeMessage(string input, IReadOnlyList<Attachment>? attachments, out string? result)
     {
         var message = ComposeMessage(input, attachments);
 
         if (string.IsNullOrWhiteSpace(message))
+        {
+            result = null;
             return false;
+        }
 
-        message = message.Trim();
+        result = message.Trim();
+        return true;
+    }
 
+    /// <summary>
+    /// Composes the message by prepending attachment content, then sends it.
+    /// Returns true if the message was sent successfully.
+    /// </summary>
+    public async Task<bool> SendWithAttachmentsAsync(string message, CancellationToken ct)
+    {
         try
         {
             await _textSender.SendAsync(message, ct);

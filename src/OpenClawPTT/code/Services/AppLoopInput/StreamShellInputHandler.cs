@@ -115,11 +115,13 @@ public sealed class StreamShellInputHandler : IDisposable
         if (type == InputType.Command)
             return;
 
+        _messageComposer.TryToComposeMessage(input, attachments, out string? composedMessage);
+
         // Use non-blocking send via fire-and-forget since StreamShell fires events synchronously.
         // Exceptions are caught and surfaced inside SendWithAttachmentsAsync.
         _ = Task.Run(async () =>
         {
-            await _messageComposer.SendWithAttachmentsAsync(input, attachments, CancellationToken.None);
+            await _messageComposer.SendWithAttachmentsAsync(composedMessage!, CancellationToken.None);
         });
     }
 
