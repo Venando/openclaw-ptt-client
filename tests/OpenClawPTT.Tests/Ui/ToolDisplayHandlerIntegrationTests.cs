@@ -657,6 +657,21 @@ public class ToolDisplayHandlerIntegrationTests
         Assert.Contains("喵萌奶茶屋", content);
     }
 
+    [Fact]
+    public void Handle_ExecTool_WithAnimeTorrentFilteringCommand()
+    {
+        var (handler, shellHost) = CreateHandler();
+
+        var arguments = "{\"command\":\"cd /home/ven/.openclaw/anime-agent && python3 -c \\\"\\nimport sys\\nsys.path.insert(0, '.')\\nimport importlib, json, re\\n\\n# Re-load the module to pick up changes\\nimport find_and_queue\\nimportlib.reload(find_and_queue)\\n\\n# Simulate what the search returns for Kill Ao Ep4\\n# We'll manually create the torrent list from Nyaa results\\ntorrents = [\\n {'title': '[SubsPlease] Kill Ao - 04 (1080p) [4B7FF44F].mkv', 'downloads': 2712, 'link': 'https://nyaa.si/view/2105366'},\\n {'title': '[Erai-raws] Kill Ao - 04 [1080p CR WEB-DL AVC AAC][MultiSub][657C6F22]', 'downloads': 1192, 'link': 'https://nyaa.si/view/2105357'},\\n {'title': '[ASW] Kill Ao - 04 [1080p HEVC x265 10Bit][AAC]', 'downloads': 836, 'link': 'https://nyaa.si/view/2105398'},\\n {'title': '【喵萌奶茶屋】★04月新番★[殺手青春 / KILL BLUE / Kill Ao][03][1080p][繁日雙語]', 'downloads': 248, 'link': 'https://nyaa.si/view/2104971'},\\n {'title': '【喵萌奶茶屋】★04月新番★[殺手青春 / KILL BLUE / Kill Ao][01][1080p][繁日雙語]', 'downloads': 317, 'link': 'https://nyaa.si/view/2098138'},\\n {'title': '【喵萌奶茶屋】★04月新番★[殺手青春 / KILL BLUE / Kill Ao][02][1080p][繁日雙語]', 'downloads': 269, 'link': 'https://nyaa.si/view/2100286'},\\n {'title': '[ANi] KILL BLUE / 殺手青春 - 04 [1080P][Baha][WEB-DL][AAC AVC][CHT][MP4]', 'downloads': 1274, 'link': 'https://nyaa.si/view/2105361'},\\n]\\n\\nfrom find_and_queue import filter_torrents, pick_best_torrent\\nfiltered = filter_torrents(\\n torrents=torrents,\\n anilist_id=198113,\\n episode=4,\\n season_int=1,\\n title_romaji='Kill Ao'\\n)\\nprint(f'Filtered count: {len(filtered)}')\\nfor t in filtered:\\n print(f' [{t[\\\"downloads\\\"]}d] {t[\\\"title\\\"]}')\\n\\nbest = pick_best_torrent(filtered)\\nprint()\\nprint('BEST:', best['title'] if best else 'NONE')\\n\\\"\"}";
+        handler.Handle("exec", arguments);
+
+        Assert.NotEmpty(shellHost.Messages);
+        AssertAllMessagesHaveValidMarkup(shellHost);
+        var content = string.Join("\n", shellHost.Messages);
+        Assert.Contains("python3", content);
+        Assert.Contains("Kill Ao", content);
+    }
+
     // ════════════════════════════════════════════════════════════════════════════
     // THEORYS — all known tools produce at least a header message
     // ════════════════════════════════════════════════════════════════════════════
