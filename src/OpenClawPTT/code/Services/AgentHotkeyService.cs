@@ -86,8 +86,7 @@ public sealed class AgentHotkeyService : IDisposable
         else
         {
             AgentRegistry.SetActiveAgent(agent.AgentId);
-            ConsoleUi.PrintAgentIntroduction(_cfg);
-            // Fetch and print session history (fire-and-forget)
+            // Fetch and print session history, then agent intro (fire-and-forget)
             if (_gatewayService != null)
                 _ = PrintHistoryAfterSwitchAsync(agent.SessionKey);
         }
@@ -114,19 +113,20 @@ public sealed class AgentHotkeyService : IDisposable
     private async Task PrintHistoryAfterSwitchAsync(string sessionKey)
     {
         var history = await _gatewayService!.FetchSessionHistoryAsync(sessionKey, limit: 5);
-        if (history == null || history.Count == 0)
+        if (history != null && history.Count > 0)
         {
-            return;
+            _shellHost.AddMessage("  [grey]── previous messages ──[/]");
+            foreach (var entry in history)
+            {
+                if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUi.PrintUserMessage(entry.Content);
+                else
+                    _gatewayService!.DisplayAssistantReply(entry.Content);
+            }
         }
 
-        _shellHost.AddMessage("  [grey]── previous messages ──[/]");
-        foreach (var entry in history)
-        {
-            if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
-                ConsoleUi.PrintUserMessage(entry.Content);
-            else
-                _gatewayService!.DisplayAssistantReply(entry.Content);
-        }
+        // Print agent intro after history (so it appears at the bottom)
+        ConsoleUi.PrintAgentIntroduction(_cfg);
     }
 
 
