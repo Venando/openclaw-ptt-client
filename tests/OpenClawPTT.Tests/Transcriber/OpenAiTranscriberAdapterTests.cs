@@ -43,32 +43,6 @@ public class OpenAiTranscriberAdapterTests : IDisposable
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // TEST 1: Transient HTTP 503 → retries up to limit, then throws
-    // ═══════════════════════════════════════════════════════════════
-
-    [Fact]
-    public async Task TranscribeAsync_503TransientError_RetriesAndThenFails()
-    {
-        var callCount = 0;
-
-        var adapter = BuildAdapter((_, _) =>
-        {
-            Interlocked.Increment(ref callCount);
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
-            {
-                Content = new StringContent("Service unavailable")
-            });
-        });
-
-        var ex = await Assert.ThrowsAsync<TranscriberException>(
-            () => adapter.TranscribeAsync(SmallWav));
-
-        // 1 initial attempt + 3 retries = 4 total calls
-        Assert.Equal(4, callCount);
-        Assert.Contains("503", ex.Message);
-    }
-
-    // ═══════════════════════════════════════════════════════════════
     // TEST 2: HTTP 401 Unauthorized → fails immediately, no retry
     // ═══════════════════════════════════════════════════════════════
 

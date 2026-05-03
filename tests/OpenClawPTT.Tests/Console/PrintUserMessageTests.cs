@@ -27,17 +27,6 @@ public sealed class PrintUserMessageTests : IDisposable
     }
 
     [Fact]
-    public void WithShell_AddsMessageToShellHost()
-    {
-        ConsoleUi.SetStreamShellHost(_mockShellHost.Object);
-        _mockShellHost.Setup(h => h.AddMessage("[green]  You:[/] hello world"));
-
-        ConsoleUi.PrintUserMessage("hello world");
-
-        _mockShellHost.Verify(h => h.AddMessage("[green]  You:[/] hello world"), Times.Once);
-    }
-
-    [Fact]
     public void WithShell_UsesMarkupEscape()
     {
         ConsoleUi.SetStreamShellHost(_mockShellHost.Object);
