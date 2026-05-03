@@ -58,16 +58,14 @@ public sealed class ExecToolRenderer : IToolRenderer
 
         // ── Executable ─────────────────────────────────────────────────────
         string execName = System.IO.Path.GetFileName(meta.Executable);
-        (string bg, string fg) = GetExecutableStyle(meta.Type);
-        string execTag = $"[{fg} on {bg}] {MarkupEscape(execName)} [/]";
-        _output.Print(execTag, ConsoleColor.White);
+        ConsoleColor execColor = GetExecutableColor(meta.Type);
+        _output.Print(execName, execColor);
 
         // ── Positional arguments ───────────────────────────────────────────
         foreach (var pos in meta.Positionals)
         {
-            string posTag = $"[cyan]{MarkupEscape(pos)}[/]";
             _output.Print(" ", ConsoleColor.White);
-            _output.Print(posTag, ConsoleColor.Cyan);
+            _output.Print(pos, ConsoleColor.Cyan);
         }
 
         // ── Flags ──────────────────────────────────────────────────────────
@@ -75,74 +73,66 @@ public sealed class ExecToolRenderer : IToolRenderer
         {
             if (flag.StartsWith("--"))
             {
-                string flagTag = $"[green]{MarkupEscape(flag)}[/]";
                 _output.Print(" ", ConsoleColor.White);
-                _output.Print(flagTag, ConsoleColor.Green);
+                _output.Print(flag, ConsoleColor.Green);
             }
             else
             {
-                string flagTag = $"[olive]{MarkupEscape(flag)}[/]";
                 _output.Print(" ", ConsoleColor.White);
-                _output.Print(flagTag, ConsoleColor.DarkYellow);
+                _output.Print(flag, ConsoleColor.DarkYellow);
             }
         }
 
         // ── Redirects ─────────────────────────────────────────────────────
         foreach (var redir in meta.Redirects)
         {
-            string redirTag = $"[grey]{MarkupEscape(redir)}[/]";
             _output.Print(" ", ConsoleColor.White);
-            _output.Print(redirTag, ConsoleColor.Gray);
+            _output.Print(redir, ConsoleColor.Gray);
         }
 
         // ── Pipe / chain indicators ────────────────────────────────────────
         if (meta.IsPiped)
         {
-            string pipeTag = " [grey]|[/] ";
-            _output.Print(pipeTag, ConsoleColor.Gray);
+            _output.Print(" | ", ConsoleColor.Gray);
         }
         if (meta.IsChained)
         {
-            string chainTag = " [grey]&&[/] ";
-            _output.Print(chainTag, ConsoleColor.Gray);
+            _output.Print(" && ", ConsoleColor.Gray);
         }
 
         // ── Here-doc summary ───────────────────────────────────────────────
         if (meta.HereDoc != null)
         {
-            string hereTag = $" [grey]<< '{MarkupEscape(meta.HereDoc.Delimiter)}'[/]";
-            _output.Print(hereTag, ConsoleColor.Gray);
+            _output.Print(" << '", ConsoleColor.Gray);
+            _output.Print(meta.HereDoc.Delimiter, ConsoleColor.Gray);
+            _output.Print("'", ConsoleColor.Gray);
 
             if (!string.IsNullOrEmpty(meta.HereDoc.TargetFile))
             {
-                string targetTag = $" [grey]> {MarkupEscape(meta.HereDoc.TargetFile)}[/]";
-                _output.Print(targetTag, ConsoleColor.Gray);
+                _output.Print(" > ", ConsoleColor.Gray);
+                _output.Print(meta.HereDoc.TargetFile, ConsoleColor.Gray);
             }
 
             int bodyLines = meta.HereDoc.Body.Split('\n').Length;
-            string bodyTag = $" [dim]({bodyLines} line{(bodyLines == 1 ? "" : "s")})[/]";
-            _output.Print(bodyTag, ConsoleColor.DarkGray);
+            _output.Print($" ({bodyLines} line{(bodyLines == 1 ? "" : "s")})", ConsoleColor.DarkGray);
         }
     }
 
-    private static string MarkupEscape(string text)
-        => text.Replace("[", "[[").Replace("]", "]]");
-
-    private static (string bg, string fg) GetExecutableStyle(CommandType type)
+    private static ConsoleColor GetExecutableColor(CommandType type)
     {
         return type switch
         {
-            CommandType.FileSystem => ("#1a3a1a", "lime"),
-            CommandType.FileContent => ("#1a2a4a", "deepskyblue"),
-            CommandType.Build => ("#2a1a4a", "violet"),
-            CommandType.PackageManager => ("#3a1a1a", "tomato"),
-            CommandType.Network => ("#1a2a4a", "cyan1"),
-            CommandType.Scripting => ("#2a2a2a", "orange1"),
-            CommandType.Process => ("#3a2a1a", "gold1"),
-            CommandType.HereDoc => ("#1a2020", "springgreen"),
-            CommandType.Pipe => ("#1a1a1a", "grey"),
-            CommandType.Chain => ("#1a1a1a", "grey"),
-            _ => ("#222222", "white"),
+            CommandType.FileSystem => ConsoleColor.Green,
+            CommandType.FileContent => ConsoleColor.Blue,
+            CommandType.Build => ConsoleColor.Magenta,
+            CommandType.PackageManager => ConsoleColor.Red,
+            CommandType.Network => ConsoleColor.Cyan,
+            CommandType.Scripting => ConsoleColor.Yellow,
+            CommandType.Process => ConsoleColor.DarkYellow,
+            CommandType.HereDoc => ConsoleColor.DarkCyan,
+            CommandType.Pipe => ConsoleColor.Gray,
+            CommandType.Chain => ConsoleColor.Gray,
+            _ => ConsoleColor.White,
         };
     }
 }

@@ -473,8 +473,8 @@ public class ToolDisplayHandlerIntegrationTests
         var json = JsonDocument.Parse("{\"command\":\"ls -la /tmp\"}").RootElement;
         renderer.Render(json, rightMarginIndent: 10);
 
-        // Should show executable with styled tag
-        Assert.Contains(output.Lines, l => l.Contains(" ls "));
+        // Should show executable
+        Assert.Contains(output.Lines, l => l.Contains("ls"));
         // Should show flags
         Assert.Contains(output.Lines, l => l.Contains("-la"));
         // Should show positional argument
@@ -571,6 +571,30 @@ public class ToolDisplayHandlerIntegrationTests
         Assert.Contains("/my/file.cs", all);
         Assert.Contains("foo", all);
         Assert.Contains("bar", all);
+    }
+
+    [Fact]
+    public void Handle_ExecTool_FullPipeline_ValidMarkup()
+    {
+        var (handler, shellHost) = CreateHandler();
+
+        var arguments = "{\"command\":\"cd ~/.openclaw/workspace/projects/openclaw-ptt/repo/.worktrees/exec-tool-renderer && dotnet test --no-build 2>&1 | tail -5\"}";
+        handler.Handle("exec", arguments);
+
+        // Should have produced messages (header + command content)
+        Assert.NotEmpty(shellHost.Messages);
+
+        // All messages must have valid Spectre markup
+        AssertAllMessagesHaveValidMarkup(shellHost);
+
+        // Should contain the exec tool icon and name in header
+        var header = shellHost.Messages[0];
+        Assert.Contains("▶️", header);
+        Assert.Contains("Exec", header);
+
+        // The command content should contain styled executable segments
+        var content = string.Join("\n", shellHost.Messages);
+        Assert.Contains("dotnet", content);
     }
 
     // ════════════════════════════════════════════════════════════════════════════
