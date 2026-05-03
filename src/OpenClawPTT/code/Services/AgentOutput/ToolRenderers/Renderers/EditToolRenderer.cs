@@ -18,7 +18,8 @@ public sealed class EditToolRenderer : IToolRenderer
         // Schema: { "path": "...", "edits": [{ "oldText": "...", "newText": "..." }] }
         if (args.TryGetProperty("path", out var pathProp))
         {
-            _output.Print(pathProp.GetString() ?? "", ConsoleColor.Gray);
+            string displayPath = FilePathDisplayHelper.FormatDisplayPath(pathProp.GetString() ?? "");
+            _output.Print(displayPath, ConsoleColor.Gray);
         }
 
         if (args.TryGetProperty("edits", out var editsProp) && editsProp.ValueKind == JsonValueKind.Array)

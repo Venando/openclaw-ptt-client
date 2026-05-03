@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.IO;
 
 namespace OpenClawPTT.Services;
 
@@ -16,27 +15,9 @@ public sealed class ReadToolRenderer : IToolRenderer
 
     public void Render(JsonElement args, int rightMarginIndent)
     {
-        const int maxLength = 50;
-        const int ellipsisPrefixLength = 5; // ".." separator
-        
         if (args.TryGetProperty("file", out var fileProp) || args.TryGetProperty("path", out fileProp))
         {
-            string filePath = fileProp.GetString() ?? "";
-            string displayPath;
-            if (filePath.Length > maxLength)
-            {
-                string fileName = Path.GetFileName(filePath);
-                string folder = Path.GetDirectoryName(filePath) ?? "";
-                int availableFolderLength = maxLength - fileName.Length - ellipsisPrefixLength;
-                string shortFolder = folder.Length > availableFolderLength
-                    ? string.Concat("..", folder.AsSpan(folder.Length - availableFolderLength))
-                    : folder;
-                displayPath = shortFolder + Path.DirectorySeparatorChar + fileName;
-            }
-            else
-            {
-                displayPath = filePath;
-            }
+            string displayPath = FilePathDisplayHelper.FormatDisplayPath(fileProp.GetString() ?? "");
             _output.Print(displayPath, ConsoleColor.Gray);
         }
         if (args.TryGetProperty("offset", out var offsetProp) &&
