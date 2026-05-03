@@ -43,7 +43,7 @@ public sealed class ExecToolRenderer : IToolRenderer
         if (!string.IsNullOrEmpty(meta.WorkingDirectory))
         {
             _output.Print("📂 ", ConsoleColor.DarkGray);
-            _output.Print(meta.WorkingDirectory, ConsoleColor.DarkGray);
+            _output.Print(FilePathDisplayHelper.FormatDisplayPath(meta.WorkingDirectory), ConsoleColor.DarkGray);
             _output.Print(" ", ConsoleColor.DarkGray);
         }
 
@@ -66,7 +66,7 @@ public sealed class ExecToolRenderer : IToolRenderer
         foreach (var pos in meta.Positionals)
         {
             _output.Print(" ", ConsoleColor.White);
-            _output.Print(TruncateLong(pos), ConsoleColor.Cyan);
+            _output.Print(FormatToken(pos), ConsoleColor.Cyan);
         }
 
         // ── Script body (compact display) ────────────────────────────────────
@@ -92,12 +92,12 @@ public sealed class ExecToolRenderer : IToolRenderer
             if (flag.StartsWith("--"))
             {
                 _output.Print(" ", ConsoleColor.White);
-                _output.Print(TruncateLong(flag), ConsoleColor.Green);
+                _output.Print(FormatToken(flag), ConsoleColor.Green);
             }
             else
             {
                 _output.Print(" ", ConsoleColor.White);
-                _output.Print(TruncateLong(flag), ConsoleColor.DarkYellow);
+                _output.Print(FormatToken(flag), ConsoleColor.DarkYellow);
             }
         }
 
@@ -105,7 +105,7 @@ public sealed class ExecToolRenderer : IToolRenderer
         foreach (var redir in meta.Redirects)
         {
             _output.Print(" ", ConsoleColor.White);
-            _output.Print(TruncateLong(redir), ConsoleColor.Gray);
+            _output.Print(FormatToken(redir), ConsoleColor.Gray);
         }
 
         // ── Pipe / chain indicators ────────────────────────────────────────
@@ -152,6 +152,32 @@ public sealed class ExecToolRenderer : IToolRenderer
             CommandType.Chain => ConsoleColor.Gray,
             _ => ConsoleColor.White,
         };
+    }
+
+    /// <summary>
+    /// Formats a token for display: if it looks like a file path, use
+    /// <see cref="FilePathDisplayHelper.FormatDisplayPath"/>; otherwise
+    /// fall back to truncation for very long tokens.
+    /// </summary>
+    private static string FormatToken(string token)
+    {
+        if (LooksLikePath(token))
+            return FilePathDisplayHelper.FormatDisplayPath(token);
+        return TruncateLong(token);
+    }
+
+    /// <summary>
+    /// Heuristic: does <paramref name="token"/> look like a file or dir path?
+    /// Checks for absolute/home/relative path prefixes or directory separators.
+    /// </summary>
+    private static bool LooksLikePath(string token)
+    {
+        if (token.Length == 0) return false;
+        if (token[0] == '/' || token[0] == '~') return true;
+        if (token.StartsWith("./") || token.StartsWith("../")) return true;
+        // Only match '/' if the token doesn't contain brackets (likely markup remnants)
+        if (token.Contains('[') || token.Contains(']')) return false;
+        return token.Contains('/');
     }
 
     /// <summary>
