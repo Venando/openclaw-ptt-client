@@ -49,6 +49,8 @@ public sealed class StreamShellCapturingConsole : IFormattedOutput
             _shellHost?.AddMessage(i == 0 ? prefix + line : line);
         }
 
+        _shellHost?.AddMessage("");
+
         _buffer.Clear();
     }
 
