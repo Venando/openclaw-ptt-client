@@ -66,7 +66,7 @@ public sealed class ExecToolRenderer : IToolRenderer
         foreach (var pos in meta.Positionals)
         {
             _output.Print(" ", ConsoleColor.White);
-            _output.Print(pos, ConsoleColor.Cyan);
+            _output.Print(TruncateLong(pos), ConsoleColor.Cyan);
         }
 
         // ── Script body (compact display) ────────────────────────────────────
@@ -92,12 +92,12 @@ public sealed class ExecToolRenderer : IToolRenderer
             if (flag.StartsWith("--"))
             {
                 _output.Print(" ", ConsoleColor.White);
-                _output.Print(flag, ConsoleColor.Green);
+                _output.Print(TruncateLong(flag), ConsoleColor.Green);
             }
             else
             {
                 _output.Print(" ", ConsoleColor.White);
-                _output.Print(flag, ConsoleColor.DarkYellow);
+                _output.Print(TruncateLong(flag), ConsoleColor.DarkYellow);
             }
         }
 
@@ -105,7 +105,7 @@ public sealed class ExecToolRenderer : IToolRenderer
         foreach (var redir in meta.Redirects)
         {
             _output.Print(" ", ConsoleColor.White);
-            _output.Print(redir, ConsoleColor.Gray);
+            _output.Print(TruncateLong(redir), ConsoleColor.Gray);
         }
 
         // ── Pipe / chain indicators ────────────────────────────────────────
@@ -152,5 +152,17 @@ public sealed class ExecToolRenderer : IToolRenderer
             CommandType.Chain => ConsoleColor.Gray,
             _ => ConsoleColor.White,
         };
+    }
+
+    /// <summary>
+    /// Truncates long tokens to a max width, replacing newlines with spaces
+    /// and appending "..." when truncated. Tokens under 100 chars pass through.
+    /// </summary>
+    private static string TruncateLong(string token)
+    {
+        if (token.Length <= 100) return token;
+        var preview = token.Replace('\n', ' ').Replace('\r', ' ');
+        if (preview.Length > 97) preview = preview[..97] + "...";
+        return preview;
     }
 }
