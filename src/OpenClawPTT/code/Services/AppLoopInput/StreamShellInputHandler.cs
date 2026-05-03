@@ -409,15 +409,9 @@ public sealed class StreamShellInputHandler : IDisposable
         _host.AddMessage("  [grey]── previous messages ──[/]");
         foreach (var entry in history)
         {
-            var content = entry.Content;
-            if (content.Length > 200)
-                content = content[..200] + "...";
-
-            var escapedContent = Markup.Escape(content);
+            var escapedContent = Markup.Escape(entry.Content);
             if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
-            {
                 _host.AddMessage($"  🟢 [green]You:[/] {escapedContent}");
-            }
             else
             {
                 var agentName = AgentRegistry.ActiveAgentName ?? "Agent";
