@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 
 namespace OpenClawPTT.Services;
@@ -21,6 +22,7 @@ internal static class FilePathDisplayHelper
     /// <summary>
     /// Formats a file path for display, truncating the directory portion
     /// if the full path exceeds <see cref="MaxLength"/> characters.
+    /// Truncation preserves whole directory names — never shows partial folders.
     /// </summary>
     /// <param name="filePath">The full file path.</param>
     /// <returns>A path string suitable for display, possibly shortened.</returns>
@@ -33,9 +35,27 @@ internal static class FilePathDisplayHelper
         string folder = Path.GetDirectoryName(filePath) ?? "";
         int availableFolderLength = MaxLength - fileName.Length - EllipsisPrefixLength;
 
-        string shortFolder = folder.Length > availableFolderLength
-            ? string.Concat("..", folder.AsSpan(folder.Length - availableFolderLength))
-            : folder;
+        // Split into directory components and rebuild from the end,
+        // keeping only complete directory names that fit.
+        var parts = folder.Split(Path.DirectorySeparatorChar);
+        var kept = new List<string>();
+        int currentLength = 0;
+
+        for (int i = parts.Length - 1; i >= 0; i--)
+        {
+            string part = parts[i];
+            int addLength = part.Length + 1; // +1 for separator
+            if (currentLength + addLength > availableFolderLength)
+                break;
+            kept.Insert(0, part);
+            currentLength += addLength;
+        }
+
+        string shortFolder = kept.Count == 0
+            ? "..."
+            : kept.Count < parts.Length
+                ? "..." + Path.DirectorySeparatorChar + string.Join(Path.DirectorySeparatorChar.ToString(), kept)
+                : string.Join(Path.DirectorySeparatorChar.ToString(), kept);
 
         return shortFolder + Path.DirectorySeparatorChar + fileName;
     }
