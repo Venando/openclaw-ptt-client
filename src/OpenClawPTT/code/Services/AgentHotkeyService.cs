@@ -123,7 +123,7 @@ public sealed class AgentHotkeyService : IDisposable
         foreach (var entry in history)
         {
             if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
-                _shellHost.AddMessage($"  🟢 [green]You:[/] {Markup.Escape(entry.Content)}");
+                ConsoleUi.PrintUserMessage(entry.Content);
             else
                 _gatewayService!.DisplayAssistantReply(entry.Content);
         }

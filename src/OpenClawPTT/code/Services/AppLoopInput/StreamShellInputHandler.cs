@@ -385,8 +385,8 @@ public sealed class StreamShellInputHandler : IDisposable
 
         if (AgentRegistry.SetActiveAgent(matched.AgentId))
         {
-            ConsoleUi.PrintAgentIntroduction(_appConfig);
             await PrintSessionHistory(matched.SessionKey);
+            ConsoleUi.PrintAgentIntroduction(_appConfig);
         }
         else
             _host.AddMessage("[yellow]  That agent is already active.[/]");
@@ -407,7 +407,7 @@ public sealed class StreamShellInputHandler : IDisposable
         foreach (var entry in history)
         {
             if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
-                _host.AddMessage($"  🟢 [green]You:[/] {Markup.Escape(entry.Content)}");
+                ConsoleUi.PrintUserMessage(entry.Content);
             else
                 _gatewayService.DisplayAssistantReply(entry.Content);
         }
