@@ -218,13 +218,24 @@ public sealed class GatewayClient : IGatewayClient
             ConsoleUi.Log("debug", $"[History] Found {messagesEl.GetArrayLength()} entries");
 
             var entries = new List<ChatHistoryEntry>(limit);
-            int count = 0;
             foreach (JsonElement msg in messagesEl.EnumerateArray())
             {
-                if (count >= limit) break;
-                count++;
-
                 var role = msg.TryGetProperty("role", out var r) ? r.GetString() ?? "" : "";
+
+                // Skip system/internal messages — only show conversation (user/assistant)
+                if (!string.Equals(role, "user", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(role, "assistant", StringComparison.OrdinalIgnoreCase))
+                {
+                    ConsoleUi.Log("debug", $"[History] Skipping non-conversation role={role}");
+                    continue;
+                }
+
+                if (entries.Count >= limit)
+                {
+                    ConsoleUi.Log("debug", $"[History] Reached limit of {limit}, stopping");
+                    break;
+                }
+
                 var content = ExtractMessageContent(msg);
                 var createdAt = msg.TryGetProperty("createdAt", out var c)
                     ? DateTime.TryParse(c.GetString(), out var dt) ? dt : (DateTime?)null
