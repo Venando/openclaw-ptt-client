@@ -202,6 +202,16 @@ internal sealed class TestableGatewayService : IGatewayService
     public event Action<string, JsonElement>? EventReceived;
     public event Action<string>? AgentReplyAudio;
 
+    public Task<List<ChatHistoryEntry>?> FetchSessionHistoryAsync(string sessionKey, int limit = 5)
+    {
+        return _gatewayClient.FetchSessionHistoryAsync(sessionKey, limit);
+    }
+
+    public void DisplayAssistantReply(string body)
+    {
+        AgentReplyFull?.Invoke(body);
+    }
+
     public TestableGatewayService(AppConfig config, IGatewayClient gatewayClient)
     {
         _config = config;
