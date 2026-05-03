@@ -218,8 +218,18 @@ public sealed class GatewayClient : IGatewayClient
             ConsoleUi.Log("debug", $"[History] Found {messagesEl.GetArrayLength()} entries");
 
             var entries = new List<ChatHistoryEntry>(limit);
-            foreach (JsonElement msg in messagesEl.EnumerateArray())
+            var totalEntries = messagesEl.GetArrayLength();
+
+            // Iterate backwards — most recent messages are at the end
+            for (int i = totalEntries - 1; i >= 0; i--)
             {
+                if (entries.Count >= limit)
+                {
+                    ConsoleUi.Log("debug", $"[History] Reached limit of {limit}, stopping");
+                    break;
+                }
+
+                var msg = messagesEl[i];
                 var role = msg.TryGetProperty("role", out var r) ? r.GetString() ?? "" : "";
 
                 // Skip system/internal messages — only show conversation (user/assistant)
@@ -228,12 +238,6 @@ public sealed class GatewayClient : IGatewayClient
                 {
                     ConsoleUi.Log("debug", $"[History] Skipping non-conversation role={role}");
                     continue;
-                }
-
-                if (entries.Count >= limit)
-                {
-                    ConsoleUi.Log("debug", $"[History] Reached limit of {limit}, stopping");
-                    break;
                 }
 
                 var content = ExtractMessageContent(msg);
@@ -254,6 +258,9 @@ public sealed class GatewayClient : IGatewayClient
                     CreatedAt = createdAt,
                 });
             }
+
+            // Reverse so oldest-to-newest for display (newest last)
+            entries.Reverse();
 
             ConsoleUi.Log("debug", $"[History] Returning {entries.Count} entries");
             return entries;
