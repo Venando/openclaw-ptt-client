@@ -155,6 +155,7 @@ public sealed class ExecToolRenderer : IToolRenderer
             CommandType.Scripting => ConsoleColor.Yellow,
             CommandType.Process => ConsoleColor.DarkYellow,
             CommandType.HereDoc => ConsoleColor.DarkCyan,
+            CommandType.Vcs => ConsoleColor.DarkYellow,
             CommandType.Pipe => ConsoleColor.Gray,
             CommandType.Chain => ConsoleColor.Gray,
             _ => ConsoleColor.White,

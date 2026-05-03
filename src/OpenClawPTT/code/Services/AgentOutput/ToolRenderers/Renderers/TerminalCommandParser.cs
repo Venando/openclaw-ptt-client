@@ -19,6 +19,7 @@ public enum CommandType
     Chain,        // compound with && or ||
     Variable,     // export, env=value cmd
     Scripting,    // sh, bash, python, node, mono, dotnet-script
+    Vcs,          // git, svn, hg
 }
 
 public sealed class CommandMetadata
@@ -144,6 +145,10 @@ public static class TerminalCommandParser
             ["dotnet"] = CommandType.Build,
             ["csc"] = CommandType.Build,
             ["mcs"] = CommandType.Build,
+            // VCS
+            ["git"] = CommandType.Vcs,
+            ["svn"] = CommandType.Vcs,
+            ["hg"] = CommandType.Vcs,
             // Scripting / runtime
             ["sh"] = CommandType.Scripting,
             ["bash"] = CommandType.Scripting,

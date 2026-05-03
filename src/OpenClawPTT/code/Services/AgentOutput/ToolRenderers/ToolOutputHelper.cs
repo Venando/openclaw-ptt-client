@@ -48,13 +48,21 @@ public sealed class ToolOutputHelper : IToolOutput
         var colorName = color switch
         {
             ConsoleColor.Gray => "grey",
-            ConsoleColor.Green => "green",
-            ConsoleColor.Red => "red",
-            ConsoleColor.Yellow => "yellow",
-            ConsoleColor.Cyan => "cyan",
             ConsoleColor.DarkGray => "grey",
-            ConsoleColor.White => "white",
+            ConsoleColor.Black => "black",
+            ConsoleColor.Red => "red",
+            ConsoleColor.DarkRed => "darkred",
+            ConsoleColor.Green => "green",
+            ConsoleColor.DarkGreen => "darkgreen",
+            ConsoleColor.Yellow => "yellow",
             ConsoleColor.DarkYellow => "olive",
+            ConsoleColor.Blue => "blue",
+            ConsoleColor.DarkBlue => "darkblue",
+            ConsoleColor.Magenta => "magenta",
+            ConsoleColor.DarkMagenta => "darkmagenta",
+            ConsoleColor.Cyan => "cyan",
+            ConsoleColor.DarkCyan => "darkcyan",
+            ConsoleColor.White => "white",
             _ => "default"
         };
         
