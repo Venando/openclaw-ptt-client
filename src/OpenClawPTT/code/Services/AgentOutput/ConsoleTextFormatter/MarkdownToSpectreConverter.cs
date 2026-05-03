@@ -45,6 +45,11 @@ public static class MarkdownToSpectreConverter
     // Fenced code block delimiter: ``` optionally followed by a language name.
     private static readonly Regex FencePattern = new(@"^```", RegexOptions.Compiled);
 
+    // ── Placeholder tokens for inline code protection ───────────────────────
+    // These are unlikely to appear in real markdown input.
+    private const string CodePlaceholderPrefix = "\x00CODE";
+    private const string CodePlaceholderSuffix = "\x00";
+
     /// <summary>
     /// Converts <paramref name="markdown"/> to a Spectre.Console markup string.
     /// </summary>
@@ -146,21 +151,50 @@ public static class MarkdownToSpectreConverter
 
     private static string ConvertInline(string text)
     {
-        // Step 1: escape any literal '[' or ']' that are NOT part of a
-        //         Markdown link so they don't confuse Spectre's parser.
-        //         We do this before applying inline patterns so that the
-        //         patterns themselves can still inject '[' and ']' for markup.
+        // Step 0: Escape square brackets that are NOT part of markdown link
+        //         syntax so Spectre treats them as literals.
         text = EscapeBracketsExceptLinks(text);
 
-        // Step 2: apply inline patterns in precedence order.
+        // Step 1: Protect inline code (backtick) content so no other pattern
+        //         touches it. Code placeholders are safe from all regexes.
+        var codePlaceholders = new System.Collections.Generic.Dictionary<int, string>();
+        int codeIdx = 0;
+        text = InlineCode.Replace(text, m =>
+        {
+            string content = m.Groups[1].Value;
+            int idx = codeIdx++;
+            codePlaceholders[idx] = content;
+            return CodePlaceholderPrefix + idx + CodePlaceholderSuffix;
+        });
+
+        // Step 2: Convert markdown links [label](url) to Spectre link markup.
+        //         This must happen BEFORE applying formatting patterns so
+        //         that labels containing **bold** are captured correctly
+        //         (the Link regex needs the original `[]` brackets, not
+        //         already-converted Spectre tags which contain `]` breaks).
+        //         For each link, formatting is applied to the label text
+        //         first, then merged into the link tag.
+        text = ConvertLinksWithFormatting(text);
+
+        // Step 3: Apply formatting patterns (bold, italic, etc.) to the
+        //         remaining text. These won't match link placeholders because
+        //         links have already been converted to Spectre markup.
         text = BoldItalicStars.Replace(text, "[bold italic]$1[/]");
         text = BoldStars.Replace(text, "[bold]$1[/]");
         text = BoldUnderscores.Replace(text, "[bold]$1[/]");
         text = ItalicStars.Replace(text, "[italic]$1[/]");
         text = ItalicUnderscores.Replace(text, "[italic]$1[/]");
         text = Strikethrough.Replace(text, "[strikethrough]$1[/]");
-        text = InlineCode.Replace(text, "[bold gray89 on darkblue]$1[/]");
-        text = Link.Replace(text, "[link=$2]$1[/]");
+
+        // Step 4: Restore inline code as [bold gray89 on darkblue]content[/].
+        //         This must be the final step so that Spectre tags from
+        //         code restoration don't interfere with anything else.
+        for (int i = 0; i < codeIdx; i++)
+        {
+            text = text.Replace(
+                CodePlaceholderPrefix + i + CodePlaceholderSuffix,
+                "[bold gray89 on darkblue]" + codePlaceholders[i] + "[/]");
+        }
 
         return text;
     }
@@ -202,5 +236,52 @@ public static class MarkdownToSpectreConverter
             protected_ = protected_.Replace($"\x00LINK{i}\x00", placeholders[i]);
 
         return protected_;
+    }
+
+    /// <summary>
+    /// Converts markdown links <c>[label](url)</c> to Spectre link markup,
+    /// applying formatting patterns (bold, italic, etc.) to the label first.
+    /// </summary>
+    /// <remarks>
+    /// This runs <em>before</em> the generic formatting pass on the surrounding
+    /// text so that link labels containing <c>**bold**</c> are correctly captured
+    /// by the Link regex (which requires unaltered <c>[]</c> brackets).
+    /// If the label contains formatting, the outermost style is merged into
+    /// the link tag: <c>[**bold link**](http://x.com)</c> →
+    /// <c>[bold link=http://x.com]bold link[/]</c>.
+    /// </remarks>
+    private static string ConvertLinksWithFormatting(string text)
+    {
+        return Link.Replace(text, m =>
+        {
+            string label = m.Groups[1].Value;
+            string url = m.Groups[2].Value;
+
+            // First, escape brackets inside the label text that are not
+            // part of inline patterns — but the label's brackets were already
+            // escaped by EscapeBracketsExceptLinks. The label may contain
+            // patterns like **bold** which we need to process.
+            string formattedLabel = label;
+            formattedLabel = BoldItalicStars.Replace(formattedLabel, "[bold italic]$1[/]");
+            formattedLabel = BoldStars.Replace(formattedLabel, "[bold]$1[/]");
+            formattedLabel = BoldUnderscores.Replace(formattedLabel, "[bold]$1[/]");
+            formattedLabel = ItalicStars.Replace(formattedLabel, "[italic]$1[/]");
+            formattedLabel = ItalicUnderscores.Replace(formattedLabel, "[italic]$1[/]");
+            formattedLabel = Strikethrough.Replace(formattedLabel, "[strikethrough]$1[/]");
+
+            // Check if the formatted label has an outermost Spectre tag
+            // like [bold]bold link[/]. If so, merge the style into the link tag.
+            var outerTagMatch = Regex.Match(
+                formattedLabel, @"^\[([a-z0-9 ]+)\](.+)\[/\]$", RegexOptions.Singleline);
+
+            if (outerTagMatch.Success)
+            {
+                string style = outerTagMatch.Groups[1].Value;
+                string inner = outerTagMatch.Groups[2].Value;
+                return $"[{style} link={url}]{inner}[/]";
+            }
+
+            return $"[link={url}]{formattedLabel}[/]";
+        });
     }
 }
