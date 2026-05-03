@@ -88,13 +88,18 @@ public sealed class ToolOutputHelper : IToolOutput
         _agentReplayFormatter.ProcessDelta("\n");
     }
 
-    public void PrintTruncated(string text, string continuationPrefix, int rightMarginIndent, ConsoleColor color = ConsoleColor.White)
+    public void PrintMarkup(string markup)
+    {
+        _agentReplayFormatter.ProcessMarkupDelta(markup);
+    }
+
+    public void PrintTruncated(string text, string continuationPrefix, int rightMarginIndent, ConsoleColor color = ConsoleColor.White, int maxRows = 4)
     {
         if (string.IsNullOrEmpty(text)) return;
 
         var allLines = text.Split('\n');
-        var displayLines = allLines.Take(4).ToArray();
-        bool hasMore = allLines.Length > 4;
+        var displayLines = allLines.Take(maxRows).ToArray();
+        bool hasMore = allLines.Length > maxRows;
 
         foreach (var line in displayLines)
         {
@@ -102,6 +107,6 @@ public sealed class ToolOutputHelper : IToolOutput
                 PrintLine(line, color);
         }
         if (hasMore)
-            PrintLine($"... ({allLines.Length - 4} more lines)", ConsoleColor.DarkGray);
+            PrintLine($"... ({allLines.Length - maxRows} more lines)", ConsoleColor.DarkGray);
     }
 }

@@ -17,15 +17,12 @@ public sealed class WriteToolRenderer : IToolRenderer
     {
         if (args.TryGetProperty("path", out var pathProp))
         {
-            _output.Print(pathProp.GetString() ?? "", ConsoleColor.Gray);
+            _output.PrintLine(FilePathDisplayHelper.FormatDisplayPath(pathProp.GetString() ?? ""), ConsoleColor.Gray);
         }
         if (args.TryGetProperty("content", out var contentProp))
         {
-            _output.PrintLine("");
-            const string contentPrefix = "Content:  ";
-            _output.Print(contentPrefix, ConsoleColor.DarkGray);
             var content = contentProp.GetString() ?? "";
-            _output.PrintTruncated(content, contentPrefix, rightMarginIndent);
+            _output.PrintTruncated(content, "", rightMarginIndent, maxRows: 8);
         }
     }
 }
