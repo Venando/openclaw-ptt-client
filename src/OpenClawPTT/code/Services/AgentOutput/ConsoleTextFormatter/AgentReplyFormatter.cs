@@ -381,10 +381,37 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     }
 
     /// <summary>
-    /// Checks whether a single style token (one word, no spaces) is a valid
-    /// Spectre decoration or color name. Supports hex colors.
+    /// Checks whether a style token string (which may contain multiple
+    /// space-separated tokens like "bold gray89") is valid.
+    /// Supports hex colors and known decoration/color keywords.
     /// </summary>
     private static bool IsKnownStyleToken(string token)
+    {
+        token = token.Trim();
+        if (string.IsNullOrEmpty(token))
+            return false;
+
+        // If the token contains spaces, split and validate each part
+        int spaceIdx = token.IndexOf(' ');
+        if (spaceIdx >= 0)
+        {
+            string[] parts = token.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in parts)
+            {
+                if (!IsKnownSingleStyleToken(part))
+                    return false;
+            }
+            return true;
+        }
+
+        return IsKnownSingleStyleToken(token);
+    }
+
+    /// <summary>
+    /// Checks a single style token (no spaces) against known Spectre keywords.
+    /// Hex colors and named colors/decoartions are accepted.
+    /// </summary>
+    private static bool IsKnownSingleStyleToken(string token)
     {
         token = token.Trim();
         if (string.IsNullOrEmpty(token))

@@ -585,7 +585,16 @@ items.map(i => console.log(i));
         ValidateMarkup(output);
     }
 
-     
+    [Fact]
+    public void ProcessMarkupDelta_MultiLayerMarkup()
+    {
+        var spectreMarkup = "[bold gray89 on darkblue]a[/] and [bold gray89 on darkblue]b[/]";
+        var output = new StringWriterTextOutput { WindowWidth = 70 };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta(spectreMarkup);
+        formatter.Finish();
+        ValidateMarkup(output);
+    }
 
     [Theory]
     [InlineData(5, 30)]
