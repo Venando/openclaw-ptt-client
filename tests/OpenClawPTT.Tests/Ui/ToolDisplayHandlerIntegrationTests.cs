@@ -558,8 +558,8 @@ public class ToolDisplayHandlerIntegrationTests
         var output = new CapturingToolOutput();
         var renderer = new EditToolRenderer(output);
 
-        // Note: EditToolRenderer uses file_path (snake), old_string (snake), newString (camel)
-        var json = JsonDocument.Parse("{\"file_path\":\"/my/file.cs\",\"old_string\":\"foo\",\"newString\":\"bar\"}").RootElement;
+        // Schema: { "path": "...", "edits": [{ "oldText": "...", "newText": "..." }] }
+        var json = JsonDocument.Parse("{\"path\":\"/my/file.cs\",\"edits\":[{\"oldText\":\"foo\",\"newText\":\"bar\"}]}").RootElement;
         renderer.Render(json, rightMarginIndent: 10);
 
         var all = string.Join("", output.Lines);

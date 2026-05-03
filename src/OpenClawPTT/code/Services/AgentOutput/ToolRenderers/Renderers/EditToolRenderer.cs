@@ -15,23 +15,31 @@ public sealed class EditToolRenderer : IToolRenderer
 
     public void Render(JsonElement args, int rightMarginIndent)
     {
-        if (args.TryGetProperty("file_path", out var fileProp))
+        // Schema: { "path": "...", "edits": [{ "oldText": "...", "newText": "..." }] }
+        if (args.TryGetProperty("path", out var pathProp))
         {
-            _output.Print(fileProp.GetString() ?? "", ConsoleColor.Gray);
+            _output.Print(pathProp.GetString() ?? "", ConsoleColor.Gray);
         }
-        if (args.TryGetProperty("old_string", out var oldProp))
+
+        if (args.TryGetProperty("edits", out var editsProp) && editsProp.ValueKind == JsonValueKind.Array)
         {
-            _output.PrintLine("");
-            const string oldPrefix = "  old: ";
-            _output.Print(oldPrefix, ConsoleColor.DarkGray);
-            _output.PrintTruncated(oldProp.GetString() ?? "", oldPrefix, rightMarginIndent);
-        }
-        if (args.TryGetProperty("newString", out var newProp))
-        {
-            _output.PrintLine("");
-            const string newPrefix = "  new: ";
-            _output.Print(newPrefix, ConsoleColor.DarkGray);
-            _output.PrintTruncated(newProp.GetString() ?? "", newPrefix, rightMarginIndent);
+            foreach (var edit in editsProp.EnumerateArray())
+            {
+                if (edit.TryGetProperty("oldText", out var oldProp))
+                {
+                    _output.PrintLine("");
+                    const string oldPrefix = "  old: ";
+                    _output.Print(oldPrefix, ConsoleColor.DarkGray);
+                    _output.PrintTruncated(oldProp.GetString() ?? "", oldPrefix, rightMarginIndent);
+                }
+                if (edit.TryGetProperty("newText", out var newProp))
+                {
+                    _output.PrintLine("");
+                    const string newPrefix = "  new: ";
+                    _output.Print(newPrefix, ConsoleColor.DarkGray);
+                    _output.PrintTruncated(newProp.GetString() ?? "", newPrefix, rightMarginIndent);
+                }
+            }
         }
     }
 }
