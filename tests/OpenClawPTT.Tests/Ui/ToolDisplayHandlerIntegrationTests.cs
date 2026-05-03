@@ -52,8 +52,10 @@ public class ToolDisplayHandlerIntegrationTests
             => Lines.Add($"PRINT:{text}");
         public void PrintLine(string text, ConsoleColor color = ConsoleColor.White)
             => Lines.Add($"PRINTLN:{text}");
-        public void PrintTruncated(string text, string continuationPrefix, int rightMarginIndent, ConsoleColor color = ConsoleColor.White)
+        public void PrintTruncated(string text, string continuationPrefix, int rightMarginIndent, ConsoleColor color = ConsoleColor.White, int maxRows = 4)
             => Lines.Add($"TRUNC:{text}");
+        public void PrintMarkup(string markup)
+            => Lines.Add($"MARKUP:{markup}");
         public void Finish() { }
         public void Flush() { }
         public void ResetColor() { }
@@ -564,8 +566,41 @@ public class ToolDisplayHandlerIntegrationTests
 
         var all = string.Join("", output.Lines);
         Assert.Contains("/my/file.cs", all);
-        Assert.Contains("foo", all);
-        Assert.Contains("bar", all);
+        // Diff should show removed line (red) and added line (green)
+        Assert.Contains("- foo", all);
+        Assert.Contains("+ bar", all);
+    }
+
+    [Fact]
+    public void EditToolRenderer_DiffShowsAddedAndRemovedMarkup()
+    {
+        var output = new CapturingToolOutput();
+        var renderer = new EditToolRenderer(output);
+
+        // Two edits: one adds a line, one removes a line, one is equal
+        var json = JsonDocument.Parse("{ \"edits\": [{ \"oldText\": \"line1\", \"newText\": \"line2\" }] }").RootElement;
+        renderer.Render(json, rightMarginIndent: 10);
+
+        var all = string.Join("", output.Lines);
+        Assert.Contains("[default on red]- line1", all);
+        Assert.Contains("[default on green]+ line2", all);
+    }
+
+    [Fact]
+    public void EditToolRenderer_DiffShowsUnchangedLinesWithoutColor()
+    {
+        var output = new CapturingToolOutput();
+        var renderer = new EditToolRenderer(output);
+
+        // Partial change: one line stays, one changes
+        var json = JsonDocument.Parse("{ \"edits\": [{ \"oldText\": \"keep\", \"newText\": \"keep\" }] }").RootElement;
+        renderer.Render(json, rightMarginIndent: 10);
+
+        // oldText == newText, so no diff markers
+        var all = string.Join("", output.Lines);
+        Assert.Contains("keep", all);
+        Assert.DoesNotContain("+", all);
+        Assert.DoesNotContain("-", all);
     }
 
     [Fact]
