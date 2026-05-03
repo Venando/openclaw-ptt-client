@@ -59,6 +59,11 @@ public sealed class GatewayService : IGatewayService
         return await _gatewayClient.FetchSessionHistoryAsync(sessionKey, limit);
     }
 
+    public void DisplayAssistantReply(string body)
+    {
+        _uiAdapter?.OnAgentReplyFull(body);
+    }
+
     private IGatewayClient CreateGatewayClient()
     {
         _uiAdapter = new AgentOutputAdapter(_config);

@@ -124,11 +124,10 @@ public sealed class AgentHotkeyService : IDisposable
         _shellHost.AddMessage("  [grey]── previous messages ──[/]");
         foreach (var entry in history)
         {
-            var escaped = Markup.Escape(entry.Content);
             if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
-                _shellHost.AddMessage($"  🟢 [green]You:[/] {escaped}");
+                _shellHost.AddMessage($"  🟢 [green]You:[/] {Markup.Escape(entry.Content)}");
             else
-                _shellHost.AddMessage($"  🤖 [cyan]{Markup.Escape(AgentRegistry.ActiveAgentName ?? "Agent")}:[/] {escaped}");
+                _gatewayService!.DisplayAssistantReply(entry.Content);
         }
     }
 
