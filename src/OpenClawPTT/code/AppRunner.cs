@@ -89,8 +89,6 @@ public class AppRunner : IDisposable
             pttController, textSender, _shellHost, _cfg,
             gatewayService: gateway);
 
-        ConsoleUi.PrintHelpMenu(_cfg);
-
         // Register StreamShell commands (/quit, /reconfigure) before PTT loop
         using var shellCommands = new StreamShellInputHandler(
             _shellHost,
@@ -101,6 +99,7 @@ public class AppRunner : IDisposable
             onQuit: () => _cts?.Cancel()
         );
         shellCommands.Register();
+        ConsoleUi.PrintHelpMenu(_cfg);
 
         using IAppLoop pttLoop = _factory.CreatePttLoop(
             audioService, pttController, textSender, inputHandler,
