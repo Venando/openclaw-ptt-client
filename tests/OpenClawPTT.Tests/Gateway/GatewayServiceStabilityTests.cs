@@ -255,4 +255,14 @@ internal sealed class TestableGatewayService : IGatewayService
             _disposed = true;
         }
     }
+
+    public Task<List<ChatHistoryEntry>?> FetchSessionHistoryAsync(string sessionKey, int limit = 5)
+    {
+        throw new NotImplementedException();
+    }
+
+    public void DisplayAssistantReply(string body)
+    {
+        throw new NotImplementedException();
+    }
 }
