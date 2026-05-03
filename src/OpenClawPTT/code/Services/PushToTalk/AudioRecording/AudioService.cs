@@ -50,7 +50,7 @@ public sealed class AudioService : IAudioService
         // Use per-agent hotkey if set, else fall back to global config default
         var activeAgentId = AgentRegistry.ActiveAgentId;
         var effectiveHotkey = activeAgentId != null
-            ? (AgentRegistry.GetPersistedHotkey(activeAgentId) ?? _hotkeyCombination)
+            ? (AgentSettingsPersistence.GetPersistedHotkey(activeAgentId) ?? _hotkeyCombination)
             : _hotkeyCombination;
         ConsoleUi.PrintRecordingIndicator(true, effectiveHotkey, _holdToTalk);
         _visualFeedback.Show();
@@ -73,7 +73,7 @@ public sealed class AudioService : IAudioService
         
         var wav = _recorder.StopRecording();
         _visualFeedback.Hide();
-        ConsoleUi.PrintInlineInfo("■ Recording stopped");
+        ConsoleUi.PrintInfo("■ Recording stopped");
         
         if (wav.Length < 1024)
         {

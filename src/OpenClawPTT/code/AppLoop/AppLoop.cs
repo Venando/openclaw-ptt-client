@@ -7,6 +7,7 @@ namespace OpenClawPTT.Services;
 /// <summary>
 /// The main PTT event loop. Coordinates hotkey state machine, audio recording,
 /// transcription, and console input polling.
+/// Confirmation dialog extracted to its own method for SRP.
 /// </summary>
 public sealed class AppLoop : IAppLoop
 {
@@ -43,65 +44,8 @@ public sealed class AppLoop : IAppLoop
 
         while (!ct.IsCancellationRequested)
         {
-            // Drive the state machine from hotkey events
-            if (_pttController.PollHotkeyPressed())
-                _pttStateMachine.OnHotkeyPressed();
-
-            if (_pttController.PollHotkeyRelease())
-                _pttStateMachine.OnHotkeyReleased();
-
-            // Check for cancellation (Escape key pressed during recording)
-            if (_pttController.PollCancelRecording())
-            {
-                _pttStateMachine.Reset();
-                _audioService.StopDiscard();
-            }
-
-            // Handle state-driven recording actions
-            if (_pttStateMachine.ShouldStartRecording && !_audioService.IsRecording)
-            {
-                _audioService.StartRecording();
-                _pttStateMachine.OnRecordingStarted();
-            }
-
-            if (_pttStateMachine.ShouldStopRecording)
-            {
-                var transcribed = await _audioService.StopAndTranscribeAsync(ct);
-                if (transcribed != null)
-                {
-                    if (_requireConfirmBeforeSend)
-                    {
-                        ConsoleUi.PrintMarkup("[deepskyblue3]  ─[/] [bold][gray62]Press hotkey to send[/][/] [grey]or Escape to discard[/] [deepskyblue3]─[/]");
-                        bool sent = false;
-                        while (!ct.IsCancellationRequested)
-                        {
-                            await Task.Delay(50, ct);
-                            if (_pttController.PollHotkeyPressed())
-                            {
-                                sent = true;
-                                break;
-                            }
-                            if (_pttController.PollCancelRecording())
-                            {
-                                ConsoleUi.PrintMarkup("[grey]  ─ Message discarded ─[/]");
-                                break;
-                            }
-                        }
-
-                        if (sent)
-                        {
-                            try { await _textSender.SendAsync(transcribed, ct); }
-                            catch { /* swallow */ }
-                        }
-                    }
-                    else
-                    {
-                        try { await _textSender.SendAsync(transcribed, ct); }
-                        catch { /* swallow: network/send errors do not kill the PTT loop */ }
-                    }
-                }
-                _pttStateMachine.OnProcessingCompleted();
-            }
+            PollHotkeyState();
+            HandleRecordingState(ct);
 
             // Console input is now handled by StreamShell via StreamShellInputHandler
 
@@ -112,6 +56,96 @@ public sealed class AppLoop : IAppLoop
         }
 
         return AppLoopExitCode.Ok;
+    }
+
+    /// <summary>Polls the hardware for hotkey state transitions.</summary>
+    private void PollHotkeyState()
+    {
+        if (_pttController.PollHotkeyPressed())
+            _pttStateMachine.OnHotkeyPressed();
+
+        if (_pttController.PollHotkeyRelease())
+            _pttStateMachine.OnHotkeyReleased();
+
+        if (_pttController.PollCancelRecording())
+        {
+            _pttStateMachine.Reset();
+            _audioService.StopDiscard();
+        }
+    }
+
+    /// <summary>Handles state-driven recording actions (start, stop, transcribe).</summary>
+    private async Task HandleRecordingState(CancellationToken ct)
+    {
+        if (_pttStateMachine.ShouldStartRecording && !_audioService.IsRecording)
+        {
+            _audioService.StartRecording();
+            _pttStateMachine.OnRecordingStarted();
+        }
+
+        if (_pttStateMachine.ShouldStopRecording)
+        {
+            await HandleRecordingComplete(ct);
+        }
+    }
+
+    /// <summary>Handles the recording-complete path: transcribe + send (with optional confirmation).</summary>
+    private async Task HandleRecordingComplete(CancellationToken ct)
+    {
+        var transcribed = await _audioService.StopAndTranscribeAsync(ct);
+        if (transcribed != null)
+        {
+            if (_requireConfirmBeforeSend)
+            {
+                bool sent = await WaitForSendConfirmationAsync(ct);
+                if (sent)
+                {
+                    await SendTranscribedMessage(transcribed, ct);
+                }
+            }
+            else
+            {
+                await SendTranscribedMessage(transcribed, ct);
+            }
+        }
+        _pttStateMachine.OnProcessingCompleted();
+    }
+
+    /// <summary>
+    /// Shows confirmation prompt and waits for user action.
+    /// Returns true if the user confirmed sending, false if discarded.
+    /// </summary>
+    private async Task<bool> WaitForSendConfirmationAsync(CancellationToken ct)
+    {
+        ConsoleUi.PrintMarkup("[deepskyblue3]  ─[/] [bold][gray62]Press hotkey to send[/][/] [grey]or Escape to discard[/] [deepskyblue3]─[/]");
+
+        while (!ct.IsCancellationRequested)
+        {
+            await Task.Delay(50, ct);
+            if (_pttController.PollHotkeyPressed())
+                return true;
+
+            if (_pttController.PollCancelRecording())
+            {
+                ConsoleUi.PrintMarkup("[grey]  ─ Message discarded ─[/]");
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    private async Task SendTranscribedMessage(string transcribed, CancellationToken ct)
+    {
+        try
+        {
+            await _textSender.SendAsync(transcribed, ct);
+        }
+        catch (Exception ex)
+        {
+            // Log the error so it's visible in diagnostics
+            ConsoleUi.LogError("ptt", $"Failed to send: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     public void Dispose()

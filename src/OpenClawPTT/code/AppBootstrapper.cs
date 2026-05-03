@@ -47,8 +47,8 @@ public sealed class AppBootstrapper : IDisposable
             // Load persistent agent settings from agents.json
             var agentSettings = new AgentSettingsService(cfg.DataDir);
             agentSettings.Load();
-            AgentRegistry.MergePersistedSettings(agentSettings.ToConfig());
-            AgentRegistry.RegisterSettingsService(agentSettings);
+            AgentSettingsPersistence.MergePersistedSettings(agentSettings.ToConfig());
+            AgentSettingsPersistence.RegisterSettingsService(agentSettings);
 
             using var runner = _runnerFactory(cfg, _factory);
             runnerExitCode = await runner.RunAsync(_cts.Token);

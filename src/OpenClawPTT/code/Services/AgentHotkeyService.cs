@@ -51,13 +51,13 @@ public sealed class AgentHotkeyService : IDisposable
         _hook.EscapePressed += OnEscapePressed;
         _hook.Start();
 
-        AgentRegistry.PersistedSettingsChanged += OnPersistedSettingsChanged;
+        AgentSettingsPersistence.PersistedSettingsChanged += OnPersistedSettingsChanged;
     }
 
     private void RegisterAllAgentHotkeys()
     {
         if (_hook == null) return;
-        var hotkeys = AgentRegistry.AllAgentsWithHotkeys
+        var hotkeys = AgentSettingsPersistence.AllAgentsWithHotkeys
             .Select(a => HotkeyMapping.Parse(a.Hotkey ?? _cfg.HotkeyCombination))
             .ToList();
         _hook.SetHotkeys(hotkeys);
@@ -121,7 +121,7 @@ public sealed class AgentHotkeyService : IDisposable
 
     public void Dispose()
     {
-        AgentRegistry.PersistedSettingsChanged -= OnPersistedSettingsChanged;
+        AgentSettingsPersistence.PersistedSettingsChanged -= OnPersistedSettingsChanged;
 
         if (_hook != null)
         {

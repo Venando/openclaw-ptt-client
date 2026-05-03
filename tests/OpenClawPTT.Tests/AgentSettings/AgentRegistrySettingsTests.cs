@@ -73,7 +73,7 @@ public class AgentRegistrySettingsTests
     public void SetPersistedHotkey_FiresPersistedSettingsChanged()
     {
         bool fired = false;
-        AgentRegistry.PersistedSettingsChanged += () => fired = true;
+        AgentSettingsPersistence.PersistedSettingsChanged += () => fired = true;
         AgentRegistry.SetPersistedHotkey("a1", "Alt+1");
         Assert.True(fired);
     }

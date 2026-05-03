@@ -50,7 +50,7 @@ public static class ConsoleUi
             return;
         }
 
-        var hotkeyCombination = AgentRegistry.GetPersistedHotkey(AgentRegistry.ActiveAgentId!) ?? appConfig.HotkeyCombination;
+        var hotkeyCombination = AgentSettingsPersistence.GetPersistedHotkey(AgentRegistry.ActiveAgentId!) ?? appConfig.HotkeyCombination;
         AgentRegistry.GetActiveNameAndEmoji(out var agentName, out var emoji);
         var modeDescription = appConfig.HoldToTalk ? "Hold-to-talk" : "Toggle recording";
         var middleContent = $"   Agent: [white on gray15]{emoji} {agentName}[/] [deepskyblue3]·[/] [white on gray15]{Markup.Escape($"[{hotkeyCombination}]")}[/] [deepskyblue3]·[/] {modeDescription} [deepskyblue3]·[/] /help [deepskyblue3]·[/] /quit    ";
@@ -67,6 +67,14 @@ public static class ConsoleUi
 
     /// <summary>Send a raw Spectre markup message to the StreamShell output.</summary>
     public static void PrintMarkup(string markup) => ShellMsg(markup);
+
+    /// <summary>
+    /// Writes a debug/log message at grey level.
+    /// </summary>
+    public static void PrintInfo(string message)
+    {
+        ShellMsg($"[grey]  {Markup.Escape(message)}[/]");
+    }
 
     public static void PrintRecordingIndicator(bool isRecording, string hotkeyCombination, bool holdToTalk)
     {
@@ -107,16 +115,6 @@ public static class ConsoleUi
     public static void PrintError(string message)
     {
         ShellMsg($"[red]  ✗ {Markup.Escape(message)}[/]");
-    }
-
-    public static void PrintInfo(string message)
-    {
-        ShellMsg($"[grey]  {Markup.Escape(message)}[/]");
-    }
-
-    public static void PrintInlineInfo(string message)
-    {
-        ShellMsg($"[grey]  {Markup.Escape(message)}[/]");
     }
 
     public static void PrintAgentReply(string prefix, string body)

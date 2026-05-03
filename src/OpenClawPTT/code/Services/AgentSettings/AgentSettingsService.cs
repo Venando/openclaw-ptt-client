@@ -32,8 +32,14 @@ public sealed class AgentSettingsService
             var config = JsonSerializer.Deserialize<AgentsConfig>(json, JsonOpts);
             _settings = config?.Agents ?? new List<AgentPersistedSettings>();
         }
-        catch
+        catch (JsonException ex)
         {
+            ConsoleUi.LogError("settings", $"Failed to parse agents.json: {ex.Message}. Starting with empty settings.");
+            _settings = new List<AgentPersistedSettings>();
+        }
+        catch (IOException ex)
+        {
+            ConsoleUi.LogError("settings", $"Failed to read agents.json: {ex.Message}. Starting with empty settings.");
             _settings = new List<AgentPersistedSettings>();
         }
     }
