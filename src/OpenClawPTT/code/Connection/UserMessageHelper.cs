@@ -1,0 +1,141 @@
+using System.Text.Json;
+using System.Text.RegularExpressions;
+
+namespace OpenClawPTT;
+
+public static class UserMessageHelper
+{
+
+    public static bool TryGetChatHistoryEntry(JsonElement msg, out ChatHistoryEntry? enty)
+    {
+        var role = msg.TryGetProperty("role", out var r) ? r.GetString() ?? "" : "";
+
+        // Skip system/internal messages — only show conversation (user/assistant)
+        if (!string.Equals(role, "user", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(role, "assistant", StringComparison.OrdinalIgnoreCase))
+        {
+            enty = null;
+            return false;
+        }
+
+        var content = ExtractMessageContent(msg);
+        var createdAt = msg.TryGetProperty("createdAt", out var c)
+            ? DateTime.TryParse(c.GetString(), out var dt) ? dt : (DateTime?)null
+            : null;
+
+        if (string.IsNullOrWhiteSpace(content) || UserMessageHelper.IsNoReply(content))
+        {
+            enty = null;
+            return false;
+        }
+
+        content = ExtractUserMessage(content);
+
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            enty = null;
+            return false;
+        }
+
+        enty = new ChatHistoryEntry
+        {
+            Role = role,
+            Content = content,
+            CreatedAt = createdAt,
+        };
+        return true;
+    }
+
+    private static string ExtractMessageContent(JsonElement msg)
+    {
+        if (!msg.TryGetProperty("content", out var contentEl))
+            return "";
+
+        if (contentEl.ValueKind == JsonValueKind.String)
+            return contentEl.GetString() ?? "";
+
+        if (contentEl.ValueKind == JsonValueKind.Array)
+        {
+            var parts = new List<string>();
+            foreach (JsonElement block in contentEl.EnumerateArray())
+            {
+                if (block.TryGetProperty("type", out var typeEl) && typeEl.GetString() == "text"
+                    && block.TryGetProperty("text", out var textEl))
+                {
+                    parts.Add(textEl.GetString() ?? "");
+                }
+            }
+            return string.Join("", parts);
+        }
+
+        return "";
+    }
+
+    private static bool IsNoReply(string content)
+    {
+        if (string.IsNullOrEmpty(content)) return true;
+        var trimmed = content.Trim();
+        if (trimmed.Equals("NO_REPLY", StringComparison.OrdinalIgnoreCase)
+            || trimmed.Equals("no_reply", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Filter out internal context blocks injected by the system
+        if (trimmed.StartsWith("<<<BEGIN_OPENCLAW_INTERNAL_CONTEXT>>>", StringComparison.Ordinal))
+            return true;
+
+        return false;
+    }
+
+    // Matches a full "System (untrusted): [timestamp] ...payload..." segment.
+    // Payload runs until the next "System (untrusted):" or end of string.
+    private static readonly Regex SystemBlockPattern = new(
+        @"System \(untrusted\):\s*\[\w*\s*\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(?::\d{2})?\s+GMT[+-]\d+\].*?(?=System \(untrusted\):|$)",
+        RegexOptions.Compiled | RegexOptions.Singleline
+    );
+
+    // Matches the "An async command..." epilogue and everything after it
+    private static readonly Regex SystemEpiloguePattern = new(
+        @"An async command you ran earlier has completed\..*$",
+        RegexOptions.Compiled | RegexOptions.Singleline
+    );
+
+    // Matches trailing time block left at the end after system blocks are stripped:
+    // [Sun 2026-05-03 09:49 GMT+3]
+    private static readonly Regex TrailingTimeBlockPattern = new(
+        @"^\[\w*\s*\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(?::\d{2})?\s+GMT[+-]\d+\]\s*",
+        RegexOptions.Compiled
+    );
+
+    public static string ExtractUserMessage(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return input;
+
+        if (!input.StartsWith("System (untrusted)", StringComparison.OrdinalIgnoreCase))
+            return input;
+
+        var result = input;
+
+        // 2. Strip all "System (untrusted): [timestamp] ...payload..." blocks
+        result = SystemBlockPattern.Replace(result, "");
+
+        // 3. Strip any leftover leading time block (the user-authored timestamp
+        //    that preceded user text, e.g. "[Sun 2026-05-03 09:49 GMT+3]")
+        result = TrailingTimeBlockPattern.Replace(result.TrimStart(), "");
+
+        return result.Trim();
+    }
+
+    public static bool HasUserInput(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return false;
+
+        // Not a system message at all — it's pure user input
+        if (!input.StartsWith("System (untrusted)", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var userText = ExtractUserMessage(input);
+        return !string.IsNullOrWhiteSpace(userText);
+    }
+}
