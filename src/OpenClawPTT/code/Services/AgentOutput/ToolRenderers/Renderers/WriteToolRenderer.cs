@@ -17,7 +17,7 @@ public sealed class WriteToolRenderer : IToolRenderer
     {
         if (args.TryGetProperty("path", out var pathProp))
         {
-            _output.Print(pathProp.GetString() ?? "", ConsoleColor.Gray);
+            _output.Print(FilePathDisplayHelper.FormatDisplayPath(pathProp.GetString() ?? ""), ConsoleColor.Gray);
         }
         if (args.TryGetProperty("content", out var contentProp))
         {
