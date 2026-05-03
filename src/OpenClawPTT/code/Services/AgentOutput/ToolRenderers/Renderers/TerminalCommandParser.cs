@@ -60,6 +60,9 @@ public sealed class CommandMetadata
     public IReadOnlyDictionary<string, string> InlineEnv { get; init; }
         = new Dictionary<string, string>();
 
+    /// <summary>For script commands: the inline script body (e.g. python -c "...").</summary>
+    public string? ScriptBody { get; init; }
+
     public override string ToString() =>
         $"[{Type}] {Executable}  args={Arguments.Count}  flags={string.Join(",", Flags)}";
 }
@@ -173,6 +176,9 @@ public static class TerminalCommandParser
         if (string.IsNullOrWhiteSpace(input))
             return [];
 
+        // Normalize newlines inside quoted strings to spaces before splitting
+        input = NormalizeNewlinesInQuotes(input);
+
         var segments = SplitIntoSegments(input);
         var results = new List<CommandMetadata>(segments.Count);
 
@@ -186,6 +192,27 @@ public static class TerminalCommandParser
         }
 
         return results;
+    }
+
+    /// <summary>
+    /// Replaces newlines inside single- or double-quoted strings with spaces,
+    /// so that multi-line quoted arguments (e.g. python -c "...\n...") are
+    /// preserved as single tokens after line splitting.
+    /// </summary>
+    private static string NormalizeNewlinesInQuotes(string input)
+    {
+        var sb = new System.Text.StringBuilder(input.Length);
+        bool inS = false, inD = false;
+        foreach (char c in input)
+        {
+            if (c == '\'' && !inD) { inS = !inS; sb.Append(c); continue; }
+            if (c == '"' && !inS) { inD = !inD; sb.Append(c); continue; }
+            if ((inS || inD) && c == '\n')
+                sb.Append(' ');
+            else
+                sb.Append(c);
+        }
+        return sb.ToString();
     }
 
     // ── Internal helpers ─────────────────────────────────────────────────────
@@ -262,13 +289,16 @@ public static class TerminalCommandParser
                     continue;
                 }
 
-                segments.Add(new Segment(t, isPiped, isChained, workDir));
-
-                // If operator was && the cd set workDir; reset it after first non-cd use
-                if (workDir != null && !t.StartsWith("cd ", StringComparison.OrdinalIgnoreCase))
-                    workDir = null;
+                // Use the operator that FOLLOWS this segment for flags
+                bool segPiped = op == "|";
+                bool segChained = op is "&&" or "||";
+                segments.Add(new Segment(t, segPiped, segChained, workDir));
 
                 UpdateFlags(op, ref isPiped, ref isChained);
+
+                // Clear workDir at end of chain (no operator follows)
+                if (op == null && workDir != null)
+                    workDir = null;
             }
         }
 
@@ -363,6 +393,7 @@ public static class TerminalCommandParser
         var flags = new List<string>();
         var positionals = new List<string>();
         var redirects = new List<string>();
+        string? scriptBody = null;
 
         // Consume leading KEY=value pairs
         int idx = 0;
@@ -378,10 +409,18 @@ public static class TerminalCommandParser
         // Strip leading path: /usr/bin/dotnet → dotnet
         string execName = System.IO.Path.GetFileName(executable);
 
-        // Collect remaining tokens
+        // Collect remaining tokens, extracting script body for -c / -e flags
         while (idx < tokens.Count)
         {
             string tok = tokens[idx++];
+
+            // Script body extraction: -c or -e followed by quoted script
+            if ((tok == "-c" || tok == "-e") && idx < tokens.Count)
+            {
+                flags.Add(tok);
+                scriptBody = tokens[idx++].Trim('\"', '\'');
+                continue;
+            }
 
             // Redirect operators (standalone > >> or combined 2>&1)
             var redirM = RedirectRe.Match(tok);
@@ -421,6 +460,7 @@ public static class TerminalCommandParser
             WorkingDirectory = seg.WorkingDir,
             HereDoc = hereDoc,
             InlineEnv = inlineEnv,
+            ScriptBody = scriptBody,
         };
     }
 

@@ -69,6 +69,23 @@ public sealed class ExecToolRenderer : IToolRenderer
             _output.Print(pos, ConsoleColor.Cyan);
         }
 
+        // ── Script body (compact display) ────────────────────────────────────
+        if (!string.IsNullOrEmpty(meta.ScriptBody))
+        {
+            _output.Print(" ", ConsoleColor.White);
+            int bodyLen = meta.ScriptBody.Length;
+            if (bodyLen <= 40)
+            {
+                _output.Print(meta.ScriptBody, ConsoleColor.DarkGray);
+            }
+            else
+            {
+                var preview = meta.ScriptBody.Replace('\n', ' ').Replace('\r', ' ');
+                if (preview.Length > 37) preview = preview[..37] + "...";
+                _output.Print(preview, ConsoleColor.DarkGray);
+            }
+        }
+
         // ── Flags ──────────────────────────────────────────────────────────
         foreach (var flag in meta.Flags)
         {

@@ -654,7 +654,7 @@ public class ToolDisplayHandlerIntegrationTests
         AssertAllMessagesHaveValidMarkup(shellHost);
         var content = string.Join("\n", shellHost.Messages);
         Assert.Contains("python3", content);
-        Assert.Contains("喵萌奶茶屋", content);
+        Assert.Contains("-c", content);
     }
 
     [Fact]
@@ -669,7 +669,9 @@ public class ToolDisplayHandlerIntegrationTests
         AssertAllMessagesHaveValidMarkup(shellHost);
         var content = string.Join("\n", shellHost.Messages);
         Assert.Contains("python3", content);
-        Assert.Contains("Kill Ao", content);
+        Assert.Contains("-c", content);
+        Assert.Contains("📂", content);
+        Assert.Contains("anime-agent", content);
     }
 
     // ════════════════════════════════════════════════════════════════════════════
