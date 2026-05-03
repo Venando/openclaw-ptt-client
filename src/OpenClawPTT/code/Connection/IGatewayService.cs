@@ -31,4 +31,10 @@ public interface IGatewayService : IDisposable, IGatewayUIEvents
 
     /// <summary>Display text using the AgentOutputAdapter rendering pipeline (word-wrap, markdown conversion, agent prefix).</summary>
     void DisplayAssistantReply(string body);
+
+    /// <summary>
+    /// Displays a full chat history entry: tool calls first (via ToolDisplayHandler),
+    /// then the assistant reply text (via <see cref="DisplayAssistantReply"/>).
+    /// </summary>
+    void DisplayHistoryEntry(ChatHistoryEntry entry);
 }

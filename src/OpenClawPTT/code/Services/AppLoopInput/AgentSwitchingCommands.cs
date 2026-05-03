@@ -103,7 +103,7 @@ public sealed class AgentSwitchingCommands
             if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
                 ConsoleUi.PrintUserMessage(entry.Content);
             else
-                _gatewayService.DisplayAssistantReply(entry.Content);
+                _gatewayService.DisplayHistoryEntry(entry);
         }
     }
 

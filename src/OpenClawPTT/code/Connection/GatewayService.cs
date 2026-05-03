@@ -59,6 +59,24 @@ public sealed class GatewayService : IGatewayService
         _uiAdapter?.OnAgentReplyFull(body);
     }
 
+    public void DisplayHistoryEntry(ChatHistoryEntry entry)
+    {
+        // Render tool calls via ToolDisplayHandler if any
+        if (entry.ToolCalls.Count > 0)
+        {
+            var toolHandler = new ToolDisplayHandler(_config.RightMarginIndent, ConsoleUi.GetStreamShellHost());
+            foreach (var toolCall in entry.ToolCalls)
+            {
+                if (!string.IsNullOrEmpty(toolCall.ToolName))
+                    toolHandler.Handle(toolCall.ToolName, toolCall.Arguments);
+            }
+        }
+
+        // Render the reply text
+        if (!string.IsNullOrWhiteSpace(entry.Content))
+            DisplayAssistantReply(entry.Content);
+    }
+
     private IGatewayClient CreateGatewayClient()
     {
         _uiAdapter = new AgentOutputAdapter(_config);

@@ -121,7 +121,7 @@ public sealed class AgentHotkeyService : IDisposable
                 if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
                     ConsoleUi.PrintUserMessage(entry.Content);
                 else
-                    _gatewayService!.DisplayAssistantReply(entry.Content);
+                    _gatewayService!.DisplayHistoryEntry(entry);
             }
         }
 

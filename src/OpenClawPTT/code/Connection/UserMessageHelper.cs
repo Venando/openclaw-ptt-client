@@ -18,12 +18,25 @@ public static class UserMessageHelper
             return false;
         }
 
-        var content = ExtractMessageContent(msg);
+        var toolCalls = new List<ToolCallEntry>();
+        var content = ExtractMessageContent(msg, toolCalls);
         var createdAt = msg.TryGetProperty("createdAt", out var c)
             ? DateTime.TryParse(c.GetString(), out var dt) ? dt : (DateTime?)null
             : null;
 
-        if (string.IsNullOrWhiteSpace(content) || UserMessageHelper.IsNoReply(content))
+        // For assistant messages, allow entry even if text content is empty
+        // as long as there are tool calls.
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            bool isAssistant = string.Equals(role, "assistant", StringComparison.OrdinalIgnoreCase);
+            if (!isAssistant || toolCalls.Count == 0)
+            {
+                enty = null;
+                return false;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(content) && UserMessageHelper.IsNoReply(content))
         {
             enty = null;
             return false;
@@ -31,22 +44,21 @@ public static class UserMessageHelper
 
         content = ExtractUserMessage(content);
 
-        if (string.IsNullOrWhiteSpace(content))
-        {
-            enty = null;
-            return false;
-        }
-
         enty = new ChatHistoryEntry
         {
             Role = role,
-            Content = content,
+            Content = content ?? "",
             CreatedAt = createdAt,
+            ToolCalls = toolCalls,
         };
         return true;
     }
 
-    private static string ExtractMessageContent(JsonElement msg)
+    /// <summary>
+    /// Extracts text content from a message's content field (string or array of blocks).
+    /// Also populates <paramref name="toolCalls"/> with tool call blocks found in the array.
+    /// </summary>
+    private static string ExtractMessageContent(JsonElement msg, List<ToolCallEntry> toolCalls)
     {
         if (!msg.TryGetProperty("content", out var contentEl))
             return "";
@@ -59,10 +71,22 @@ public static class UserMessageHelper
             var parts = new List<string>();
             foreach (JsonElement block in contentEl.EnumerateArray())
             {
-                if (block.TryGetProperty("type", out var typeEl) && typeEl.GetString() == "text"
-                    && block.TryGetProperty("text", out var textEl))
+                if (!block.TryGetProperty("type", out var typeEl)) continue;
+                var type = typeEl.GetString();
+
+                if (type == "text" && block.TryGetProperty("text", out var textEl))
                 {
                     parts.Add(textEl.GetString() ?? "");
+                }
+                else if ((type == "toolCall" || type == "tool_use")
+                    && block.TryGetProperty("name", out var nameEl)
+                    && block.TryGetProperty("arguments", out var argsEl))
+                {
+                    toolCalls.Add(new ToolCallEntry
+                    {
+                        ToolName = nameEl.GetString() ?? "",
+                        Arguments = argsEl.GetRawText(),
+                    });
                 }
             }
             return string.Join("", parts);

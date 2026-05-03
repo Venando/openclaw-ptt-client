@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace OpenClawPTT;
 
@@ -10,4 +11,20 @@ public class ChatHistoryEntry
     public string Role { get; init; } = "";      // "user" or "assistant"
     public string Content { get; init; } = "";
     public DateTime? CreatedAt { get; init; }
+
+    /// <summary>
+    /// Tool calls associated with this entry (from content blocks of type "toolCall"
+    /// or "tool_use" in the history response). Each entry has a tool name and
+    /// its JSON arguments, matching the <c>OnAgentToolCall</c> event signature.
+    /// </summary>
+    public List<ToolCallEntry> ToolCalls { get; init; } = new();
+}
+
+/// <summary>
+/// Represents a single tool invocation parsed from chat history content blocks.
+/// </summary>
+public class ToolCallEntry
+{
+    public string ToolName { get; init; } = "";
+    public string Arguments { get; init; } = "";
 }

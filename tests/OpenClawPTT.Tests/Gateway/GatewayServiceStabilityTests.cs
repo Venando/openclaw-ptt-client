@@ -212,6 +212,11 @@ internal sealed class TestableGatewayService : IGatewayService
         AgentReplyFull?.Invoke(body);
     }
 
+    public void DisplayHistoryEntry(ChatHistoryEntry entry)
+    {
+        DisplayAssistantReply(entry.Content);
+    }
+
     public TestableGatewayService(AppConfig config, IGatewayClient gatewayClient)
     {
         _config = config;
