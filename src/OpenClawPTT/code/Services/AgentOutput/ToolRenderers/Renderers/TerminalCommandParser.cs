@@ -1,0 +1,479 @@
+using System.Text.RegularExpressions;
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Models
+// ─────────────────────────────────────────────────────────────────────────────
+
+public enum CommandType
+{
+    Unknown,
+    FileSystem,   // rm, cp, mv, mkdir, ls, cd, chmod, chown, find, touch
+    FileContent,  // cat, echo, grep, sed, awk, head, tail, tee, diff, wc
+    HereDoc,      // cat > file << 'DELIMITER' ... DELIMITER
+    Process,      // kill, ps, top, nohup, bg, fg, jobs
+    Network,      // curl, wget, ssh, scp, ping, netstat
+    PackageManager, // apt, brew, npm, pip, dotnet, cargo
+    Build,        // make, cmake, dotnet build/run/test, msbuild
+    Pipe,         // compound with | 
+    Redirect,     // compound with > / >>
+    Chain,        // compound with && or ||
+    Variable,     // export, env=value cmd
+    Scripting,    // sh, bash, python, node, mono, dotnet-script
+}
+
+public sealed class CommandMetadata
+{
+    /// <summary>The raw command string, trimmed of surrounding whitespace.</summary>
+    public string Raw { get; init; } = string.Empty;
+
+    /// <summary>The executable / primary binary (first token).</summary>
+    public string Executable { get; init; } = string.Empty;
+
+    /// <summary>All arguments after the executable.</summary>
+    public IReadOnlyList<string> Arguments { get; init; } = [];
+
+    /// <summary>Flags/switches (tokens starting with - or --).</summary>
+    public IReadOnlyList<string> Flags { get; init; } = [];
+
+    /// <summary>Positional arguments (non-flag tokens after the executable).</summary>
+    public IReadOnlyList<string> Positionals { get; init; } = [];
+
+    /// <summary>Classified type of command.</summary>
+    public CommandType Type { get; init; }
+
+    /// <summary>Working-directory hint when the command is prefixed with cd X &&.</summary>
+    public string? WorkingDirectory { get; init; }
+
+    /// <summary>Redirect target file, e.g. "2>&1", "/tmp/out.log".</summary>
+    public IReadOnlyList<string> Redirects { get; init; } = [];
+
+    /// <summary>True when command is part of a pipeline (contains |).</summary>
+    public bool IsPiped { get; init; }
+
+    /// <summary>True when command is chained with && or ||.</summary>
+    public bool IsChained { get; init; }
+
+    /// <summary>For here-doc commands: the delimiter and the embedded body.</summary>
+    public HereDocInfo? HereDoc { get; init; }
+
+    /// <summary>Environment variables set inline, e.g. FOO=bar cmd.</summary>
+    public IReadOnlyDictionary<string, string> InlineEnv { get; init; }
+        = new Dictionary<string, string>();
+
+    public override string ToString() =>
+        $"[{Type}] {Executable}  args={Arguments.Count}  flags={string.Join(",", Flags)}";
+}
+
+public sealed class HereDocInfo
+{
+    public string Delimiter { get; init; } = string.Empty;
+    public string TargetFile { get; init; } = string.Empty;
+    public string Body { get; init; } = string.Empty;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Parser
+// ─────────────────────────────────────────────────────────────────────────────
+
+public static class TerminalCommandParser
+{
+    // Executables → CommandType lookup
+    private static readonly Dictionary<string, CommandType> ExecutableMap =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            // FileSystem
+            ["rm"] = CommandType.FileSystem,
+            ["cp"] = CommandType.FileSystem,
+            ["mv"] = CommandType.FileSystem,
+            ["mkdir"] = CommandType.FileSystem,
+            ["rmdir"] = CommandType.FileSystem,
+            ["ls"] = CommandType.FileSystem,
+            ["cd"] = CommandType.FileSystem,
+            ["chmod"] = CommandType.FileSystem,
+            ["chown"] = CommandType.FileSystem,
+            ["find"] = CommandType.FileSystem,
+            ["touch"] = CommandType.FileSystem,
+            ["ln"] = CommandType.FileSystem,
+            // FileContent
+            ["cat"] = CommandType.FileContent,
+            ["echo"] = CommandType.FileContent,
+            ["grep"] = CommandType.FileContent,
+            ["sed"] = CommandType.FileContent,
+            ["awk"] = CommandType.FileContent,
+            ["head"] = CommandType.FileContent,
+            ["tail"] = CommandType.FileContent,
+            ["tee"] = CommandType.FileContent,
+            ["diff"] = CommandType.FileContent,
+            ["wc"] = CommandType.FileContent,
+            ["sort"] = CommandType.FileContent,
+            ["uniq"] = CommandType.FileContent,
+            ["cut"] = CommandType.FileContent,
+            ["tr"] = CommandType.FileContent,
+            // Process
+            ["kill"] = CommandType.Process,
+            ["ps"] = CommandType.Process,
+            ["top"] = CommandType.Process,
+            ["nohup"] = CommandType.Process,
+            ["bg"] = CommandType.Process,
+            ["fg"] = CommandType.Process,
+            ["jobs"] = CommandType.Process,
+            // Network
+            ["curl"] = CommandType.Network,
+            ["wget"] = CommandType.Network,
+            ["ssh"] = CommandType.Network,
+            ["scp"] = CommandType.Network,
+            ["ping"] = CommandType.Network,
+            ["netstat"] = CommandType.Network,
+            // PackageManager
+            ["apt"] = CommandType.PackageManager,
+            ["apt-get"] = CommandType.PackageManager,
+            ["brew"] = CommandType.PackageManager,
+            ["npm"] = CommandType.PackageManager,
+            ["yarn"] = CommandType.PackageManager,
+            ["pip"] = CommandType.PackageManager,
+            ["pip3"] = CommandType.PackageManager,
+            ["cargo"] = CommandType.PackageManager,
+            ["gem"] = CommandType.PackageManager,
+            // Build / dotnet
+            ["make"] = CommandType.Build,
+            ["cmake"] = CommandType.Build,
+            ["msbuild"] = CommandType.Build,
+            ["dotnet"] = CommandType.Build,
+            ["csc"] = CommandType.Build,
+            ["mcs"] = CommandType.Build,
+            // Scripting / runtime
+            ["sh"] = CommandType.Scripting,
+            ["bash"] = CommandType.Scripting,
+            ["zsh"] = CommandType.Scripting,
+            ["python"] = CommandType.Scripting,
+            ["python3"] = CommandType.Scripting,
+            ["node"] = CommandType.Scripting,
+            ["mono"] = CommandType.Scripting,
+        };
+
+    // Regex for inline env vars: KEY=value  (before the executable)
+    private static readonly Regex InlineEnvRe =
+        new(@"^([A-Za-z_][A-Za-z0-9_]*)=(\S*)$", RegexOptions.Compiled);
+
+    // Regex for redirect tokens: >, >>, 2>&1, &>, etc.
+    private static readonly Regex RedirectRe =
+        new(@"^(>>|2>&1|&>|>{1,2}|<)(.*)$", RegexOptions.Compiled);
+
+    // Here-doc detection: cat > FILE << 'DELIM'  or  cat >> FILE << DELIM
+    private static readonly Regex HereDocStartRe =
+        new(@"<<\s*'?(?<delim>\w+)'?\s*$", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Parses a multi-line terminal string that may contain several commands
+    /// separated by <c>&&</c>, <c>||</c>, <c>|</c>, or newlines, and returns
+    /// one <see cref="CommandMetadata"/> per logical command.
+    /// </summary>
+    public static IReadOnlyList<CommandMetadata> Parse(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return [];
+
+        var segments = SplitIntoSegments(input);
+        var results = new List<CommandMetadata>(segments.Count);
+
+        for (int i = 0; i < segments.Count; i++)
+        {
+            var seg = segments[i];
+            if (string.IsNullOrWhiteSpace(seg.Text)) continue;
+
+            var meta = ParseSegment(seg);
+            results.Add(meta);
+        }
+
+        return results;
+    }
+
+    // ── Internal helpers ─────────────────────────────────────────────────────
+
+    private record Segment(string Text, bool IsPiped, bool IsChained, string? WorkingDir);
+
+    /// <summary>
+    /// Splits the raw input into logical segments, respecting here-doc bodies
+    /// (content between &lt;&lt; DELIM … DELIM must not be split further).
+    /// </summary>
+    private static List<Segment> SplitIntoSegments(string input)
+    {
+        // Normalise line continuations: trailing backslash + newline → space
+        input = Regex.Replace(input, @"\\\r?\n\s*", " ");
+
+        var lines = input.Split('\n');
+        var segments = new List<Segment>();
+        bool isPiped = false;
+        bool isChained = false;
+        string? workDir = null;
+
+        // Accumulate lines; detect here-doc blocks
+        string? hereDelim = null;
+        var hereAccumulator = new System.Text.StringBuilder();
+        string? herePrefix = null; // the line that started the here-doc
+
+        foreach (var rawLine in lines)
+        {
+            string line = rawLine.Trim();
+            if (string.IsNullOrEmpty(line)) continue;
+
+            // ── Inside a here-doc body ──────────────────────────────────────
+            if (hereDelim != null)
+            {
+                if (line == hereDelim)
+                {
+                    // End of here-doc — emit the whole block as one segment
+                    string fullBlock = herePrefix + "\n" + hereAccumulator.ToString().TrimEnd() + "\n" + hereDelim;
+                    segments.Add(new Segment(fullBlock, isPiped, isChained, workDir));
+                    hereDelim = null;
+                    hereAccumulator.Clear();
+                    herePrefix = null;
+                }
+                else
+                {
+                    hereAccumulator.AppendLine(line);
+                }
+                continue;
+            }
+
+            // ── Check for here-doc start ────────────────────────────────────
+            var hdMatch = HereDocStartRe.Match(line);
+            if (hdMatch.Success)
+            {
+                hereDelim = hdMatch.Groups["delim"].Value;
+                herePrefix = line;
+                hereAccumulator.Clear();
+                continue;
+            }
+
+            // ── Split on && / || / | within the line ───────────────────────
+            // We tokenise carefully to avoid splitting inside quotes
+            var parts = SplitOnOperators(line);
+            foreach (var (text, op) in parts)
+            {
+                string t = text.Trim();
+                if (string.IsNullOrEmpty(t)) { UpdateFlags(op, ref isPiped, ref isChained); continue; }
+
+                // cd DIR && … → record working dir for the next command
+                if (t.StartsWith("cd ", StringComparison.OrdinalIgnoreCase) && op == "&&")
+                {
+                    workDir = t[3..].Trim();
+                    UpdateFlags(op, ref isPiped, ref isChained);
+                    continue;
+                }
+
+                segments.Add(new Segment(t, isPiped, isChained, workDir));
+
+                // If operator was && the cd set workDir; reset it after first non-cd use
+                if (workDir != null && !t.StartsWith("cd ", StringComparison.OrdinalIgnoreCase))
+                    workDir = null;
+
+                UpdateFlags(op, ref isPiped, ref isChained);
+            }
+        }
+
+        return segments;
+    }
+
+    private static void UpdateFlags(string? op, ref bool piped, ref bool chained)
+    {
+        piped = op == "|";
+        chained = op is "&&" or "||";
+    }
+
+    /// <summary>
+    /// Splits a single shell line on shell operators <c>|</c>, <c>&&</c>,
+    /// <c>||</c> while ignoring those inside single- or double-quoted strings.
+    /// Returns (text, followingOperator) pairs.
+    /// </summary>
+    private static List<(string Text, string? Op)> SplitOnOperators(string line)
+    {
+        var result = new List<(string, string?)>();
+        int start = 0;
+        bool inSingle = false, inDouble = false;
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            char c = line[i];
+            if (c == '\'' && !inDouble) { inSingle = !inSingle; continue; }
+            if (c == '"' && !inSingle) { inDouble = !inDouble; continue; }
+            if (inSingle || inDouble) continue;
+
+            // Try to match operator at position i
+            string? op = null;
+            if (i + 1 < line.Length && line[i..].StartsWith("&&")) op = "&&";
+            else if (i + 1 < line.Length && line[i..].StartsWith("||")) op = "||";
+            else if (c == '|' && (i + 1 >= line.Length || line[i + 1] != '|')) op = "|";
+
+            if (op != null)
+            {
+                result.Add((line[start..i], op));
+                start = i + op.Length;
+                i = start - 1; // loop will i++
+            }
+        }
+
+        result.Add((line[start..], null));
+        return result;
+    }
+
+    /// <summary>
+    /// Turns a single segment text into a <see cref="CommandMetadata"/>.
+    /// </summary>
+    private static CommandMetadata ParseSegment(Segment seg)
+    {
+        string raw = seg.Text.Trim();
+
+        // ── Detect here-doc ────────────────────────────────────────────────
+        HereDocInfo? hereDoc = null;
+        var hdm = HereDocStartRe.Match(raw);
+        if (hdm.Success)
+        {
+            string delim = hdm.Groups["delim"].Value;
+            string beforeHere = raw[..hdm.Index].Trim();
+            string afterEnd = raw[(hdm.Index + hdm.Length)..];
+
+            // Extract body: everything after the first newline until the delimiter line
+            int bodyStart = afterEnd.IndexOf('\n');
+            string body = bodyStart >= 0 ? afterEnd[(bodyStart + 1)..] : string.Empty;
+            // Remove trailing delimiter line
+            int delimLine = body.LastIndexOf('\n' + delim);
+            if (delimLine >= 0) body = body[..delimLine];
+
+            // Extract target file from "cat > FILE <<" 
+            string targetFile = string.Empty;
+            var redirectInBefore = Regex.Match(beforeHere, @"(>>?)\s*(\S+)");
+            if (redirectInBefore.Success)
+                targetFile = redirectInBefore.Groups[2].Value;
+
+            hereDoc = new HereDocInfo
+            {
+                Delimiter = delim,
+                TargetFile = targetFile,
+                Body = body.Trim(),
+            };
+
+            // Continue parsing the part before << as the actual command line
+            raw = beforeHere;
+        }
+
+        // ── Tokenise (naive, quote-aware) ──────────────────────────────────
+        var tokens = Tokenise(raw);
+        var inlineEnv = new Dictionary<string, string>();
+        var flags = new List<string>();
+        var positionals = new List<string>();
+        var redirects = new List<string>();
+
+        // Consume leading KEY=value pairs
+        int idx = 0;
+        while (idx < tokens.Count)
+        {
+            var m = InlineEnvRe.Match(tokens[idx]);
+            if (!m.Success) break;
+            inlineEnv[m.Groups[1].Value] = m.Groups[2].Value;
+            idx++;
+        }
+
+        string executable = idx < tokens.Count ? tokens[idx++] : string.Empty;
+        // Strip leading path: /usr/bin/dotnet → dotnet
+        string execName = System.IO.Path.GetFileName(executable);
+
+        // Collect remaining tokens
+        while (idx < tokens.Count)
+        {
+            string tok = tokens[idx++];
+
+            // Redirect operators (standalone > >> or combined 2>&1)
+            var redirM = RedirectRe.Match(tok);
+            if (redirM.Success)
+            {
+                redirects.Add(tok);
+                // Next token may be the file target
+                if (redirM.Groups[2].Value.Length == 0 && idx < tokens.Count)
+                    redirects.Add(tokens[idx++]);
+                continue;
+            }
+
+            if (tok.StartsWith('-'))
+                flags.Add(tok);
+            else
+                positionals.Add(tok);
+        }
+
+        var allArgs = tokens.Skip(tokens.IndexOf(executable) + 1)
+                            .Where(t => t != executable)
+                            .ToList();
+
+        // ── Classify type ─────────────────────────────────────────────────
+        CommandType type = ClassifyCommand(execName, hereDoc, seg, positionals, flags);
+
+        return new CommandMetadata
+        {
+            Raw = seg.Text.Trim(),
+            Executable = executable,
+            Arguments = allArgs,
+            Flags = flags,
+            Positionals = positionals,
+            Redirects = redirects,
+            Type = type,
+            IsPiped = seg.IsPiped,
+            IsChained = seg.IsChained,
+            WorkingDirectory = seg.WorkingDir,
+            HereDoc = hereDoc,
+            InlineEnv = inlineEnv,
+        };
+    }
+
+    private static CommandType ClassifyCommand(
+        string execName, HereDocInfo? hereDoc,
+        Segment seg, List<string> positionals, List<string> flags)
+    {
+        if (hereDoc != null)
+            return CommandType.HereDoc;
+
+        if (ExecutableMap.TryGetValue(execName, out var mapped))
+        {
+            // dotnet build/run/test → Build; dotnet add/restore → PackageManager
+            if (execName.Equals("dotnet", StringComparison.OrdinalIgnoreCase) &&
+                positionals.Count > 0 &&
+                positionals[0] is "add" or "restore" or "nuget")
+                return CommandType.PackageManager;
+
+            return mapped;
+        }
+
+        if (seg.IsPiped) return CommandType.Pipe;
+        if (seg.IsChained) return CommandType.Chain;
+        return CommandType.Unknown;
+    }
+
+    /// <summary>
+    /// Very simple quote-aware tokeniser (handles single and double quotes,
+    /// does NOT expand variables).
+    /// </summary>
+    private static List<string> Tokenise(string line)
+    {
+        var tokens = new List<string>();
+        var cur = new System.Text.StringBuilder();
+        bool inS = false, inD = false;
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            char c = line[i];
+
+            if (c == '\'' && !inD) { inS = !inS; cur.Append(c); continue; }
+            if (c == '"' && !inS) { inD = !inD; cur.Append(c); continue; }
+
+            if (!inS && !inD && char.IsWhiteSpace(c))
+            {
+                if (cur.Length > 0) { tokens.Add(cur.ToString()); cur.Clear(); }
+                continue;
+            }
+
+            cur.Append(c);
+        }
+
+        if (cur.Length > 0) tokens.Add(cur.ToString());
+        return tokens;
+    }
+}
