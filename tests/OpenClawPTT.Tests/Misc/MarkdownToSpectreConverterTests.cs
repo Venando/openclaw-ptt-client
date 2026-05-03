@@ -121,14 +121,12 @@ public class MarkdownToSpectreConverterTests
         => Assert.Equal("[link=https://example.com]Example[/]", MarkdownToSpectreConverter.Convert("[Example](https://example.com)"));
 
     [Fact]
-    public void Convert_LinkWithFormatting_PatternInsideLabel_IsEscaped()
+    public void Convert_LinkWithFormatting_PatternInsideLabel()
     {
-        // Brackets inside the label are escaped before the link regex runs,
-        // so the label text is passed through literally (no link conversion).
         var result = MarkdownToSpectreConverter.Convert("[**bold link**](http://x.com)");
-        Assert.DoesNotContain("[link=", result);
-        // Brackets in label are escaped; the **bold** inside is still processed.
-        Assert.Contains("[[bold]bold link[/]]", result);
+        var expectedResult = "[bold link=http://x.com]bold link[/]";
+        ValidateMarkup(expectedResult);
+        Assert.Contains(expectedResult, result);
         ValidateMarkup(result);
     }
 
