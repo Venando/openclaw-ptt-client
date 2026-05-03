@@ -123,10 +123,11 @@ public class MarkdownToSpectreConverterTests
     [Fact]
     public void Convert_LinkWithFormatting_PatternInsideLabel()
     {
-        // Formatting inside a link label should be applied, and the style
-        // merged into the Spectre link tag.
         var result = MarkdownToSpectreConverter.Convert("[**bold link**](http://x.com)");
-        Assert.Equal("[bold link=http://x.com]bold link[/]", result);
+        var expectedResult = "[bold link=http://x.com]bold link[/]";
+        ValidateMarkup(expectedResult);
+        Assert.Contains(expectedResult, result);
+        ValidateMarkup(result);
     }
 
     // ── Blockquotes ───────────────────────────────────────────────────────────
@@ -170,6 +171,7 @@ public class MarkdownToSpectreConverterTests
         var result = MarkdownToSpectreConverter.Convert(md).Replace("\r\n", "\n");
         Assert.Contains("[italic]code[/]", result);
         Assert.Contains("[default on gray15]let x = 1;[/]", result);
+        ValidateMarkup(result);
     }
 
     [Fact]
@@ -180,6 +182,7 @@ public class MarkdownToSpectreConverterTests
         // Language is not shown in current converter, only code content
         Assert.Contains("[default on gray15]console.log('hi');[/]", result);
         Assert.Contains("[italic]code[/]", result);
+        ValidateMarkup(result);
     }
 
     [Fact]
@@ -190,6 +193,7 @@ public class MarkdownToSpectreConverterTests
         // Empty block still produces the frame lines (header + footer)
         Assert.Contains("[italic]code[/]", result);
         Assert.Contains("[dim]─", result);
+        ValidateMarkup(result);
     }
 
     // ── Bracket escaping ─────────────────────────────────────────────────────
@@ -200,6 +204,7 @@ public class MarkdownToSpectreConverterTests
         // Brackets NOT part of a link should be escaped so Spectre treats them as literals.
         var result = MarkdownToSpectreConverter.Convert("[not a link]");
         Assert.Contains("[[not a link]]", result);
+        ValidateMarkup(result);
     }
 
     [Fact]
@@ -209,6 +214,7 @@ public class MarkdownToSpectreConverterTests
         var result = MarkdownToSpectreConverter.Convert("[Example](https://example.com/path)");
         Assert.DoesNotContain("[[", result);
         Assert.Contains("[link=https://example.com/path]Example[/]", result);
+        ValidateMarkup(result);
     }
 
     // ── Mixed / compound ─────────────────────────────────────────────────────
@@ -225,6 +231,7 @@ public class MarkdownToSpectreConverterTests
         Assert.Contains("[dim]────────────────────────────────────────[/]", result);
         Assert.Contains("[bold gray89 on darkblue]code[/]", result);
         Assert.Contains("[link=http://x.com]link[/]", result);
+        ValidateMarkup(result);
     }
 
     [Fact]
@@ -234,6 +241,7 @@ public class MarkdownToSpectreConverterTests
         var result = MarkdownToSpectreConverter.Convert(md);
         var lines = result.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         Assert.Equal(3, lines.Length);
+        ValidateMarkup(result);
     }
 
     // ── CRLF handling ───────────────────────────────────────────────────────
@@ -248,6 +256,7 @@ public class MarkdownToSpectreConverterTests
         // Input was split into 2 lines, not treated as one.
         Assert.Contains("line1", result);
         Assert.Contains("line2", result);
+        ValidateMarkup(result);
     }
 
     // ── Unsupported constructs pass through ─────────────────────────────────
@@ -259,6 +268,7 @@ public class MarkdownToSpectreConverterTests
         var md = "| a | b |\n|---|---|\n| 1 | 2 |";
         var result = MarkdownToSpectreConverter.Convert(md);
         Assert.Contains("| a | b |", result);
+        ValidateMarkup(result);
     }
 
     [Fact]
@@ -269,5 +279,21 @@ public class MarkdownToSpectreConverterTests
         var md = "![alt](http://x.com/img.png)";
         var result = MarkdownToSpectreConverter.Convert(md);
         Assert.Contains("[link=http://x.com/img.png]alt[/]", result);
+        ValidateMarkup(result);
+    }
+
+    [Fact]
+    public void Convert_FileLink_ConvertedAsLinkDueToUnsupportedSyntax()
+    {
+        // Images are unsupported but share link syntax; they are converted
+        // as links (with the ! prefix passed through literally).
+        var md = "Done — reverted back to `(pttController, textSender, shellHost, cfg, _factory)`. The extra `null` gatewayservice parameter has been dropped.";
+        var result = MarkdownToSpectreConverter.Convert(md);
+        ValidateMarkup(result);
+    }
+    private static void ValidateMarkup(string text)
+    {
+        var validateResult = MarkupValidator.Validate(text);
+        Assert.True(validateResult.IsValid, $"Invalid markup in message: '{text.Replace("\n", "\\n")}'\n{validateResult}");
     }
 }

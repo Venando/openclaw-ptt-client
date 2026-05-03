@@ -265,4 +265,5 @@ internal sealed class TestableGatewayService : IGatewayService
             _disposed = true;
         }
     }
+
 }
