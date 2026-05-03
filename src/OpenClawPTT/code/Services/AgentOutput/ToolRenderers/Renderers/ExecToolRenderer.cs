@@ -33,6 +33,11 @@ public sealed class ExecToolRenderer : IToolRenderer
 
         foreach (var meta in parsed)
         {
+            if (meta.IsChained)
+            {
+                _output.Print("\n", ConsoleColor.Gray);
+            }
+
             RenderCommand(meta);
         }
     }
