@@ -98,7 +98,7 @@ public class AppRunner : IDisposable
             _cfg,
             onQuit: () => _cts?.Cancel()
         );
-        shellCommands.Register();
+        await shellCommands.RegisterAsync();
         ConsoleUi.PrintHelpMenu(_cfg);
 
         using IAppLoop pttLoop = _factory.CreatePttLoop(

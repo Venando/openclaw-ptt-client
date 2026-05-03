@@ -36,7 +36,7 @@ public sealed class StreamShellInputHandler : IDisposable
     }
 
     /// <summary>Register all commands and the UserInputSubmitted handler.</summary>
-    public void Register()
+    public async Task RegisterAsync()
     {
         // OpenClawPTT commands (StreamShell auto-executes these)
         _host.AddCommand(new Command("quit", "Exit the application", QuitHandler));
@@ -52,8 +52,8 @@ public sealed class StreamShellInputHandler : IDisposable
                 (args, named) => OpenClawCommandHandler(cmdName, args, named)));
         }
 
-        // Fetch initial agent session history after connection
-        _ = FetchInitialHistoryAsync();
+        // Fetch initial agent session history before PrintHelpMenu runs
+        await FetchInitialHistoryAsync();
 
         _host.UserInputSubmitted += OnUserInput;
     }
