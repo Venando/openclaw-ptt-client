@@ -113,11 +113,9 @@ public sealed class AgentHotkeyService : IDisposable
 
     private async Task PrintHistoryAfterSwitchAsync(string sessionKey)
     {
-        ConsoleUi.Log("debug", $"[History] Hotkey switch: fetching history for {sessionKey}");
         var history = await _gatewayService!.FetchSessionHistoryAsync(sessionKey, limit: 5);
         if (history == null || history.Count == 0)
         {
-            ConsoleUi.Log("debug", "[History] Hotkey switch: no history returned");
             return;
         }
 

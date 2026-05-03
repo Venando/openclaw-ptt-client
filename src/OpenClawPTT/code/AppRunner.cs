@@ -101,7 +101,6 @@ public class AppRunner : IDisposable
             onQuit: () => _cts?.Cancel()
         );
         shellCommands.Register();
-        ConsoleUi.Log("debug", "[History] StreamShell registered, initial history will be fetched");
 
         using IAppLoop pttLoop = _factory.CreatePttLoop(
             audioService, pttController, textSender, inputHandler,
