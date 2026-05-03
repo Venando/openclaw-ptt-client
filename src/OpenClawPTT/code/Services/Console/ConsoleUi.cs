@@ -92,16 +92,13 @@ public static class ConsoleUi
         if (_shellHost == null)
             return;
 
-        var _streamShellCapturingConsole = new StreamShellCapturingConsole(_shellHost);
-        var _agentReplayFormatter = new AgentReplyFormatter("", 10, prefixAlreadyPrinted: false, output: _streamShellCapturingConsole);
-
+        var streamShellCapturingConsole = new StreamShellCapturingConsole(_shellHost);
+        var userMessageFormatter = new AgentReplyFormatter("", 10, prefixAlreadyPrinted: false, output: streamShellCapturingConsole);
         var prefix = "[green]  You:[/] ";
-
-        _agentReplayFormatter.Reconfigure(prefix);
-        _agentReplayFormatter.ProcessDelta(Markup.Escape(text));
-        _agentReplayFormatter.Finish();
-        _streamShellCapturingConsole.FlushToStreamShell(prefix);
-        //ShellMsg($"[green]  You:[/] {Markup.Escape(text)}");
+        userMessageFormatter.Reconfigure(prefix);
+        userMessageFormatter.ProcessDelta(Markup.Escape(text));
+        userMessageFormatter.Finish();
+        streamShellCapturingConsole.FlushToStreamShell(prefix);
     }
 
     public static void PrintMarkupedUserMessage(string text)
