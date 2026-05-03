@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Spectre.Console;
 
 namespace OpenClawPTT.Services;
 
@@ -26,7 +27,7 @@ public sealed class ExecToolRenderer : IToolRenderer
 
         if (parsed.Count == 0)
         {
-            _output.Print(command, ConsoleColor.Gray);
+            _output.Print(Markup.Escape(command), ConsoleColor.Gray);
             return;
         }
 
@@ -42,7 +43,7 @@ public sealed class ExecToolRenderer : IToolRenderer
         if (!string.IsNullOrEmpty(meta.WorkingDirectory))
         {
             _output.Print("📂 ", ConsoleColor.DarkGray);
-            _output.Print(meta.WorkingDirectory, ConsoleColor.DarkGray);
+            _output.Print(Markup.Escape(meta.WorkingDirectory), ConsoleColor.DarkGray);
             _output.Print(" ", ConsoleColor.DarkGray);
         }
 
@@ -51,21 +52,21 @@ public sealed class ExecToolRenderer : IToolRenderer
         {
             foreach (var kvp in meta.InlineEnv)
             {
-                _output.Print($"{kvp.Key}=", ConsoleColor.Cyan);
-                _output.Print($"{kvp.Value} ", ConsoleColor.Yellow);
+                _output.Print($"{Markup.Escape(kvp.Key)}=", ConsoleColor.Cyan);
+                _output.Print($"{Markup.Escape(kvp.Value)} ", ConsoleColor.Yellow);
             }
         }
 
         // ── Executable ─────────────────────────────────────────────────────
         string execName = System.IO.Path.GetFileName(meta.Executable);
         ConsoleColor execColor = GetExecutableColor(meta.Type);
-        _output.Print(execName, execColor);
+        _output.Print(Markup.Escape(execName), execColor);
 
         // ── Positional arguments ───────────────────────────────────────────
         foreach (var pos in meta.Positionals)
         {
             _output.Print(" ", ConsoleColor.White);
-            _output.Print(pos, ConsoleColor.Cyan);
+            _output.Print(Markup.Escape(pos), ConsoleColor.Cyan);
         }
 
         // ── Flags ──────────────────────────────────────────────────────────
@@ -74,12 +75,12 @@ public sealed class ExecToolRenderer : IToolRenderer
             if (flag.StartsWith("--"))
             {
                 _output.Print(" ", ConsoleColor.White);
-                _output.Print(flag, ConsoleColor.Green);
+                _output.Print(Markup.Escape(flag), ConsoleColor.Green);
             }
             else
             {
                 _output.Print(" ", ConsoleColor.White);
-                _output.Print(flag, ConsoleColor.DarkYellow);
+                _output.Print(Markup.Escape(flag), ConsoleColor.DarkYellow);
             }
         }
 
@@ -87,7 +88,7 @@ public sealed class ExecToolRenderer : IToolRenderer
         foreach (var redir in meta.Redirects)
         {
             _output.Print(" ", ConsoleColor.White);
-            _output.Print(redir, ConsoleColor.Gray);
+            _output.Print(Markup.Escape(redir), ConsoleColor.Gray);
         }
 
         // ── Pipe / chain indicators ────────────────────────────────────────
@@ -104,13 +105,13 @@ public sealed class ExecToolRenderer : IToolRenderer
         if (meta.HereDoc != null)
         {
             _output.Print(" << '", ConsoleColor.Gray);
-            _output.Print(meta.HereDoc.Delimiter, ConsoleColor.Gray);
+            _output.Print(Markup.Escape(meta.HereDoc.Delimiter), ConsoleColor.Gray);
             _output.Print("'", ConsoleColor.Gray);
 
             if (!string.IsNullOrEmpty(meta.HereDoc.TargetFile))
             {
                 _output.Print(" > ", ConsoleColor.Gray);
-                _output.Print(meta.HereDoc.TargetFile, ConsoleColor.Gray);
+                _output.Print(Markup.Escape(meta.HereDoc.TargetFile), ConsoleColor.Gray);
             }
 
             int bodyLines = meta.HereDoc.Body.Split('\n').Length;
