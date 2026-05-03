@@ -110,6 +110,12 @@ public static class UserMessageHelper
         if (trimmed.StartsWith("[Startup context loaded by runtime]", StringComparison.Ordinal))
             return true;
 
+        if (trimmed.StartsWith("Read HEARTBEAT.md if it exists(workspace context).", StringComparison.Ordinal))
+            return true;
+
+        if (trimmed.Equals("HEARTBEAT_OK", StringComparison.Ordinal))
+            return true;
+
         return false;
     }
 

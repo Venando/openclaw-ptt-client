@@ -61,7 +61,7 @@ public sealed class EditToolRenderer : IToolRenderer
                     {
                         int remainingRemoved = totalRemoved - shown.Count(d => d.Operation == DiffOperation.Remove);
                         int remainingAdded = totalAdded - shown.Count(d => d.Operation == DiffOperation.Add);
-                        _output.PrintMarkup($"  [default on yellow]... {displayLines.Count - 8} more changes (-{remainingRemoved} +{remainingAdded})[/]\n");
+                        _output.PrintMarkup($"  [dim]... {displayLines.Count - 8} more changes (-{remainingRemoved} +{remainingAdded})[/]\n");
                     }
                 }
             }
@@ -72,8 +72,8 @@ public sealed class EditToolRenderer : IToolRenderer
     {
         string markup = entry.Operation switch
         {
-            DiffOperation.Add => $"[default on green]+ {Markup.Escape(entry.Line)}[/]\n",
-            DiffOperation.Remove => $"[default on red]- {Markup.Escape(entry.Line)}[/]\n",
+            DiffOperation.Add => $"[default on springgreen4]+ {Markup.Escape(entry.Line)}[/]\n",
+            DiffOperation.Remove => $"[default on darkred]- {Markup.Escape(entry.Line)}[/]\n",
             _ => $"  {Markup.Escape(entry.Line)}\n"
         };
         _output.PrintMarkup(markup);
