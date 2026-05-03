@@ -284,8 +284,15 @@ public sealed class GatewayClient : IGatewayClient
     {
         if (string.IsNullOrEmpty(content)) return true;
         var trimmed = content.Trim();
-        return trimmed.Equals("NO_REPLY", StringComparison.OrdinalIgnoreCase)
-            || trimmed.Equals("no_reply", StringComparison.OrdinalIgnoreCase);
+        if (trimmed.Equals("NO_REPLY", StringComparison.OrdinalIgnoreCase)
+            || trimmed.Equals("no_reply", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Filter out internal context blocks injected by the system
+        if (trimmed.StartsWith("<<<BEGIN_OPENCLAW_INTERNAL_CONTEXT>>>", StringComparison.Ordinal))
+            return true;
+
+        return false;
     }
 
     // ─── recreate ───────────────────────────────────────────────────
