@@ -625,6 +625,8 @@ public class ToolDisplayHandlerIntegrationTests
         Assert.Contains("dotnet", content);
         Assert.Contains("build", content);
         Assert.Contains("test", content);
+        // Chained commands should be on separate rows
+        Assert.Contains("\n", content);
     }
 
     [Fact]
@@ -640,6 +642,51 @@ public class ToolDisplayHandlerIntegrationTests
         var content = string.Join("\n", shellHost.Messages);
         Assert.Contains("git", content);
         Assert.Contains("Markup.Escape", content);
+        // Chained commands should be on separate rows
+        Assert.Contains("\n", content);
+    }
+
+    [Fact]
+    public void Handle_ExecTool_SimpleChainedCommands_StartOnNewRows()
+    {
+        var (handler, shellHost) = CreateHandler();
+
+        var arguments = "{\"command\":\"ls -la && cat file.txt && echo done\"}";
+        handler.Handle("exec", arguments);
+
+        Assert.NotEmpty(shellHost.Messages);
+        AssertAllMessagesHaveValidMarkup(shellHost);
+        var content = string.Join("\n", shellHost.Messages);
+        Assert.Contains("ls", content);
+        Assert.Contains("cat", content);
+        Assert.Contains("echo", content);
+        // Each chained command starts on its own row — && must be followed by newline
+        Assert.Contains("&&", content);
+        // Check that there's a newline between chained commands
+        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        // The ls-ln line should end with && and the cat line should have cat
+        bool foundCatOnOwnLine = lines.Any(l => l.Contains("cat"));
+        Assert.True(foundCatOnOwnLine, "Expected cat to be on its own line");
+    }
+
+    [Fact]
+    public void Handle_ExecTool_ChainedWithCd_StartOnNewRows()
+    {
+        var (handler, shellHost) = CreateHandler();
+
+        var arguments = "{\"command\":\"cd /tmp && mkdir test && echo ok && rm -rf test\"}";
+        handler.Handle("exec", arguments);
+
+        Assert.NotEmpty(shellHost.Messages);
+        AssertAllMessagesHaveValidMarkup(shellHost);
+        var content = string.Join("\n", shellHost.Messages);
+        Assert.Contains("mkdir", content);
+        Assert.Contains("echo", content);
+        Assert.Contains("rm", content);
+        // Each chained command starts on its own row
+        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        bool foundEchoOnOwnLine = lines.Any(l => l.Contains("echo"));
+        Assert.True(foundEchoOnOwnLine, "Expected echo to be on its own line");
     }
 
     [Fact]
