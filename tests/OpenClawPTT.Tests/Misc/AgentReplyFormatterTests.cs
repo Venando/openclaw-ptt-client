@@ -574,6 +574,19 @@ items.map(i => console.log(i));
         ValidateMarkup(output);
     }
 
+    [Fact]
+    public void ProcessMarkupDelta_CustomColorMarkup()
+    {
+        var spectreMarkup = "[lime on #1a3a1a] text [/]";
+        var output = new StringWriterTextOutput { WindowWidth = 70 };
+        var formatter = new AgentReplyFormatter(prefix: "", rightMarginIndent: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta(spectreMarkup);
+        formatter.Finish();
+        ValidateMarkup(output);
+    }
+
+     
+
     [Theory]
     [InlineData(5, 30)]
     [InlineData(10, 30)]
