@@ -83,6 +83,9 @@ public static class UserMessageHelper
         if (trimmed.StartsWith("<<<BEGIN_OPENCLAW_INTERNAL_CONTEXT>>>", StringComparison.Ordinal))
             return true;
 
+        if (trimmed.StartsWith("[Startup context loaded by runtime]", StringComparison.Ordinal))
+            return true;
+
         return false;
     }
 
