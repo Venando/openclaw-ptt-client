@@ -473,7 +473,12 @@ public class ToolDisplayHandlerIntegrationTests
         var json = JsonDocument.Parse("{\"command\":\"ls -la /tmp\"}").RootElement;
         renderer.Render(json, rightMarginIndent: 10);
 
-        Assert.Contains(output.Lines, l => l.Contains("ls -la /tmp"));
+        // Should show executable with styled tag
+        Assert.Contains(output.Lines, l => l.Contains(" ls "));
+        // Should show flags
+        Assert.Contains(output.Lines, l => l.Contains("-la"));
+        // Should show positional argument
+        Assert.Contains(output.Lines, l => l.Contains("/tmp"));
     }
 
     [Fact]
