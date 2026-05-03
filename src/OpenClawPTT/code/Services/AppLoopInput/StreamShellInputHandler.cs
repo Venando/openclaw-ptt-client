@@ -19,6 +19,7 @@ public sealed class StreamShellInputHandler : IDisposable
 {
     private readonly IStreamShellHost _host;
     private readonly ITextMessageSender _textSender;
+    private readonly IGatewayService _gatewayService;
     private readonly IConfigurationService _configService;
     private readonly AppConfig _appConfig;
     private readonly Action _onQuit;
@@ -29,22 +30,24 @@ public sealed class StreamShellInputHandler : IDisposable
     public StreamShellInputHandler(
         IStreamShellHost host,
         ITextMessageSender textSender,
+        IGatewayService gatewayService,
         IConfigurationService configService,
         AppConfig appConfig,
         Action onQuit)
     {
         _host = host;
         _textSender = textSender;
+        _gatewayService = gatewayService;
         _configService = configService;
         _onQuit = onQuit;
         _appConfig = appConfig;
         _agentSettings = new AgentSettingsCommands(host, configService);
-        _agentSwitching = new AgentSwitchingCommands(host, textSender, appConfig);
+        _agentSwitching = new AgentSwitchingCommands(host, textSender, gatewayService, appConfig);
         _messageComposer = new TextMessageComposer(host, textSender);
     }
 
     /// <summary>Register all commands and the UserInputSubmitted handler.</summary>
-    public void Register()
+    public async Task RegisterAsync()
     {
         // Application commands
         _host.AddCommand(new Command("quit", "Exit the application", QuitHandler));
@@ -61,6 +64,11 @@ public sealed class StreamShellInputHandler : IDisposable
         }
 
         _host.UserInputSubmitted += OnUserInput;
+
+        // Fetch initial session history after commands are registered
+        var sessionKey = AgentRegistry.ActiveSessionKey;
+        if (sessionKey != null)
+            await _agentSwitching.PrintSessionHistory(sessionKey);
     }
 
     public void Dispose()

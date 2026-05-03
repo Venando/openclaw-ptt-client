@@ -33,7 +33,7 @@ public class GatewayMessager : IDisposable
 
     public async Task ReceiveLoop(CancellationToken ct)
     {
-        var buf = new byte[256 * 1024];
+        var buf = new byte[512 * 1024];
 
         try
         {

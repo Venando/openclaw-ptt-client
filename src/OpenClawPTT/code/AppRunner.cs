@@ -86,19 +86,20 @@ public class AppRunner : IDisposable
         var pttController = new PttController();
 
         using var agentHotkeyService = new AgentHotkeyService(
-            pttController, textSender, _shellHost, _cfg);
-
-        ConsoleUi.PrintHelpMenu(_cfg);
+            pttController, textSender, _shellHost, _cfg,
+            gatewayService: gateway);
 
         // Register StreamShell commands (/quit, /reconfigure) before PTT loop
         using var shellCommands = new StreamShellInputHandler(
             _shellHost,
             textSender,
+            gateway,
             _configService,
             _cfg,
             onQuit: () => _cts?.Cancel()
         );
-        shellCommands.Register();
+        await shellCommands.RegisterAsync();
+        ConsoleUi.PrintHelpMenu(_cfg);
 
         using IAppLoop pttLoop = _factory.CreatePttLoop(
             audioService, pttController, textSender, inputHandler,

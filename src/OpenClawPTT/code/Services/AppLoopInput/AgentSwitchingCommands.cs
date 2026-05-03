@@ -8,19 +8,21 @@ namespace OpenClawPTT;
 
 /// <summary>
 /// Handles StreamShell commands for agent listing and switching:
-/// /crew, /chat, and OpenClaw tool command forwarding.
+/// /crew, /chat, session history, and OpenClaw tool command forwarding.
 /// Extracted from StreamShellInputHandler to honor Single Responsibility.
 /// </summary>
 public sealed class AgentSwitchingCommands
 {
     private readonly IStreamShellHost _host;
     private readonly ITextMessageSender _textSender;
+    private readonly IGatewayService _gatewayService;
     private readonly AppConfig _appConfig;
 
-    public AgentSwitchingCommands(IStreamShellHost host, ITextMessageSender textSender, AppConfig appConfig)
+    public AgentSwitchingCommands(IStreamShellHost host, ITextMessageSender textSender, IGatewayService gatewayService, AppConfig appConfig)
     {
         _host = host;
         _textSender = textSender;
+        _gatewayService = gatewayService;
         _appConfig = appConfig;
     }
 
@@ -57,13 +59,13 @@ public sealed class AgentSwitchingCommands
         return Task.CompletedTask;
     }
 
-    /// <summary>Handler for /chat — switches active agent.</summary>
-    public Task HandleChat(string[] args)
+    /// <summary>Handler for /chat — switches active agent and prints recent history.</summary>
+    public async Task HandleChat(string[] args)
     {
         if (args.Length == 0)
         {
             _host.AddMessage("[yellow]  Usage: /chat <name|id>[/]");
-            return Task.CompletedTask;
+            return;
         }
 
         var search = string.Join(" ", args);
@@ -74,19 +76,35 @@ public sealed class AgentSwitchingCommands
         if (matched == null)
         {
             _host.AddMessage($"[red]  Agent not found: {Markup.Escape(search)}[/]");
-            return Task.CompletedTask;
+            return;
         }
 
         if (AgentRegistry.SetActiveAgent(matched.AgentId))
         {
+            await PrintSessionHistory(matched.SessionKey);
             ConsoleUi.PrintAgentIntroduction(_appConfig);
         }
         else
         {
             _host.AddMessage("[yellow]  That agent is already active.[/]");
         }
+    }
 
-        return Task.CompletedTask;
+    /// <summary>Fetches and displays recent session history.</summary>
+    public async Task PrintSessionHistory(string sessionKey)
+    {
+        var history = await _gatewayService.FetchSessionHistoryAsync(sessionKey, limit: 5);
+        if (history == null || history.Count == 0)
+            return;
+
+        _host.AddMessage("  [grey]── previous messages ──[/]");
+        foreach (var entry in history)
+        {
+            if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
+                ConsoleUi.PrintUserMessage(entry.Content);
+            else
+                _gatewayService.DisplayAssistantReply(entry.Content);
+        }
     }
 
     /// <summary>

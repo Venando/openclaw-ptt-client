@@ -1,3 +1,4 @@
+using Spectre.Console;
 using System;
 using System.Linq;
 using System.Threading;
@@ -17,6 +18,7 @@ public sealed class AgentHotkeyService : IDisposable
     private readonly ITextMessageSender _textSender;
     private readonly IStreamShellHost _shellHost;
     private readonly AppConfig _cfg;
+    private readonly IGatewayService? _gatewayService;
     private readonly IGlobalHotkeyHook? _hook;
 
     public AgentHotkeyService(
@@ -24,12 +26,14 @@ public sealed class AgentHotkeyService : IDisposable
         ITextMessageSender textSender,
         IStreamShellHost shellHost,
         AppConfig cfg,
+        IGatewayService? gatewayService = null,
         IHotkeyHookFactory? hookFactory = null)
     {
         _pttController = pttController;
         _textSender = textSender;
         _shellHost = shellHost;
         _cfg = cfg;
+        _gatewayService = gatewayService;
 
         // Always create a hook — at minimum for Escape key cancellation.
         if (hookFactory != null)
@@ -82,7 +86,9 @@ public sealed class AgentHotkeyService : IDisposable
         else
         {
             AgentRegistry.SetActiveAgent(agent.AgentId);
-            ConsoleUi.PrintAgentIntroduction(_cfg);
+            // Fetch and print session history, then agent intro (fire-and-forget)
+            if (_gatewayService != null)
+                _ = PrintHistoryAfterSwitchAsync(agent.SessionKey);
         }
     }
 
@@ -102,6 +108,25 @@ public sealed class AgentHotkeyService : IDisposable
         {
             _pttController.StopRecording();
         }
+    }
+
+    private async Task PrintHistoryAfterSwitchAsync(string sessionKey)
+    {
+        var history = await _gatewayService!.FetchSessionHistoryAsync(sessionKey, limit: 5);
+        if (history != null && history.Count > 0)
+        {
+            _shellHost.AddMessage("  [grey]── previous messages ──[/]");
+            foreach (var entry in history)
+            {
+                if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
+                    ConsoleUi.PrintUserMessage(entry.Content);
+                else
+                    _gatewayService!.DisplayAssistantReply(entry.Content);
+            }
+        }
+
+        // Print agent intro after history (so it appears at the bottom)
+        ConsoleUi.PrintAgentIntroduction(_cfg);
     }
 
 
