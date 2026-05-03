@@ -657,6 +657,9 @@ public class ToolDisplayHandlerIntegrationTests
         Assert.NotEmpty(shellHost.Messages);
         AssertAllMessagesHaveValidMarkup(shellHost);
         var content = string.Join("\n", shellHost.Messages);
+        // DEBUG: write messages to file
+        System.IO.File.WriteAllText("/tmp/test_messages.txt", string.Join("\n---\n", shellHost.Messages));
+        System.IO.File.WriteAllText("/tmp/test_content.txt", string.Join("\n", shellHost.Messages));
         Assert.Contains("ls", content);
         Assert.Contains("cat", content);
         Assert.Contains("echo", content);
@@ -664,9 +667,11 @@ public class ToolDisplayHandlerIntegrationTests
         Assert.Contains("&&", content);
         // Check that there's a newline between chained commands
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        // The ls-ln line should end with && and the cat line should have cat
-        bool foundCatOnOwnLine = lines.Any(l => l.Contains("cat"));
-        Assert.True(foundCatOnOwnLine, "Expected cat to be on its own line");
+        // cat must NOT share a line with ls
+        bool catOnSameLineAsLs = lines.Any(l => l.Contains("ls") && l.Contains("cat"));
+        Assert.False(catOnSameLineAsLs, "cat should not be on the same line as ls — chained commands need a newline");
+        bool echoOnSameLineAsCat = lines.Any(l => l.Contains("cat") && l.Contains("echo"));
+        Assert.False(echoOnSameLineAsCat, "echo should not be on the same line as cat — chained commands need a newline");
     }
 
     [Fact]
@@ -685,8 +690,10 @@ public class ToolDisplayHandlerIntegrationTests
         Assert.Contains("rm", content);
         // Each chained command starts on its own row
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        bool foundEchoOnOwnLine = lines.Any(l => l.Contains("echo"));
-        Assert.True(foundEchoOnOwnLine, "Expected echo to be on its own line");
+        bool echoOnSameLineAsMkdir = lines.Any(l => l.Contains("mkdir") && l.Contains("echo"));
+        Assert.False(echoOnSameLineAsMkdir, "echo should not be on the same line as mkdir — chained commands need a newline");
+        bool rmOnSameLineAsEcho = lines.Any(l => l.Contains("echo") && l.Contains("rm"));
+        Assert.False(rmOnSameLineAsEcho, "rm should not be on the same line as echo — chained commands need a newline");
     }
 
     [Fact]

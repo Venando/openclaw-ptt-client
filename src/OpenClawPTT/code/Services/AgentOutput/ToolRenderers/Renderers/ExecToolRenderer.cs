@@ -31,14 +31,16 @@ public sealed class ExecToolRenderer : IToolRenderer
             return;
         }
 
+        bool needNewline = false;
         foreach (var meta in parsed)
         {
-            if (meta.IsChained)
+            if (needNewline)
             {
-                _output.Print("\n", ConsoleColor.Gray);
+                _output.PrintLine("", ConsoleColor.Gray);
             }
 
             RenderCommand(meta);
+            needNewline = meta.IsChained;
         }
     }
 
