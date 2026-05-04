@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Moq;
 using OpenClawPTT;
+using OpenClawPTT.Services;
 
 namespace OpenClawPTT.Tests.Gateway;
 
@@ -30,7 +31,8 @@ public class GatewayClientEventsTests : IDisposable
         _device.EnsureKeypair();
 
         _eventSource = new GatewayEventSource();
-        _client = new GatewayClient(_config, _device, _eventSource);
+        var mockConsole = new Mock<IColorConsole>();
+        _client = new GatewayClient(_config, _device, _eventSource, mockConsole.Object);
 
         _eventSource.AgentReplyFull += t => _fullEvents.Add(t);
         _eventSource.AgentReplyAudio += t => _audioEvents.Add(t);

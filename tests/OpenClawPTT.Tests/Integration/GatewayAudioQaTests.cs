@@ -26,7 +26,7 @@ public class GatewayAudioQaTests
         var dev = new DeviceIdentity(cfg.DataDir);
         dev.EnsureKeypair();
 
-        var client = new GatewayClient(cfg, dev, null!);
+        var client = new GatewayClient(cfg, dev, null!, CreateMockConsole());
 
         // Act & Assert: dispose without ever connecting should be safe
         client.Dispose();
@@ -44,7 +44,7 @@ public class GatewayAudioQaTests
         var dev = new DeviceIdentity(cfg.DataDir);
         dev.EnsureKeypair();
 
-        var client = new GatewayClient(cfg, dev, null!);
+        var client = new GatewayClient(cfg, dev, null!, CreateMockConsole());
         client.Dispose();
         // Second dispose should not throw ObjectDisposedException from CTS.Cancel()
         // (The underlying bug: _disposeCts.Cancel() is called before _disposeCts.Dispose()
@@ -322,7 +322,7 @@ public class GatewayAudioQaTests
             MaxRecordSeconds = 30
         };
 
-        var audio = new AudioService(cfg);
+        var audio = new AudioService(cfg, CreateMockConsole());
         Assert.False(audio.IsRecording);
         audio.Dispose();
     }
@@ -338,7 +338,7 @@ public class GatewayAudioQaTests
             MaxRecordSeconds = 30
         };
 
-        var audio = new AudioService(cfg);
+        var audio = new AudioService(cfg, CreateMockConsole());
         audio.Dispose();
         audio.Dispose(); // should not throw
     }
@@ -360,7 +360,7 @@ public class GatewayAudioQaTests
             MaxRecordSeconds = 30
         };
 
-        var audio = new AudioService(cfg);
+        var audio = new AudioService(cfg, CreateMockConsole());
         audio.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() => audio.StartRecording());
@@ -377,7 +377,7 @@ public class GatewayAudioQaTests
             MaxRecordSeconds = 30
         };
 
-        var audio = new AudioService(cfg);
+        var audio = new AudioService(cfg, CreateMockConsole());
         audio.Dispose();
 
         await Assert.ThrowsAsync<ObjectDisposedException>(
@@ -395,7 +395,7 @@ public class GatewayAudioQaTests
             MaxRecordSeconds = 30
         };
 
-        var audio = new AudioService(cfg);
+        var audio = new AudioService(cfg, CreateMockConsole());
         var result = await audio.StopAndTranscribeAsync(CancellationToken.None);
         Assert.Null(result);
         audio.Dispose();

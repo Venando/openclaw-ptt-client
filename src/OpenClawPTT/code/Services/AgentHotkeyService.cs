@@ -41,11 +41,11 @@ public sealed class AgentHotkeyService : IDisposable
         // Always create a hook — at minimum for Escape key cancellation.
         if (hookFactory != null)
         {
-            _hook = hookFactory.Create(new Hotkey(new Key(' '), new HashSet<Modifier>()));
+            _hook = hookFactory.Create(new Hotkey(new Key(' '), new HashSet<Modifier>()), _console);
         }
         else
         {
-            _hook = GlobalHotkeyHookFactory.Create();
+            _hook = GlobalHotkeyHookFactory.Create(_console);
         }
 
         if (AgentRegistry.Agents.Count > 0)

@@ -50,7 +50,7 @@ public class ServiceFactoryTests
     /// </summary>
     private sealed class NoOpHotkeyHookFactory : IHotkeyHookFactory
     {
-        public IGlobalHotkeyHook Create(Hotkey mapping) => new NoOpHotkeyHook();
+        public IGlobalHotkeyHook Create(Hotkey mapping, IColorConsole console) => new NoOpHotkeyHook();
     }
 
     #region Test 1: CreatePttController_Returns_IPttController

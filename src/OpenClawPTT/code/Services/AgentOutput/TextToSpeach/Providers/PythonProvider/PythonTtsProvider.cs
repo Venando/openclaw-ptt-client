@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using OpenClawPTT.Services;
 
 namespace OpenClawPTT.TTS.Providers;
 
@@ -11,6 +12,7 @@ namespace OpenClawPTT.TTS.Providers;
 /// </summary>
 public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
 {
+    private readonly IColorConsole _console;
     private readonly string? _serviceScriptPathOverride;
     private readonly PythonEnvironment _environment;
     private readonly bool _debugLog;
@@ -38,8 +40,9 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
 
     public IReadOnlyList<string> AvailableModels { get; } = Array.Empty<string>();
 
-    public PythonTtsProvider(string? serviceScriptPathOverride, string pythonPath, string modelPath, string modelName, string? coquiConfigPath, string? espeakNgPath = null, bool debugLog = false, TimeSpan? requestTimeout = null, TimeSpan? startupTimeout = null)
+    public PythonTtsProvider(IColorConsole console, string? serviceScriptPathOverride, string pythonPath, string modelPath, string modelName, string? coquiConfigPath, string? espeakNgPath = null, bool debugLog = false, TimeSpan? requestTimeout = null, TimeSpan? startupTimeout = null)
     {
+        _console = console ?? throw new ArgumentNullException(nameof(console));
         _serviceScriptPathOverride = serviceScriptPathOverride;
         _environment = new PythonEnvironment(pythonPath, modelName, modelPath, coquiConfigPath, espeakNgPath);
         _debugLog = debugLog;
@@ -50,7 +53,7 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
 
     public async Task InitializeAsync(CancellationToken ct = default)
     {
-        ConsoleUi.Log("python_tts_provider", "Loading TTS model...");
+        _console.Log("python_tts_provider", "Loading TTS model...");
 
         await _sem.WaitAsync(ct);
         try
@@ -225,7 +228,7 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
         // Successfully reached READY — reset restart counter.
         _consecutiveRestarts = 0;
 
-        ConsoleUi.Log("python_tts_provider", "Ready");
+        _console.Log("python_tts_provider", "Ready");
 
         // Stderr: structured log messages (perf, warn, info, error)
         // Stdout: structured protocol messages (ready, done, ok)
@@ -340,11 +343,11 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
                 case MessageType.Performance:
                     var secs = root.GetProperty("time").GetDouble();
                     var bytes = root.GetProperty("bytes").GetInt64();
-                    ConsoleUi.Log("audio processing:", $"time: {secs:F2}s, {bytes / 1024.0:F1}KB");
+                    _console.Log("audio processing:", $"time: {secs:F2}s, {bytes / 1024.0:F1}KB");
                     break;
                 case MessageType.Warn:
                     var msg = root.GetProperty("msg").GetString();
-                    ConsoleUi.PrintWarning($"TTS Performance Alert: {msg}");
+                    _console.PrintWarning($"TTS Performance Alert: {msg}");
                     break;
                 case MessageType.Info:
                 case MessageType.Debug:
@@ -356,7 +359,7 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
                     break;
                 case MessageType.Error:
                     var errMsg = root.TryGetProperty("msg", out var e) ? e.GetString() : line;
-                    ConsoleUi.PrintError(errMsg ?? line);
+                    _console.PrintError(errMsg ?? line);
                     break;
                 default:
                     if (_debugLog) Console.Error.WriteLine(line);

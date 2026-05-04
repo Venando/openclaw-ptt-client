@@ -1,6 +1,7 @@
 using System.Net.WebSockets;
 using Moq;
 using OpenClawPTT;
+using OpenClawPTT.Services;
 using Xunit;
 
 namespace OpenClawPTT.Tests.Gateway;
@@ -9,6 +10,7 @@ public class GatewayReconnectorTests : IDisposable
 {
     private readonly AppConfig _cfg;
     private readonly Mock<IGatewayConnector> _mockConnector;
+    private readonly Mock<IColorConsole> _mockConsole;
     private readonly CancellationTokenSource _cts;
     private readonly GatewayReconnector _reconnector;
 
@@ -20,14 +22,16 @@ public class GatewayReconnectorTests : IDisposable
             ReconnectDelaySeconds = 0 // fast reconnect for tests
         };
         _mockConnector = new Mock<IGatewayConnector>();
+        _mockConsole = new Mock<IColorConsole>();
         _cts = new CancellationTokenSource();
-        _reconnector = new GatewayReconnector(_cfg, _mockConnector.Object, _cts.Token);
+        _reconnector = new GatewayReconnector(_cfg, _mockConsole.Object, _mockConnector.Object, _cts.Token);
     }
 
-    private GatewayReconnector CreateReconnector(AppConfig? cfg = null, IGatewayConnector? connector = null, CancellationToken ct = default)
+    private GatewayReconnector CreateReconnector(AppConfig? cfg = null, IColorConsole? console = null, IGatewayConnector? connector = null, CancellationToken ct = default)
     {
         return new GatewayReconnector(
             cfg ?? _cfg,
+            console ?? _mockConsole.Object,
             connector ?? _mockConnector.Object,
             ct == default ? _cts.Token : ct);
     }
@@ -81,7 +85,7 @@ public class GatewayReconnectorTests : IDisposable
                 catch (OperationCanceledException) { throw; }
             });
 
-        var reconnWithHang = new GatewayReconnector(_cfg, hangConnector.Object, _cts.Token);
+        var reconnWithHang = new GatewayReconnector(_cfg, _mockConsole.Object, hangConnector.Object, _cts.Token);
 
         var scheduleTask = reconnWithHang.ScheduleReconnectAsync(CancellationToken.None);
 

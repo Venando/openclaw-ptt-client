@@ -23,11 +23,11 @@ public sealed class ServiceFactory : IServiceFactory
 
     public IGatewayService CreateGatewayService(AppConfig cfg) => new GatewayService(cfg, _colorConsole);
 
-    public IAudioService CreateAudioService(AppConfig cfg) => new AudioService(cfg);
+    public IAudioService CreateAudioService(AppConfig cfg) => new AudioService(cfg, _colorConsole);
 
     public IPttController CreatePttController(AppConfig cfg, IAudioService audioService, IHotkeyHookFactory? hotkeyHookFactory = null)
     {
-        var controller = new PttController(hotkeyHookFactory ?? new HotkeyHookFactory());
+        var controller = new PttController(hotkeyHookFactory ?? new HotkeyHookFactory(), _colorConsole);
         controller.SetHotkey(cfg.HotkeyCombination, cfg.HoldToTalk);
         return controller;
     }

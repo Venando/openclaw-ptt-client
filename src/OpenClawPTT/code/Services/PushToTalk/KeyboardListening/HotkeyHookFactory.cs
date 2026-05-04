@@ -1,3 +1,5 @@
+using OpenClawPTT.Services;
+
 namespace OpenClawPTT;
 
 /// <summary>
@@ -5,9 +7,9 @@ namespace OpenClawPTT;
 /// </summary>
 internal sealed class HotkeyHookFactory : IHotkeyHookFactory
 {
-    public IGlobalHotkeyHook Create(Hotkey mapping)
+    public IGlobalHotkeyHook Create(Hotkey mapping, IColorConsole console)
     {
-        var hook = GlobalHotkeyHookFactory.Create();
+        var hook = GlobalHotkeyHookFactory.Create(console);
         hook.SetHotkey(mapping);
         return hook;
     }

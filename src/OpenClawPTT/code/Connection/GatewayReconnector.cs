@@ -1,9 +1,11 @@
 using OpenClawPTT;
+using OpenClawPTT.Services;
 
 public class GatewayReconnector : IDisposable
 {
     private readonly SemaphoreSlim _reconnectLock = new SemaphoreSlim(1, 1);
     private readonly IGatewayConnector _gatewayConnector;
+    private readonly IColorConsole _console;
     private readonly AppConfig _cfg;
     private readonly CancellationToken _cancellationToken;
 
@@ -12,9 +14,10 @@ public class GatewayReconnector : IDisposable
 
     public SemaphoreSlim ReconnectLock => _reconnectLock;
 
-    public GatewayReconnector(AppConfig appConfig, IGatewayConnector gatewayConnector, CancellationToken cancellationToken)
+    public GatewayReconnector(AppConfig appConfig, IColorConsole console, IGatewayConnector gatewayConnector, CancellationToken cancellationToken)
     {
         _cfg = appConfig;
+        _console = console ?? throw new ArgumentNullException(nameof(console));
         _cancellationToken = cancellationToken;
         _gatewayConnector = gatewayConnector;
     }
@@ -33,7 +36,7 @@ public class GatewayReconnector : IDisposable
         {
             _reconnectLock.Release();
         }
-        ConsoleUi.Log("gateway", "Starting reconnection loop...");
+        _console.Log("gateway", "Starting reconnection loop...");
         _reconnectTask = ReconnectLoopAsync(ct);
     }
 
@@ -46,14 +49,14 @@ public class GatewayReconnector : IDisposable
             while (!linkedCt.IsCancellationRequested)
             {
                 var delayMs = (int)(_cfg.ReconnectDelaySeconds * 1000);
-                ConsoleUi.Log("gateway", $"Waiting {_cfg.ReconnectDelaySeconds}s before reconnection attempt...");
+                _console.Log("gateway", $"Waiting {_cfg.ReconnectDelaySeconds}s before reconnection attempt...");
                 await Task.Delay(delayMs, linkedCt);
 
-                ConsoleUi.Log("gateway", "Attempting to reconnect...");
+                _console.Log("gateway", "Attempting to reconnect...");
                 try
                 {
                     await _gatewayConnector.ConnectAsync(linkedCt);
-                    ConsoleUi.LogOk("gateway", "Reconnected successfully.");
+                    _console.LogOk("gateway", "Reconnected successfully.");
                     _isReconnecting = false;
                     break;
                 }
@@ -64,7 +67,7 @@ public class GatewayReconnector : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    ConsoleUi.LogError("gateway", $"Reconnection failed: {ex.Message}");
+                    _console.LogError("gateway", $"Reconnection failed: {ex.Message}");
                 }
             }
         }

@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text.Json;
 using Moq;
 using OpenClawPTT;
+using OpenClawPTT.Services;
 using Xunit;
 
 namespace OpenClawPTT.Tests.Gateway;
@@ -13,6 +14,7 @@ public class GatewayConnectionLifecycleTests : IDisposable
     private readonly DeviceIdentity _dev;
     private readonly GatewayEventSource _events;
     private readonly Mock<IClientWebSocket> _mockWs;
+    private readonly Mock<IColorConsole> _mockConsole;
 
     public GatewayConnectionLifecycleTests()
     {
@@ -27,11 +29,12 @@ public class GatewayConnectionLifecycleTests : IDisposable
         _events = new GatewayEventSource();
         _mockWs = new Mock<IClientWebSocket>();
         _mockWs.Setup(x => x.State).Returns(WebSocketState.Open);
+        _mockConsole = new Mock<IColorConsole>();
     }
 
     private GatewayConnectionLifecycle CreateWithMockSocket()
     {
-        return new GatewayConnectionLifecycle(_cfg, _dev, _events, () => _mockWs.Object);
+        return new GatewayConnectionLifecycle(_cfg, _dev, _events, _mockConsole.Object, () => _mockWs.Object);
     }
 
     // ─── reflection helpers ─────────────────────────────────────────
@@ -316,7 +319,8 @@ public class GatewayConnectionLifecycleTests : IDisposable
         var dev = new DeviceIdentity(cfg.DataDir);
         dev.EnsureKeypair();
         var events = new GatewayEventSource();
-        var lifecycle = new GatewayConnectionLifecycle(cfg, dev, events, () => new Mock<IClientWebSocket>().Object);
+        var mockConsole = new Mock<IColorConsole>();
+        var lifecycle = new GatewayConnectionLifecycle(cfg, dev, events, mockConsole.Object, () => new Mock<IClientWebSocket>().Object);
 
         var json = JsonDocument.Parse(/* lang=json */ """
             {"auth":{"deviceToken":"issued-token-xyz"}}
@@ -371,7 +375,8 @@ public class GatewayConnectionLifecycleTests : IDisposable
         dev.EnsureKeypair();
         var events = new GatewayEventSource();
         var mockSnapshotProcessor = new Mock<ISnapshotProcessor>();
-        var lifecycle = new GatewayConnectionLifecycle(cfg, dev, events, () => new Mock<IClientWebSocket>().Object, mockSnapshotProcessor.Object);
+        var mockConsole = new Mock<IColorConsole>();
+        var lifecycle = new GatewayConnectionLifecycle(cfg, dev, events, mockConsole.Object, () => new Mock<IClientWebSocket>().Object, mockSnapshotProcessor.Object);
 
         var json = JsonDocument.Parse(/* lang=json */ """
             {
@@ -394,7 +399,7 @@ public class GatewayConnectionLifecycleTests : IDisposable
     public void ProcessHelloPayload_WithoutOptionalFields_ReturnsDefaultTickMs()
     {
         var mockSnapshotProcessor = new Mock<ISnapshotProcessor>();
-        var lifecycle = new GatewayConnectionLifecycle(_cfg, _dev, _events, () => _mockWs.Object, mockSnapshotProcessor.Object);
+        var lifecycle = new GatewayConnectionLifecycle(_cfg, _dev, _events, _mockConsole.Object, () => _mockWs.Object, mockSnapshotProcessor.Object);
         var json = JsonDocument.Parse(/* lang=json */ """
             {"type":"hello-ok"}
             """).RootElement;

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using OpenClawPTT.Services;
 
 namespace OpenClawPTT;
 
@@ -21,6 +22,7 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
     public event Action? EscapePressed;
     public bool BlockEscape { get; set; }
 
+    private readonly IColorConsole _console;
     private readonly CancellationTokenSource _cts = new();
     private Thread? _thread;
 
@@ -59,6 +61,11 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
         SetHotkeys(new[] { hotkey });
     }
 
+    public LinuxEvdevHotkeyHook(IColorConsole console)
+    {
+        _console = console ?? throw new ArgumentNullException(nameof(console));
+    }
+
     public void SetHotkeys(IEnumerable<Hotkey> hotkeys)
     {
         _hotkeys = hotkeys.ToList();
@@ -87,24 +94,24 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
         }
         catch (DirectoryNotFoundException ex)
         {
-            ConsoleUi.Log("hotkey", $"Keyboard device directory not found: {ex.Message}");
+            _console.Log("hotkey", $"Keyboard device directory not found: {ex.Message}");
             return;
         }
         catch (UnauthorizedAccessException ex)
         {
-            ConsoleUi.Log("hotkey", $"No permission to access keyboard devices: {ex.Message}");
-            ConsoleUi.Log("hotkey", "Fix: sudo usermod -aG input $USER  (then re-login)");
+            _console.Log("hotkey", $"No permission to access keyboard devices: {ex.Message}");
+            _console.Log("hotkey", "Fix: sudo usermod -aG input $USER  (then re-login)");
             return;
         }
 
         if (devicePaths.Count == 0)
         {
-            ConsoleUi.Log("hotkey", "No accessible keyboard devices found in /dev/input/.");
-            ConsoleUi.Log("hotkey", "Fix: sudo usermod -aG input $USER  (then re-login)");
+            _console.Log("hotkey", "No accessible keyboard devices found in /dev/input/.");
+            _console.Log("hotkey", "Fix: sudo usermod -aG input $USER  (then re-login)");
             return;
         }
 
-        ConsoleUi.Log("hotkey", $"Watching {devicePaths.Count} keyboard device(s) for hotkey");
+        _console.Log("hotkey", $"Watching {devicePaths.Count} keyboard device(s) for hotkey");
 
         var ct = _cts.Token;
 

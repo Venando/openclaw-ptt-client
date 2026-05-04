@@ -82,7 +82,7 @@ public sealed class GatewayService : IGatewayService
     private IGatewayClient CreateGatewayClient()
     {
         _uiAdapter = new AgentOutputAdapter(_config, _console);
-        var client = new GatewayClient(_config, _device, new GatewayEventSource());
+        var client = new GatewayClient(_config, _device, new GatewayEventSource(), _console);
         var events = ((IGatewayClient)client).GetEventSource();
 
         if (events != null)

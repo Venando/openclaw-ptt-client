@@ -6,11 +6,12 @@ namespace OpenClawPTT.Services;
 
 /// <summary>
 /// Subscribes to GatewayService domain events and forwards them to the appropriate
-/// ConsoleUi output methods. This adapter is responsible for all UI concerns;
+/// console output methods. This adapter is responsible for all UI concerns;
 /// GatewayService itself only fires domain events.
 /// </summary>
 public sealed class AgentOutputAdapter : IDisposable
 {
+    private readonly IColorConsole _console;
     private readonly AppConfig _config;
     private readonly ToolDisplayHandler _toolDisplayHandler;
     private readonly AudioResponseHandler? _audioResponseHandler;
@@ -32,6 +33,7 @@ public sealed class AgentOutputAdapter : IDisposable
     public AgentOutputAdapter(AppConfig config, IColorConsole console)
     {
         _config = config;
+        _console = console ?? throw new ArgumentNullException(nameof(console));
         var shellHost = console.GetStreamShellHost();
         _toolDisplayHandler = new ToolDisplayHandler(_config.RightMarginIndent, shellHost);
 
@@ -72,7 +74,7 @@ public sealed class AgentOutputAdapter : IDisposable
         var markdownBody = MarkdownToSpectreConverter.Convert(body);
         // When StreamShell is active, use a capturing console for word-wrapped replies
         // so the complete formatted reply gets pushed as a single StreamShell message.
-        bool useCapturing = ConsoleUi.GetStreamShellHost() != null;
+        bool useCapturing = _console.GetStreamShellHost() != null;
 
         EnsurePrefixPrinted();
 
@@ -89,7 +91,7 @@ public sealed class AgentOutputAdapter : IDisposable
         }
         else
         {
-            ConsoleUi.PrintAgentReplyWithMarkdown(_currentPrefix, markdownBody);
+            _console.PrintAgentReplyWithMarkdown(_currentPrefix, markdownBody);
         }
         
         _prefixPrinted = false;
@@ -99,8 +101,8 @@ public sealed class AgentOutputAdapter : IDisposable
     {
         if (_config.ShowThinking)
         {
-            // Route through ConsoleUi — goes to StreamShell when active
-            ConsoleUi.Log("agent-think", thinking);
+            // Route through console — goes to StreamShell when active
+            _console.Log("agent-think", thinking);
             _prefixPrinted = false;
         }
         else
@@ -130,7 +132,7 @@ public sealed class AgentOutputAdapter : IDisposable
         }
         else
         {
-            ConsoleUi.PrintAgentReplyDelta(_currentPrefix, delta, _newlineSuffix);
+            _console.PrintAgentReplyDelta(_currentPrefix, delta, _newlineSuffix);
         }
     }
 
@@ -189,7 +191,7 @@ public sealed class AgentOutputAdapter : IDisposable
         if (_config.EnableWordWrap)
         {
             // When StreamShell is active, capture formatter output for final flush to Shell
-            var shellHost = ConsoleUi.GetStreamShellHost();
+            var shellHost = _console.GetStreamShellHost();
             if (shellHost != null)
             {
                 _capturingConsole = new StreamShellCapturingConsole(shellHost);

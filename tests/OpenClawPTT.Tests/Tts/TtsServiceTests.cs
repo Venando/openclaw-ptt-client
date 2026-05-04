@@ -1,5 +1,6 @@
 using Moq;
 using OpenClawPTT;
+using OpenClawPTT.Services;
 using OpenClawPTT.TTS;
 using OpenClawPTT.TTS.Providers;
 using System;
@@ -26,6 +27,8 @@ namespace OpenClawPTT.Tests;
 /// </summary>
 public class TtsServiceTests : IDisposable
 {
+    private readonly Mock<IColorConsole> _mockConsole = new();
+
     // ─── Helpers ─────────────────────────────────────────────────────────
 
     private static AppConfig CoquiConfig(string pythonPath, string modelPath = "", string modelName = "tts_models/multilingual/mxtts/vits")
@@ -56,7 +59,7 @@ public class TtsServiceTests : IDisposable
 
         // Act: constructing TtsService must not throw a reflection wrapper —
         // the underlying Win32Exception ("no such file or directory") should propagate clearly.
-        var ex = Record.Exception(() => new TtsService(config));
+        var ex = Record.Exception(() => new TtsService(config, _mockConsole.Object));
 
         // Assert: the exception is either Win32Exception (Python binary not found)
         // or InvalidOperationException (Python found but model startup failed).
@@ -81,7 +84,7 @@ public class TtsServiceTests : IDisposable
         // Act: constructing TtsService with a non-existent piper binary.
         // PiperTtsProvider's constructor does not validate the binary — it only
         // fails when SynthesizeAsync is called. So the service constructs without throwing.
-        var service = new TtsService(config);
+        var service = new TtsService(config, _mockConsole.Object);
 
         // Assert: the provider was configured (no crash in constructor).
         // First call to SynthesizeAsync will fail with FileNotFoundException — that's by design.
@@ -104,7 +107,7 @@ public class TtsServiceTests : IDisposable
         var config = CoquiConfig(pythonPath: "/impossible/path");
 
         // Act
-        var ex = Record.Exception(() => new TtsService(config));
+        var ex = Record.Exception(() => new TtsService(config, _mockConsole.Object));
 
         // Assert: the exception must be the real cause, not a reflection wrapper.
         Assert.NotNull(ex);
@@ -120,6 +123,7 @@ public class TtsServiceTests : IDisposable
         // This test verifies that PythonTtsProvider correctly accepts the requestTimeout
         // and startupTimeout parameters without throwing, and that the ProviderName is set.
         var provider = new PythonTtsProvider(
+            _mockConsole.Object,
             serviceScriptPathOverride: null,
             pythonPath: "",
             modelPath: "",
@@ -152,7 +156,7 @@ public class TtsServiceTests : IDisposable
         // Act — construction may throw but must not be wrapped
         Exception? ex = null;
         TtsService? service = null;
-        try { service = new TtsService(config); }
+        try { service = new TtsService(config, _mockConsole.Object); }
         catch (Exception e) { ex = e; }
 
         if (service != null)
@@ -182,7 +186,7 @@ public class TtsServiceTests : IDisposable
         // Act: construct and immediately dispose. The constructor may throw
         // due to the Python binary not being found — but Dispose must still work.
         Exception? constructionEx = null;
-        try { service = new TtsService(config); }
+        try { service = new TtsService(config, _mockConsole.Object); }
         catch (Exception ex) { constructionEx = ex; }
 
         if (service != null)
@@ -214,7 +218,7 @@ public class TtsServiceTests : IDisposable
             TtsRegion = "eastus",
         };
 
-        var service = new TtsService(config);
+        var service = new TtsService(config, _mockConsole.Object);
 
         Assert.False(service.IsConfigured);
         Assert.Equal(TtsProviderType.Edge, service.ProviderType);
@@ -231,7 +235,7 @@ public class TtsServiceTests : IDisposable
             TtsSubscriptionKey = "fake-key",
         };
 
-        var service = new TtsService(config);
+        var service = new TtsService(config, _mockConsole.Object);
 
         // First dispose — should succeed
         var firstEx = Record.Exception(() => service.Dispose());
@@ -254,7 +258,7 @@ public class TtsServiceTests : IDisposable
             OpenAiApiKey = null,
         };
 
-        var ex = Record.Exception(() => new TtsService(config));
+        var ex = Record.Exception(() => new TtsService(config, _mockConsole.Object));
 
         Assert.IsType<InvalidOperationException>(ex);
         Assert.Contains("OpenAI", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -272,7 +276,7 @@ public class TtsServiceTests : IDisposable
             TtsRegion = "eastus",
         };
 
-        var service = new TtsService(config);
+        var service = new TtsService(config, _mockConsole.Object);
 
         Assert.True(service.IsConfigured);
         Assert.NotNull(service.Provider);

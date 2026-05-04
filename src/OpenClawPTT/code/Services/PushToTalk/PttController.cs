@@ -5,6 +5,7 @@ namespace OpenClawPTT.Services;
 internal sealed class PttController : IPttController
 {
     private readonly IHotkeyHookFactory? _hotkeyHookFactory;
+    private readonly IColorConsole? _console;
     private IGlobalHotkeyHook? _hotkeyHook;
     private bool _disposed;
 
@@ -12,9 +13,10 @@ internal sealed class PttController : IPttController
     private volatile bool _externalHotkeyRelease;
     private volatile bool _cancelRecording;
 
-    public PttController(IHotkeyHookFactory? hotkeyHookFactory = null)
+    public PttController(IHotkeyHookFactory? hotkeyHookFactory = null, IColorConsole? console = null)
     {
         _hotkeyHookFactory = hotkeyHookFactory;
+        _console = console;
     }
 
     public void SetHotkey(string hotkeyCombination, bool holdToTalk)
@@ -23,14 +25,18 @@ internal sealed class PttController : IPttController
 
         var mapping = HotkeyMapping.Parse(hotkeyCombination);
 
-        if (_hotkeyHookFactory != null)
+        if (_hotkeyHookFactory != null && _console != null)
         {
-            _hotkeyHook = _hotkeyHookFactory.Create(mapping);
+            _hotkeyHook = _hotkeyHookFactory.Create(mapping, _console);
+        }
+        else if (_console != null)
+        {
+            _hotkeyHook = GlobalHotkeyHookFactory.Create(_console);
+            _hotkeyHook.SetHotkey(mapping);
         }
         else
         {
-            _hotkeyHook = GlobalHotkeyHookFactory.Create();
-            _hotkeyHook.SetHotkey(mapping);
+            throw new InvalidOperationException("IColorConsole is required to create hotkey hook.");
         }
         
         _hotkeyHook.Start();

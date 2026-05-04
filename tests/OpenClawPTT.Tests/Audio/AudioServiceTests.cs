@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Moq;
 using Xunit;
 
 namespace OpenClawPTT.Tests;
@@ -146,6 +147,8 @@ sealed class FakeAudioService : IAudioService
 public class AudioServiceTests : IDisposable
 {
     private AudioService? _real;
+    private readonly Mock<IColorConsole> _mockConsole = new();
+
     private void SetupRealService()
     {
         _real?.Dispose();
@@ -159,7 +162,7 @@ public class AudioServiceTests : IDisposable
             RightMarginIndent = 5,
             VisualFeedbackEnabled = false
         };
-        _real = new AudioService(config);
+        _real = new AudioService(config, _mockConsole.Object);
     }
 
     public void Dispose() => _real?.Dispose();
@@ -268,8 +271,9 @@ public class RealAudioServiceWithMocksTests : IDisposable
     private MockTranscriber? _transcriber;
     private MockVisualFeedback? _visual;
     private AppConfig? _config;
+    private readonly Mock<IColorConsole> _mockConsole = new();
 
-    private void Setup(Func<AppConfig, AudioService> factory)
+    private void Setup(Func<AppConfig, Mock<IColorConsole>, AudioService> factory)
     {
         _service?.Dispose();
         _recorder = new MockAudioRecorder();
@@ -285,7 +289,7 @@ public class RealAudioServiceWithMocksTests : IDisposable
             RightMarginIndent = 5,
             VisualFeedbackEnabled = false
         };
-        _service = factory(_config);
+        _service = factory(_config, _mockConsole);
     }
 
     public void Dispose()
@@ -300,7 +304,7 @@ public class RealAudioServiceWithMocksTests : IDisposable
     [Fact]
     public void StartRecording_CallsStartRecordingOnRecorder()
     {
-        Setup(cfg => new AudioService(cfg, _recorder!));
+        Setup((cfg, console) => new AudioService(cfg, console.Object, _recorder!));
         _recorder!.Reset();
 
         _service!.StartRecording();
@@ -316,7 +320,7 @@ public class RealAudioServiceWithMocksTests : IDisposable
     [Fact]
     public void StartRecording_WhenAlreadyRecording_IsIdempotent()
     {
-        Setup(cfg => new AudioService(cfg, _recorder!));
+        Setup((cfg, console) => new AudioService(cfg, console.Object, _recorder!));
         _recorder!.Reset();
 
         _service!.StartRecording();
@@ -333,7 +337,7 @@ public class RealAudioServiceWithMocksTests : IDisposable
     [Fact]
     public async Task StopAndTranscribeAsync_WhenTranscriberReturnsNull_ReturnsNullGracefully()
     {
-        Setup(cfg => new AudioService(cfg, _recorder!));
+        Setup((cfg, console) => new AudioService(cfg, console.Object, _recorder!));
         _recorder!.Reset();
         _recorder.StopRecordingResult = new byte[2048]; // ≥1KB so size check passes
         _transcriber!.TranscribeFunc = _ => null!; // simulate null return
@@ -351,7 +355,7 @@ public class RealAudioServiceWithMocksTests : IDisposable
     [Fact]
     public void Dispose_CanBeCalledMultipleTimes()
     {
-        Setup(cfg => new AudioService(cfg, _recorder!));
+        Setup((cfg, console) => new AudioService(cfg, console.Object, _recorder!));
 
         _service!.StartRecording();
         _service.Dispose();
@@ -365,7 +369,7 @@ public class RealAudioServiceWithMocksTests : IDisposable
     [Fact]
     public void ServiceFactory_CreateAudioService_ReturnsConfiguredService()
     {
-        Setup(cfg => new AudioService(cfg, _recorder!));
+        Setup((cfg, console) => new AudioService(cfg, console.Object, _recorder!));
 
         Assert.NotNull(_service);
         Assert.False(_service!.IsRecording);

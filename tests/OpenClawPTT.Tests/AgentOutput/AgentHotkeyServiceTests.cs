@@ -25,7 +25,7 @@ public class AgentHotkeyServiceTests : IDisposable
 
     private sealed class NoOpHotkeyHookFactory : IHotkeyHookFactory
     {
-        public IGlobalHotkeyHook Create(Hotkey mapping) => new NoOpHotkeyHook();
+        public IGlobalHotkeyHook Create(Hotkey mapping, IColorConsole console) => new NoOpHotkeyHook();
     }
 
     private readonly NoOpHotkeyHookFactory _factory = new();

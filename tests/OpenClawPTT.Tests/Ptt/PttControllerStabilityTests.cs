@@ -71,7 +71,7 @@ public class PttControllerStabilityTests : IDisposable
     private sealed class FakeHotkeyHookFactory : IHotkeyHookFactory
     {
         public List<FakeHotkeyHook> CreatedHooks { get; } = new();
-        public IGlobalHotkeyHook Create(Hotkey mapping)
+        public IGlobalHotkeyHook Create(Hotkey mapping, IColorConsole console)
         {
             var hook = new FakeHotkeyHook();
             CreatedHooks.Add(hook);
@@ -176,8 +176,9 @@ public class PttControllerStabilityTests : IDisposable
     [Fact]
     void Dispose_CalledTwice_DoesNotThrow()
     {
-        var controller = new PttController();
-        controller.SetHotkey("Ctrl+K", false); // SetHotkey still compiles, just no internal wiring
+        var mockConsole = new Mock<IColorConsole>();
+        var controller = new PttController(new FakeHotkeyHookFactory(), mockConsole.Object);
+        controller.SetHotkey("Ctrl+K", false);
 
         controller.Dispose();
 

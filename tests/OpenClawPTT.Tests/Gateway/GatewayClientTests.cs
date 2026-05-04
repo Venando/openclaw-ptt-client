@@ -1,12 +1,14 @@
 using System.Text.Json;
 using Moq;
 using OpenClawPTT;
+using OpenClawPTT.Services;
 using Xunit;
 
 namespace OpenClawPTT.Tests.Gateway;
 
 public class GatewayClientTests : IDisposable
 {
+    private static Mock<IColorConsole> CreateMockConsole() => new();
     [Fact]
     public void GatewayClient_WithMockLifecycle_ConstructsWithoutThrowing()
     {
@@ -16,7 +18,7 @@ public class GatewayClientTests : IDisposable
         dev.EnsureKeypair();
         var events = new GatewayEventSource();
 
-        var client = new GatewayClient(cfg, dev, events, () => mockLifecycle.Object);
+        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
 
         Assert.NotNull(client);
         Assert.False(client.IsDisposed);
@@ -34,7 +36,7 @@ public class GatewayClientTests : IDisposable
         dev.EnsureKeypair();
         var events = new GatewayEventSource();
 
-        var client = new GatewayClient(cfg, dev, events, () => mockLifecycle.Object);
+        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
 
         Assert.True(client.IsConnected);
         client.Dispose();
@@ -49,7 +51,7 @@ public class GatewayClientTests : IDisposable
         dev.EnsureKeypair();
         var events = new GatewayEventSource();
 
-        var client = new GatewayClient(cfg, dev, events, () => mockLifecycle.Object);
+        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
         client.Dispose();
 
         mockLifecycle.Verify(x => x.Dispose(), Times.Once);
@@ -64,7 +66,7 @@ public class GatewayClientTests : IDisposable
         dev.EnsureKeypair();
         var events = new GatewayEventSource();
 
-        var client = new GatewayClient(cfg, dev, events, () => mockLifecycle.Object);
+        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
         client.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() => client.ConnectAsync(CancellationToken.None).GetAwaiter().GetResult());
@@ -81,7 +83,7 @@ public class GatewayClientTests : IDisposable
         dev.EnsureKeypair();
         var events = new GatewayEventSource();
 
-        var client = new GatewayClient(cfg, dev, events, () => mockLifecycle.Object);
+        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await client.SendTextAsync("hello", CancellationToken.None));
@@ -109,7 +111,7 @@ public class GatewayClientTests : IDisposable
         dev.EnsureKeypair();
         var events = new GatewayEventSource();
 
-        var client = new GatewayClient(cfg, dev, events, () => mockLifecycle.Object);
+        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
         await client.SendTextAsync("hello", CancellationToken.None);
 
         mockFraming.Verify(x => x.SendRequestAsync(
@@ -132,7 +134,7 @@ public class GatewayClientTests : IDisposable
         dev.EnsureKeypair();
         var events = new GatewayEventSource();
 
-        var client = new GatewayClient(cfg, dev, events, () => mockLifecycle.Object);
+        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await client.SendAudioAsync(new byte[] { 0 }, CancellationToken.None));
@@ -151,7 +153,7 @@ public class GatewayClientTests : IDisposable
         dev.EnsureKeypair();
         var events = new GatewayEventSource();
 
-        var client = new GatewayClient(cfg, dev, events, () => mockLifecycle.Object);
+        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await client.SendEventAsync("test.event", null, CancellationToken.None));
@@ -168,7 +170,7 @@ public class GatewayClientTests : IDisposable
         dev.EnsureKeypair();
         var events = new GatewayEventSource();
 
-        var client = new GatewayClient(cfg, dev, events, () => mockLifecycle.Object);
+        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
         var result = client.GetEventSource();
 
         Assert.Same(events, result);
@@ -186,7 +188,7 @@ public class GatewayClientTests : IDisposable
 
         AgentRegistry.SetAgents(new[] { new AgentInfo { AgentId = "main", Name = "Main", SessionKey = "agent:main:main", IsDefault = true } });
 
-        var client = new GatewayClient(cfg, dev, events, () => mockLifecycle.Object);
+        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
         Assert.Equal("agent:main:main", client.SessionKey);
         client.Dispose();
     }

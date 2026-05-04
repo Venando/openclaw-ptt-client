@@ -4,6 +4,7 @@
 #nullable enable
 using Moq;
 using OpenClawPTT;
+using OpenClawPTT.Services;
 
 namespace OpenClawPTT.Tests;
 
@@ -161,7 +162,7 @@ public static class TestFixtureBuilder
         /// Creates a GatewayClient using this fixture's dependencies.
         /// </summary>
         public GatewayClient CreateClient() =>
-            new(Config, Device, EventSource, () => MockLifecycle.Object);
+            new(Config, Device, EventSource, new Mock<IColorConsole>().Object, () => MockLifecycle.Object);
 
         public void Dispose()
         {
@@ -227,7 +228,7 @@ public abstract class GatewayTestBase : IDisposable
     /// Creates a GatewayClient with the base fixture's dependencies.
     /// </summary>
     protected GatewayClient CreateClient(Func<IGatewayConnectionLifecycle>? lifecycleFactory = null) =>
-        new(Config, Device, EventSource, lifecycleFactory ?? (() => CreateMockLifecycle().Object));
+        new(Config, Device, EventSource, new Mock<IColorConsole>().Object, lifecycleFactory ?? (() => CreateMockLifecycle().Object));
 
     public virtual void Dispose()
     {

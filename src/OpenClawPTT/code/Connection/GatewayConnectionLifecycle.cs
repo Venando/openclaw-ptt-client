@@ -15,6 +15,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
     private readonly AppConfig _cfg;
     private readonly DeviceIdentity _deviceIdentity;
     private readonly Func<IClientWebSocket> _socketFactory;
+    private readonly IColorConsole _console;
 
     private IClientWebSocket _ws = null!;
     private CancellationTokenSource? _tickCts;
@@ -28,15 +29,16 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
     private GatewayMessager? _gatewayMessager;
     private GatewayReconnector _gatewayReconnector;
 
-    public GatewayConnectionLifecycle(AppConfig cfg, DeviceIdentity dev, IGatewayEventSource events,
+    public GatewayConnectionLifecycle(AppConfig cfg, DeviceIdentity dev, IGatewayEventSource events, IColorConsole console,
         Func<IClientWebSocket>? socketFactory = null, ISnapshotProcessor? snapshotProcessor = null)
     {
         _cfg = cfg;
         _deviceIdentity = dev;
         _events = events;
+        _console = console ?? throw new ArgumentNullException(nameof(console));
         _socketFactory = socketFactory ?? (() => new ClientWebSocketAdapter());
         _snapshotProcessor = snapshotProcessor ?? new SnapshotProcessor(new ConsoleLogger(), cfg.LogHello);
-        _gatewayReconnector = new GatewayReconnector(cfg, this, _disposeCts.Token);
+        _gatewayReconnector = new GatewayReconnector(cfg, console, this, _disposeCts.Token);
     }
 
     // ─── ISender ──────────────────────────────────────────────────────

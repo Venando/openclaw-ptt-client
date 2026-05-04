@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using OpenClawPTT.Services;
 
 namespace OpenClawPTT.TTS;
 
@@ -32,7 +33,7 @@ public sealed class TtsService : IDisposable
     public ITextToSpeech? Provider => _provider;
     public bool IsConfigured => _provider != null;
 
-    public TtsService(AppConfig config)
+    public TtsService(AppConfig config, IColorConsole console)
     {
         _providerType = config.TtsProvider;
 
@@ -40,6 +41,7 @@ public sealed class TtsService : IDisposable
         {
             TtsProviderType.OpenAI => new Providers.OpenAiTtsProvider(config.TtsOpenAiApiKey ?? config.OpenAiApiKey ?? throw new InvalidOperationException("OpenAI API key not configured")),
             TtsProviderType.Coqui => new Providers.PythonTtsProvider(
+                console,
                 "",
                 config.PythonPath ?? "",
                 config.CoquiModelPath ?? "",
@@ -53,6 +55,7 @@ public sealed class TtsService : IDisposable
                 : null,
             TtsProviderType.ElevenLabs => null,
             TtsProviderType.Python => new Providers.PythonTtsProvider(
+                console,
                 "",
                 config.PythonPath ?? "",
                 config.CoquiModelPath ?? "",

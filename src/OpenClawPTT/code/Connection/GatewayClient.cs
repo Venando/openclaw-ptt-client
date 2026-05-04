@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using OpenClawPTT.Services;
 
 namespace OpenClawPTT;
 
@@ -24,13 +25,13 @@ public sealed class GatewayClient : IGatewayClient
 
     private bool _isDisposed;
 
-    public GatewayClient(AppConfig cfg, DeviceIdentity dev, IGatewayEventSource eventSource,
+    public GatewayClient(AppConfig cfg, DeviceIdentity dev, IGatewayEventSource eventSource, IColorConsole console,
         Func<IGatewayConnectionLifecycle>? lifecycleFactory = null)
     {
         _cfg = cfg;
         _dev = dev;
         _eventSource = eventSource;
-        _lifecycleFactory = lifecycleFactory ?? (() => new GatewayConnectionLifecycle(_cfg, _dev, _eventSource));
+        _lifecycleFactory = lifecycleFactory ?? (() => new GatewayConnectionLifecycle(_cfg, _dev, _eventSource, console));
         _lifecycle = _lifecycleFactory();
     }
 
