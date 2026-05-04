@@ -2,32 +2,24 @@ using System.Text.Json;
 
 namespace OpenClawPTT.Services;
 
-public sealed class MemorySearchToolRenderer : IToolRenderer
+public sealed class MemorySearchToolRenderer : ToolRendererBase
 {
-    private readonly IToolOutput _output;
-
-    public MemorySearchToolRenderer(IToolOutput output)
+    public MemorySearchToolRenderer(IToolOutput output) : base(output)
     {
-        _output = output;
     }
 
-    public string ToolName => "memory_search";
+    public override string ToolName => "memory_search";
 
-    public void Render(JsonElement args, int rightMarginIndent)
+    public override void Render(JsonElement args, int rightMarginIndent)
     {
         if (args.TryGetProperty("query", out var queryProp))
         {
-            _output.Print(queryProp.GetString() ?? "", ConsoleColor.Gray);
+            PrintValue(queryProp.GetString() ?? "", ConsoleColor.Gray);
         }
-        if (args.TryGetProperty("maxResults", out var maxResultsProp))
-        {
-            _output.Print(", max results: ", ConsoleColor.DarkGray);
-            _output.Print($"{maxResultsProp.GetInt32()}", ConsoleColor.White);
-        }
+        PrintIntPropertyIfExists(args, "maxResults", "max results: ", prependComma: true);
         if (args.TryGetProperty("minScore", out var minScoreProp))
         {
-            _output.Print(", min score: ", ConsoleColor.DarkGray);
-            _output.Print($"{minScoreProp.GetDouble():F2}", ConsoleColor.White);
+            PrintLabelValue("min score: ", $"{minScoreProp.GetDouble():F2}", prependComma: true);
         }
     }
 }

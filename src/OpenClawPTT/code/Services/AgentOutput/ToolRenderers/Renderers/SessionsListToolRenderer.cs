@@ -2,38 +2,23 @@ using System.Text.Json;
 
 namespace OpenClawPTT.Services;
 
-public sealed class SessionsListToolRenderer : IToolRenderer
+public sealed class SessionsListToolRenderer : ToolRendererBase
 {
-    private readonly IToolOutput _output;
-
-    public SessionsListToolRenderer(IToolOutput output)
+    public SessionsListToolRenderer(IToolOutput output) : base(output)
     {
-        _output = output;
     }
 
-    public string ToolName => "sessions_list";
+    public override string ToolName => "sessions_list";
 
-    public void Render(JsonElement args, int rightMarginIndent)
+    public override void Render(JsonElement args, int rightMarginIndent)
     {
-        if (args.TryGetProperty("limit", out var limitProp))
-        {
-            _output.Print("limit: ", ConsoleColor.DarkGray);
-            _output.Print($"{limitProp.GetInt32()}", ConsoleColor.White);
-        }
-        if (args.TryGetProperty("kinds", out var kindsProp))
-        {
-            _output.Print(", kinds: ", ConsoleColor.DarkGray);
-            _output.Print(kindsProp.GetString() ?? "", ConsoleColor.White);
-        }
-        if (args.TryGetProperty("messageLimit", out var msgLimitProp))
-        {
-            _output.Print(", messages: ", ConsoleColor.DarkGray);
-            _output.Print($"{msgLimitProp.GetInt32()}", ConsoleColor.White);
-        }
+        bool hasPrinted = PrintIntPropertyIfExists(args, "limit", "limit: ");
+        hasPrinted = PrintPropertyIfExists(args, "kinds", "kinds: ", prependComma: hasPrinted) || hasPrinted;
+        hasPrinted = PrintIntPropertyIfExists(args, "messageLimit", "messages: ", prependComma: hasPrinted) || hasPrinted;
+        
         if (args.TryGetProperty("activeMinutes", out var activeMinProp))
         {
-            _output.Print(", in last ", ConsoleColor.DarkGray);
-            _output.Print($"{activeMinProp.GetInt32()} minutes", ConsoleColor.White);
+            PrintLabelValue("in last ", $"{activeMinProp.GetInt32()} minutes", prependComma: hasPrinted);
         }
     }
 }

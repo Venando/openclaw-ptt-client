@@ -2,44 +2,33 @@ using System.Text.Json;
 
 namespace OpenClawPTT.Services;
 
-public sealed class SessionsSpawnToolRenderer : IToolRenderer
+public sealed class SessionsSpawnToolRenderer : ToolRendererBase
 {
-    private readonly IToolOutput _output;
-
-    public SessionsSpawnToolRenderer(IToolOutput output)
+    public SessionsSpawnToolRenderer(IToolOutput output) : base(output)
     {
-        _output = output;
     }
 
-    public string ToolName => "sessions_spawn";
+    public override string ToolName => "sessions_spawn";
 
-    public void Render(JsonElement args, int rightMarginIndent)
+    public override void Render(JsonElement args, int rightMarginIndent)
     {
         if (args.TryGetProperty("label", out var labelProp))
         {
-            _output.Print(labelProp.GetString() ?? "", ConsoleColor.Gray);
+            PrintValue(labelProp.GetString() ?? "", ConsoleColor.Gray);
         }
-        if (args.TryGetProperty("runtime", out var runtimeProp))
-        {
-            _output.Print(", runtime: ", ConsoleColor.DarkGray);
-            _output.Print(runtimeProp.GetString() ?? "", ConsoleColor.White);
-        }
-        if (args.TryGetProperty("mode", out var modeProp))
-        {
-            _output.Print(", mode: ", ConsoleColor.DarkGray);
-            _output.Print(modeProp.GetString() ?? "", ConsoleColor.White);
-        }
+        bool hasPrinted = PrintPropertyIfExists(args, "runtime", "runtime: ", prependComma: true);
+        hasPrinted = PrintPropertyIfExists(args, "mode", "mode: ", prependComma: hasPrinted) || hasPrinted;
+        
         if (args.TryGetProperty("runTimeoutSeconds", out var timeoutProp))
         {
-            _output.Print(", timeout: ", ConsoleColor.DarkGray);
-            _output.Print($"{timeoutProp.GetInt32()} seconds", ConsoleColor.White);
+            PrintLabelValue("timeout: ", $"{timeoutProp.GetInt32()} seconds", prependComma: hasPrinted);
         }
         if (args.TryGetProperty("task", out var taskProp))
         {
-            _output.PrintLine("", ConsoleColor.DarkGray);
+            Output.PrintLine("", ConsoleColor.DarkGray);
             const string taskPrefix = "  Task: ";
-            _output.Print(taskPrefix, ConsoleColor.DarkGray);
-            _output.PrintTruncated(taskProp.GetString() ?? "", taskPrefix, rightMarginIndent, ConsoleColor.Gray);
+            Output.Print(taskPrefix, ConsoleColor.DarkGray);
+            Output.PrintTruncated(taskProp.GetString() ?? "", taskPrefix, rightMarginIndent, ConsoleColor.Gray);
         }
     }
 }
