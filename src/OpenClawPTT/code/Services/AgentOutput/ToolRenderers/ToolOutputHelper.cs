@@ -1,4 +1,5 @@
 using System.Linq;
+using OpenClawPTT.Formatting;
 using Spectre.Console;
 
 namespace OpenClawPTT.Services;
@@ -45,26 +46,7 @@ public sealed class ToolOutputHelper : IToolOutput
 
     private void WriteToShell(string text, ConsoleColor color)
     {
-        var colorName = color switch
-        {
-            ConsoleColor.Gray => "grey",
-            ConsoleColor.DarkGray => "grey",
-            ConsoleColor.Black => "black",
-            ConsoleColor.Red => "red",
-            ConsoleColor.DarkRed => "darkred",
-            ConsoleColor.Green => "green",
-            ConsoleColor.DarkGreen => "darkgreen",
-            ConsoleColor.Yellow => "yellow",
-            ConsoleColor.DarkYellow => "olive",
-            ConsoleColor.Blue => "blue",
-            ConsoleColor.DarkBlue => "darkblue",
-            ConsoleColor.Magenta => "magenta",
-            ConsoleColor.DarkMagenta => "darkmagenta",
-            ConsoleColor.Cyan => "cyan",
-            ConsoleColor.DarkCyan => "darkcyan",
-            ConsoleColor.White => "white",
-            _ => "default"
-        };
+        var colorName = ConsoleColorMapper.ToSpectreColor(color);
         
         _agentReplayFormatter.ProcessMarkupDelta($"[{colorName}]{Markup.Escape(text)}[/]");
 
