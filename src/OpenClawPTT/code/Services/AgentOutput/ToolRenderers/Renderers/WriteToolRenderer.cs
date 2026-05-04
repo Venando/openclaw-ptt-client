@@ -2,27 +2,24 @@ using System.Text.Json;
 
 namespace OpenClawPTT.Services;
 
-public sealed class WriteToolRenderer : IToolRenderer
+public sealed class WriteToolRenderer : ToolRendererBase
 {
-    private readonly IToolOutput _output;
-
-    public WriteToolRenderer(IToolOutput output)
+    public WriteToolRenderer(IToolOutput output) : base(output)
     {
-        _output = output;
     }
 
-    public string ToolName => "write";
+    public override string ToolName => "write";
 
-    public void Render(JsonElement args, int rightMarginIndent)
+    public override void Render(JsonElement args, int rightMarginIndent)
     {
         if (args.TryGetProperty("path", out var pathProp))
         {
-            _output.PrintLine(FilePathDisplayHelper.FormatDisplayPath(pathProp.GetString() ?? ""), ConsoleColor.Gray);
+            Output.PrintLine(FilePathDisplayHelper.FormatDisplayPath(pathProp.GetString() ?? ""), ConsoleColor.Gray);
         }
         if (args.TryGetProperty("content", out var contentProp))
         {
             var content = contentProp.GetString() ?? "";
-            _output.PrintTruncated(content, "", rightMarginIndent, maxRows: 8);
+            Output.PrintTruncated(content, "", rightMarginIndent, maxRows: 8);
         }
     }
 }

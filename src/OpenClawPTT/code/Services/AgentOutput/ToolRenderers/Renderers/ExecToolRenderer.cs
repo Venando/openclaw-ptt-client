@@ -3,18 +3,15 @@ using Spectre.Console;
 
 namespace OpenClawPTT.Services;
 
-public sealed class ExecToolRenderer : IToolRenderer
+public sealed class ExecToolRenderer : ToolRendererBase
 {
-    private readonly IToolOutput _output;
-
-    public ExecToolRenderer(IToolOutput output)
+    public ExecToolRenderer(IToolOutput output) : base(output)
     {
-        _output = output;
     }
 
-    public string ToolName => "exec";
+    public override string ToolName => "exec";
 
-    public void Render(JsonElement args, int rightMarginIndent)
+    public override void Render(JsonElement args, int rightMarginIndent)
     {
         if (!args.TryGetProperty("command", out var cmdProp))
             return;
@@ -27,7 +24,7 @@ public sealed class ExecToolRenderer : IToolRenderer
 
         if (parsed.Count == 0)
         {
-            _output.Print(command, ConsoleColor.Gray);
+            PrintValue(command, ConsoleColor.Gray);
             return;
         }
 
@@ -36,7 +33,7 @@ public sealed class ExecToolRenderer : IToolRenderer
         {
             if (needNewline)
             {
-                _output.PrintLine("", ConsoleColor.Gray);
+                Output.PrintLine("", ConsoleColor.Gray);
             }
 
             RenderCommand(meta);
@@ -49,9 +46,9 @@ public sealed class ExecToolRenderer : IToolRenderer
         // ── Working directory prefix ────────────────────────────────────────
         if (!string.IsNullOrEmpty(meta.WorkingDirectory))
         {
-            _output.Print("📂 ", ConsoleColor.DarkGray);
-            _output.Print(FilePathDisplayHelper.FormatDisplayPath(meta.WorkingDirectory), ConsoleColor.DarkGray);
-            _output.Print(" ", ConsoleColor.DarkGray);
+            Output.Print("📂 ", ConsoleColor.DarkGray);
+            Output.Print(FilePathDisplayHelper.FormatDisplayPath(meta.WorkingDirectory), ConsoleColor.DarkGray);
+            Output.Print(" ", ConsoleColor.DarkGray);
         }
 
         // ── Inline env vars ────────────────────────────────────────────────
@@ -59,37 +56,37 @@ public sealed class ExecToolRenderer : IToolRenderer
         {
             foreach (var kvp in meta.InlineEnv)
             {
-                _output.Print($"{kvp.Key}=", ConsoleColor.Cyan);
-                _output.Print($"{kvp.Value} ", ConsoleColor.Yellow);
+                Output.Print($"{kvp.Key}=", ConsoleColor.Cyan);
+                Output.Print($"{kvp.Value} ", ConsoleColor.Yellow);
             }
         }
 
         // ── Executable ─────────────────────────────────────────────────────
         string execName = System.IO.Path.GetFileName(meta.Executable);
         ConsoleColor execColor = GetExecutableColor(meta.Type);
-        _output.Print(execName, execColor);
+        Output.Print(execName, execColor);
 
         // ── Positional arguments ───────────────────────────────────────────
         foreach (var pos in meta.Positionals)
         {
-            _output.Print(" ", ConsoleColor.White);
-            _output.Print(FormatToken(pos), ConsoleColor.Cyan);
+            Output.Print(" ", ConsoleColor.White);
+            Output.Print(FormatToken(pos), ConsoleColor.Cyan);
         }
 
         // ── Script body (compact display) ────────────────────────────────────
         if (!string.IsNullOrEmpty(meta.ScriptBody))
         {
-            _output.Print(" ", ConsoleColor.White);
+            Output.Print(" ", ConsoleColor.White);
             int bodyLen = meta.ScriptBody.Length;
             if (bodyLen <= 40)
             {
-                _output.Print(meta.ScriptBody, ConsoleColor.DarkGray);
+                Output.Print(meta.ScriptBody, ConsoleColor.DarkGray);
             }
             else
             {
                 var preview = meta.ScriptBody.Replace('\n', ' ').Replace('\r', ' ');
                 if (preview.Length > 37) preview = preview[..37] + "...";
-                _output.Print(preview, ConsoleColor.DarkGray);
+                Output.Print(preview, ConsoleColor.DarkGray);
             }
         }
 
@@ -98,48 +95,48 @@ public sealed class ExecToolRenderer : IToolRenderer
         {
             if (flag.StartsWith("--"))
             {
-                _output.Print(" ", ConsoleColor.White);
-                _output.Print(FormatToken(flag), ConsoleColor.Green);
+                Output.Print(" ", ConsoleColor.White);
+                Output.Print(FormatToken(flag), ConsoleColor.Green);
             }
             else
             {
-                _output.Print(" ", ConsoleColor.White);
-                _output.Print(FormatToken(flag), ConsoleColor.DarkYellow);
+                Output.Print(" ", ConsoleColor.White);
+                Output.Print(FormatToken(flag), ConsoleColor.DarkYellow);
             }
         }
 
         // ── Redirects ─────────────────────────────────────────────────────
         foreach (var redir in meta.Redirects)
         {
-            _output.Print(" ", ConsoleColor.White);
-            _output.Print(FormatToken(redir), ConsoleColor.Gray);
+            Output.Print(" ", ConsoleColor.White);
+            Output.Print(FormatToken(redir), ConsoleColor.Gray);
         }
 
         // ── Pipe / chain indicators ────────────────────────────────────────
         if (meta.IsPiped)
         {
-            _output.Print(" | ", ConsoleColor.Gray);
+            Output.Print(" | ", ConsoleColor.Gray);
         }
         if (meta.IsChained)
         {
-            _output.Print(" && ", ConsoleColor.Gray);
+            Output.Print(" && ", ConsoleColor.Gray);
         }
 
         // ── Here-doc summary ───────────────────────────────────────────────
         if (meta.HereDoc != null)
         {
-            _output.Print(" << '", ConsoleColor.Gray);
-            _output.Print(meta.HereDoc.Delimiter, ConsoleColor.Gray);
-            _output.Print("'", ConsoleColor.Gray);
+            Output.Print(" << '", ConsoleColor.Gray);
+            Output.Print(meta.HereDoc.Delimiter, ConsoleColor.Gray);
+            Output.Print("'", ConsoleColor.Gray);
 
             if (!string.IsNullOrEmpty(meta.HereDoc.TargetFile))
             {
-                _output.Print(" > ", ConsoleColor.Gray);
-                _output.Print(meta.HereDoc.TargetFile, ConsoleColor.Gray);
+                Output.Print(" > ", ConsoleColor.Gray);
+                Output.Print(meta.HereDoc.TargetFile, ConsoleColor.Gray);
             }
 
             int bodyLines = meta.HereDoc.Body.Split('\n').Length;
-            _output.Print($" ({bodyLines} line{(bodyLines == 1 ? "" : "s")})", ConsoleColor.DarkGray);
+            Output.Print($" ({bodyLines} line{(bodyLines == 1 ? "" : "s")})", ConsoleColor.DarkGray);
         }
     }
 
