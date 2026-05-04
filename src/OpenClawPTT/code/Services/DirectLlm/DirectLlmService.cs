@@ -71,13 +71,8 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
             Stream = false
         };
 
-        // Auto-append /chat/completions if URL ends with /v1 or /v1/
-        var url = _config.DirectLlmUrl!;
-        if (url.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ||
-            url.EndsWith("/v1/", StringComparison.OrdinalIgnoreCase))
-        {
-            url = url.TrimEnd('/') + "/chat/completions";
-        }
+        // Build OpenAI URL: host → /v1/chat/completions, /v1 → /v1/chat/completions
+        var url = BuildOpenAiUrl(_config.DirectLlmUrl!);
 
         var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
@@ -113,7 +108,10 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
             Stream = false
         };
 
-        var request = new HttpRequestMessage(HttpMethod.Post, _config.DirectLlmUrl)
+        // Build Anthropic URL: host → /v1/messages, /v1 → /v1/messages
+        var url = BuildAnthropicUrl(_config.DirectLlmUrl!);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
             Content = JsonContent.Create(requestBody, options: new JsonSerializerOptions
             {
@@ -130,6 +128,48 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
 
         var responseJson = await response.Content.ReadFromJsonAsync<AnthropicResponse>(ct);
         return responseJson?.Content?.FirstOrDefault()?.Text?.Trim() ?? "(No response)";
+    }
+
+    /// <summary>
+    /// Builds a complete OpenAI API URL from a partial URL.
+    /// - host → host/v1/chat/completions
+    /// - /v1 → /v1/chat/completions
+    /// - /v1/chat/completions (unchanged)
+    /// </summary>
+    private static string BuildOpenAiUrl(string url)
+    {
+        if (url.EndsWith("/v1/chat/completions", StringComparison.OrdinalIgnoreCase))
+            return url;
+
+        if (url.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ||
+            url.EndsWith("/v1/", StringComparison.OrdinalIgnoreCase))
+        {
+            return url.TrimEnd('/') + "/chat/completions";
+        }
+
+        // Base URL (just host) - append full path
+        return url.TrimEnd('/') + "/v1/chat/completions";
+    }
+
+    /// <summary>
+    /// Builds a complete Anthropic API URL from a partial URL.
+    /// - host → host/v1/messages
+    /// - /v1 → /v1/messages
+    /// - /v1/messages (unchanged)
+    /// </summary>
+    private static string BuildAnthropicUrl(string url)
+    {
+        if (url.EndsWith("/v1/messages", StringComparison.OrdinalIgnoreCase))
+            return url;
+
+        if (url.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ||
+            url.EndsWith("/v1/", StringComparison.OrdinalIgnoreCase))
+        {
+            return url.TrimEnd('/') + "/messages";
+        }
+
+        // Base URL (just host) - append full path
+        return url.TrimEnd('/') + "/v1/messages";
     }
 
     public void Dispose()
