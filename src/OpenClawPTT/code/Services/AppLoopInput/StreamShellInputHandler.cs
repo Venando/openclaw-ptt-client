@@ -21,6 +21,8 @@ public sealed class StreamShellInputHandler : IDisposable
     private readonly ITextMessageSender _textSender;
     private readonly IGatewayService _gatewayService;
     private readonly IConfigurationService _configService;
+    private readonly IDirectLlmService? _directLlmService;
+    private readonly AudioResponseHandler? _audioResponseHandler;
     private readonly AppConfig _appConfig;
     private readonly Action _onQuit;
     private readonly AgentSettingsCommands _agentSettings;
@@ -33,7 +35,9 @@ public sealed class StreamShellInputHandler : IDisposable
         IGatewayService gatewayService,
         IConfigurationService configService,
         AppConfig appConfig,
-        Action onQuit)
+        Action onQuit,
+        IDirectLlmService? directLlmService = null,
+        AudioResponseHandler? audioResponseHandler = null)
     {
         _host = host;
         _textSender = textSender;
@@ -41,6 +45,8 @@ public sealed class StreamShellInputHandler : IDisposable
         _configService = configService;
         _onQuit = onQuit;
         _appConfig = appConfig;
+        _directLlmService = directLlmService;
+        _audioResponseHandler = audioResponseHandler;
         _agentSettings = new AgentSettingsCommands(host, configService);
         _agentSwitching = new AgentSwitchingCommands(host, textSender, gatewayService, appConfig);
         _messageComposer = new TextMessageComposer(host, textSender);
@@ -54,6 +60,12 @@ public sealed class StreamShellInputHandler : IDisposable
         _host.AddCommand(new Command("reconfigure", "Run reconfiguration wizard", ReconfigureHandler));
         _host.AddCommand(new Command("crew", "List available agents", CrewHandler));
         _host.AddCommand(new Command("chat", "<name|id> Switch active agent by name or ID", ChatHandler));
+
+        // Direct LLM command (bypasses agent)
+        if (_directLlmService?.IsConfigured == true)
+        {
+            _host.AddCommand(new Command("llm", "<message> Send message directly to configured LLM", LlmHandler));
+        }
 
         // OpenClaw tool commands (for StreamShell hint support)
         foreach (var name in OpenClawCommands.Names)
@@ -141,6 +153,43 @@ public sealed class StreamShellInputHandler : IDisposable
     private Task ChatHandler(string[] args, System.Collections.Generic.Dictionary<string, string> named)
     {
         return _agentSwitching.HandleChat(args);
+    }
+
+    private async Task LlmHandler(string[] args, System.Collections.Generic.Dictionary<string, string> named)
+    {
+        if (_directLlmService == null)
+        {
+            _host.AddMessage("[yellow]  Direct LLM is not configured. Set DirectLlmUrl and DirectLlmModelName in config.[/]");
+            return;
+        }
+
+        var message = string.Join(" ", args);
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            _host.AddMessage("[yellow]  Usage: /llm <your message>[/]");
+            return;
+        }
+
+        _host.AddMessage($"[grey]  Sending to LLM ({_appConfig.DirectLlmModelName})...[/]");
+
+        try
+        {
+            var response = await _directLlmService.SendAsync(message, CancellationToken.None);
+
+            // Display response
+            _host.AddMessage("[cyan]  LLM Response:[/]");
+            _host.AddMessage($"  {Markup.Escape(response)}");
+
+            // Play TTS for the response
+            if (_audioResponseHandler != null)
+            {
+                await _audioResponseHandler.HandleAudioMarkerAsync(response, CancellationToken.None);
+            }
+        }
+        catch (Exception ex)
+        {
+            _host.AddMessage($"[red]  LLM request failed: {Markup.Escape(ex.Message)}[/]");
+        }
     }
 
     private Task OpenClawCommandForwarder(string commandName, string[] args, System.Collections.Generic.Dictionary<string, string> named)

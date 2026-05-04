@@ -99,6 +99,12 @@ public sealed class AppConfig
     // Python TTS debug settings
     public bool PythonTtsDebugLog { get; set; } = false;
 
+    // Direct LLM settings (bypass agent for direct LLM calls)
+    public string? DirectLlmToken { get; set; }
+    public string? DirectLlmUrl { get; set; }
+    public string? DirectLlmModelName { get; set; }
+    public string DirectLlmApiType { get; set; } = "openai-completions"; // "openai-completions" or "anthropic-messages"
+
     // Audio response settings
     public string AudioResponseMode { get; set; } = "text-only"; // text-only, audio-only, both
     public string? TtsApiKey { get; set; } // Optional ElevenLabs API key

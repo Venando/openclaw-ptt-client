@@ -89,6 +89,12 @@ public class AppRunner : IDisposable
             pttController, textSender, _shellHost, _cfg,
             gatewayService: gateway);
 
+        // Create direct LLM service if configured
+        using var directLlmService = _factory.CreateDirectLlmService(_cfg);
+
+        // Create audio response handler for TTS
+        using var audioResponseHandler = new AudioResponseHandler(_cfg);
+
         // Register StreamShell commands (/quit, /reconfigure) before PTT loop
         using var shellCommands = new StreamShellInputHandler(
             _shellHost,
@@ -96,7 +102,9 @@ public class AppRunner : IDisposable
             gateway,
             _configService,
             _cfg,
-            onQuit: () => _cts?.Cancel()
+            onQuit: () => _cts?.Cancel(),
+            directLlmService: directLlmService.IsConfigured ? directLlmService : null,
+            audioResponseHandler: audioResponseHandler
         );
         await shellCommands.RegisterAsync();
         ConsoleUi.PrintHelpMenu(_cfg);
