@@ -9,6 +9,12 @@ namespace OpenClawPTT.Tests.Gateway;
 /// Note: MessageFraming is not sealed and has virtual members — it can be subclassed
 /// for testing, but these tests use a real instance as the factory result to validate
 /// that factory injection works correctly (GetFraming returns the provided instance).
+///
+/// GatewayMessager now uses IEventDispatcher internally. When no dispatcher is injected,
+/// a default EventDispatcher is created with built-in SessionMessageHandler and
+/// GatewayConnectionHandler. Tests that verify event handler behavior through
+/// ProcessFrame use the default dispatcher which routes to SessionMessageHandler.
+/// Tests that verify dispatch-level behavior inject a mock IEventDispatcher.
 /// </summary>
 public class GatewayMessagerTests : IDisposable
 {
@@ -36,7 +42,7 @@ public class GatewayMessagerTests : IDisposable
         _messager = new GatewayMessager(_mockWs.Object, _mockEvents.Object, _cfg, null, () => _realFraming);
     }
 
-    // ─── Existing tests ───────────────────────────────────────────
+    // ─── Existing construction tests ─────────────────────────────
 
     [Fact]
     public void GetFraming_ReturnsProvidedFraming()
@@ -70,7 +76,22 @@ public class GatewayMessagerTests : IDisposable
         messager.Dispose();
     }
 
-    // ─── ProcessFrame tests ────────────────────────────────────────
+    [Fact]
+    public void Construct_WithMockDispatcher_DoesNotCreateDefaultHandlers()
+    {
+        var mockDispatcher = new Mock<IEventDispatcher>();
+        var messager = new GatewayMessager(_mockWs.Object, _mockEvents.Object, _cfg,
+            null, () => _realFraming, null, null, mockDispatcher.Object);
+
+        // Verify the mock dispatcher was not asked to register handlers
+        // (when a custom dispatcher is provided, GatewayMessager still registers handlers)
+        mockDispatcher.Verify(x => x.RegisterHandler(It.IsAny<IEventHandler<SessionMessageEvent>>()), Times.Once);
+        mockDispatcher.Verify(x => x.RegisterHandler(It.IsAny<IEventHandler<GatewayDisconnectedEvent>>()), Times.Once);
+
+        messager.Dispose();
+    }
+
+    // ─── ProcessFrame tests (via real dispatcher + handlers) ─────
 
     [Fact]
     public void TestProcessFrame_SessionMessageEvent_FiresAgentReplyFull()
@@ -157,55 +178,82 @@ public class GatewayMessagerTests : IDisposable
         Assert.Null(exception);
     }
 
-    // Note: StripAudioTags and ExtractMarkedContent tests moved to ContentExtractorTests.cs
-
-    // ─── TestHandleSessionMessage tests ──────────────────────────────
+    // ─── Dispatcher integration tests ────────────────────────────
 
     [Fact]
-    public void TestHandleSessionMessage_TextOnly_FiresAgentReplyFull()
+    public void ProcessFrame_SessionMessage_DispatchesSessionMessageEvent()
     {
-        string? captured = null;
-        _mockEvents.Setup(x => x.RaiseAgentReplyFull(It.IsAny<string>()))
-            .Callback<string>(t => captured = t);
+        var mockDispatcher = new Mock<IEventDispatcher>();
+        SessionMessageEvent? dispatchedEvent = null;
+        mockDispatcher.Setup(x => x.DispatchAndForget(It.IsAny<SessionMessageEvent>()))
+            .Callback<SessionMessageEvent>(e => dispatchedEvent = e);
 
-        var payload = @"{""message"":{""role"":""assistant"",""content"":[{""type"":""text"",""text"":""hello""}]}}";
-        _messager.TestHandleSessionMessage(payload);
+        var messager = new GatewayMessager(_mockWs.Object, _mockEvents.Object, _cfg,
+            null, () => _realFraming, null, null, mockDispatcher.Object);
 
-        Assert.Equal("hello", captured);
+        var json = @"{""type"":""event"",""event"":""session.message"",""payload"":{""message"":{""role"":""assistant"",""content"":[]}}}";
+        messager.TestProcessFrame(json);
+
+        Assert.NotNull(dispatchedEvent);
+        Assert.Equal("session.message", dispatchedEvent!.EventName);
+        messager.Dispose();
     }
 
     [Fact]
-    public void TestHandleSessionMessage_AudioOnly_FiresAgentReplyAudio()
+    public void ProcessFrame_AgentEvent_DispatchesSessionMessageEvent()
     {
-        string? captured = null;
-        _mockEvents.Setup(x => x.RaiseAgentReplyAudio(It.IsAny<string>()))
-            .Callback<string>(t => captured = t);
+        var mockDispatcher = new Mock<IEventDispatcher>();
+        SessionMessageEvent? dispatchedEvent = null;
+        mockDispatcher.Setup(x => x.DispatchAndForget(It.IsAny<SessionMessageEvent>()))
+            .Callback<SessionMessageEvent>(e => dispatchedEvent = e);
 
-        var payload = @"{""message"":{""role"":""assistant"",""content"":[{""type"":""audio"",""audio"":""voice data""}]}}";
-        _messager.TestHandleSessionMessage(payload);
+        var messager = new GatewayMessager(_mockWs.Object, _mockEvents.Object, _cfg,
+            null, () => _realFraming, null, null, mockDispatcher.Object);
 
-        Assert.Equal("voice data", captured);
+        var json = @"{""type"":""event"",""event"":""agent"",""payload"":{""data"":{""phase"":""start""}}}";
+        messager.TestProcessFrame(json);
+
+        Assert.NotNull(dispatchedEvent);
+        Assert.Equal("agent", dispatchedEvent!.EventName);
+        messager.Dispose();
     }
 
     [Fact]
-    public void TestHandleSessionMessage_NonAssistantRole_Ignores()
+    public void ProcessFrame_ChatEvent_DispatchesSessionMessageEvent()
     {
-        string? captured = null;
-        _mockEvents.Setup(x => x.RaiseAgentReplyFull(It.IsAny<string>()))
-            .Callback<string>(t => captured = t);
+        var mockDispatcher = new Mock<IEventDispatcher>();
+        SessionMessageEvent? dispatchedEvent = null;
+        mockDispatcher.Setup(x => x.DispatchAndForget(It.IsAny<SessionMessageEvent>()))
+            .Callback<SessionMessageEvent>(e => dispatchedEvent = e);
 
-        var payload = @"{""message"":{""role"":""user"",""content"":[{""type"":""text"",""text"":""hello""}]}}";
-        _messager.TestHandleSessionMessage(payload);
+        var messager = new GatewayMessager(_mockWs.Object, _mockEvents.Object, _cfg,
+            null, () => _realFraming, null, null, mockDispatcher.Object);
 
-        Assert.Null(captured);
+        var json = @"{""type"":""event"",""event"":""chat"",""payload"":{""state"":""final"",""message"":{""content"":[]}}}";
+        messager.TestProcessFrame(json);
+
+        Assert.NotNull(dispatchedEvent);
+        Assert.Equal("chat", dispatchedEvent!.EventName);
+        messager.Dispose();
     }
 
     [Fact]
-    public void TestHandleSessionMessage_NonArrayContent_DoesNotThrow()
+    public void ProcessFrame_UnknownEvent_DispatchesGatewayEvent()
     {
-        var payload = @"{""message"":{""role"":""assistant"",""content"":""not an array""}}";
-        var exception = Record.Exception(() => _messager.TestHandleSessionMessage(payload));
-        Assert.Null(exception);
+        var mockDispatcher = new Mock<IEventDispatcher>();
+        GatewayEvent? dispatchedEvent = null;
+        mockDispatcher.Setup(x => x.DispatchAndForget(It.IsAny<GatewayEvent>()))
+            .Callback<GatewayEvent>(e => dispatchedEvent = e);
+
+        var messager = new GatewayMessager(_mockWs.Object, _mockEvents.Object, _cfg,
+            null, () => _realFraming, null, null, mockDispatcher.Object);
+
+        var json = @"{""type"":""event"",""event"":""unknown.event"",""payload"":{}}";
+        messager.TestProcessFrame(json);
+
+        Assert.NotNull(dispatchedEvent);
+        Assert.Equal("unknown.event", dispatchedEvent!.Name);
+        messager.Dispose();
     }
 
     public void Dispose()

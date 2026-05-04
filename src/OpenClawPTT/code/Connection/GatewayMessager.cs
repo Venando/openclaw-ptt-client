@@ -15,6 +15,7 @@ public class GatewayMessager : IDisposable
     private readonly Action<CancellationToken>? _onDisconnection;
     private readonly IContentExtractor _contentExtractor;
     private readonly IColorConsole _console;
+    private readonly IEventDispatcher _dispatcher;
 
     public IMessageFraming GetFraming() => _framing;
 
@@ -25,7 +26,8 @@ public class GatewayMessager : IDisposable
         Action<CancellationToken>? onDisconnection = null,
         Func<MessageFraming>? framingFactory = null,
         IContentExtractor? contentExtractor = null,
-        IColorConsole? console = null)
+        IColorConsole? console = null,
+        IEventDispatcher? dispatcher = null)
     {
         _ws = ws;
         _cfg = cfg;
@@ -35,6 +37,13 @@ public class GatewayMessager : IDisposable
         _onDisconnection = onDisconnection;
         _contentExtractor = contentExtractor ?? new ContentExtractor();
         _console = console ?? new ColorConsole(new StreamShellHost());
+        _dispatcher = dispatcher ?? new EventDispatcher(_console);
+
+        // Register default handlers
+        _dispatcher.RegisterHandler<SessionMessageEvent>(
+            new SessionMessageHandler(_events, _cfg, _contentExtractor, _console));
+        _dispatcher.RegisterHandler<GatewayDisconnectedEvent>(
+            new GatewayConnectionHandler(_console, _onDisconnection));
     }
 
     public async Task ReceiveLoop(CancellationToken ct)
@@ -53,6 +62,7 @@ public class GatewayMessager : IDisposable
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
                         _console.Log("gateway", "Server closed connection.");
+                        _dispatcher.DispatchAndForget(new GatewayDisconnectedEvent("Server closed connection."));
                         _onDisconnection?.Invoke(ct);
                         return;
                     }
@@ -76,11 +86,13 @@ public class GatewayMessager : IDisposable
         catch (WebSocketException ex)
         {
             _console.LogError("gateway", $"WebSocket error: {ex.Message}");
+            _dispatcher.DispatchAndForget(new GatewayDisconnectedEvent($"WebSocket error: {ex.Message}", ex));
             _onDisconnection?.Invoke(ct);
         }
         catch (Exception ex)
         {
             _console.LogError("gateway", $"ReceiveLoop unexpected error: {ex.GetType().Name}: {ex.Message}");
+            _dispatcher.DispatchAndForget(new GatewayDisconnectedEvent($"Unexpected error: {ex.Message}", ex));
             _onDisconnection?.Invoke(ct);
         }
     }
@@ -141,164 +153,24 @@ public class GatewayMessager : IDisposable
                 return;
         }
 
+        // Fire raw event received through the gateway event source
+        _events.RaiseEventReceived(name, payload);
+
+        // Route event to typed dispatchers
         switch (name)
         {
             case "session.message":
-                _events.RaiseEventReceived(name, payload);
-                HandleSessionMessage(payload);
-                return;
-
             case "agent":
-                _events.RaiseEventReceived(name, payload);
-                HandleAgentStream(payload);
-                return;
-
             case "chat":
-                _events.RaiseEventReceived(name, payload);
-                HandleChatFinal(payload);
+                _dispatcher.DispatchAndForget(new SessionMessageEvent(name, payload));
                 return;
 
             default:
-                _events.RaiseEventReceived(name, payload);
+                _dispatcher.DispatchAndForget(new GatewayEvent(name, payload));
                 if (name == "exec.approval.requested")
                     HandleApprovalRequest(payload);
                 return;
         }
-    }
-
-    private void HandleSessionMessage(JsonElement payload)
-    {
-        if (!payload.TryGetProperty("message", out var messageEl)) return;
-        if (!messageEl.TryGetProperty("role", out var roleEl)) return;
-        if (roleEl.GetString() != "assistant") return;
-        if (!messageEl.TryGetProperty("content", out var contentEl)) return;
-        if (contentEl.ValueKind != JsonValueKind.Array) return;
-
-        // In realtime mode, HandleAgentStream owns the delta lifecycle (phase=start/end).
-        // HandleSessionMessage fires content events only — no double delta framing.
-        bool emitDelta = !_cfg.RealTimeReplyOutput;
-        bool startFired = false;
-
-        foreach (var block in contentEl.EnumerateArray())
-        {
-            if (!block.TryGetProperty("type", out var typeEl)) continue;
-            var type = typeEl.GetString();
-
-            if (type == "thinking" && block.TryGetProperty("thinking", out var thinkingEl))
-            {
-                var thinking = thinkingEl.GetString() ?? string.Empty;
-                if (!string.IsNullOrEmpty(thinking))
-                    _events.RaiseAgentThinking(thinking);
-            }
-            else if (type == "toolCall" && block.TryGetProperty("name", out var nameEl) && block.TryGetProperty("arguments", out var argsEl))
-            {
-                var toolName = nameEl.GetString() ?? string.Empty;
-                var args = argsEl.GetRawText();
-                if (_cfg.DebugToolCalls) _console.Log("debug", $"ToolCall: {toolName}({args})");
-                _events.RaiseAgentToolCall(toolName, args);
-            }
-            else if (type == "text" && block.TryGetProperty("text", out var textEl))
-            {
-                var text = textEl.GetString() ?? string.Empty;
-                if (!string.IsNullOrEmpty(text))
-                {
-                    var (hasAudio, hasText, audioText, textContent) = _contentExtractor.ExtractMarkedContent(text);
-                    if (hasAudio)
-                        _events.RaiseAgentReplyAudio(audioText);
-                    if (emitDelta && !startFired)
-                    {
-                        _events.RaiseAgentReplyDeltaStart();
-                        startFired = true;
-                    }
-                    if (hasText)
-                        _events.RaiseAgentReplyFull(textContent);
-                    else if (hasAudio)
-                        _events.RaiseAgentReplyFull(_contentExtractor.StripAudioTags(text));
-                }
-            }
-            else if (type == "audio" && block.TryGetProperty("audio", out var audioEl))
-            {
-                var audioText = audioEl.GetString() ?? string.Empty;
-                if (!string.IsNullOrEmpty(audioText))
-                {
-                    if (emitDelta && !startFired)
-                    {
-                        _events.RaiseAgentReplyDeltaStart();
-                        startFired = true;
-                    }
-                    _events.RaiseAgentReplyAudio(audioText);
-                }
-            }
-            else
-            {
-                _console.Log("debug", $"Unknown block type=\"{type}\": {block}");
-            }
-        }
-
-        if (emitDelta && startFired)
-            _events.RaiseAgentReplyDeltaEnd();
-    }
-
-    private void HandleAgentStream(JsonElement payload)
-    {
-        if (!_cfg.RealTimeReplyOutput) return;
-        if (!payload.TryGetProperty("data", out var data)) return;
-
-        if (data.TryGetProperty("phase", out var phase))
-        {
-            var phaseType = phase.GetString() ?? string.Empty;
-            if (phaseType == "start") _events.RaiseAgentReplyDeltaStart();
-            if (phaseType == "end") _events.RaiseAgentReplyDeltaEnd();
-        }
-
-        if (data.TryGetProperty("delta", out var delta))
-        {
-            var chunk = delta.GetString() ?? string.Empty;
-            if (!string.IsNullOrEmpty(chunk))
-                _events.RaiseAgentReplyDelta(chunk);
-        }
-    }
-
-    private void HandleChatFinal(JsonElement payload)
-    {
-        if (!payload.TryGetProperty("state", out var state)) return;
-        if (state.GetString() != "final") return;
-
-        if (_cfg.RealTimeReplyOutput)
-        {
-            // In realtime mode, streaming responses are already handled by HandleAgentStream
-            // HandleChatFinal should be silent (no double End)
-            return;
-        }
-
-        if (!payload.TryGetProperty("message", out var messageEl)) return;
-        if (!messageEl.TryGetProperty("content", out var contentEl)) return;
-
-        var text = ExtractFullText(contentEl);
-        if (!string.IsNullOrEmpty(text))
-        {
-            _events.RaiseAgentReplyDeltaStart();
-            _events.RaiseAgentReplyFull(text);
-            _events.RaiseAgentReplyDeltaEnd();
-        }
-    }
-
-    private string ExtractFullText(JsonElement contentElement)
-    {
-        if (contentElement.ValueKind != JsonValueKind.Array)
-            return string.Empty;
-
-        var textParts = new List<string>();
-        foreach (var item in contentElement.EnumerateArray())
-        {
-            if (item.TryGetProperty("type", out var typeElement) &&
-                typeElement.GetString() == "text" &&
-                item.TryGetProperty("text", out var textElement))
-            {
-                textParts.Add(textElement.GetString() ?? string.Empty);
-            }
-        }
-        return string.Join("", textParts);
     }
 
     private void HandleApprovalRequest(JsonElement payload)
@@ -318,7 +190,7 @@ public class GatewayMessager : IDisposable
             {
                 try
                 {
-                    await SendRequestAsync("exec.approval.resolve", new Dictionary<string, object?>
+                    await _framing.SendRequestAsync("exec.approval.resolve", new Dictionary<string, object?>
                     {
                         ["id"] = idEl.GetString(),
                         ["approved"] = true
@@ -354,22 +226,4 @@ public class GatewayMessager : IDisposable
     // ─── test support ──────────────────────────────────────────────
 
     internal void TestProcessFrame(string json) => ProcessFrame(json);
-
-    internal void TestHandleEvent(string eventJson)
-    {
-        using var doc = JsonDocument.Parse(eventJson);
-        HandleEvent(doc.RootElement);
-    }
-
-    internal void TestHandleSessionMessage(string payloadJson)
-    {
-        using var doc = JsonDocument.Parse(payloadJson);
-        HandleSessionMessage(doc.RootElement);
-    }
-
-    internal string TestStripAudioTags(string text) => _contentExtractor.StripAudioTags(text);
-
-    internal (bool hasAudio, bool hasText, string audioText, string textContent) TestExtractMarkedContent(string fullMessage)
-        => _contentExtractor.ExtractMarkedContent(fullMessage);
-
 }
