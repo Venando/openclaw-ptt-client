@@ -33,6 +33,7 @@ public class AppRunnerTests
         public IPttController CreatePttController(AppConfig cfg, IAudioService audioService, IHotkeyHookFactory? hotkeyHookFactory = null) => PttController.Object;
         public ITextMessageSender CreateTextMessageSender(IGatewayService gateway) => TextSender.Object;
         public IInputHandler CreateInputHandler(ITextMessageSender textSender) => InputHandler.Object;
+        public IDirectLlmService CreateDirectLlmService(AppConfig cfg) => Mock.Of<IDirectLlmService>();
         public IStreamShellHost CreateStreamShellHost() => Mock.Of<IStreamShellHost>();
         public IAppLoop CreatePttLoop(
             IAudioService audioService,

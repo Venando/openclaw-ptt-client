@@ -33,6 +33,9 @@ public sealed class ServiceFactory : IServiceFactory
     public ITextMessageSender CreateTextMessageSender(IGatewayService gateway)
         => new TextMessageSender(gateway);
 
+    public IDirectLlmService CreateDirectLlmService(AppConfig cfg)
+        => new DirectLlmService(cfg);
+
     public IStreamShellHost CreateStreamShellHost() => _shellHost;
 
     public IAppLoop CreatePttLoop(

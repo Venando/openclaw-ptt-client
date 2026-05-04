@@ -21,6 +21,7 @@ public sealed class StreamShellInputHandler : IDisposable
     private readonly ITextMessageSender _textSender;
     private readonly IGatewayService _gatewayService;
     private readonly IConfigurationService _configService;
+    private readonly IDirectLlmService? _directLlmService;
     private readonly AppConfig _appConfig;
     private readonly Action _onQuit;
     private readonly AgentSettingsCommands _agentSettings;
@@ -33,7 +34,8 @@ public sealed class StreamShellInputHandler : IDisposable
         IGatewayService gatewayService,
         IConfigurationService configService,
         AppConfig appConfig,
-        Action onQuit)
+        Action onQuit,
+        IDirectLlmService? directLlmService = null)
     {
         _host = host;
         _textSender = textSender;
@@ -41,6 +43,7 @@ public sealed class StreamShellInputHandler : IDisposable
         _configService = configService;
         _onQuit = onQuit;
         _appConfig = appConfig;
+        _directLlmService = directLlmService;
         _agentSettings = new AgentSettingsCommands(host, configService);
         _agentSwitching = new AgentSwitchingCommands(host, textSender, gatewayService, appConfig);
         _messageComposer = new TextMessageComposer(host, textSender);
@@ -54,6 +57,15 @@ public sealed class StreamShellInputHandler : IDisposable
         _host.AddCommand(new Command("reconfigure", "Run reconfiguration wizard", ReconfigureHandler));
         _host.AddCommand(new Command("crew", "List available agents", CrewHandler));
         _host.AddCommand(new Command("chat", "<name|id> Switch active agent by name or ID", ChatHandler));
+
+        // Direct LLM command (bypasses agent)
+        if (_directLlmService?.IsConfigured == true)
+        {
+            _host.AddCommand(new Command("llm", "<message> Send message directly to configured LLM", LlmHandler));
+        }
+
+        // Config command to get/set any config value
+        _host.AddCommand(new Command("config", "<key> [value] Get or set config value", ConfigHandler));
 
         // OpenClaw tool commands (for StreamShell hint support)
         foreach (var name in OpenClawCommands.Names)
@@ -143,8 +155,117 @@ public sealed class StreamShellInputHandler : IDisposable
         return _agentSwitching.HandleChat(args);
     }
 
+    private async Task LlmHandler(string[] args, System.Collections.Generic.Dictionary<string, string> named)
+    {
+        if (_directLlmService == null)
+        {
+            _host.AddMessage("[yellow]  Direct LLM is not configured. Set DirectLlmUrl and DirectLlmModelName in config.[/]");
+            return;
+        }
+
+        var message = string.Join(" ", args);
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            _host.AddMessage("[yellow]  Usage: /llm <your message>[/]");
+            return;
+        }
+
+        _host.AddMessage($"[grey]  Sending to LLM ({_appConfig.DirectLlmModelName})...[/]");
+
+        try
+        {
+            var response = await _directLlmService.SendAsync(message, CancellationToken.None);
+
+            // Display response
+            _host.AddMessage("[cyan]  LLM Response:[/]");
+            _host.AddMessage($"  {Markup.Escape(response)}");
+        }
+        catch (Exception ex)
+        {
+            _host.AddMessage($"[red]  LLM request failed: {Markup.Escape(ex.Message)}[/]");
+        }
+    }
+
     private Task OpenClawCommandForwarder(string commandName, string[] args, System.Collections.Generic.Dictionary<string, string> named)
     {
         return _agentSwitching.HandleOpenClawCommand(commandName, args, named);
+    }
+
+    private Task ConfigHandler(string[] args, System.Collections.Generic.Dictionary<string, string> named)
+    {
+        if (args.Length == 0)
+        {
+            _host.AddMessage("[yellow]  Usage: /config <key> [value][/]");
+            _host.AddMessage("[grey]  Examples:[/]");
+            _host.AddMessage("    /config DirectLlmUrl           (show current value)");
+            _host.AddMessage("    /config DirectLlmUrl http://... (set new value)");
+            return Task.CompletedTask;
+        }
+
+        var key = args[0];
+        var value = args.Length > 1 ? string.Join(" ", args.Skip(1)) : null;
+
+        // Use reflection to get/set property
+        var property = typeof(AppConfig).GetProperty(key);
+        if (property == null)
+        {
+            _host.AddMessage($"[red]  Unknown config key: {key}[/]");
+            return Task.CompletedTask;
+        }
+
+        if (value == null)
+        {
+            // Get current value
+            var currentValue = property.GetValue(_appConfig);
+            var displayValue = currentValue?.ToString() ?? "(null)";
+            _host.AddMessage($"[cyan]  {key}:[/] {displayValue}");
+        }
+        else
+        {
+            // Set new value
+            try
+            {
+                object? convertedValue;
+                if (property.PropertyType == typeof(string))
+                {
+                    convertedValue = value;
+                }
+                else if (property.PropertyType == typeof(int))
+                {
+                    convertedValue = int.Parse(value);
+                }
+                else if (property.PropertyType == typeof(bool))
+                {
+                    convertedValue = bool.Parse(value);
+                }
+                else if (property.PropertyType == typeof(double))
+                {
+                    convertedValue = double.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+                }
+                else if (property.PropertyType.IsEnum)
+                {
+                    convertedValue = Enum.Parse(property.PropertyType, value, true);
+                }
+                else
+                {
+                    _host.AddMessage($"[red]  Cannot set {key}: unsupported type {property.PropertyType.Name}[/]");
+                    return Task.CompletedTask;
+                }
+
+                property.SetValue(_appConfig, convertedValue);
+                _configService.Save(_appConfig);
+                _host.AddMessage($"[green]  {key} set to: {convertedValue}[/]");
+            }
+            catch (FormatException)
+            {
+                _host.AddMessage($"[red]  Invalid value format for {key} (expected {property.PropertyType.Name})[/]");
+            }
+            catch (Exception ex)
+            {
+                _host.AddMessage($"[red]  Failed to set {key}: {Markup.Escape(ex.Message)}[/]");
+            }
+        }
+
+        return Task.CompletedTask;
     }
 }

@@ -23,14 +23,32 @@ public sealed class GenericKvpToolRenderer : IToolRenderer
         {
             if (first)
             {
-                _output.Print(prop.Value.GetString() ?? "", ConsoleColor.Gray);
+                _output.Print(GetValueString(prop.Value), ConsoleColor.Gray);
                 first = false;
             }
             else
             {
                 _output.Print($", {prop.Name}: ", ConsoleColor.DarkGray);
-                _output.Print(prop.Value.GetString() ?? "", ConsoleColor.White);
+                _output.Print(GetValueString(prop.Value), ConsoleColor.White);
             }
         }
+    }
+
+    /// <summary>
+    /// Converts a JsonElement to its string representation, handling all value types.
+    /// </summary>
+    private static string GetValueString(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString() ?? "",
+            JsonValueKind.Number => element.GetRawText(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            JsonValueKind.Null => "null",
+            JsonValueKind.Array => element.GetRawText(),
+            JsonValueKind.Object => element.GetRawText(),
+            _ => element.GetRawText()
+        };
     }
 }
