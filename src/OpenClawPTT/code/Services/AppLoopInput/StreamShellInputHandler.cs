@@ -61,8 +61,11 @@ public sealed class StreamShellInputHandler : IDisposable
         _host.AddCommand(new Command("crew", "List available agents", CrewHandler));
         _host.AddCommand(new Command("chat", "<name|id> Switch active agent by name or ID", ChatHandler));
 
-        // Direct LLM commands (bypasses agent)
-        _host.AddCommand(new Command("llm", "<message> Send message directly to configured LLM (or: url, model, api, token, status)", LlmHandler));
+        // Direct LLM command (bypasses agent)
+        if (_directLlmService?.IsConfigured == true)
+        {
+            _host.AddCommand(new Command("llm", "<message> Send message directly to configured LLM", LlmHandler));
+        }
 
         // OpenClaw tool commands (for StreamShell hint support)
         foreach (var name in OpenClawCommands.Names)
@@ -154,111 +157,9 @@ public sealed class StreamShellInputHandler : IDisposable
 
     private async Task LlmHandler(string[] args, System.Collections.Generic.Dictionary<string, string> named)
     {
-        if (args.Length == 0)
-        {
-            _host.AddMessage("[yellow]  Usage: /llm <message> or /llm url|model|api|token|status <value>[/]");
-            return;
-        }
-
-        var subcommand = args[0].ToLowerInvariant();
-        var remainingArgs = args.Skip(1).ToArray();
-        var value = string.Join(" ", remainingArgs);
-
-        switch (subcommand)
-        {
-            case "url":
-                if (string.IsNullOrWhiteSpace(value))
-                {
-                    _host.AddMessage($"[grey]  Current URL: {_appConfig.DirectLlmUrl ?? "(not set)"}[/]");
-                    _host.AddMessage("[yellow]  Usage: /llm url <url>[/]");
-                }
-                else
-                {
-                    _appConfig.DirectLlmUrl = value;
-                    _configService.Save(_appConfig);
-                    _host.AddMessage($"[green]  LLM URL set to: {value}[/]");
-                }
-                return;
-
-            case "model":
-                if (string.IsNullOrWhiteSpace(value))
-                {
-                    _host.AddMessage($"[grey]  Current model: {_appConfig.DirectLlmModelName ?? "(not set)"}[/]");
-                    _host.AddMessage("[yellow]  Usage: /llm model <model-name>[/]");
-                }
-                else
-                {
-                    _appConfig.DirectLlmModelName = value;
-                    _configService.Save(_appConfig);
-                    _host.AddMessage($"[green]  LLM model set to: {value}[/]");
-                }
-                return;
-
-            case "api":
-                if (string.IsNullOrWhiteSpace(value))
-                {
-                    _host.AddMessage($"[grey]  Current API type: {_appConfig.DirectLlmApiType}[/]");
-                    _host.AddMessage("[yellow]  Usage: /llm api <openai-completions|anthropic-messages>[/]");
-                }
-                else if (value != "openai-completions" && value != "anthropic-messages")
-                {
-                    _host.AddMessage("[red]  Invalid API type. Use: openai-completions or anthropic-messages[/]");
-                }
-                else
-                {
-                    _appConfig.DirectLlmApiType = value;
-                    _configService.Save(_appConfig);
-                    _host.AddMessage($"[green]  LLM API type set to: {value}[/]");
-                }
-                return;
-
-            case "token":
-                if (string.IsNullOrWhiteSpace(value))
-                {
-                    var tokenDisplay = string.IsNullOrEmpty(_appConfig.DirectLlmToken) 
-                        ? "(not set)" 
-                        : "***" + _appConfig.DirectLlmToken[^Math.Min(4, _appConfig.DirectLlmToken.Length)..];
-                    _host.AddMessage($"[grey]  Current token: {tokenDisplay}[/]");
-                    _host.AddMessage("[yellow]  Usage: /llm token <api-key>[/]");
-                }
-                else
-                {
-                    _appConfig.DirectLlmToken = value;
-                    _configService.Save(_appConfig);
-                    _host.AddMessage("[green]  LLM token updated.[/]");
-                }
-                return;
-
-            case "status":
-                _host.AddMessage("[cyan]  Direct LLM Configuration:[/]");
-                _host.AddMessage($"    URL: {_appConfig.DirectLlmUrl ?? "(not set)"}");
-                _host.AddMessage($"    Model: {_appConfig.DirectLlmModelName ?? "(not set)"}");
-                _host.AddMessage($"    API Type: {_appConfig.DirectLlmApiType}");
-                var tokenStatus = string.IsNullOrEmpty(_appConfig.DirectLlmToken) ? "(not set)" : "(set)";
-                _host.AddMessage($"    Token: {tokenStatus}");
-                var configured = _directLlmService?.IsConfigured == true ? "[green]Yes[/]" : "[red]No[/]";
-                _host.AddMessage($"    Configured: {configured}");
-                return;
-
-            default:
-                // Treat as a message to send to LLM
-                await SendToLlmAsync(args);
-                return;
-        }
-    }
-
-    private async Task SendToLlmAsync(string[] args)
-    {
         if (_directLlmService == null)
         {
-            _host.AddMessage("[yellow]  Direct LLM is not available.[/]");
-            return;
-        }
-
-        if (!_directLlmService.IsConfigured)
-        {
-            _host.AddMessage("[yellow]  Direct LLM is not configured. Use /llm url, /llm model to configure.[/]");
-            _host.AddMessage("[grey]  Or run /llm status to check current configuration.[/]");
+            _host.AddMessage("[yellow]  Direct LLM is not configured. Set DirectLlmUrl and DirectLlmModelName in config.[/]");
             return;
         }
 
