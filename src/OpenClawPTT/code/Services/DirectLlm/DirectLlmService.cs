@@ -46,7 +46,13 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
         if (_disposed) throw new ObjectDisposedException(nameof(DirectLlmService));
         if (!IsConfigured) throw new InvalidOperationException("Direct LLM is not configured. Set DirectLlmUrl and DirectLlmModelName in config.");
 
-        return _config.DirectLlmApiType?.ToLowerInvariant() switch
+        var apiType = _config.DirectLlmApiType?.ToLowerInvariant() ?? "openai-completions";
+        
+        // openai-chat is an alias for openai-completions
+        if (apiType == "openai-chat")
+            apiType = "openai-completions";
+
+        return apiType switch
         {
             "anthropic-messages" => await SendAnthropicAsync(message, ct),
             _ => await SendOpenAiAsync(message, ct) // default to openai-completions
@@ -65,7 +71,15 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
             Stream = false
         };
 
-        var request = new HttpRequestMessage(HttpMethod.Post, _config.DirectLlmUrl)
+        // Auto-append /chat/completions if URL ends with /v1 or /v1/
+        var url = _config.DirectLlmUrl!;
+        if (url.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ||
+            url.EndsWith("/v1/", StringComparison.OrdinalIgnoreCase))
+        {
+            url = url.TrimEnd('/') + "/chat/completions";
+        }
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
             Content = JsonContent.Create(requestBody, options: new JsonSerializerOptions
             {
