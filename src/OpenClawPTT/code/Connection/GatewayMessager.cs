@@ -1,6 +1,7 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using OpenClawPTT.Services;
 
 namespace OpenClawPTT;
 
@@ -13,6 +14,7 @@ public class GatewayMessager : IDisposable
     private readonly MessageFraming _framing;
     private readonly Action<CancellationToken>? _onDisconnection;
     private readonly IContentExtractor _contentExtractor;
+    private readonly IColorConsole _console;
 
     public IMessageFraming GetFraming() => _framing;
 
@@ -22,7 +24,8 @@ public class GatewayMessager : IDisposable
         AppConfig cfg,
         Action<CancellationToken>? onDisconnection = null,
         Func<MessageFraming>? framingFactory = null,
-        IContentExtractor? contentExtractor = null)
+        IContentExtractor? contentExtractor = null,
+        IColorConsole? console = null)
     {
         _ws = ws;
         _cfg = cfg;
@@ -31,6 +34,7 @@ public class GatewayMessager : IDisposable
         _framing = _framingFactory != null ? _framingFactory() : new MessageFraming(_ws, _cfg);
         _onDisconnection = onDisconnection;
         _contentExtractor = contentExtractor ?? new ContentExtractor();
+        _console = console ?? new ColorConsole(new StreamShellHost());
     }
 
     public async Task ReceiveLoop(CancellationToken ct)
@@ -48,14 +52,14 @@ public class GatewayMessager : IDisposable
                     result = await _ws.ReceiveAsync(buf, ct);
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        ConsoleUi.Log("gateway", "Server closed connection.");
+                        _console.Log("gateway", "Server closed connection.");
                         _onDisconnection?.Invoke(ct);
                         return;
                     }
                     ms.Write(buf, 0, result.Count);
 
                     if (result.Count == buf.Length)
-                        ConsoleUi.LogError("gateway", $"WARNING: fragment filled buffer ({buf.Length} bytes) — consider increasing buffer size");
+                        _console.LogError("gateway", $"WARNING: fragment filled buffer ({buf.Length} bytes) — consider increasing buffer size");
 
                 } while (!result.EndOfMessage);
 
@@ -71,12 +75,12 @@ public class GatewayMessager : IDisposable
         }
         catch (WebSocketException ex)
         {
-            ConsoleUi.LogError("gateway", $"WebSocket error: {ex.Message}");
+            _console.LogError("gateway", $"WebSocket error: {ex.Message}");
             _onDisconnection?.Invoke(ct);
         }
         catch (Exception ex)
         {
-            ConsoleUi.LogError("gateway", $"ReceiveLoop unexpected error: {ex.GetType().Name}: {ex.Message}");
+            _console.LogError("gateway", $"ReceiveLoop unexpected error: {ex.GetType().Name}: {ex.Message}");
             _onDisconnection?.Invoke(ct);
         }
     }
@@ -190,7 +194,7 @@ public class GatewayMessager : IDisposable
             {
                 var toolName = nameEl.GetString() ?? string.Empty;
                 var args = argsEl.GetRawText();
-                if (_cfg.DebugToolCalls) ConsoleUi.Log("debug", $"ToolCall: {toolName}({args})");
+                if (_cfg.DebugToolCalls) _console.Log("debug", $"ToolCall: {toolName}({args})");
                 _events.RaiseAgentToolCall(toolName, args);
             }
             else if (type == "text" && block.TryGetProperty("text", out var textEl))
@@ -227,7 +231,7 @@ public class GatewayMessager : IDisposable
             }
             else
             {
-                ConsoleUi.Log("debug", $"Unknown block type=\"{type}\": {block}");
+                _console.Log("debug", $"Unknown block type=\"{type}\": {block}");
             }
         }
 
@@ -299,14 +303,14 @@ public class GatewayMessager : IDisposable
 
     private void HandleApprovalRequest(JsonElement payload)
     {
-        ConsoleUi.PrintWarning("Exec approval requested");
+        _console.PrintWarning("Exec approval requested");
 
         if (payload.TryGetProperty("description", out var d))
-            ConsoleUi.PrintInfo($"    {d.GetString()}");
+            _console.PrintInfo($"    {d.GetString()}");
 
         if (payload.TryGetProperty("command", out var cmd))
-            ConsoleUi.PrintInfo($"    $ {cmd.GetString()}");
-        ConsoleUi.PrintInfo("(auto-approving from PTT client)");
+            _console.PrintInfo($"    $ {cmd.GetString()}");
+        _console.PrintInfo("(auto-approving from PTT client)");
 
         if (payload.TryGetProperty("id", out var idEl))
         {
@@ -322,7 +326,7 @@ public class GatewayMessager : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    ConsoleUi.LogError("approval", ex.Message);
+                    _console.LogError("approval", ex.Message);
                 }
             });
         }

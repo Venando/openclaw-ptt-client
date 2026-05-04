@@ -92,7 +92,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
         try
         {
             _ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
-            _gatewayMessager = new GatewayMessager(_ws, _events, _cfg, ct => _ = HandleDisconnectionAsync(ct));
+            _gatewayMessager = new GatewayMessager(_ws, _events, _cfg, ct => _ = HandleDisconnectionAsync(ct), console: _console);
 
             await ConnectWebSocketAsync(linkedCt);
             _recvTask = Task.Run(() => _gatewayMessager.ReceiveLoop(linkedCt), linkedCt);
@@ -106,14 +106,14 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
     private async Task ConnectWebSocketAsync(CancellationToken linkedCt)
     {
         var uri = new Uri(_cfg.GatewayUrl);
-        ConsoleUi.Log("gateway", $"Connecting to {uri} ...");
+        _console.Log("gateway", $"Connecting to {uri} ...");
         await _ws.ConnectAsync(uri, linkedCt);
-        ConsoleUi.Log("gateway", "WebSocket open.");
+        _console.Log("gateway", "WebSocket open.");
     }
 
     private async Task<string> WaitForChallengeNonceAsync(CancellationToken linkedCt)
     {
-        ConsoleUi.Log("gateway", "Waiting for connect.challenge ...");
+        _console.Log("gateway", "Waiting for connect.challenge ...");
         if (_gatewayMessager == null)
             throw new InvalidOperationException("Gateway messager not initialized.");
         var challenge = await _gatewayMessager.GetFraming().WaitForEventAsync("connect.challenge", TimeSpan.FromSeconds(10), linkedCt);
@@ -124,11 +124,11 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
     {
         var connectParams = BuildConnectParams(nonce);
 
-        ConsoleUi.Log("gateway", "Sending connect ...");
+        _console.Log("gateway", "Sending connect ...");
         JsonElement hello = await SendRequestAsync("connect", connectParams, linkedCt);
 
         ValidateHelloOk(hello);
-        ConsoleUi.LogOk("gateway", "Authenticated — hello-ok received.");
+        _console.LogOk("gateway", "Authenticated — hello-ok received.");
 
         return ProcessHelloPayload(hello);
     }
@@ -150,7 +150,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
             var redactedPayload = string.IsNullOrEmpty(authToken)
                 ? sigPayload
                 : sigPayload.Replace(authToken, "***REDACTED***");
-            ConsoleUi.Log("gateway", $"Signature payload: {redactedPayload}");
+            _console.Log("gateway", $"Signature payload: {redactedPayload}");
         }
 
         var signature = _deviceIdentity.Sign(sigPayload);
@@ -208,7 +208,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
             string prettyHello = JsonSerializer.Serialize(hello, options);
             string extraPretty = Regex.Replace(prettyHello, "(?m)^(  )+", m => new string(' ', m.Length * 2));
             var lines = $"--- SERVER HELLO PAYLOAD ---\n{extraPretty}\n----------------------------".Split('\n');
-            foreach (var line in lines) ConsoleUi.Log("ws", line);
+            foreach (var line in lines) _console.Log("ws", line);
         }
 
         PersistDeviceTokenIfIssued(hello);
@@ -230,7 +230,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
     private async Task CompleteAuthenticationAsync(int tickMs, CancellationToken linkedCt)
     {
         StartKeepalive(tickMs, linkedCt);
-        ConsoleUi.Log("gateway", $"Keepalive every {tickMs}ms.");
+        _console.Log("gateway", $"Keepalive every {tickMs}ms.");
 
         await SubscribeToSessionAsync(linkedCt);
 
@@ -253,7 +253,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
             }
             catch (Exception ex)
             {
-                ConsoleUi.LogError("gateway", $"Failed to subscribe to new session: {ex.Message}");
+                _console.LogError("gateway", $"Failed to subscribe to new session: {ex.Message}");
             }
         });
     }
@@ -329,7 +329,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
         }
         catch (Exception ex)
         {
-            ConsoleUi.LogError("gateway", $"Error during disconnection handling: {ex.Message}");
+            _console.LogError("gateway", $"Error during disconnection handling: {ex.Message}");
         }
     }
 
