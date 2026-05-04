@@ -120,7 +120,7 @@ public class MessageFraming : IMessageFraming
     }
 
     /// <summary>Tries to remove and return a pending request TCS by ID.</summary>
-    internal bool TryRemovePending(string id, out TaskCompletionSource<JsonElement> tcs)
+    internal bool TryRemovePending(string id, out TaskCompletionSource<JsonElement>? tcs)
         => _pending.TryRemove(id, out tcs);
 
     /// <summary>Resolves a one-shot event waiter by name with the given payload.</summary>

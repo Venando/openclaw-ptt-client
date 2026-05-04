@@ -502,7 +502,7 @@ public class FakeAudioServiceTests : IDisposable
     // ═══════════════════════════════════════════════════════════════
 
     [Fact]
-    public void IsRecording_ReflectsActualState()
+    public async Task IsRecording_ReflectsActualState()
     {
         New();
         Assert.False(_service!.IsRecording);
@@ -510,7 +510,7 @@ public class FakeAudioServiceTests : IDisposable
         _service.StartRecording();
         Assert.True(_service.IsRecording);
 
-        _service.SimulateStopWithBytesAsync(new byte[2048], default).Wait();
+        await _service.SimulateStopWithBytesAsync(new byte[2048], default);
         Assert.False(_service.IsRecording);
     }
 

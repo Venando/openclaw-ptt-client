@@ -10,9 +10,11 @@ internal sealed class MacOsHotkeyHook : IGlobalHotkeyHook
 {
     public event Action? HotkeyPressed;
     public event Action? HotkeyReleased;
+#pragma warning disable CS0067 // Event is part of interface but not used on macOS
     public event Action<int>? HotkeyIndexPressed;
     public event Action<int>? HotkeyIndexReleased;
     public event Action? EscapePressed;
+#pragma warning restore CS0067
     public bool BlockEscape { get; set; }
 
     private readonly CancellationTokenSource _cts = new();

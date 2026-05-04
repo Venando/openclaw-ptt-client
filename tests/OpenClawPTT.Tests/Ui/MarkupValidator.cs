@@ -158,7 +158,6 @@ public static class MarkupValidator
         var tokens = SplitTagTokens(tagContent);
 
         bool foundFg = false;
-        bool foundBg = false; // Tokens that follow "on" are background colours.
         bool expectingBg = false;
 
         for (int t = 0; t < tokens.Count; t++)
@@ -178,8 +177,6 @@ public static class MarkupValidator
             {
                 if (!IsValidColor(token))
                     issues.Add($"Tag '[{tagContent}]' at position {tagPosition}: '{token}' is not a recognised background colour (after 'on').");
-                else
-                    foundBg = true;
 
                 expectingBg = false;
                 continue;

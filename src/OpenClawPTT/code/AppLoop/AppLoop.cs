@@ -44,8 +44,8 @@ public sealed class AppLoop : IAppLoop
 
         while (!ct.IsCancellationRequested)
         {
-            PollHotkeyState();
-            HandleRecordingState(ct);
+            await PollHotkeyState();
+            await HandleRecordingState(ct);
 
             // Console input is now handled by StreamShell via StreamShellInputHandler
 
@@ -59,7 +59,7 @@ public sealed class AppLoop : IAppLoop
     }
 
     /// <summary>Polls the hardware for hotkey state transitions.</summary>
-    private void PollHotkeyState()
+    private async Task PollHotkeyState()
     {
         if (_pttController.PollHotkeyPressed())
             _pttStateMachine.OnHotkeyPressed();
@@ -72,6 +72,8 @@ public sealed class AppLoop : IAppLoop
             _pttStateMachine.Reset();
             _audioService.StopDiscard();
         }
+
+        await Task.CompletedTask;
     }
 
     /// <summary>Handles state-driven recording actions (start, stop, transcribe).</summary>

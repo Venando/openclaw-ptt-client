@@ -14,22 +14,22 @@ public class AgentRegistrySettingsTests
     [Fact]
     public void GetPersistedHotkey_NoSettings_ReturnsNull()
     {
-        Assert.Null(AgentRegistry.GetPersistedHotkey("agent-1"));
+        Assert.Null(AgentSettingsPersistence.GetPersistedHotkey("agent-1"));
     }
 
     [Fact]
     public void SetPersistedHotkey_ReturnsValue()
     {
-        AgentRegistry.SetPersistedHotkey("agent-1", "Alt+1");
-        Assert.Equal("Alt+1", AgentRegistry.GetPersistedHotkey("agent-1"));
+        AgentSettingsPersistence.SetPersistedHotkey("agent-1", "Alt+1");
+        Assert.Equal("Alt+1", AgentSettingsPersistence.GetPersistedHotkey("agent-1"));
     }
 
     [Fact]
     public void SetPersistedHotkey_NullClearsOverride()
     {
-        AgentRegistry.SetPersistedHotkey("agent-1", "Alt+1");
-        AgentRegistry.SetPersistedHotkey("agent-1", null);
-        Assert.Null(AgentRegistry.GetPersistedHotkey("agent-1"));
+        AgentSettingsPersistence.SetPersistedHotkey("agent-1", "Alt+1");
+        AgentSettingsPersistence.SetPersistedHotkey("agent-1", null);
+        Assert.Null(AgentSettingsPersistence.GetPersistedHotkey("agent-1"));
     }
 
     [Fact]
@@ -41,9 +41,9 @@ public class AgentRegistrySettingsTests
             new() { AgentId = "a2", Name = "Beta", SessionKey = "agent:a2:main" },
         };
         AgentRegistry.SetAgents(agents);
-        AgentRegistry.SetPersistedHotkey("a1", "Alt+1");
+        AgentSettingsPersistence.SetPersistedHotkey("a1", "Alt+1");
 
-        var result = AgentRegistry.AllAgentsWithHotkeys;
+        var result = AgentSettingsPersistence.AllAgentsWithHotkeys;
         Assert.Equal(2, result.Count);
         Assert.Equal("Alt+1", result[0].Hotkey);
     }
@@ -64,9 +64,9 @@ public class AgentRegistrySettingsTests
                 new() { AgentId = "a1", HotkeyCombination = "Ctrl+Shift+A" }
             }
         };
-        AgentRegistry.MergePersistedSettings(persisted);
+        AgentSettingsPersistence.MergePersistedSettings(persisted);
 
-        Assert.Equal("Ctrl+Shift+A", AgentRegistry.GetPersistedHotkey("a1"));
+        Assert.Equal("Ctrl+Shift+A", AgentSettingsPersistence.GetPersistedHotkey("a1"));
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class AgentRegistrySettingsTests
     {
         bool fired = false;
         AgentSettingsPersistence.PersistedSettingsChanged += () => fired = true;
-        AgentRegistry.SetPersistedHotkey("a1", "Alt+1");
+        AgentSettingsPersistence.SetPersistedHotkey("a1", "Alt+1");
         Assert.True(fired);
     }
 }

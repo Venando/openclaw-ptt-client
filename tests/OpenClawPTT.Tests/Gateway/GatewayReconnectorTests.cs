@@ -99,11 +99,11 @@ public class GatewayReconnectorTests : IDisposable
     }
 
     [Fact]
-    public void Dispose_CalledTwice_DoesNotThrow()
+    public async Task Dispose_CalledTwice_DoesNotThrow()
     {
         var reconn = CreateReconnector();
         _cts.Cancel();
-        try { reconn.ScheduleReconnectAsync(CancellationToken.None).Wait(500); } catch { /* ignore */ }
+        try { await reconn.ScheduleReconnectAsync(CancellationToken.None).WaitAsync(TimeSpan.FromMilliseconds(500)); } catch { /* ignore */ }
 
         reconn.Dispose();
         var exception = Record.Exception(() => reconn.Dispose());

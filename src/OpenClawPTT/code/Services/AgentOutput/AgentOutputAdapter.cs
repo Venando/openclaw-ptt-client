@@ -198,7 +198,7 @@ public sealed class AgentOutputAdapter : IDisposable
             else
             {
                 _capturingConsole = null;
-                _formatter = new AgentReplyFormatter(_currentPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true, output: null);
+                _formatter = new AgentReplyFormatter(_currentPrefix, _config.RightMarginIndent, prefixAlreadyPrinted: true, output: null!);
             }
         }
     }

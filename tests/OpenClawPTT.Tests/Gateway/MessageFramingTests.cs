@@ -130,7 +130,7 @@ public class MessageFramingTests
     // ─── ResolveEventWaiter tests ──────────────────────────────────
 
     [Fact]
-    public void ResolveEventWaiter_WithWaitingTask_ResolvesTaskWithPayload()
+    public async Task ResolveEventWaiter_WithWaitingTask_ResolvesTaskWithPayload()
     {
         var mockWs = CreateMockSocket();
         var cfg = new AppConfig();
@@ -146,7 +146,8 @@ public class MessageFramingTests
         framing.ResolveEventWaiter("test.event", payload);
 
         Assert.True(tcs.Task.IsCompletedSuccessfully);
-        Assert.Equal("value", tcs.Task.Result.GetProperty("key").GetString());
+        var result = await tcs.Task;
+        Assert.Equal("value", result.GetProperty("key").GetString());
     }
 
     [Fact]

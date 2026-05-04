@@ -239,11 +239,15 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
         {
             // Poll HasExited to avoid blocking indefinitely if the process dies between the
             // loop check in ReadLoopAsync and the actual read.
-            while (!reader.EndOfStream && _process is { HasExited: false })
+            // Use Peek() instead of EndOfStream to avoid blocking in async context (CA2024)
+            while (_process is { HasExited: false })
             {
                 if (ct.IsCancellationRequested)
                     return null;
-                if (reader.Peek() != -1)
+                var peekResult = reader.Peek();
+                if (peekResult == -1)
+                    return null; // End of stream
+                if (peekResult != -1)
                     return await reader.ReadLineAsync(ct);
                 await Task.Delay(500, ct);
             }

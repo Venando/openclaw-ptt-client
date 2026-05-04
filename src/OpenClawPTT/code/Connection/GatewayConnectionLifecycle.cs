@@ -111,6 +111,8 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
     private async Task<string> WaitForChallengeNonceAsync(CancellationToken linkedCt)
     {
         ConsoleUi.Log("gateway", "Waiting for connect.challenge ...");
+        if (_gatewayMessager == null)
+            throw new InvalidOperationException("Gateway messager not initialized.");
         var challenge = await _gatewayMessager.GetFraming().WaitForEventAsync("connect.challenge", TimeSpan.FromSeconds(10), linkedCt);
         return challenge.GetProperty("nonce").GetString()!;
     }

@@ -99,7 +99,7 @@ public class GatewayMessager : IDisposable
     private void HandleResponse(JsonElement root)
     {
         var id = root.GetProperty("id").GetString()!;
-        if (!_framing.TryRemovePending(id, out var tcs))
+        if (!_framing.TryRemovePending(id, out var tcs) || tcs == null)
             return;
 
         var ok = root.GetProperty("ok").GetBoolean();

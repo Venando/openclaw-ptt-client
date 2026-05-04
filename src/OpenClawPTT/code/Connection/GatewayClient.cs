@@ -54,6 +54,8 @@ public sealed class GatewayClient : IGatewayClient
 
         // lifecycle was created in constructor for testability.
         // ConnectAsync internally manages keepalive (reads tickIntervalMs from server hello).
+        if (_lifecycle == null)
+            throw new InvalidOperationException("Lifecycle not initialized.");
         await _lifecycle.ConnectAsync(ct);
     }
 
@@ -229,7 +231,7 @@ public sealed class GatewayClient : IGatewayClient
 
             return entries;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return null;
         }

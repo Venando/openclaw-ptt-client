@@ -27,7 +27,9 @@ public class ToolDisplayHandlerIntegrationTests
         public readonly List<string> Messages = new();
         public readonly List<StreamShell.Command> Commands = new();
 
+#pragma warning disable CS0067 // Required by interface but not used in tests
         public event Action<string, StreamShell.InputType, System.Collections.Generic.IReadOnlyList<StreamShell.Attachment>>? UserInputSubmitted;
+#pragma warning restore CS0067
 
         public void AddMessage(string markup) => Messages.Add(markup);
         public void AddCommand(StreamShell.Command command) => Commands.Add(command);
