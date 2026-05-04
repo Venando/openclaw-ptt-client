@@ -39,7 +39,7 @@ public sealed class SessionsSpawnToolRenderer : IToolRenderer
             _output.PrintLine("", ConsoleColor.DarkGray);
             const string taskPrefix = "  Task: ";
             _output.Print(taskPrefix, ConsoleColor.DarkGray);
-            _output.PrintTruncated(taskProp.GetString() ?? "", taskPrefix, rightMarginIndent, ConsoleColor.Gray);
+            _output.PrintTruncated(taskProp.GetString() ?? "", taskPrefix, rightMarginIndent, ConsoleColor.Gray, maxRows: 8);
         }
     }
 }
