@@ -106,7 +106,7 @@ public class AppRunner : IDisposable
             directLlmService: directLlmService.IsConfigured ? directLlmService : null
         );
         await shellCommands.RegisterAsync();
-        ConsoleUi.PrintHelpMenu(_cfg);
+        _console.PrintHelpMenu(_cfg);
 
         using IAppLoop pttLoop = _factory.CreatePttLoop(
             audioService, pttController, textSender, inputHandler,

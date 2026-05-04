@@ -33,7 +33,7 @@ public sealed class AppBootstrapper : IDisposable
     /// <summary>Runs the application and returns the exit code.</summary>
     public async Task<int> RunAsync(CancellationToken cancellationToken = default)
     {
-        ConsoleUi.PrintBanner();
+        _console.PrintBanner();
 
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Console.CancelKeyPress += OnCancelKeyPress;

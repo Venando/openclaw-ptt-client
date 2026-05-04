@@ -13,8 +13,6 @@ internal static class Program
         var factory = new ServiceFactory(configService, shellHost);
         var colorConsole = factory.CreateColorConsole();
 
-        ConsoleUi.SetStreamShellHost(shellHost);
-
         var bootstrapper = new AppBootstrapper(configService, factory, shellHost, colorConsole);
         var exitCode = await bootstrapper.RunAsync(cts.Token);
 

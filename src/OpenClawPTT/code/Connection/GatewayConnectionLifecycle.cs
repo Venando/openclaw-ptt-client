@@ -37,7 +37,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
         _events = events;
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _socketFactory = socketFactory ?? (() => new ClientWebSocketAdapter());
-        _snapshotProcessor = snapshotProcessor ?? new SnapshotProcessor(new ConsoleLogger(), cfg.LogHello);
+        _snapshotProcessor = snapshotProcessor ?? new SnapshotProcessor(new ConsoleLogger(console), cfg.LogHello);
         _gatewayReconnector = new GatewayReconnector(cfg, console, this, _disposeCts.Token);
     }
 

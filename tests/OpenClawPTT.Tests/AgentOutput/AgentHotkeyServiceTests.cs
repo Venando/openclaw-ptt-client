@@ -38,7 +38,6 @@ public class AgentHotkeyServiceTests : IDisposable
     public void Dispose()
     {
         AgentRegistry.SetAgents(new List<AgentInfo>());
-        ConsoleUi.SetStreamShellHost(null);
     }
 
     private static AgentInfo MakeAgent(string id, string name = "", bool isDefault = false)
@@ -86,7 +85,6 @@ public class AgentHotkeyServiceTests : IDisposable
         var mockClient = new Mock<IGatewayClient>();
         var config = new AppConfig();
         var service = new TestableGatewayService(config, mockClient.Object);
-        ConsoleUi.SetStreamShellHost(shellHost.Object);
         using var svc = new AgentHotkeyService(pttCtrl.Object, sender.Object, shellHost.Object, config, service, _factory);
 
         // Press hotkey for Beta (index 1), which is not active

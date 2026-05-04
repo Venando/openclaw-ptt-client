@@ -17,8 +17,7 @@ public sealed class ServiceFactory : IServiceFactory
         _shellHost = shellHost;
         _colorConsole = new ColorConsole(shellHost);
         
-        // Initialize the legacy ConsoleUi facade for backward compatibility
-        ConsoleUi.Initialize(_colorConsole);
+
     }
 
     public IGatewayService CreateGatewayService(AppConfig cfg) => new GatewayService(cfg, _colorConsole);
