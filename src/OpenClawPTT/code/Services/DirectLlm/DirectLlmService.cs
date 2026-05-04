@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Linq;
 
 namespace OpenClawPTT.Services;
 
@@ -127,7 +128,14 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
         response.EnsureSuccessStatusCode();
 
         var responseJson = await response.Content.ReadFromJsonAsync<AnthropicResponse>(ct);
-        return responseJson?.Content?.FirstOrDefault()?.Text?.Trim() ?? "(No response)";
+        // Aggregate all "text" type content blocks, skip "thinking" and others
+        var textParts = responseJson?.Content
+            ?.Where(c => c.Type == "text")
+            .Select(c => c.Text)
+            .ToList();
+        return textParts?.Count > 0
+            ? string.Join("\n", textParts).Trim()
+            : "(No response)";
     }
 
     /// <summary>
