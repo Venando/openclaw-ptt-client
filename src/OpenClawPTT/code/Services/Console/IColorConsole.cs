@@ -1,0 +1,85 @@
+namespace OpenClawPTT.Services;
+
+/// <summary>
+/// Abstraction for colored console output. Provides methods for printing
+/// various UI elements, messages, and logging through a StreamShell host.
+/// </summary>
+public interface IColorConsole
+{
+    // ── Banner and Help ────────────────────────────────────────
+    
+    /// <summary>Prints the application banner.</summary>
+    void PrintBanner();
+    
+    /// <summary>Prints the help menu with agent introduction.</summary>
+    void PrintHelpMenu(AppConfig appConfig);
+    
+    /// <summary>Prints the agent introduction panel.</summary>
+    void PrintAgentIntroduction(AppConfig appConfig);
+    
+    // ── General Output ─────────────────────────────────────────
+    
+    /// <summary>Send a raw Spectre markup message to the StreamShell output.</summary>
+    void PrintMarkup(string markup);
+    
+    /// <summary>Display user's own text message.</summary>
+    void PrintUserMessage(string text);
+    
+    /// <summary>Display user's message with pre-formatted markup.</summary>
+    void PrintMarkupedUserMessage(string text);
+    
+    // ── Status Messages ────────────────────────────────────────
+    
+    /// <summary>Writes a debug/log message at grey level.</summary>
+    void PrintInfo(string message);
+    
+    /// <summary>Prints a success message with checkmark.</summary>
+    void PrintSuccess(string message);
+    
+    /// <summary>Prints a success message with word wrap support.</summary>
+    void PrintSuccessWordWrap(string prefix, string message, int rightMarginIndent);
+    
+    /// <summary>Prints a warning message.</summary>
+    void PrintWarning(string message);
+    
+    /// <summary>Prints an error message.</summary>
+    void PrintError(string message);
+    
+    /// <summary>Prints the recording indicator when actively recording.</summary>
+    void PrintRecordingIndicator(bool isRecording, string hotkeyCombination, bool holdToTalk);
+    
+    // ── Agent Replies ──────────────────────────────────────────
+    
+    /// <summary>Prints an agent reply with prefix and body.</summary>
+    void PrintAgentReply(string prefix, string body);
+    
+    /// <summary>Prints an agent reply with markdown formatting.</summary>
+    void PrintAgentReplyWithMarkdown(string prefix, string body);
+    
+    /// <summary>Prints a streaming delta from agent reply.</summary>
+    void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix);
+    
+    /// <summary>Prints a streaming delta from agent reply with config.</summary>
+    void PrintAgentReplyDelta(string prefix, string delta, string newlineSuffix, AppConfig config);
+    
+    // ── Gateway Errors ─────────────────────────────────────────
+    
+    /// <summary>Prints a gateway error with optional detail code and recommended step.</summary>
+    void PrintGatewayError(string message, string? detailCode = null, string? recommendedStep = null);
+    
+    // ── Logging ────────────────────────────────────────────────
+    
+    /// <summary>Logs a message with the specified tag.</summary>
+    void Log(string tag, string msg);
+    
+    /// <summary>Logs a success message with the specified tag.</summary>
+    void LogOk(string tag, string msg);
+    
+    /// <summary>Logs an error message with the specified tag.</summary>
+    void LogError(string tag, string msg);
+    
+    // ── StreamShell Access ─────────────────────────────────────
+    
+    /// <summary>Gets the underlying StreamShell host for capturing formatter output.</summary>
+    IStreamShellHost? GetStreamShellHost();
+}

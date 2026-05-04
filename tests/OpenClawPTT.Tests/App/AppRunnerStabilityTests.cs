@@ -52,6 +52,7 @@ public class AppRunnerStabilityTests
         public IInputHandler CreateInputHandler(ITextMessageSender textSender) => InputHandler.Object;
         public IDirectLlmService CreateDirectLlmService(AppConfig cfg) => Mock.Of<IDirectLlmService>();
         public IStreamShellHost CreateStreamShellHost() => Mock.Of<IStreamShellHost>();
+        public IColorConsole CreateColorConsole() => Mock.Of<IColorConsole>();
         public IAppLoop CreatePttLoop(
             IAudioService audioService,
             IPttController pttController,

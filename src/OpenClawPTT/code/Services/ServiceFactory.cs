@@ -9,11 +9,16 @@ public sealed class ServiceFactory : IServiceFactory
 {
     private readonly IConfigurationService _configService;
     private readonly IStreamShellHost _shellHost;
+    private readonly IColorConsole _colorConsole;
 
     public ServiceFactory(IConfigurationService configService, IStreamShellHost shellHost)
     {
         _configService = configService;
         _shellHost = shellHost;
+        _colorConsole = new ColorConsole(shellHost);
+        
+        // Initialize the legacy ConsoleUi facade for backward compatibility
+        ConsoleUi.Initialize(_colorConsole);
     }
 
     public IGatewayService CreateGatewayService(AppConfig cfg) => new GatewayService(cfg);
@@ -37,6 +42,8 @@ public sealed class ServiceFactory : IServiceFactory
         => new DirectLlmService(cfg);
 
     public IStreamShellHost CreateStreamShellHost() => _shellHost;
+
+    public IColorConsole CreateColorConsole() => _colorConsole;
 
     public IAppLoop CreatePttLoop(
         IAudioService audioService,

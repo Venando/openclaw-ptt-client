@@ -14,6 +14,7 @@ public interface IServiceFactory
     ITextMessageSender CreateTextMessageSender(IGatewayService gateway);
     IDirectLlmService CreateDirectLlmService(AppConfig cfg);
     IStreamShellHost CreateStreamShellHost();
+    IColorConsole CreateColorConsole();
     IAppLoop CreatePttLoop(
         IAudioService audioService,
         IPttController pttController,
