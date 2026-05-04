@@ -49,6 +49,7 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
         return _config.DirectLlmApiType?.ToLowerInvariant() switch
         {
             "anthropic-messages" => await SendAnthropicAsync(message, ct),
+            "ollama-generate" => await SendOllamaAsync(message, ct),
             _ => await SendOpenAiAsync(message, ct) // default to openai-completions
         };
     }
@@ -84,6 +85,38 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
 
         var responseJson = await response.Content.ReadFromJsonAsync<OpenAiResponse>(ct);
         return responseJson?.Choices?.FirstOrDefault()?.Message?.Content?.Trim() ?? "(No response)";
+    }
+
+    private async Task<string> SendOllamaAsync(string message, CancellationToken ct)
+    {
+        var requestBody = new OllamaGenerateRequest
+        {
+            Model = _config.DirectLlmModelName!,
+            Prompt = message,
+            Stream = false
+        };
+
+        // Ensure URL ends with /api/generate for Ollama
+        var url = _config.DirectLlmUrl!;
+        if (!url.EndsWith("/api/generate", StringComparison.OrdinalIgnoreCase))
+        {
+            url = url.TrimEnd('/') + "/api/generate";
+        }
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = JsonContent.Create(requestBody, options: new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+            })
+        };
+
+        using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        response.EnsureSuccessStatusCode();
+
+        var responseJson = await response.Content.ReadFromJsonAsync<OllamaGenerateResponse>(ct);
+        return responseJson?.Response?.Trim() ?? "(No response)";
     }
 
     private async Task<string> SendAnthropicAsync(string message, CancellationToken ct)
@@ -159,6 +192,28 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
     {
         [JsonPropertyName("message")]
         public OpenAiMessage? Message { get; set; }
+    }
+
+    // Ollama API models
+    private sealed class OllamaGenerateRequest
+    {
+        [JsonPropertyName("model")]
+        public string Model { get; set; } = "";
+        
+        [JsonPropertyName("prompt")]
+        public string Prompt { get; set; } = "";
+        
+        [JsonPropertyName("stream")]
+        public bool Stream { get; set; }
+    }
+
+    private sealed class OllamaGenerateResponse
+    {
+        [JsonPropertyName("model")]
+        public string Model { get; set; } = "";
+        
+        [JsonPropertyName("response")]
+        public string Response { get; set; } = "";
     }
 
     // Anthropic API models
