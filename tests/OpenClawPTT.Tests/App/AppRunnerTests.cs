@@ -37,6 +37,8 @@ public class AppRunnerTests
         public IInputHandler CreateInputHandler(ITextMessageSender textSender) => InputHandler.Object;
         public IDirectLlmService CreateDirectLlmService(AppConfig cfg) => Mock.Of<IDirectLlmService>();
         public IStreamShellHost CreateStreamShellHost() => Mock.Of<IStreamShellHost>();
+        public void InitializeAgentSettingsPersistence(AgentSettingsService agentSettingsService) { }
+        public IAgentSettingsPersistence GetAgentSettingsPersistence() => CreatePersistenceMock();
         public IColorConsole CreateColorConsole() => Mock.Of<IColorConsole>();
         public IAppLoop CreatePttLoop(
             IAudioService audioService,
@@ -44,6 +46,14 @@ public class AppRunnerTests
             ITextMessageSender textSender,
             IInputHandler inputHandler,
             bool requireConfirmBeforeSend = false) => PttLoop.Object;
+    }
+
+    private static IAgentSettingsPersistence CreatePersistenceMock()
+    {
+        var mock = new Mock<IAgentSettingsPersistence>();
+        mock.Setup(x => x.AllAgentsWithHotkeys).Returns(new List<(AgentInfo Agent, string? Hotkey)>().AsReadOnly());
+        mock.Setup(x => x.AllAgentSettings).Returns(new List<(AgentInfo Agent, string? Hotkey, string? Emoji)>().AsReadOnly());
+        return mock.Object;
     }
 
     #region Test 1: AppRunner_Constructs_WithValidDeps

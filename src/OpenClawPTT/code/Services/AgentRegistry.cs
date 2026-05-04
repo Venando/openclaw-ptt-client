@@ -34,9 +34,9 @@ internal static class AgentRegistryHelpers
 /// Thread-safe registry of available agents and the currently active session key.
 /// Accessible app-wide as a singleton. Concerns: agent list management and
 /// active session tracking. Persisted settings (hotkey, emoji) are managed
-/// by <see cref="AgentSettingsPersistence"/>.
+/// by <see cref="IAgentSettingsPersistence"/>.
 /// </summary>
-public static partial class AgentRegistry
+public static class AgentRegistry
 {
     private static readonly object _lock = new();
 
@@ -167,7 +167,7 @@ public static partial class AgentRegistry
         lock (_lock) return _activeSessionKey == null || sessionKey == _activeSessionKey;
     }
 
-    /// <summary>Gets the active agent's display name and emoji.</summary>
+    /// <summary>Gets the active agent's display name and emoji via the legacy bridge.</summary>
     public static void GetActiveNameAndEmoji(out object agentName, out object emoji, string defaultName = "Agent", string defaultEmoji = "🤖")
     {
         lock (_lock)
@@ -175,179 +175,8 @@ public static partial class AgentRegistry
             var active = AgentRegistryHelpers.FindBySessionKey(_agents, _activeSessionKey);
             agentName = active?.Name ?? defaultName;
             emoji = active != null
-                ? AgentSettingsPersistence.GetPersistedEmoji(active.AgentId) ?? defaultEmoji
+                ? AgentSettingsPersistenceLegacy.GetPersistedEmoji(active.AgentId) ?? defaultEmoji
                 : defaultEmoji;
         }
-    }
-}
-
-/// <summary>
-/// Manages per-agent persisted settings (hotkey, emoji) persisted to agents.json.
-/// This responsibility was extracted from AgentRegistry to honor Single Responsibility.
-/// </summary>
-public static class AgentSettingsPersistence
-{
-    private static readonly object _lock = new();
-    private static Dictionary<string, AgentPersistedSettings> _agentSettings = new(StringComparer.OrdinalIgnoreCase);
-    private static AgentSettingsService? _settingsService;
-
-    /// <summary>Register the settings service so SetPersistedHotkey auto-saves.</summary>
-    public static void RegisterSettingsService(AgentSettingsService service)
-    {
-        lock (_lock) { _settingsService = service; }
-    }
-
-    /// <summary>Get per-agent hotkey override, or null for global default.</summary>
-    public static string? GetPersistedHotkey(string agentId)
-    {
-        lock (_lock)
-        {
-            return _agentSettings.TryGetValue(agentId, out var s) ? s.HotkeyCombination : null;
-        }
-    }
-
-    /// <summary>Set or clear per-agent hotkey override. Fires PersistedSettingsChanged.</summary>
-    public static void SetPersistedHotkey(string agentId, string? hotkeyCombo)
-    {
-        var existing = GetPersistedEmoji(agentId);
-        SetPersistedField(agentId, hotkeyCombo, existing);
-    }
-
-    /// <summary>Get per-agent emoji override, or null for default (🤖).</summary>
-    public static string? GetPersistedEmoji(string agentId)
-    {
-        lock (_lock)
-        {
-            return _agentSettings.TryGetValue(agentId, out var s) ? s.Emoji : null;
-        }
-    }
-
-    /// <summary>Set or clear per-agent emoji override. Fires PersistedSettingsChanged.</summary>
-    public static void SetPersistedEmoji(string agentId, string? emoji)
-    {
-        var existing = GetPersistedHotkey(agentId);
-        SetPersistedField(agentId, existing, emoji);
-    }
-
-    /// <summary>All agents with their effective hotkey (override or null).</summary>
-    public static IReadOnlyList<(AgentInfo Agent, string? Hotkey)> AllAgentsWithHotkeys
-    {
-        get
-        {
-            lock (_lock)
-            {
-                return AgentRegistry.Agents.Select(a =>
-                    (a, _agentSettings.TryGetValue(a.AgentId, out var s) ? s.HotkeyCombination : (string?)null)
-                ).ToList().AsReadOnly();
-            }
-        }
-    }
-
-    /// <summary>All agents with their effective hotkey and emoji.</summary>
-    public static IReadOnlyList<(AgentInfo Agent, string? Hotkey, string? Emoji)> AllAgentSettings
-    {
-        get
-        {
-            lock (_lock)
-            {
-                return AgentRegistry.Agents.Select(a =>
-                {
-                    _agentSettings.TryGetValue(a.AgentId, out var s);
-                    return (a, s?.HotkeyCombination, s?.Emoji);
-                }).ToList().AsReadOnly();
-            }
-        }
-    }
-
-    /// <summary>Merge persisted settings from agents.json into the registry.</summary>
-    public static void MergePersistedSettings(AgentsConfig persisted)
-    {
-        lock (_lock)
-        {
-            foreach (var s in persisted.Agents)
-            {
-                _agentSettings[s.AgentId] = s;
-            }
-        }
-    }
-
-    /// <summary>Fired when persisted settings change via SetPersistedHotkey/SetPersistedEmoji.</summary>
-    public static event Action? PersistedSettingsChanged;
-
-    private static void SetPersistedField(string agentId, string? hotkeyCombo, string? emoji)
-    {
-        lock (_lock)
-        {
-            if (!_agentSettings.TryGetValue(agentId, out var s))
-            {
-                s = new AgentPersistedSettings { AgentId = agentId };
-                _agentSettings[agentId] = s;
-            }
-            s.HotkeyCombination = hotkeyCombo;
-            s.Emoji = emoji;
-
-            // Sync with settings service for persistence
-            if (_settingsService != null)
-            {
-                _settingsService.SetHotkey(agentId, hotkeyCombo);
-                _settingsService.SetEmoji(agentId, emoji);
-                _settingsService.Save();
-            }
-        }
-        PersistedSettingsChanged?.Invoke();
-    }
-}
-
-// ─── Forwarding members from AgentRegistry for backward compatibility ──
-// These keep existing callers working during the transition period.
-
-public static partial class AgentRegistry
-{
-    /// <summary>Register the settings service so SetPersistedHotkey auto-saves.</summary>
-    [Obsolete("Use AgentSettingsPersistence.RegisterSettingsService")]
-    public static void RegisterSettingsService(AgentSettingsService service)
-        => AgentSettingsPersistence.RegisterSettingsService(service);
-
-    /// <summary>Get per-agent hotkey override.</summary>
-    [Obsolete("Use AgentSettingsPersistence.GetPersistedHotkey")]
-    public static string? GetPersistedHotkey(string agentId)
-        => AgentSettingsPersistence.GetPersistedHotkey(agentId);
-
-    /// <summary>Set per-agent hotkey override.</summary>
-    [Obsolete("Use AgentSettingsPersistence.SetPersistedHotkey")]
-    public static void SetPersistedHotkey(string agentId, string? hotkeyCombo)
-        => AgentSettingsPersistence.SetPersistedHotkey(agentId, hotkeyCombo);
-
-    /// <summary>Get per-agent emoji override.</summary>
-    [Obsolete("Use AgentSettingsPersistence.GetPersistedEmoji")]
-    public static string? GetPersistedEmoji(string agentId)
-        => AgentSettingsPersistence.GetPersistedEmoji(agentId);
-
-    /// <summary>Set per-agent emoji override.</summary>
-    [Obsolete("Use AgentSettingsPersistence.SetPersistedEmoji")]
-    public static void SetPersistedEmoji(string agentId, string? emoji)
-        => AgentSettingsPersistence.SetPersistedEmoji(agentId, emoji);
-
-    /// <summary>All agents with hotkey info.</summary>
-    [Obsolete("Use AgentSettingsPersistence.AllAgentsWithHotkeys")]
-    public static IReadOnlyList<(AgentInfo Agent, string? Hotkey)> AllAgentsWithHotkeys
-        => AgentSettingsPersistence.AllAgentsWithHotkeys;
-
-    /// <summary>All agents with full settings info.</summary>
-    [Obsolete("Use AgentSettingsPersistence.AllAgentSettings")]
-    public static IReadOnlyList<(AgentInfo Agent, string? Hotkey, string? Emoji)> AllAgentSettings
-        => AgentSettingsPersistence.AllAgentSettings;
-
-    /// <summary>Merge persisted settings.</summary>
-    [Obsolete("Use AgentSettingsPersistence.MergePersistedSettings")]
-    public static void MergePersistedSettings(AgentsConfig persisted)
-        => AgentSettingsPersistence.MergePersistedSettings(persisted);
-
-    /// <summary>Fired when persisted settings change.</summary>
-    [Obsolete("Use AgentSettingsPersistence.PersistedSettingsChanged")]
-    public static event Action? PersistedSettingsChanged
-    {
-        add => AgentSettingsPersistence.PersistedSettingsChanged += value;
-        remove => AgentSettingsPersistence.PersistedSettingsChanged -= value;
     }
 }

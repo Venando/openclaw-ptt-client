@@ -4,6 +4,7 @@ using Moq;
 using OpenClawPTT;
 using OpenClawPTT.Services;
 using System;
+using System.IO;
 using Xunit;
 
 public class ServiceFactoryTests
@@ -25,6 +26,14 @@ public class ServiceFactoryTests
     {
         var configService = new ConfigurationService();
         return new ServiceFactory(configService, new StreamShellHost());
+    }
+
+    private static void InitPersistence(ServiceFactory factory, Mock<IColorConsole> console)
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ServiceFactoryTests_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var settingsService = new AgentSettingsService(tempDir, console.Object);
+        factory.InitializeAgentSettingsPersistence(settingsService);
     }
 
     /// <summary>
@@ -127,6 +136,8 @@ public class ServiceFactoryTests
     {
         var factory = CreateFactory();
         var cfg = DefaultConfigWithAudio;
+        var console = new Mock<IColorConsole>();
+        InitPersistence(factory, console);
 
         var audio = factory.CreateAudioService(cfg);
 
@@ -166,6 +177,8 @@ public class ServiceFactoryTests
         var ex = Record.Exception(() =>
         {
             var factory = CreateFactory();
+            var console = new Mock<IColorConsole>();
+            InitPersistence(factory, console);
             using var gateway = factory.CreateGatewayService(cfg);
             using var audio = factory.CreateAudioService(cfg);
         });

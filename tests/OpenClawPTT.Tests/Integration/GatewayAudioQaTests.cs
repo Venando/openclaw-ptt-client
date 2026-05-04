@@ -322,7 +322,7 @@ public class GatewayAudioQaTests
             MaxRecordSeconds = 30
         };
 
-        var audio = new AudioService(cfg, CreateMockConsole());
+        var audio = new AudioService(cfg, CreateMockConsole(), Mock.Of<IAgentSettingsPersistence>());
         Assert.False(audio.IsRecording);
         audio.Dispose();
     }
@@ -338,7 +338,7 @@ public class GatewayAudioQaTests
             MaxRecordSeconds = 30
         };
 
-        var audio = new AudioService(cfg, CreateMockConsole());
+        var audio = new AudioService(cfg, CreateMockConsole(), Mock.Of<IAgentSettingsPersistence>());
         audio.Dispose();
         audio.Dispose(); // should not throw
     }
@@ -360,7 +360,7 @@ public class GatewayAudioQaTests
             MaxRecordSeconds = 30
         };
 
-        var audio = new AudioService(cfg, CreateMockConsole());
+        var audio = new AudioService(cfg, CreateMockConsole(), Mock.Of<IAgentSettingsPersistence>());
         audio.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() => audio.StartRecording());
@@ -377,7 +377,7 @@ public class GatewayAudioQaTests
             MaxRecordSeconds = 30
         };
 
-        var audio = new AudioService(cfg, CreateMockConsole());
+        var audio = new AudioService(cfg, CreateMockConsole(), Mock.Of<IAgentSettingsPersistence>());
         audio.Dispose();
 
         await Assert.ThrowsAsync<ObjectDisposedException>(
@@ -395,7 +395,7 @@ public class GatewayAudioQaTests
             MaxRecordSeconds = 30
         };
 
-        var audio = new AudioService(cfg, CreateMockConsole());
+        var audio = new AudioService(cfg, CreateMockConsole(), Mock.Of<IAgentSettingsPersistence>());
         var result = await audio.StopAndTranscribeAsync(CancellationToken.None);
         Assert.Null(result);
         audio.Dispose();

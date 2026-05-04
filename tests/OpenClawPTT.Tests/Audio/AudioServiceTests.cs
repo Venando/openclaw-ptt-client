@@ -162,7 +162,7 @@ public class AudioServiceTests : IDisposable
             RightMarginIndent = 5,
             VisualFeedbackEnabled = false
         };
-        _real = new AudioService(config, _mockConsole.Object);
+        _real = new AudioService(config, _mockConsole.Object, Mock.Of<IAgentSettingsPersistence>());
     }
 
     public void Dispose() => _real?.Dispose();
@@ -304,7 +304,7 @@ public class RealAudioServiceWithMocksTests : IDisposable
     [Fact]
     public void StartRecording_CallsStartRecordingOnRecorder()
     {
-        Setup((cfg, console) => new AudioService(cfg, console.Object, _recorder!));
+        Setup((cfg, console) => new AudioService(cfg, console.Object, Mock.Of<IAgentSettingsPersistence>(), _recorder!));
         _recorder!.Reset();
 
         _service!.StartRecording();
@@ -320,7 +320,7 @@ public class RealAudioServiceWithMocksTests : IDisposable
     [Fact]
     public void StartRecording_WhenAlreadyRecording_IsIdempotent()
     {
-        Setup((cfg, console) => new AudioService(cfg, console.Object, _recorder!));
+        Setup((cfg, console) => new AudioService(cfg, console.Object, Mock.Of<IAgentSettingsPersistence>(), _recorder!));
         _recorder!.Reset();
 
         _service!.StartRecording();
@@ -337,7 +337,7 @@ public class RealAudioServiceWithMocksTests : IDisposable
     [Fact]
     public async Task StopAndTranscribeAsync_WhenTranscriberReturnsNull_ReturnsNullGracefully()
     {
-        Setup((cfg, console) => new AudioService(cfg, console.Object, _recorder!));
+        Setup((cfg, console) => new AudioService(cfg, console.Object, Mock.Of<IAgentSettingsPersistence>(), _recorder!));
         _recorder!.Reset();
         _recorder.StopRecordingResult = new byte[2048]; // ≥1KB so size check passes
         _transcriber!.TranscribeFunc = _ => null!; // simulate null return
@@ -355,7 +355,7 @@ public class RealAudioServiceWithMocksTests : IDisposable
     [Fact]
     public void Dispose_CanBeCalledMultipleTimes()
     {
-        Setup((cfg, console) => new AudioService(cfg, console.Object, _recorder!));
+        Setup((cfg, console) => new AudioService(cfg, console.Object, Mock.Of<IAgentSettingsPersistence>(), _recorder!));
 
         _service!.StartRecording();
         _service.Dispose();
@@ -369,7 +369,7 @@ public class RealAudioServiceWithMocksTests : IDisposable
     [Fact]
     public void ServiceFactory_CreateAudioService_ReturnsConfiguredService()
     {
-        Setup((cfg, console) => new AudioService(cfg, console.Object, _recorder!));
+        Setup((cfg, console) => new AudioService(cfg, console.Object, Mock.Of<IAgentSettingsPersistence>(), _recorder!));
 
         Assert.NotNull(_service);
         Assert.False(_service!.IsRecording);

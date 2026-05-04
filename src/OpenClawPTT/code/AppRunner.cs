@@ -89,6 +89,7 @@ public class AppRunner : IDisposable
 
         using var agentHotkeyService = new AgentHotkeyService(
             pttController, textSender, _shellHost, _cfg,
+            _factory.GetAgentSettingsPersistence(),
             gatewayService: gateway, console: _console);
 
         // Create direct LLM service if configured
@@ -103,6 +104,7 @@ public class AppRunner : IDisposable
             _cfg,
             onQuit: () => _cts?.Cancel(),
             console: _console,
+            agentSettingsPersistence: _factory.GetAgentSettingsPersistence(),
             directLlmService: directLlmService.IsConfigured ? directLlmService : null
         );
         await shellCommands.RegisterAsync();

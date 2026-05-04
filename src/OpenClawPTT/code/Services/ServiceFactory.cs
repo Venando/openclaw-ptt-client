@@ -10,19 +10,42 @@ public sealed class ServiceFactory : IServiceFactory
     private readonly IConfigurationService _configService;
     private readonly IStreamShellHost _shellHost;
     private readonly IColorConsole _colorConsole;
+    private AgentSettingsService? _agentSettingsService;
+    private IAgentSettingsPersistence? _agentSettingsPersistence;
 
     public ServiceFactory(IConfigurationService configService, IStreamShellHost shellHost)
     {
         _configService = configService;
         _shellHost = shellHost;
         _colorConsole = new ColorConsole(shellHost);
-        
+    }
 
+    /// <summary>
+    /// Initialize the agent settings persistence with the settings service.
+    /// Called by AppBootstrapper after loading the config.
+    /// </summary>
+    public void InitializeAgentSettingsPersistence(AgentSettingsService agentSettingsService)
+    {
+        _agentSettingsService = agentSettingsService;
+        _agentSettingsPersistence = new AgentSettingsPersistence(agentSettingsService);
+        // Initialize the static bridge for legacy callers (ColorConsole, AgentRegistry)
+        AgentSettingsPersistenceLegacy.Initialize(_agentSettingsPersistence);
+    }
+
+    public IAgentSettingsPersistence GetAgentSettingsPersistence()
+    {
+        return _agentSettingsPersistence ?? throw new InvalidOperationException(
+            "AgentSettingsPersistence not initialized. Call InitializeAgentSettingsPersistence first.");
     }
 
     public IGatewayService CreateGatewayService(AppConfig cfg) => new GatewayService(cfg, _colorConsole);
 
-    public IAudioService CreateAudioService(AppConfig cfg) => new AudioService(cfg, _colorConsole);
+    public IAudioService CreateAudioService(AppConfig cfg)
+    {
+        if (_agentSettingsPersistence == null)
+            throw new InvalidOperationException("AgentSettingsPersistence not initialized. Call InitializeAgentSettingsPersistence first.");
+        return new AudioService(cfg, _colorConsole, _agentSettingsPersistence);
+    }
 
     public IPttController CreatePttController(AppConfig cfg, IAudioService audioService, IHotkeyHookFactory? hotkeyHookFactory = null)
     {

@@ -18,14 +18,16 @@ public sealed class AgentSwitchingCommands
     private readonly IGatewayService _gatewayService;
     private readonly AppConfig _appConfig;
     private readonly IColorConsole _console;
+    private readonly IAgentSettingsPersistence _agentSettingsPersistence;
 
-    public AgentSwitchingCommands(IStreamShellHost host, ITextMessageSender textSender, IGatewayService gatewayService, AppConfig appConfig, IColorConsole console)
+    public AgentSwitchingCommands(IStreamShellHost host, ITextMessageSender textSender, IGatewayService gatewayService, AppConfig appConfig, IColorConsole console, IAgentSettingsPersistence agentSettingsPersistence)
     {
         _host = host;
         _textSender = textSender;
         _gatewayService = gatewayService;
         _appConfig = appConfig;
         _console = console;
+        _agentSettingsPersistence = agentSettingsPersistence;
     }
 
     /// <summary>Handler for /crew — lists available agents.</summary>
@@ -53,7 +55,7 @@ public sealed class AgentSwitchingCommands
         {
             var isActive = agent.SessionKey == activeKey;
             var marker = isActive ? " ►" : "  ";
-            var emoji = AgentSettingsPersistence.GetPersistedEmoji(agent.AgentId);
+            var emoji = _agentSettingsPersistence.GetPersistedEmoji(agent.AgentId);
             var emojiStr = emoji != null ? $"{emoji} " : "";
             _host.AddMessage($"  {marker} {emojiStr}[bold]{Markup.Escape(agent.Name)}[/] [grey]({Markup.Escape(agent.AgentId)})[/]");
         }

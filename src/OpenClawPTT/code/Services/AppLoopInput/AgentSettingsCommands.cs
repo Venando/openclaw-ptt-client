@@ -15,11 +15,13 @@ public sealed class AgentSettingsCommands
 {
     private readonly IStreamShellHost _host;
     private readonly IConfigurationService _configService;
+    private readonly IAgentSettingsPersistence _agentSettingsPersistence;
 
-    public AgentSettingsCommands(IStreamShellHost host, IConfigurationService configService)
+    public AgentSettingsCommands(IStreamShellHost host, IConfigurationService configService, IAgentSettingsPersistence agentSettingsPersistence)
     {
         _host = host;
         _configService = configService;
+        _agentSettingsPersistence = agentSettingsPersistence;
     }
 
     /// <summary>Handler for /crew hotkey.</summary>
@@ -30,7 +32,7 @@ public sealed class AgentSettingsCommands
 
         if (args.Length == 0)
         {
-            ListAgentSettings(settingName, AgentSettingsPersistence.AllAgentSettings, entry =>
+            ListAgentSettings(settingName, _agentSettingsPersistence.AllAgentSettings, entry =>
             {
                 var hk = entry.Hotkey;
                 return hk != null
@@ -56,7 +58,7 @@ public sealed class AgentSettingsCommands
             try
             {
                 HotkeyMapping.Parse(combo);
-                AgentSettingsPersistence.SetPersistedHotkey(activeAgent.AgentId, combo);
+                _agentSettingsPersistence.SetPersistedHotkey(activeAgent.AgentId, combo);
                 _host.AddMessage($"[green]  Set hotkey for {Markup.Escape(activeAgent.Name)}: {Markup.Escape(combo)}[/]");
             }
             catch (Exception ex)
@@ -72,10 +74,10 @@ public sealed class AgentSettingsCommands
             settingName,
             target =>
             {
-                var hk = AgentSettingsPersistence.GetPersistedHotkey(target.AgentId);
+                var hk = _agentSettingsPersistence.GetPersistedHotkey(target.AgentId);
                 return hk ?? $"(global: {globalHotkey})";
             },
-            target => AgentSettingsPersistence.GetPersistedHotkey(target.AgentId),
+            target => _agentSettingsPersistence.GetPersistedHotkey(target.AgentId),
             (target, value) =>
             {
                 if (value != null)
@@ -83,7 +85,7 @@ public sealed class AgentSettingsCommands
                     try
                     {
                         HotkeyMapping.Parse(value);
-                        AgentSettingsPersistence.SetPersistedHotkey(target.AgentId, value);
+                        _agentSettingsPersistence.SetPersistedHotkey(target.AgentId, value);
                     }
                     catch (Exception ex)
                     {
@@ -92,7 +94,7 @@ public sealed class AgentSettingsCommands
                 }
                 else
                 {
-                    AgentSettingsPersistence.SetPersistedHotkey(target.AgentId, null);
+                    _agentSettingsPersistence.SetPersistedHotkey(target.AgentId, null);
                 }
             });
     }
@@ -104,7 +106,7 @@ public sealed class AgentSettingsCommands
 
         if (args.Length == 0)
         {
-            ListAgentSettings(settingName, AgentSettingsPersistence.AllAgentSettings, entry =>
+            ListAgentSettings(settingName, _agentSettingsPersistence.AllAgentSettings, entry =>
             {
                 var emoji = entry.Emoji;
                 return emoji != null ? Markup.Escape(emoji) : "[grey](default 🤖)[/]";
@@ -117,11 +119,11 @@ public sealed class AgentSettingsCommands
             settingName,
             target =>
             {
-                var emoji = AgentSettingsPersistence.GetPersistedEmoji(target.AgentId);
+                var emoji = _agentSettingsPersistence.GetPersistedEmoji(target.AgentId);
                 return emoji ?? "(default 🤖)";
             },
-            target => AgentSettingsPersistence.GetPersistedEmoji(target.AgentId),
-            (target, value) => AgentSettingsPersistence.SetPersistedEmoji(target.AgentId, value));
+            target => _agentSettingsPersistence.GetPersistedEmoji(target.AgentId),
+            (target, value) => _agentSettingsPersistence.SetPersistedEmoji(target.AgentId, value));
     }
 
     /// <summary>Lists all agents with a formatted setting value.</summary>

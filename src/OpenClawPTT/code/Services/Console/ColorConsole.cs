@@ -49,7 +49,7 @@ public sealed class ColorConsole : IColorConsole
             return;
         }
 
-        var hotkeyCombination = AgentSettingsPersistence.GetPersistedHotkey(AgentRegistry.ActiveAgentId!) ?? appConfig.HotkeyCombination;
+        var hotkeyCombination = AgentSettingsPersistenceLegacy.GetPersistedHotkey(AgentRegistry.ActiveAgentId!) ?? appConfig.HotkeyCombination;
         AgentRegistry.GetActiveNameAndEmoji(out var agentName, out var emoji);
         var modeDescription = appConfig.HoldToTalk ? "Hold-to-talk" : "Toggle recording";
         var middleContent = $"   Agent: [white on gray15]{emoji} {agentName}[/] [deepskyblue3]·[/] [white on gray15]{Markup.Escape($"[{hotkeyCombination}]")}[/] [deepskyblue3]·[/] {modeDescription} [deepskyblue3]·[/] /help [deepskyblue3]·[/] /quit    ";

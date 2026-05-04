@@ -21,12 +21,14 @@ public sealed class AgentHotkeyService : IDisposable
     private readonly IGatewayService? _gatewayService;
     private readonly IGlobalHotkeyHook? _hook;
     private readonly IColorConsole _console;
+    private readonly IAgentSettingsPersistence _agentSettingsPersistence;
 
     public AgentHotkeyService(
         IPttController pttController,
         ITextMessageSender textSender,
         IStreamShellHost shellHost,
         AppConfig cfg,
+        IAgentSettingsPersistence agentSettingsPersistence,
         IGatewayService? gatewayService = null,
         IHotkeyHookFactory? hookFactory = null,
         IColorConsole? console = null)
@@ -35,6 +37,7 @@ public sealed class AgentHotkeyService : IDisposable
         _textSender = textSender;
         _shellHost = shellHost;
         _cfg = cfg;
+        _agentSettingsPersistence = agentSettingsPersistence;
         _gatewayService = gatewayService;
         _console = console ?? new ColorConsole(shellHost);
 
@@ -58,13 +61,13 @@ public sealed class AgentHotkeyService : IDisposable
         _hook.EscapePressed += OnEscapePressed;
         _hook.Start();
 
-        AgentSettingsPersistence.PersistedSettingsChanged += OnPersistedSettingsChanged;
+        _agentSettingsPersistence.PersistedSettingsChanged += OnPersistedSettingsChanged;
     }
 
     private void RegisterAllAgentHotkeys()
     {
         if (_hook == null) return;
-        var hotkeys = AgentSettingsPersistence.AllAgentsWithHotkeys
+        var hotkeys = _agentSettingsPersistence.AllAgentsWithHotkeys
             .Select(a => HotkeyMapping.Parse(a.Hotkey ?? _cfg.HotkeyCombination))
             .ToList();
         _hook.SetHotkeys(hotkeys);
@@ -149,7 +152,7 @@ public sealed class AgentHotkeyService : IDisposable
 
     public void Dispose()
     {
-        AgentSettingsPersistence.PersistedSettingsChanged -= OnPersistedSettingsChanged;
+        _agentSettingsPersistence.PersistedSettingsChanged -= OnPersistedSettingsChanged;
 
         if (_hook != null)
         {

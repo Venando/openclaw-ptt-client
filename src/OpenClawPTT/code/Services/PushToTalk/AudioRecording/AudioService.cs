@@ -14,6 +14,7 @@ public sealed class AudioService : IAudioService
     private readonly IAudioRecorder _recorder;
     private readonly ITranscriber _transcriber;
     private readonly IVisualFeedback _visualFeedback;
+    private readonly IAgentSettingsPersistence _agentSettingsPersistence;
     
     private readonly string _hotkeyCombination;
     private readonly bool _holdToTalk;
@@ -23,17 +24,18 @@ public sealed class AudioService : IAudioService
     /// <summary>
     /// Creates an AudioService with a real AudioRecorder.
     /// </summary>
-    public AudioService(AppConfig config, IColorConsole console)
-        : this(config, console, recorder: null)
+    public AudioService(AppConfig config, IColorConsole console, IAgentSettingsPersistence agentSettingsPersistence)
+        : this(config, console, agentSettingsPersistence, recorder: null)
     {
     }
     
     /// <summary>
     /// Creates an AudioService with an injected recorder (for testing).
     /// </summary>
-    internal AudioService(AppConfig config, IColorConsole console, IAudioRecorder? recorder)
+    internal AudioService(AppConfig config, IColorConsole console, IAgentSettingsPersistence agentSettingsPersistence, IAudioRecorder? recorder)
     {
         _console = console ?? throw new ArgumentNullException(nameof(console));
+        _agentSettingsPersistence = agentSettingsPersistence ?? throw new ArgumentNullException(nameof(agentSettingsPersistence));
         _recorder = recorder ?? new AudioRecorder(config.SampleRate, config.Channels, config.BitsPerSample, config.MaxRecordSeconds);
         _transcriber = TranscriberFactory.Create(config);
         _visualFeedback = VisualFeedbackFactory.Create(config);
@@ -52,7 +54,7 @@ public sealed class AudioService : IAudioService
         // Use per-agent hotkey if set, else fall back to global config default
         var activeAgentId = AgentRegistry.ActiveAgentId;
         var effectiveHotkey = activeAgentId != null
-            ? (AgentSettingsPersistence.GetPersistedHotkey(activeAgentId) ?? _hotkeyCombination)
+            ? (_agentSettingsPersistence.GetPersistedHotkey(activeAgentId) ?? _hotkeyCombination)
             : _hotkeyCombination;
         _console.PrintRecordingIndicator(true, effectiveHotkey, _holdToTalk);
         _visualFeedback.Show();

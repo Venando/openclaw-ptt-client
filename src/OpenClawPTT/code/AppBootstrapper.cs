@@ -48,11 +48,10 @@ public sealed class AppBootstrapper : IDisposable
 
             var cfg = await _configService.LoadOrSetupAsync(_shellHost, ct: _cts.Token);
 
-            // Load persistent agent settings from agents.json
+            // Load persistent agent settings from agents.json and initialize DI
             var agentSettings = new AgentSettingsService(cfg.DataDir, _console);
             agentSettings.Load();
-            AgentSettingsPersistence.MergePersistedSettings(agentSettings.ToConfig());
-            AgentSettingsPersistence.RegisterSettingsService(agentSettings);
+            _factory.InitializeAgentSettingsPersistence(agentSettings);
 
             using var runner = _runnerFactory(cfg, _factory);
             runnerExitCode = await runner.RunAsync(_cts.Token);
