@@ -28,6 +28,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
     private readonly ISnapshotProcessor _snapshotProcessor;
     private GatewayMessager? _gatewayMessager;
     private GatewayReconnector _gatewayReconnector;
+    private readonly IBackgroundJobRunner _jobRunner;
 
     public GatewayConnectionLifecycle(AppConfig cfg, DeviceIdentity dev, IGatewayEventSource events, IColorConsole console,
         Func<IClientWebSocket>? socketFactory = null, ISnapshotProcessor? snapshotProcessor = null)
@@ -38,6 +39,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _socketFactory = socketFactory ?? (() => new ClientWebSocketAdapter());
         _snapshotProcessor = snapshotProcessor ?? new SnapshotProcessor(new ConsoleLogger(console), cfg.LogHello);
+        _jobRunner = new BackgroundJobRunner(msg => _console.Log("jobrunner", msg));
         _gatewayReconnector = new GatewayReconnector(cfg, console, this, _disposeCts.Token);
     }
 
@@ -92,7 +94,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
         try
         {
             _ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
-            _gatewayMessager = new GatewayMessager(_ws, _events, _cfg, ct => _ = HandleDisconnectionAsync(ct), console: _console);
+            _gatewayMessager = new GatewayMessager(_ws, _events, _cfg, ct => _ = HandleDisconnectionAsync(ct), console: _console, jobRunner: _jobRunner);
 
             await ConnectWebSocketAsync(linkedCt);
             _recvTask = Task.Run(() => _gatewayMessager.ReceiveLoop(linkedCt), linkedCt);

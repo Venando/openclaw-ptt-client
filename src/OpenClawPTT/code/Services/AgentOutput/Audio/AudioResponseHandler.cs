@@ -13,12 +13,14 @@ public sealed class AudioResponseHandler : IDisposable
     private readonly AudioPlayerService _audioPlayer;
     private readonly TtsService? _ttsService;
     private readonly IColorConsole _console;
+    private readonly IBackgroundJobRunner _jobRunner;
     private bool _disposed;
 
-    public AudioResponseHandler(AppConfig config, IColorConsole console)
+    public AudioResponseHandler(AppConfig config, IColorConsole console, IBackgroundJobRunner? jobRunner = null)
     {
         _config = config;
         _console = console ?? throw new ArgumentNullException(nameof(console));
+        _jobRunner = jobRunner ?? new BackgroundJobRunner(msg => _console.Log("jobrunner", msg));
         _audioPlayer = new AudioPlayerService(console);
 
         // Initialize TTS provider from config
@@ -72,22 +74,16 @@ public sealed class AudioResponseHandler : IDisposable
             return Task.CompletedTask;
         }
 
-        // Fire and forget — synthesize in background, play when ready
-        _ = Task.Run(async () =>
+        // Synthesize and play via background job runner
+        var truncated = text.Length > 80 ? text[..80] + "..." : text;
+        _jobRunner.RunAndForget(async () =>
         {
-            try
+            var audioBytes = await _ttsProvider.SynthesizeAsync(text, _config.TtsVoice, null, ct);
+            if (audioBytes != null && audioBytes.Length > 0)
             {
-                var audioBytes = await _ttsProvider.SynthesizeAsync(text, _config.TtsVoice, null, ct);
-                if (audioBytes != null && audioBytes.Length > 0)
-                {
-                    _audioPlayer.Play(audioBytes);
-                }
+                _audioPlayer.Play(audioBytes);
             }
-            catch (Exception ex)
-            {
-                _console.PrintError($"TTS synthesis failed: {ex.Message}");
-            }
-        });
+        }, $"tts-synthesis-{truncated}");
 
         return Task.CompletedTask;
     }

@@ -16,6 +16,7 @@ public class GatewayMessager : IDisposable
     private readonly IContentExtractor _contentExtractor;
     private readonly IColorConsole _console;
     private readonly IEventDispatcher _dispatcher;
+    private readonly IBackgroundJobRunner _jobRunner;
 
     public IMessageFraming GetFraming() => _framing;
 
@@ -27,7 +28,8 @@ public class GatewayMessager : IDisposable
         Func<MessageFraming>? framingFactory = null,
         IContentExtractor? contentExtractor = null,
         IColorConsole? console = null,
-        IEventDispatcher? dispatcher = null)
+        IEventDispatcher? dispatcher = null,
+        IBackgroundJobRunner? jobRunner = null)
     {
         _ws = ws;
         _cfg = cfg;
@@ -38,6 +40,7 @@ public class GatewayMessager : IDisposable
         _contentExtractor = contentExtractor ?? new ContentExtractor();
         _console = console ?? new ColorConsole(new StreamShellHost());
         _dispatcher = dispatcher ?? new EventDispatcher(_console);
+        _jobRunner = jobRunner ?? new BackgroundJobRunner(msg => _console.Log("jobrunner", msg));
 
         // Register default handlers
         _dispatcher.RegisterHandler<SessionMessageEvent>(
@@ -186,21 +189,15 @@ public class GatewayMessager : IDisposable
 
         if (payload.TryGetProperty("id", out var idEl))
         {
-            _ = Task.Run(async () =>
+            var approvalId = idEl.GetString();
+            _jobRunner.RunAndForget(async () =>
             {
-                try
+                await _framing.SendRequestAsync("exec.approval.resolve", new Dictionary<string, object?>
                 {
-                    await _framing.SendRequestAsync("exec.approval.resolve", new Dictionary<string, object?>
-                    {
-                        ["id"] = idEl.GetString(),
-                        ["approved"] = true
-                    }, CancellationToken.None, TimeSpan.FromSeconds(10));
-                }
-                catch (Exception ex)
-                {
-                    _console.LogError("approval", ex.Message);
-                }
-            });
+                    ["id"] = approvalId,
+                    ["approved"] = true
+                }, CancellationToken.None, TimeSpan.FromSeconds(10));
+            }, $"approval-{approvalId}");
         }
     }
 

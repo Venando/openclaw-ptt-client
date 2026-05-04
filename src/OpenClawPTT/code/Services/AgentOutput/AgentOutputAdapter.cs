@@ -14,6 +14,7 @@ public sealed class AgentOutputAdapter : IDisposable
     private readonly IColorConsole _console;
     private readonly AppConfig _config;
     private readonly ToolDisplayHandler _toolDisplayHandler;
+    private readonly IBackgroundJobRunner _jobRunner;
     private readonly AudioResponseHandler? _audioResponseHandler;
 
     private bool _prefixPrinted;
@@ -36,10 +37,11 @@ public sealed class AgentOutputAdapter : IDisposable
         _console = console ?? throw new ArgumentNullException(nameof(console));
         var shellHost = console.GetStreamShellHost();
         _toolDisplayHandler = new ToolDisplayHandler(_config.RightMarginIndent, shellHost);
+        _jobRunner = new BackgroundJobRunner(msg => _console.Log("jobrunner", msg));
 
         if (config.AudioResponseMode?.ToLowerInvariant() != "text-only")
         {
-            _audioResponseHandler = new AudioResponseHandler(config, console);
+            _audioResponseHandler = new AudioResponseHandler(config, console, _jobRunner);
         }
     }
 
