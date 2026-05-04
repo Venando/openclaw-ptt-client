@@ -22,7 +22,6 @@ public sealed class StreamShellInputHandler : IDisposable
     private readonly IGatewayService _gatewayService;
     private readonly IConfigurationService _configService;
     private readonly IDirectLlmService? _directLlmService;
-    private readonly AudioResponseHandler? _audioResponseHandler;
     private readonly AppConfig _appConfig;
     private readonly Action _onQuit;
     private readonly AgentSettingsCommands _agentSettings;
@@ -36,8 +35,7 @@ public sealed class StreamShellInputHandler : IDisposable
         IConfigurationService configService,
         AppConfig appConfig,
         Action onQuit,
-        IDirectLlmService? directLlmService = null,
-        AudioResponseHandler? audioResponseHandler = null)
+        IDirectLlmService? directLlmService = null)
     {
         _host = host;
         _textSender = textSender;
@@ -46,7 +44,6 @@ public sealed class StreamShellInputHandler : IDisposable
         _onQuit = onQuit;
         _appConfig = appConfig;
         _directLlmService = directLlmService;
-        _audioResponseHandler = audioResponseHandler;
         _agentSettings = new AgentSettingsCommands(host, configService);
         _agentSwitching = new AgentSwitchingCommands(host, textSender, gatewayService, appConfig);
         _messageComposer = new TextMessageComposer(host, textSender);
@@ -182,12 +179,6 @@ public sealed class StreamShellInputHandler : IDisposable
             // Display response
             _host.AddMessage("[cyan]  LLM Response:[/]");
             _host.AddMessage($"  {Markup.Escape(response)}");
-
-            // Play TTS for the response
-            if (_audioResponseHandler != null)
-            {
-                await _audioResponseHandler.HandleAudioMarkerAsync(response, CancellationToken.None);
-            }
         }
         catch (Exception ex)
         {
