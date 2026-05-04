@@ -1,7 +1,6 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace OpenClawPTT;
 
@@ -13,6 +12,7 @@ public class GatewayMessager : IDisposable
     private readonly Func<MessageFraming>? _framingFactory;
     private readonly MessageFraming _framing;
     private readonly Action<CancellationToken>? _onDisconnection;
+    private readonly IContentExtractor _contentExtractor;
 
     public IMessageFraming GetFraming() => _framing;
 
@@ -21,7 +21,8 @@ public class GatewayMessager : IDisposable
         IGatewayEventSource events,
         AppConfig cfg,
         Action<CancellationToken>? onDisconnection = null,
-        Func<MessageFraming>? framingFactory = null)
+        Func<MessageFraming>? framingFactory = null,
+        IContentExtractor? contentExtractor = null)
     {
         _ws = ws;
         _cfg = cfg;
@@ -29,6 +30,7 @@ public class GatewayMessager : IDisposable
         _framingFactory = framingFactory;
         _framing = _framingFactory != null ? _framingFactory() : new MessageFraming(_ws, _cfg);
         _onDisconnection = onDisconnection;
+        _contentExtractor = contentExtractor ?? new ContentExtractor();
     }
 
     public async Task ReceiveLoop(CancellationToken ct)
@@ -196,7 +198,7 @@ public class GatewayMessager : IDisposable
                 var text = textEl.GetString() ?? string.Empty;
                 if (!string.IsNullOrEmpty(text))
                 {
-                    var (hasAudio, hasText, audioText, textContent) = ExtractMarkedContent(text);
+                    var (hasAudio, hasText, audioText, textContent) = _contentExtractor.ExtractMarkedContent(text);
                     if (hasAudio)
                         _events.RaiseAgentReplyAudio(audioText);
                     if (emitDelta && !startFired)
@@ -207,7 +209,7 @@ public class GatewayMessager : IDisposable
                     if (hasText)
                         _events.RaiseAgentReplyFull(textContent);
                     else if (hasAudio)
-                        _events.RaiseAgentReplyFull(StripAudioTags(text));
+                        _events.RaiseAgentReplyFull(_contentExtractor.StripAudioTags(text));
                 }
             }
             else if (type == "audio" && block.TryGetProperty("audio", out var audioEl))
@@ -295,52 +297,6 @@ public class GatewayMessager : IDisposable
         return string.Join("", textParts);
     }
 
-    private (bool hasAudio, bool hasText, string audioText, string textContent) ExtractMarkedContent(string fullMessage)
-    {
-        var audioText = string.Empty;
-        var textContent = string.Empty;
-
-        var audioMatch = Regex.Match(fullMessage, @"\[audio\](.*?)\[/audio\]", RegexOptions.Singleline);
-        if (audioMatch.Success)
-        {
-            audioText = audioMatch.Groups[1].Value.Trim();
-        }
-        else
-        {
-            var openTagIndex = fullMessage.IndexOf("[audio]", StringComparison.OrdinalIgnoreCase);
-            if (openTagIndex >= 0)
-            {
-                audioText = fullMessage.Substring(openTagIndex + 7).Trim();
-            }
-        }
-
-        var textMatch = Regex.Match(fullMessage, @"\[text\](.*?)\[/text\]", RegexOptions.Singleline);
-        if (textMatch.Success)
-        {
-            textContent = textMatch.Groups[1].Value.Trim();
-        }
-        else
-        {
-            var openTagIndex = fullMessage.IndexOf("[text]", StringComparison.OrdinalIgnoreCase);
-            if (openTagIndex >= 0)
-            {
-                textContent = fullMessage.Substring(openTagIndex + 6).Trim();
-            }
-        }
-
-        if (string.IsNullOrEmpty(audioText) && string.IsNullOrEmpty(textContent) && !string.IsNullOrEmpty(fullMessage))
-        {
-            textContent = fullMessage;
-        }
-
-        return (!string.IsNullOrEmpty(audioText), !string.IsNullOrEmpty(textContent), audioText, textContent);
-    }
-
-    private static string StripAudioTags(string text)
-    {
-        return Regex.Replace(text, @"\[audio\](.*?)\[/audio\]", "$1", RegexOptions.Singleline).Trim();
-    }
-
     private void HandleApprovalRequest(JsonElement payload)
     {
         ConsoleUi.PrintWarning("Exec approval requested");
@@ -407,9 +363,9 @@ public class GatewayMessager : IDisposable
         HandleSessionMessage(doc.RootElement);
     }
 
-    internal static string TestStripAudioTags(string text) => StripAudioTags(text);
+    internal string TestStripAudioTags(string text) => _contentExtractor.StripAudioTags(text);
 
     internal (bool hasAudio, bool hasText, string audioText, string textContent) TestExtractMarkedContent(string fullMessage)
-        => ExtractMarkedContent(fullMessage);
+        => _contentExtractor.ExtractMarkedContent(fullMessage);
 
 }

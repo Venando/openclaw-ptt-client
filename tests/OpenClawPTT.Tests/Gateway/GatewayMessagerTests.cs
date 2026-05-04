@@ -157,53 +157,7 @@ public class GatewayMessagerTests : IDisposable
         Assert.Null(exception);
     }
 
-    // ─── StripAudioTags tests ──────────────────────────────────────
-
-    [Theory]
-    [InlineData("[audio]hello[/audio]", "hello")]
-    [InlineData("[audio]test[/audio]", "test")]
-    [InlineData("no tags", "no tags")]
-    [InlineData("[audio]multi[/audio] word [audio]two[/audio]", "multi word two")]
-    public void TestStripAudioTags_VariousInputs_ExpectedOutput(string input, string expected)
-    {
-        var result = GatewayMessager.TestStripAudioTags(input);
-        Assert.Equal(expected, result);
-    }
-
-    // ─── ExtractMarkedContent tests ─────────────────────────────────
-
-    [Fact]
-    public void TestExtractMarkedContent_TextOnly_ReturnsTextContent()
-    {
-        var (hasAudio, hasText, audioText, textContent) =
-            _messager.TestExtractMarkedContent("hello world");
-        Assert.False(hasAudio);
-        Assert.True(hasText);
-        Assert.Equal("hello world", textContent);
-    }
-
-    [Fact]
-    public void TestExtractMarkedContent_AudioAndTextTags_SeparatesCorrectly()
-    {
-        var (hasAudio, hasText, audioText, textContent) =
-            _messager.TestExtractMarkedContent("[audio]the audio[/audio][text]the text[/text]");
-        Assert.True(hasAudio);
-        Assert.True(hasText);
-        Assert.Equal("the audio", audioText);
-        Assert.Equal("the text", textContent);
-    }
-
-    [Fact]
-    public void TestExtractMarkedContent_MixedAudioText_ReturnsBoth()
-    {
-        var text = "[audio]voice[/audio] normal [text]marked text[/text] end";
-        var (hasAudio, hasText, audioText, textContent) =
-            _messager.TestExtractMarkedContent(text);
-        Assert.True(hasAudio);
-        Assert.True(hasText);
-        Assert.Equal("voice", audioText);
-        Assert.Equal("marked text", textContent);
-    }
+    // Note: StripAudioTags and ExtractMarkedContent tests moved to ContentExtractorTests.cs
 
     // ─── TestHandleSessionMessage tests ──────────────────────────────
 
