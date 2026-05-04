@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -25,16 +24,18 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
 
     // ─── Dependencies ───────────────────────────────────────────────
     private readonly IGatewayEventSource _events;
+    private readonly ISnapshotProcessor _snapshotProcessor;
     private GatewayMessager? _gatewayMessager;
     private GatewayReconnector _gatewayReconnector;
 
     public GatewayConnectionLifecycle(AppConfig cfg, DeviceIdentity dev, IGatewayEventSource events,
-        Func<IClientWebSocket>? socketFactory = null)
+        Func<IClientWebSocket>? socketFactory = null, ISnapshotProcessor? snapshotProcessor = null)
     {
         _cfg = cfg;
         _deviceIdentity = dev;
         _events = events;
         _socketFactory = socketFactory ?? (() => new ClientWebSocketAdapter());
+        _snapshotProcessor = snapshotProcessor ?? new SnapshotProcessor(new ConsoleLogger(), cfg.LogHello);
         _gatewayReconnector = new GatewayReconnector(cfg, this, _disposeCts.Token);
     }
 
@@ -210,7 +211,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
 
         PersistDeviceTokenIfIssued(hello);
         var tickMs = ExtractTickIntervalMs(hello);
-        ProcessSnapshotIfPresent(hello);
+        _snapshotProcessor.ProcessSnapshot(hello);
         return tickMs;
     }
 
@@ -221,44 +222,6 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
         {
             _cfg.DeviceToken = dtEl.GetString();
             new ConfigurationService().Save(_cfg);
-        }
-    }
-
-    private void ProcessSnapshotIfPresent(JsonElement hello)
-    {
-        if (!hello.TryGetProperty("snapshot", out var snapshot))
-            return;
-
-        if (_cfg.LogHello)
-        {
-            var options = new JsonSerializerOptions { WriteIndented = true };
-            string prettySnapshot = JsonSerializer.Serialize(snapshot, options);
-            var lines = $"--- SERVER SNAPSHOT PAYLOAD ---\n{prettySnapshot}\n----------------------------".Split('\n');
-            foreach (var line in lines) ConsoleUi.Log("ws", line);
-        }
-
-        if (snapshot.TryGetProperty("health", out var health)
-            && health.TryGetProperty("agents", out var agents))
-        {
-            var agentList = new List<AgentInfo>();
-            foreach (JsonElement agent in agents.EnumerateArray())
-            {
-                string agentId = agent.GetProperty("agentId").GetString() ?? "";
-                string name = agent.GetProperty("name").GetString() ?? "";
-                bool isDefault = agent.GetProperty("isDefault").GetBoolean();
-                string sessionKey = $"agent:{agentId}:main";
-
-                agentList.Add(new AgentInfo
-                {
-                    AgentId = agentId,
-                    Name = name,
-                    IsDefault = isDefault,
-                    SessionKey = sessionKey
-                });
-            }
-
-            AgentRegistry.SetAgents(agentList);
-            ConsoleUi.Log("gateway", $"Loaded {agentList.Count} agent(s). Active session: {AgentRegistry.ActiveSessionKey}");
         }
     }
 

@@ -356,60 +356,6 @@ public class GatewayConnectionLifecycleTests : IDisposable
         lifecycle.Dispose();
     }
 
-    // ─── ProcessSnapshotIfPresent ──────────────────────────────────
-
-    [Fact]
-    public void ProcessSnapshotIfPresent_WithHealthAgents_SetsAgentRegistry()
-    {
-        var cfg = new AppConfig
-        {
-            CustomDataDir = Path.GetTempPath(),
-            GatewayUrl = "wss://127.0.0.1:9999/test",
-            AuthToken = "test-token"
-        };
-        var dev = new DeviceIdentity(cfg.DataDir);
-        dev.EnsureKeypair();
-        var events = new GatewayEventSource();
-        var lifecycle = new GatewayConnectionLifecycle(cfg, dev, events, () => new Mock<IClientWebSocket>().Object);
-
-        var json = JsonDocument.Parse(/* lang=json */ """
-            {"snapshot":{"health":{"agents":[{"agentId":"default","name":"Default Agent","isDefault":true}]}}}
-            """).RootElement;
-
-        InvokeVoid(lifecycle, "ProcessSnapshotIfPresent", json);
-
-        Assert.Equal("agent:default:main", AgentRegistry.ActiveSessionKey);
-        lifecycle.Dispose();
-    }
-
-    [Fact]
-    public void ProcessSnapshotIfPresent_NoSnapshot_DoesNotThrow()
-    {
-        var lifecycle = CreateWithMockSocket();
-        var json = JsonDocument.Parse(/* lang=json */ """
-            {}
-            """).RootElement;
-
-        var exception = Record.Exception(() => InvokeVoid(lifecycle, "ProcessSnapshotIfPresent", json));
-        Assert.Null(exception);
-
-        lifecycle.Dispose();
-    }
-
-    [Fact]
-    public void ProcessSnapshotIfPresent_NoSessionDefaults_DoesNotThrow()
-    {
-        var lifecycle = CreateWithMockSocket();
-        var json = JsonDocument.Parse(/* lang=json */ """
-            {"snapshot":{"other":"data"}}
-            """).RootElement;
-
-        var exception = Record.Exception(() => InvokeVoid(lifecycle, "ProcessSnapshotIfPresent", json));
-        Assert.Null(exception);
-
-        lifecycle.Dispose();
-    }
-
     // ─── ProcessHelloPayload ─────────────────────────────────────────
 
     [Fact]
@@ -424,7 +370,8 @@ public class GatewayConnectionLifecycleTests : IDisposable
         var dev = new DeviceIdentity(cfg.DataDir);
         dev.EnsureKeypair();
         var events = new GatewayEventSource();
-        var lifecycle = new GatewayConnectionLifecycle(cfg, dev, events, () => new Mock<IClientWebSocket>().Object);
+        var mockSnapshotProcessor = new Mock<ISnapshotProcessor>();
+        var lifecycle = new GatewayConnectionLifecycle(cfg, dev, events, () => new Mock<IClientWebSocket>().Object, mockSnapshotProcessor.Object);
 
         var json = JsonDocument.Parse(/* lang=json */ """
             {
@@ -439,14 +386,15 @@ public class GatewayConnectionLifecycleTests : IDisposable
 
         Assert.Equal(20_000, tickMs);
         Assert.Equal("tok", cfg.DeviceToken);
-        Assert.Equal("agent:test:main", AgentRegistry.ActiveSessionKey);
+        mockSnapshotProcessor.Verify(x => x.ProcessSnapshot(json), Times.Once);
         lifecycle.Dispose();
     }
 
     [Fact]
     public void ProcessHelloPayload_WithoutOptionalFields_ReturnsDefaultTickMs()
     {
-        var lifecycle = CreateWithMockSocket();
+        var mockSnapshotProcessor = new Mock<ISnapshotProcessor>();
+        var lifecycle = new GatewayConnectionLifecycle(_cfg, _dev, _events, () => _mockWs.Object, mockSnapshotProcessor.Object);
         var json = JsonDocument.Parse(/* lang=json */ """
             {"type":"hello-ok"}
             """).RootElement;
@@ -454,6 +402,7 @@ public class GatewayConnectionLifecycleTests : IDisposable
         var tickMs = InvokePrivate<int>(lifecycle, "ProcessHelloPayload", json);
 
         Assert.Equal(15_000, tickMs);
+        mockSnapshotProcessor.Verify(x => x.ProcessSnapshot(json), Times.Once);
         lifecycle.Dispose();
     }
 
