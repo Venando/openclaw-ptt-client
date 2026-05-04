@@ -17,6 +17,8 @@ public sealed class AgentSettingsPersistence : IAgentSettingsPersistence
     public AgentSettingsPersistence(AgentSettingsService settingsService)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+        // Load existing settings from the service into the local cache
+        MergePersistedSettings(settingsService.ToConfig());
     }
 
     /// <inheritdoc />
