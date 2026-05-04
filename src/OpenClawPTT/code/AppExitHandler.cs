@@ -1,3 +1,5 @@
+using OpenClawPTT.Services;
+
 namespace OpenClawPTT;
 
 /// <summary>
@@ -12,7 +14,12 @@ public sealed class AppExitHandler : IDisposable
     /// <summary>Returned when the application exits due to a handled error.</summary>
     public const int ExitError = 1;
 
-    public AppExitHandler() { }
+    private readonly IColorConsole _console;
+
+    public AppExitHandler(IColorConsole console)
+    {
+        _console = console;
+    }
 
     /// <summary>
     /// Handles <paramref name="ex"/> and returns the appropriate process exit code.
@@ -25,12 +32,12 @@ public sealed class AppExitHandler : IDisposable
                 return ExitCancelled;
 
             case GatewayException gex:
-                ConsoleUi.PrintGatewayError(gex.Message, gex.DetailCode, gex.RecommendedStep);
+                _console.PrintGatewayError(gex.Message, gex.DetailCode, gex.RecommendedStep);
                 TryReadKey();
                 return ExitError;
 
             case Exception ex2:
-                ConsoleUi.PrintError($"Fatal: {ex2.Message}. Press any button");
+                _console.PrintError($"Fatal: {ex2.Message}. Press any button");
 #if DEBUG
                 Console.Error.WriteLine(ex2.StackTrace);
 #endif

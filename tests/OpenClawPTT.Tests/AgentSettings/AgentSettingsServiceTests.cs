@@ -1,6 +1,8 @@
 using System.IO;
 using System;
 using Xunit;
+using OpenClawPTT.Services;
+using Moq;
 
 namespace OpenClawPTT.Tests.AgentSettings;
 
@@ -9,7 +11,8 @@ public class AgentSettingsServiceTests
     private static AgentSettingsService CreateService(string dir)
     {
         Directory.CreateDirectory(dir);
-        return new AgentSettingsService(dir);
+        var mockConsole = new Mock<IColorConsole>().Object;
+        return new AgentSettingsService(dir, mockConsole);
     }
 
     [Fact]

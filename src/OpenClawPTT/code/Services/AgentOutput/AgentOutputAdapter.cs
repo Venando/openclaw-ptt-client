@@ -29,15 +29,15 @@ public sealed class AgentOutputAdapter : IDisposable
     // then pushes the complete reply as a single StreamShell message.
     private StreamShellCapturingConsole? _capturingConsole;
 
-    public AgentOutputAdapter(AppConfig config)
+    public AgentOutputAdapter(AppConfig config, IColorConsole console)
     {
         _config = config;
-        var shellHost = ConsoleUi.GetStreamShellHost();
+        var shellHost = console.GetStreamShellHost();
         _toolDisplayHandler = new ToolDisplayHandler(_config.RightMarginIndent, shellHost);
 
         if (config.AudioResponseMode?.ToLowerInvariant() != "text-only")
         {
-            _audioResponseHandler = new AudioResponseHandler(config);
+            _audioResponseHandler = new AudioResponseHandler(config, console);
         }
     }
 

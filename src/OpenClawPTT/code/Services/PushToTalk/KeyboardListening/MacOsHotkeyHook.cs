@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using OpenClawPTT.Services;
 
 namespace OpenClawPTT;
 
@@ -18,6 +19,7 @@ internal sealed class MacOsHotkeyHook : IGlobalHotkeyHook
     public bool BlockEscape { get; set; }
 
     private readonly CancellationTokenSource _cts = new();
+    private readonly IColorConsole _console;
     private Thread? _thread;
     
     // Hotkey configuration
@@ -34,6 +36,11 @@ internal sealed class MacOsHotkeyHook : IGlobalHotkeyHook
     private GCHandle _selfHandle;   // keeps 'this' rooted while callback is alive
     private IntPtr _eventTap;
     private IntPtr _runLoopSource;
+
+    public MacOsHotkeyHook(IColorConsole console)
+    {
+        _console = console;
+    }
 
     public void SetHotkey(Hotkey hotkey)
     {
@@ -64,9 +71,9 @@ internal sealed class MacOsHotkeyHook : IGlobalHotkeyHook
         // Check permission first — tap will be created but dead without it
         if (!AXIsProcessTrusted())
         {
-            ConsoleUi.Log("hotkey", "Accessibility permission required.");
-            ConsoleUi.Log("hotkey", "System Settings → Privacy & Security → Accessibility");
-            ConsoleUi.Log("hotkey", "→ enable your terminal app, then restart.");
+            _console.Log("hotkey", "Accessibility permission required.");
+            _console.Log("hotkey", "System Settings → Privacy & Security → Accessibility");
+            _console.Log("hotkey", "→ enable your terminal app, then restart.");
             return;
         }
 
@@ -84,7 +91,7 @@ internal sealed class MacOsHotkeyHook : IGlobalHotkeyHook
 
         if (_eventTap == IntPtr.Zero)
         {
-            ConsoleUi.LogError("hotkey", "CGEventTapCreate failed — check permissions.");
+            _console.LogError("hotkey", "CGEventTapCreate failed — check permissions.");
             _selfHandle.Free();
             return;
         }

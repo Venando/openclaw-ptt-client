@@ -27,6 +27,7 @@ public sealed class StreamShellInputHandler : IDisposable
     private readonly AgentSettingsCommands _agentSettings;
     private readonly AgentSwitchingCommands _agentSwitching;
     private readonly TextMessageComposer _messageComposer;
+    private readonly IColorConsole _console;
 
     public StreamShellInputHandler(
         IStreamShellHost host,
@@ -35,6 +36,7 @@ public sealed class StreamShellInputHandler : IDisposable
         IConfigurationService configService,
         AppConfig appConfig,
         Action onQuit,
+        IColorConsole console,
         IDirectLlmService? directLlmService = null)
     {
         _host = host;
@@ -44,8 +46,9 @@ public sealed class StreamShellInputHandler : IDisposable
         _onQuit = onQuit;
         _appConfig = appConfig;
         _directLlmService = directLlmService;
+        _console = console;
         _agentSettings = new AgentSettingsCommands(host, configService);
-        _agentSwitching = new AgentSwitchingCommands(host, textSender, gatewayService, appConfig);
+        _agentSwitching = new AgentSwitchingCommands(host, textSender, gatewayService, appConfig, console);
         _messageComposer = new TextMessageComposer(host, textSender);
     }
 

@@ -12,10 +12,12 @@ namespace OpenClawPTT.Services;
 public sealed class AudioPlayerService : IDisposable
 {
     private WaveOutEvent? _waveOut;
+    private readonly IColorConsole _console;
     private bool _disposed;
     
-    public AudioPlayerService()
+    public AudioPlayerService(IColorConsole console)
     {
+        _console = console;
     }
     
     /// <summary>
@@ -48,7 +50,7 @@ public sealed class AudioPlayerService : IDisposable
         }
         catch (Exception ex)
         {
-            ConsoleUi.PrintError($"Audio playback failed: {ex.Message}");
+            _console.PrintError($"Audio playback failed: {ex.Message}");
         }
     }
     
@@ -65,7 +67,7 @@ public sealed class AudioPlayerService : IDisposable
             
             if (!File.Exists(filePath))
             {
-                ConsoleUi.PrintError($"Audio file not found: {filePath}");
+                _console.PrintError($"Audio file not found: {filePath}");
                 return;
             }
             
@@ -74,7 +76,7 @@ public sealed class AudioPlayerService : IDisposable
         }
         catch (Exception ex)
         {
-            ConsoleUi.PrintError($"Audio playback failed: {ex.Message}");
+            _console.PrintError($"Audio playback failed: {ex.Message}");
         }
     }
     
@@ -90,7 +92,7 @@ public sealed class AudioPlayerService : IDisposable
     {
         if (e.Exception != null)
         {
-            ConsoleUi.PrintError($"Playback error: {e.Exception.Message}");
+            _console.PrintError($"Playback error: {e.Exception.Message}");
         }
     }
     

@@ -21,7 +21,7 @@ public sealed class ServiceFactory : IServiceFactory
         ConsoleUi.Initialize(_colorConsole);
     }
 
-    public IGatewayService CreateGatewayService(AppConfig cfg) => new GatewayService(cfg);
+    public IGatewayService CreateGatewayService(AppConfig cfg) => new GatewayService(cfg, _colorConsole);
 
     public IAudioService CreateAudioService(AppConfig cfg) => new AudioService(cfg);
 
@@ -36,7 +36,7 @@ public sealed class ServiceFactory : IServiceFactory
         => new InputHandler(textSender);
 
     public ITextMessageSender CreateTextMessageSender(IGatewayService gateway)
-        => new TextMessageSender(gateway);
+        => new TextMessageSender(gateway, _colorConsole);
 
     public IDirectLlmService CreateDirectLlmService(AppConfig cfg)
         => new DirectLlmService(cfg);
@@ -53,7 +53,7 @@ public sealed class ServiceFactory : IServiceFactory
         bool requireConfirmBeforeSend = false)
     {
         var stateMachine = new PttStateMachine();
-        return new AppLoop(stateMachine, audioService, textSender, inputHandler, pttController,
+        return new AppLoop(stateMachine, audioService, textSender, inputHandler, pttController, _colorConsole,
             requireConfirmBeforeSend);
     }
 }

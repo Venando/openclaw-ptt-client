@@ -14,16 +14,20 @@ public sealed class AppBootstrapper : IDisposable
     private readonly Func<AppConfig, IServiceFactory, AppRunner> _runnerFactory;
     private CancellationTokenSource? _cts;
 
+    private readonly IColorConsole _console;
+
     public AppBootstrapper(
         IConfigurationService configService,
         IServiceFactory factory,
         IStreamShellHost shellHost,
+        IColorConsole console,
         Func<AppConfig, IServiceFactory, AppRunner>? runnerFactory = null)
     {
         _configService = configService;
         _factory = factory;
         _shellHost = shellHost;
-        _runnerFactory = runnerFactory ?? ((cfg, f) => new AppRunner(cfg, f, _shellHost, _configService));
+        _console = console;
+        _runnerFactory = runnerFactory ?? ((cfg, f) => new AppRunner(cfg, f, _shellHost, _configService, console));
     }
 
     /// <summary>Runs the application and returns the exit code.</summary>
@@ -45,7 +49,7 @@ public sealed class AppBootstrapper : IDisposable
             var cfg = await _configService.LoadOrSetupAsync(_shellHost, ct: _cts.Token);
 
             // Load persistent agent settings from agents.json
-            var agentSettings = new AgentSettingsService(cfg.DataDir);
+            var agentSettings = new AgentSettingsService(cfg.DataDir, _console);
             agentSettings.Load();
             AgentSettingsPersistence.MergePersistedSettings(agentSettings.ToConfig());
             AgentSettingsPersistence.RegisterSettingsService(agentSettings);
@@ -62,7 +66,7 @@ public sealed class AppBootstrapper : IDisposable
             return runnerExitCode;
 
         if (ex != null)
-            return new AppExitHandler().HandleExit(ex);
+            return new AppExitHandler(_console).HandleExit(ex);
 
         return 0;
     }

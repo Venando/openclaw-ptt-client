@@ -15,6 +15,8 @@ public class AppRunnerTests
         HoldToTalk = false
     };
 
+    private static IColorConsole CreateMockConsole() => Mock.Of<IColorConsole>();
+
     /// <summary>
     /// Test-double IServiceFactory that records which methods were called
     /// and returns Moq-controlled mock instances.
@@ -52,7 +54,7 @@ public class AppRunnerTests
         var factory = new TestServiceFactory();
         var cfg = DefaultConfig;
 
-        var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
+        var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>(), CreateMockConsole());
 
         Assert.NotNull(runner);
     }
@@ -69,7 +71,7 @@ public class AppRunnerTests
             .ThrowsAsync(new OperationCanceledException());
 
         var cfg = DefaultConfig;
-        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
+        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>(), CreateMockConsole());
 
         var cts = new CancellationTokenSource();
         cts.Cancel(); // Cancel before RunAsync starts
@@ -94,7 +96,7 @@ public class AppRunnerTests
             .ReturnsAsync(AppLoopExitCode.Ok);
 
         var cfg = DefaultConfig;
-        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
+        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>(), CreateMockConsole());
 
         var result = await runner.RunAsync(CancellationToken.None);
 
@@ -123,7 +125,7 @@ public class AppRunnerTests
             });
 
         var cfg = DefaultConfig;
-        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
+        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>(), CreateMockConsole());
 
         var result = await runner.RunAsync(CancellationToken.None);
 
@@ -148,7 +150,7 @@ public class AppRunnerTests
             .ReturnsAsync(AppLoopExitCode.Ok);
 
         var cfg = DefaultConfig;
-        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>());
+        using var runner = new AppRunner(cfg, factory, Mock.Of<IStreamShellHost>(), Mock.Of<IConfigurationService>(), CreateMockConsole());
 
         await runner.RunAsync(CancellationToken.None);
 

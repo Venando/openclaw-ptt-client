@@ -1,10 +1,13 @@
 using OpenClawPTT.Services;
 using Xunit;
+using Moq;
 
 namespace OpenClawPTT.Tests;
 
 public class GatewayServiceTests
 {
+    private static IColorConsole CreateMockConsole() => new Mock<IColorConsole>().Object;
+
     [Fact]
     public void GatewayService_Constructs_WithoutThrowing()
     {
@@ -17,7 +20,7 @@ public class GatewayServiceTests
         };
 
         // Act: constructing the service should not throw
-        var service = new GatewayService(cfg);
+        var service = new GatewayService(cfg, CreateMockConsole());
 
         // Assert: service was created
         Assert.NotNull(service);
@@ -34,7 +37,7 @@ public class GatewayServiceTests
             AudioResponseMode = "text-only"
         };
 
-        IGatewayService service = new GatewayService(cfg);
+        IGatewayService service = new GatewayService(cfg, CreateMockConsole());
 
         Assert.True(service is GatewayService);
         service.Dispose();
@@ -50,7 +53,7 @@ public class GatewayServiceTests
             AudioResponseMode = "text-only"
         };
 
-        var service = new GatewayService(cfg);
+        var service = new GatewayService(cfg, CreateMockConsole());
 
         service.Dispose();
         service.Dispose(); // should not throw

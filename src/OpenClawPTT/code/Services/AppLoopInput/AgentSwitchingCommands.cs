@@ -17,13 +17,15 @@ public sealed class AgentSwitchingCommands
     private readonly ITextMessageSender _textSender;
     private readonly IGatewayService _gatewayService;
     private readonly AppConfig _appConfig;
+    private readonly IColorConsole _console;
 
-    public AgentSwitchingCommands(IStreamShellHost host, ITextMessageSender textSender, IGatewayService gatewayService, AppConfig appConfig)
+    public AgentSwitchingCommands(IStreamShellHost host, ITextMessageSender textSender, IGatewayService gatewayService, AppConfig appConfig, IColorConsole console)
     {
         _host = host;
         _textSender = textSender;
         _gatewayService = gatewayService;
         _appConfig = appConfig;
+        _console = console;
     }
 
     /// <summary>Handler for /crew — lists available agents.</summary>
@@ -82,7 +84,7 @@ public sealed class AgentSwitchingCommands
         if (AgentRegistry.SetActiveAgent(matched.AgentId))
         {
             await PrintSessionHistory(matched.SessionKey);
-            ConsoleUi.PrintAgentIntroduction(_appConfig);
+            _console.PrintAgentIntroduction(_appConfig);
         }
         else
         {
@@ -101,7 +103,7 @@ public sealed class AgentSwitchingCommands
         foreach (var entry in history)
         {
             if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
-                ConsoleUi.PrintUserMessage(entry.Content);
+                _console.PrintUserMessage(entry.Content);
             else
                 _gatewayService.DisplayHistoryEntry(entry);
         }
@@ -123,7 +125,7 @@ public sealed class AgentSwitchingCommands
         try
         {
             await _textSender.SendAsync(commandText, System.Threading.CancellationToken.None, printMessage: false);
-            ConsoleUi.PrintMarkupedUserMessage($"[blue on gray15]⚡ {Markup.Escape(commandText)} [/]");
+            _console.PrintMarkupedUserMessage($"[blue on gray15]⚡ {Markup.Escape(commandText)} [/]");
         }
         catch (Exception ex)
         {

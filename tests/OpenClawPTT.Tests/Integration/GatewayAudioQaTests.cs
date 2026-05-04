@@ -6,12 +6,10 @@ using Xunit;
 
 namespace OpenClawPTT.Tests;
 
-/// <summary>
-/// QA tests for Gateway+Audio module: GatewayClient, GatewayService,
-/// UiEventAdapter, AudioResponseHandler, AudioService, AudioPlayerService.
-/// </summary>
 public class GatewayAudioQaTests
 {
+    private static IColorConsole CreateMockConsole() => new Mock<IColorConsole>().Object;
+
     // ══════════════════════════════════════════════════════════════
     // GatewayClient — ConnectAsync logic, dispose, reconnection
     // ══════════════════════════════════════════════════════════════
@@ -71,7 +69,7 @@ public class GatewayAudioQaTests
             AudioResponseMode = "text-only"
         };
 
-        var service = new GatewayService(cfg);
+        var service = new GatewayService(cfg, CreateMockConsole());
 
         // Recreate should not throw even if not connected
         var newCfg = new AppConfig
@@ -95,7 +93,7 @@ public class GatewayAudioQaTests
             AudioResponseMode = "text-only"
         };
 
-        var service = new GatewayService(cfg);
+        var service = new GatewayService(cfg, CreateMockConsole());
 
         // Subscribe to all events — should not throw
         service.AgentReplyFull += _ => { };
@@ -126,7 +124,7 @@ public class GatewayAudioQaTests
             AgentName = "TestBot"
         };
 
-        var adapter = new AgentOutputAdapter(cfg);
+        var adapter = new AgentOutputAdapter(cfg, CreateMockConsole());
 
         // In text-only mode, _audioResponseHandler should be null
         Assert.Null(adapter.AudioResponseHandler);
@@ -142,7 +140,7 @@ public class GatewayAudioQaTests
             AgentName = "TestBot"
         };
 
-        var adapter = new AgentOutputAdapter(cfg);
+        var adapter = new AgentOutputAdapter(cfg, CreateMockConsole());
 
         // In audio mode, _audioResponseHandler should be created (even if TTS fails)
         Assert.NotNull(adapter.AudioResponseHandler);
@@ -153,7 +151,7 @@ public class GatewayAudioQaTests
     public void UiEventAdapter_Dispose_CanBeCalledMultipleTimes()
     {
         var cfg = new AppConfig { AudioResponseMode = "text-only", AgentName = "TestBot" };
-        var adapter = new AgentOutputAdapter(cfg);
+        var adapter = new AgentOutputAdapter(cfg, CreateMockConsole());
 
         adapter.Dispose();
         adapter.Dispose(); // should not throw
@@ -167,7 +165,7 @@ public class GatewayAudioQaTests
         // When AudioResponseMode is text-only, _audioResponseHandler is null.
         // OnAgentReplyAudio should handle this gracefully (fire-and-forget with null check).
         var cfg = new AppConfig { AudioResponseMode = "text-only", AgentName = "TestBot" };
-        var adapter = new AgentOutputAdapter(cfg);
+        var adapter = new AgentOutputAdapter(cfg, CreateMockConsole());
 
         // This should not throw even though _audioResponseHandler is null
         adapter.OnAgentReplyAudio("some audio text");
@@ -183,7 +181,7 @@ public class GatewayAudioQaTests
     public async Task HandleAudioMarkerAsync_TextOnly_ReturnsCompletedTask()
     {
         var cfg = new AppConfig { AudioResponseMode = "text-only" };
-        var handler = new AudioResponseHandler(cfg);
+        var handler = new AudioResponseHandler(cfg, CreateMockConsole());
 
         // In text-only mode, should return completed task (no-op)
         var task = handler.HandleAudioMarkerAsync("any text");
@@ -196,7 +194,7 @@ public class GatewayAudioQaTests
     public void AudioResponseHandler_Dispose_CalledTwice_Safe()
     {
         var cfg = new AppConfig { AudioResponseMode = "text-only" };
-        var handler = new AudioResponseHandler(cfg);
+        var handler = new AudioResponseHandler(cfg, CreateMockConsole());
 
         handler.Dispose();
         handler.Dispose(); // should not throw, should not re-dispose TTS service
@@ -207,7 +205,7 @@ public class GatewayAudioQaTests
     public void AudioResponseHandler_AfterDispose_HandleAudioMarker_ThrowsObjectDisposed()
     {
         var cfg = new AppConfig { AudioResponseMode = "text-only" };
-        var handler = new AudioResponseHandler(cfg);
+        var handler = new AudioResponseHandler(cfg, CreateMockConsole());
         handler.Dispose();
 
         // Subsequent calls should throw ObjectDisposedException
@@ -219,7 +217,7 @@ public class GatewayAudioQaTests
     public Task HandleAudioMarkerAsync_EmptyText_ReturnsCompleted()
     {
         var cfg = new AppConfig { AudioResponseMode = "audio-only" };
-        var handler = new AudioResponseHandler(cfg);
+        var handler = new AudioResponseHandler(cfg, CreateMockConsole());
 
         var task = handler.HandleAudioMarkerAsync("");
         Assert.True(task.IsCompleted);
@@ -232,7 +230,7 @@ public class GatewayAudioQaTests
     public Task HandleAudioMarkerAsync_WhitespaceText_ReturnsCompleted()
     {
         var cfg = new AppConfig { AudioResponseMode = "audio-only" };
-        var handler = new AudioResponseHandler(cfg);
+        var handler = new AudioResponseHandler(cfg, CreateMockConsole());
 
         var task = handler.HandleAudioMarkerAsync("   \t\n  ");
         Assert.True(task.IsCompleted);
@@ -248,7 +246,7 @@ public class GatewayAudioQaTests
     [Fact]
     public void AudioPlayerService_Dispose_WithoutPlay_DoesNotThrow()
     {
-        var player = new AudioPlayerService();
+        var player = new AudioPlayerService(CreateMockConsole());
         player.Dispose();
         Assert.True(true);
     }
@@ -256,7 +254,7 @@ public class GatewayAudioQaTests
     [Fact]
     public void AudioPlayerService_Dispose_CanBeCalledMultipleTimes()
     {
-        var player = new AudioPlayerService();
+        var player = new AudioPlayerService(CreateMockConsole());
         player.Dispose();
         player.Dispose();
         Assert.True(true);
@@ -265,7 +263,7 @@ public class GatewayAudioQaTests
     [Fact]
     public void AudioPlayerService_Play_InvalidBytes_DoesNotThrow()
     {
-        var player = new AudioPlayerService();
+        var player = new AudioPlayerService(CreateMockConsole());
         var badBytes = new byte[] { 0x00, 0x01, 0x02 }; // not valid WAV
 
         // Should catch exception internally and not propagate
@@ -277,7 +275,7 @@ public class GatewayAudioQaTests
     [Fact]
     public void AudioPlayerService_IsPlaying_BeforeAnyPlay_ReturnsFalse()
     {
-        var player = new AudioPlayerService();
+        var player = new AudioPlayerService(CreateMockConsole());
         Assert.False(player.IsPlaying);
         player.Dispose();
     }
@@ -285,7 +283,7 @@ public class GatewayAudioQaTests
     [Fact]
     public void AudioPlayerService_Stop_BeforeAnyPlay_DoesNotThrow()
     {
-        var player = new AudioPlayerService();
+        var player = new AudioPlayerService(CreateMockConsole());
         player.Stop(); // should be safe even before any play
         Assert.False(player.IsPlaying);
         player.Dispose();
@@ -294,7 +292,7 @@ public class GatewayAudioQaTests
     [Fact]
     public void AudioPlayerService_Play_NonExistentFile_DoesNotThrow()
     {
-        var player = new AudioPlayerService();
+        var player = new AudioPlayerService(CreateMockConsole());
         player.Play("/non/existent/file.wav");
         player.Dispose();
     }
@@ -302,7 +300,7 @@ public class GatewayAudioQaTests
     [Fact]
     public void AudioPlayerService_AfterDispose_Play_ThrowsObjectDisposed()
     {
-        var player = new AudioPlayerService();
+        var player = new AudioPlayerService(CreateMockConsole());
         player.Dispose();
 
         var ex = Assert.Throws<ObjectDisposedException>(() => player.Play(new byte[] { 0x00 }));

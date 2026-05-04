@@ -20,6 +20,7 @@ public sealed class AgentHotkeyService : IDisposable
     private readonly AppConfig _cfg;
     private readonly IGatewayService? _gatewayService;
     private readonly IGlobalHotkeyHook? _hook;
+    private readonly IColorConsole _console;
 
     public AgentHotkeyService(
         IPttController pttController,
@@ -27,13 +28,15 @@ public sealed class AgentHotkeyService : IDisposable
         IStreamShellHost shellHost,
         AppConfig cfg,
         IGatewayService? gatewayService = null,
-        IHotkeyHookFactory? hookFactory = null)
+        IHotkeyHookFactory? hookFactory = null,
+        IColorConsole? console = null)
     {
         _pttController = pttController;
         _textSender = textSender;
         _shellHost = shellHost;
         _cfg = cfg;
         _gatewayService = gatewayService;
+        _console = console ?? new ColorConsole(shellHost);
 
         // Always create a hook — at minimum for Escape key cancellation.
         if (hookFactory != null)
@@ -119,14 +122,14 @@ public sealed class AgentHotkeyService : IDisposable
             foreach (var entry in history)
             {
                 if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
-                    ConsoleUi.PrintUserMessage(entry.Content);
+                    _console.PrintUserMessage(entry.Content);
                 else
                     _gatewayService!.DisplayHistoryEntry(entry);
             }
         }
 
         // Print agent intro after history (so it appears at the bottom)
-        ConsoleUi.PrintAgentIntroduction(_cfg);
+        _console.PrintAgentIntroduction(_cfg);
     }
 
 

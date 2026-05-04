@@ -8,6 +8,8 @@ namespace OpenClawPTT.Tests;
 
 public class PttLoopTests
 {
+    private static IColorConsole CreateMockConsole() => new Mock<IColorConsole>().Object;
+
     [Fact]
     public async Task RunAsync_QuitViaInput_ReturnsOk()
     {
@@ -23,7 +25,7 @@ public class PttLoopTests
         var cfg = new AppConfig { HoldToTalk = true };
         var loop = new AppLoop(
             mockState.Object, mockAudio.Object, mockSender.Object,
-            mockInput.Object, mockPttCtrl.Object);
+            mockInput.Object, mockPttCtrl.Object, CreateMockConsole());
 
         var cts = new CancellationTokenSource(50);
         var result = await loop.RunAsync(cts.Token);
@@ -43,7 +45,7 @@ public class PttLoopTests
         var cfg = new AppConfig { HoldToTalk = true };
         var loop = new AppLoop(
             mockState.Object, mockAudio.Object, mockSender.Object,
-            mockInput.Object, mockPttCtrl.Object);
+            mockInput.Object, mockPttCtrl.Object, CreateMockConsole());
 
         var cts = new CancellationTokenSource(50);
         var result = await loop.RunAsync(cts.Token);
@@ -74,7 +76,7 @@ public class PttLoopTests
         var cfg = new AppConfig { HoldToTalk = true };
         var loop = new AppLoop(
             mockState.Object, mockAudio.Object, mockSender.Object,
-            mockInput.Object, mockPttCtrl.Object);
+            mockInput.Object, mockPttCtrl.Object, CreateMockConsole());
 
         var cts = new CancellationTokenSource(100);
         await loop.RunAsync(cts.Token);

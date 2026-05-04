@@ -14,6 +14,7 @@ public class AppRunner : IDisposable
     private readonly IServiceFactory _factory;
     private readonly IStreamShellHost _shellHost;
     private readonly IConfigurationService _configService;
+    private readonly IColorConsole _console;
     private CancellationTokenSource? _cts;
 
     /// <summary>
@@ -22,12 +23,13 @@ public class AppRunner : IDisposable
     /// </summary>
     public const int MaxRestartCount = 3;
 
-    public AppRunner(AppConfig cfg, IServiceFactory factory, IStreamShellHost shellHost, IConfigurationService configService)
+    public AppRunner(AppConfig cfg, IServiceFactory factory, IStreamShellHost shellHost, IConfigurationService configService, IColorConsole console)
     {
         _cfg = cfg;
         _factory = factory;
         _shellHost = shellHost;
         _configService = configService;
+        _console = console;
     }
 
     /// <summary>
@@ -87,7 +89,7 @@ public class AppRunner : IDisposable
 
         using var agentHotkeyService = new AgentHotkeyService(
             pttController, textSender, _shellHost, _cfg,
-            gatewayService: gateway);
+            gatewayService: gateway, console: _console);
 
         // Create direct LLM service if configured
         using var directLlmService = _factory.CreateDirectLlmService(_cfg);
@@ -100,6 +102,7 @@ public class AppRunner : IDisposable
             _configService,
             _cfg,
             onQuit: () => _cts?.Cancel(),
+            console: _console,
             directLlmService: directLlmService.IsConfigured ? directLlmService : null
         );
         await shellCommands.RegisterAsync();

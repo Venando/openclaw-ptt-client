@@ -12,9 +12,10 @@ public sealed class AudioResponseHandler : IDisposable
     private readonly ITextToSpeech? _ttsProvider;
     private readonly AudioPlayerService _audioPlayer;
     private readonly TtsService? _ttsService;
+    private readonly IColorConsole _console;
     private bool _disposed;
 
-    public AudioResponseHandler(AppConfig config)
+    public AudioResponseHandler(AppConfig config, IColorConsole console)
     {
         _config = config;
 
@@ -47,7 +48,8 @@ public sealed class AudioResponseHandler : IDisposable
             }
         }
 
-        _audioPlayer = new AudioPlayerService();
+        _console = console;
+        _audioPlayer = new AudioPlayerService(console);
     }
 
     /// <summary>

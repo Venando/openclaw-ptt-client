@@ -8,6 +8,7 @@ namespace OpenClawPTT.Services;
 public sealed class GatewayService : IGatewayService
 {
     private readonly AppConfig _config;
+    private readonly IColorConsole _console;
     private readonly DeviceIdentity _device;
     private IGatewayClient _gatewayClient;
     private AgentOutputAdapter? _uiAdapter;
@@ -22,9 +23,10 @@ public sealed class GatewayService : IGatewayService
     public event Action<string, JsonElement>? EventReceived;
     public event Action<string>? AgentReplyAudio;
 
-    public GatewayService(AppConfig config)
+    public GatewayService(AppConfig config, IColorConsole console)
     {
         _config = config;
+        _console = console;
         _device = new DeviceIdentity(config.DataDir);
         _device.EnsureKeypair();
         _gatewayClient = CreateGatewayClient();
@@ -64,7 +66,7 @@ public sealed class GatewayService : IGatewayService
         // Render tool calls via ToolDisplayHandler if any
         if (entry.ToolCalls.Count > 0)
         {
-            var toolHandler = new ToolDisplayHandler(_config.RightMarginIndent, ConsoleUi.GetStreamShellHost());
+            var toolHandler = new ToolDisplayHandler(_config.RightMarginIndent, _console.GetStreamShellHost());
             foreach (var toolCall in entry.ToolCalls)
             {
                 if (!string.IsNullOrEmpty(toolCall.ToolName))
@@ -79,7 +81,7 @@ public sealed class GatewayService : IGatewayService
 
     private IGatewayClient CreateGatewayClient()
     {
-        _uiAdapter = new AgentOutputAdapter(_config);
+        _uiAdapter = new AgentOutputAdapter(_config, _console);
         var client = new GatewayClient(_config, _device, new GatewayEventSource());
         var events = ((IGatewayClient)client).GetEventSource();
 

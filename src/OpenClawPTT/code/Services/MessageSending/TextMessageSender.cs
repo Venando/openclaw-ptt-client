@@ -4,10 +4,12 @@ namespace OpenClawPTT.Services;
 public sealed class TextMessageSender : ITextMessageSender
 {
     private readonly IGatewayService _gateway;
+    private readonly IColorConsole _console;
 
-    public TextMessageSender(IGatewayService gateway)
+    public TextMessageSender(IGatewayService gateway, IColorConsole console)
     {
         _gateway = gateway;
+        _console = console;
     }
 
     public async Task SendAsync(string text, CancellationToken ct, bool printMessage)
@@ -16,13 +18,13 @@ public sealed class TextMessageSender : ITextMessageSender
         {
             if (printMessage)
             {
-                ConsoleUi.PrintUserMessage(text);
+                _console.PrintUserMessage(text);
             }
             await _gateway.SendTextAsync(text, ct);
         }
         catch (Exception ex)
         {
-            ConsoleUi.PrintError($"failed: {ex.Message}");
+            _console.PrintError($"failed: {ex.Message}");
         }
     }
 }

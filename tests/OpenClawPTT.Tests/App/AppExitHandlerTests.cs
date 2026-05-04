@@ -4,6 +4,7 @@ using OpenClawPTT;
 using OpenClawPTT.Services;
 using System;
 using Xunit;
+using Moq;
 
 public class AppExitHandlerTests : IDisposable
 {
@@ -11,7 +12,8 @@ public class AppExitHandlerTests : IDisposable
 
     public AppExitHandlerTests()
     {
-        _handler = new AppExitHandler();
+        var mockConsole = new Mock<IColorConsole>().Object;
+        _handler = new AppExitHandler(mockConsole);
     }
 
     public void Dispose()

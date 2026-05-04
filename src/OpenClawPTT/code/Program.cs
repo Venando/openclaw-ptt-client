@@ -11,10 +11,11 @@ internal static class Program
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         var shellHost = new StreamShellHost();
         var factory = new ServiceFactory(configService, shellHost);
+        var colorConsole = factory.CreateColorConsole();
 
         ConsoleUi.SetStreamShellHost(shellHost);
 
-        var bootstrapper = new AppBootstrapper(configService, factory, shellHost);
+        var bootstrapper = new AppBootstrapper(configService, factory, shellHost, colorConsole);
         var exitCode = await bootstrapper.RunAsync(cts.Token);
 
         bootstrapper.Dispose();

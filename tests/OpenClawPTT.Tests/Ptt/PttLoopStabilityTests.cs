@@ -4,6 +4,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
+using Moq;
 
 namespace OpenClawPTT.Tests;
 
@@ -192,14 +193,16 @@ public class PttLoopStabilityTests : IDisposable
         FakeAudioService? audio = null,
         FakeTextMessageSender? sender = null,
         FakeInputHandler? input = null,
-        FakePttController? pttCtrl = null)
+        FakePttController? pttCtrl = null,
+        IColorConsole? console = null)
     {
         return new AppLoop(
             state ?? new FakePttStateMachine(),
             audio ?? new FakeAudioService(),
             sender ?? new FakeTextMessageSender(),
             input ?? new FakeInputHandler(),
-            pttCtrl ?? new FakePttController());
+            pttCtrl ?? new FakePttController(),
+            console ?? new Mock<IColorConsole>().Object);
     }
 
     public void Dispose() { }

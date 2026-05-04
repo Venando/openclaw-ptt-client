@@ -1,5 +1,6 @@
 using OpenClawPTT.Services;
 using Xunit;
+using Moq;
 
 namespace OpenClawPTT.Tests;
 
@@ -9,12 +10,14 @@ namespace OpenClawPTT.Tests;
 /// </summary>
 public class AudioResponseHandlerTests
 {
+    private static IColorConsole CreateMockConsole() => new Mock<IColorConsole>().Object;
+
     [Fact]
     public async Task HandleAudioMarkerAsync_TextOnlyConfig_DoesNothing()
     {
         // Arrange: text-only config — AudioResponseHandler should skip audio handling
         var cfg = new AppConfig { AudioResponseMode = "text-only" };
-        var handler = new AudioResponseHandler(cfg);
+        var handler = new AudioResponseHandler(cfg, CreateMockConsole());
 
         // Act: should not throw (TTS not configured is handled gracefully)
         await handler.HandleAudioMarkerAsync("Hello world");
@@ -28,7 +31,7 @@ public class AudioResponseHandlerTests
     {
         // Arrange: audio-enabled config without real API keys — will fail gracefully
         var cfg = new AppConfig { AudioResponseMode = "audio-only" };
-        var handler = new AudioResponseHandler(cfg);
+        var handler = new AudioResponseHandler(cfg, CreateMockConsole());
 
         // Act: should not throw (TTS init failure is caught and logged)
         await handler.HandleAudioMarkerAsync("Test audio text");
@@ -41,7 +44,7 @@ public class AudioResponseHandlerTests
     public void AudioResponseHandler_Dispose_DoesNotThrow()
     {
         var cfg = new AppConfig { AudioResponseMode = "text-only" };
-        var handler = new AudioResponseHandler(cfg);
+        var handler = new AudioResponseHandler(cfg, CreateMockConsole());
 
         handler.Dispose(); // should not throw
 

@@ -16,6 +16,7 @@ public sealed class AppLoop : IAppLoop
     private readonly ITextMessageSender _textSender;
     private readonly IInputHandler _inputHandler;
     private readonly IPttController _pttController;
+    private readonly IColorConsole _console;
     private readonly bool _requireConfirmBeforeSend;
     private bool _disposed;
 
@@ -25,6 +26,7 @@ public sealed class AppLoop : IAppLoop
         ITextMessageSender textSender,
         IInputHandler inputHandler,
         IPttController pttController,
+        IColorConsole console,
         bool requireConfirmBeforeSend = false)
     {
         _pttStateMachine = stateMachine;
@@ -32,6 +34,7 @@ public sealed class AppLoop : IAppLoop
         _textSender = textSender;
         _inputHandler = inputHandler;
         _pttController = pttController;
+        _console = console;
         _requireConfirmBeforeSend = requireConfirmBeforeSend;
     }
 
@@ -119,7 +122,7 @@ public sealed class AppLoop : IAppLoop
     /// </summary>
     private async Task<bool> WaitForSendConfirmationAsync(CancellationToken ct)
     {
-        ConsoleUi.PrintMarkup("[deepskyblue3]  ─[/] [bold][gray62]Press hotkey to send[/][/] [grey]or Escape to discard[/] [deepskyblue3]─[/]");
+        _console.PrintMarkup("[deepskyblue3]  ─[/] [bold][gray62]Press hotkey to send[/][/] [grey]or Escape to discard[/] [deepskyblue3]─[/]");
 
         while (!ct.IsCancellationRequested)
         {
@@ -129,7 +132,7 @@ public sealed class AppLoop : IAppLoop
 
             if (_pttController.PollCancelRecording())
             {
-                ConsoleUi.PrintMarkup("[grey]  ─ Message discarded ─[/]");
+                _console.PrintMarkup("[grey]  ─ Message discarded ─[/]");
                 return false;
             }
         }
@@ -146,7 +149,7 @@ public sealed class AppLoop : IAppLoop
         catch (Exception ex)
         {
             // Log the error so it's visible in diagnostics
-            ConsoleUi.LogError("ptt", $"Failed to send: {ex.GetType().Name}: {ex.Message}");
+            _console.LogError("ptt", $"Failed to send: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
