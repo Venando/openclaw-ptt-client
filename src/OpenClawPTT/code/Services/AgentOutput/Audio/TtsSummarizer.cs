@@ -33,6 +33,10 @@ public sealed class TtsSummarizer : ITtsSummarizer, IDisposable
         if (_disposed) throw new ObjectDisposedException(nameof(TtsSummarizer));
         if (_directLlm == null || !_directLlm.IsConfigured)
             throw new InvalidOperationException("Direct LLM not configured");
+        if (string.IsNullOrWhiteSpace(text))
+            return string.Empty;
+        if (config.TtsMaxChars <= 0)
+            throw new ArgumentException("TtsMaxChars must be greater than 0", nameof(config));
 
         var prompt = BuildSummarizationPrompt(text, config);
         var summary = await _directLlm.SendAsync(prompt, ct);

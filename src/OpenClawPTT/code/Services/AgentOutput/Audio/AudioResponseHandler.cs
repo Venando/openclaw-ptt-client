@@ -72,6 +72,18 @@ public sealed class AudioResponseHandler : IDisposable
         if (string.IsNullOrWhiteSpace(text))
             return;
 
+        // Validate config values
+        if (_config.TtsMaxChars <= 0)
+        {
+            _console.PrintWarning("Invalid TtsMaxChars config - must be greater than 0.");
+            return;
+        }
+        if (_config.TtsDirectMaxChars <= 0)
+        {
+            _console.PrintWarning("Invalid TtsDirectMaxChars config - must be greater than 0.");
+            return;
+        }
+
         // Check if TTS is enabled
         if (_config.TtsOutputMode == "off")
             return;

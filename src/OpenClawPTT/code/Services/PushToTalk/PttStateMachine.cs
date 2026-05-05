@@ -18,7 +18,14 @@ public sealed class PttStateMachine : IPttStateMachine
     /// <summary>True when the last OnHotkeyPressed was a toggle (i.e. stop was requested while already Recording).</summary>
     private bool _toggleStopRequested;
 
-    public bool LastInputWasVoice { get; set; } = false;
+    // Volatile for thread-safe cross-thread visibility (SISO mode TTS check)
+    private volatile bool _lastInputWasVoice;
+
+    public bool LastInputWasVoice
+    {
+        get => _lastInputWasVoice;
+        set => _lastInputWasVoice = value;
+    }
 
     public PttState CurrentState => _state;
 
@@ -99,6 +106,6 @@ public sealed class PttStateMachine : IPttStateMachine
         _startRecordingRequested = false;
         _stopRecordingRequested = false;
         _toggleStopRequested = false;
-        LastInputWasVoice = false;
+        _lastInputWasVoice = false;
     }
 }

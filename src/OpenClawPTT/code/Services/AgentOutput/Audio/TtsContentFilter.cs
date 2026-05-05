@@ -72,6 +72,8 @@ public static class TtsContentFilter
     {
         if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
             return text;
+        if (maxLength <= 4)
+            return text[..maxLength];
 
         return text[..(maxLength - 4)] + " ...";
     }
