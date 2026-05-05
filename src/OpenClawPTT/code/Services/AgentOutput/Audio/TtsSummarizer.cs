@@ -66,6 +66,7 @@ public sealed class TtsSummarizer : ITtsSummarizer, IDisposable
         if (!_disposed)
         {
             _disposed = true;
+            (_directLlm as IDisposable)?.Dispose();
         }
     }
 }

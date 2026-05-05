@@ -135,7 +135,9 @@ public sealed class AudioResponseHandler : IDisposable
         var truncated = textToSpeak.Length > 80 ? textToSpeak[..80] + "..." : textToSpeak;
         _jobRunner.RunAndForget(async () =>
         {
-            var audioBytes = await _ttsProvider.SynthesizeAsync(textToSpeak, _config.TtsVoice, null, ct);
+            // Use a fresh token to avoid cancellation exceptions in fire-and-forget
+            var freshCt = CancellationToken.None;
+            var audioBytes = await _ttsProvider.SynthesizeAsync(textToSpeak, _config.TtsVoice, null, freshCt);
             if (audioBytes != null && audioBytes.Length > 0)
             {
                 _audioPlayer.Play(audioBytes);
