@@ -12,6 +12,7 @@ public sealed class AppBootstrapper : IDisposable
     private readonly IConfigurationService _configService;
     private readonly IStreamShellHost _shellHost;
     private readonly Func<AppConfig, IServiceFactory, AppRunner> _runnerFactory;
+    private readonly bool _testModeEnabled;
     private CancellationTokenSource? _cts;
 
     private readonly IColorConsole _console;
@@ -21,12 +22,14 @@ public sealed class AppBootstrapper : IDisposable
         IServiceFactory factory,
         IStreamShellHost shellHost,
         IColorConsole console,
-        Func<AppConfig, IServiceFactory, AppRunner>? runnerFactory = null)
+        Func<AppConfig, IServiceFactory, AppRunner>? runnerFactory = null,
+        bool testModeEnabled = false)
     {
         _configService = configService;
         _factory = factory;
         _shellHost = shellHost;
         _console = console;
+        _testModeEnabled = testModeEnabled;
         _runnerFactory = runnerFactory ?? ((cfg, f) => new AppRunner(cfg, f, _shellHost, _configService, console));
     }
 

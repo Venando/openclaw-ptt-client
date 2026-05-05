@@ -5,7 +5,7 @@ namespace OpenClawPTT;
 /// <summary>
 /// Default implementation of IServiceFactory.
 /// </summary>
-public sealed class ServiceFactory : IServiceFactory
+public class ServiceFactory : IServiceFactory
 {
     private readonly IConfigurationService _configService;
     private readonly IStreamShellHost _shellHost;
@@ -38,9 +38,9 @@ public sealed class ServiceFactory : IServiceFactory
             "AgentSettingsPersistence not initialized. Call InitializeAgentSettingsPersistence first.");
     }
 
-    public IGatewayService CreateGatewayService(AppConfig cfg) => new GatewayService(cfg, _colorConsole);
+    public virtual IGatewayService CreateGatewayService(AppConfig cfg) => new GatewayService(cfg, _colorConsole);
 
-    public IAudioService CreateAudioService(AppConfig cfg)
+    public virtual IAudioService CreateAudioService(AppConfig cfg)
     {
         if (_agentSettingsPersistence == null)
             throw new InvalidOperationException("AgentSettingsPersistence not initialized. Call InitializeAgentSettingsPersistence first.");
@@ -60,7 +60,7 @@ public sealed class ServiceFactory : IServiceFactory
     public ITextMessageSender CreateTextMessageSender(IGatewayService gateway)
         => new TextMessageSender(gateway, _colorConsole);
 
-    public IDirectLlmService CreateDirectLlmService(AppConfig cfg)
+    public virtual IDirectLlmService CreateDirectLlmService(AppConfig cfg)
         => new DirectLlmService(cfg);
 
     public IStreamShellHost CreateStreamShellHost() => _shellHost;
