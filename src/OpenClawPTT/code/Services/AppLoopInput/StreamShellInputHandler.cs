@@ -29,6 +29,7 @@ public sealed class StreamShellInputHandler : IDisposable
     private readonly TextMessageComposer _messageComposer;
     private readonly IColorConsole _console;
     private readonly IAgentSettingsPersistence _agentSettingsPersistence;
+    private readonly IPttStateMachine _pttStateMachine;
 
     public StreamShellInputHandler(
         IStreamShellHost host,
@@ -39,6 +40,7 @@ public sealed class StreamShellInputHandler : IDisposable
         Action onQuit,
         IColorConsole console,
         IAgentSettingsPersistence agentSettingsPersistence,
+        IPttStateMachine pttStateMachine,
         IDirectLlmService? directLlmService = null)
     {
         _host = host;
@@ -50,6 +52,7 @@ public sealed class StreamShellInputHandler : IDisposable
         _directLlmService = directLlmService;
         _console = console;
         _agentSettingsPersistence = agentSettingsPersistence;
+        _pttStateMachine = pttStateMachine;
         _agentSettings = new AgentSettingsCommands(host, configService, agentSettingsPersistence);
         _agentSwitching = new AgentSwitchingCommands(host, textSender, gatewayService, appConfig, console, agentSettingsPersistence);
         _messageComposer = new TextMessageComposer(host, textSender);
@@ -132,6 +135,9 @@ public sealed class StreamShellInputHandler : IDisposable
         // Commands are auto-executed by StreamShell — skip
         if (type == InputType.Command)
             return;
+
+        // Mark as typed input (not voice)
+        _pttStateMachine.LastInputWasVoice = false;
 
         _messageComposer.TryToComposeMessage(input, attachments, out string? composedMessage);
 

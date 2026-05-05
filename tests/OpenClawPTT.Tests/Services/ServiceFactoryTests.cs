@@ -89,12 +89,14 @@ public class ServiceFactoryTests
     {
         var factory = CreateFactory();
 
+        var mockStateMachine = new Mock<IPttStateMachine>();
         var mockAudio = new Mock<IAudioService>();
         var mockPttController = new Mock<IPttController>();
         var mockTextSender = new Mock<ITextMessageSender>();
         var mockInputHandler = new Mock<IInputHandler>();
 
         var loop = factory.CreatePttLoop(
+            mockStateMachine.Object,
             mockAudio.Object,
             mockPttController.Object,
             mockTextSender.Object,

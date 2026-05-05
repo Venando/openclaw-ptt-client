@@ -68,13 +68,13 @@ public class ServiceFactory : IServiceFactory
     public IColorConsole CreateColorConsole() => _colorConsole;
 
     public IAppLoop CreatePttLoop(
+        IPttStateMachine stateMachine,
         IAudioService audioService,
         IPttController pttController,
         ITextMessageSender textSender,
         IInputHandler inputHandler,
         bool requireConfirmBeforeSend = false)
     {
-        var stateMachine = new PttStateMachine();
         return new AppLoop(stateMachine, audioService, textSender, inputHandler, pttController, _colorConsole,
             requireConfirmBeforeSend);
     }

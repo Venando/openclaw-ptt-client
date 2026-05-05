@@ -86,6 +86,7 @@ public class AppRunner : IDisposable
 
         // Agent settings (loaded in AppBootstrapper, already merged into AgentRegistry)
         var pttController = new PttController();
+        var pttStateMachine = new PttStateMachine();
 
         using var agentHotkeyService = new AgentHotkeyService(
             pttController, textSender, _shellHost, _cfg,
@@ -105,13 +106,14 @@ public class AppRunner : IDisposable
             onQuit: () => _cts?.Cancel(),
             console: _console,
             agentSettingsPersistence: _factory.GetAgentSettingsPersistence(),
+            pttStateMachine: pttStateMachine,
             directLlmService: directLlmService.IsConfigured ? directLlmService : null
         );
         await shellCommands.RegisterAsync();
         _console.PrintHelpMenu(_cfg);
 
         using IAppLoop pttLoop = _factory.CreatePttLoop(
-            audioService, pttController, textSender, inputHandler,
+            pttStateMachine, audioService, pttController, textSender, inputHandler,
             requireConfirmBeforeSend: _cfg.RequireConfirmBeforeSend);
 
         return (int)(await pttLoop.RunAsync(ct));

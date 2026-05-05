@@ -20,6 +20,7 @@ public class PttLoopStabilityTests : IDisposable
     sealed class FakePttStateMachine : IPttStateMachine
     {
         public PttState CurrentState { get; set; } = PttState.Idle;
+        public bool LastInputWasVoice { get; set; } = false;
         public bool ShouldStartRecording_Flag { get; set; }
         public bool ShouldStopRecording_Flag { get; set; }
         public bool ShouldToggleRecording_Flag { get; set; }

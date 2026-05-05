@@ -28,6 +28,7 @@ public interface IServiceFactory
     IStreamShellHost CreateStreamShellHost();
     IColorConsole CreateColorConsole();
     IAppLoop CreatePttLoop(
+        IPttStateMachine stateMachine,
         IAudioService audioService,
         IPttController pttController,
         ITextMessageSender textSender,

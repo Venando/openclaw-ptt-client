@@ -144,6 +144,7 @@ public sealed class AppLoop : IAppLoop
     {
         try
         {
+            _pttStateMachine.LastInputWasVoice = true;
             await _textSender.SendAsync(transcribed, ct);
         }
         catch (Exception ex)
