@@ -32,6 +32,11 @@ public sealed class GenericKvpToolRenderer : IToolRenderer
                 _output.Print(GetValueString(prop.Value), ConsoleColor.White);
             }
         }
+        
+        if (first)
+        {
+            _output.PrintLine("·", ConsoleColor.Black);
+        }
     }
 
     /// <summary>
