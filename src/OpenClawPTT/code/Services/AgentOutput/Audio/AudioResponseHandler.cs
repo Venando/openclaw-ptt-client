@@ -89,8 +89,16 @@ public sealed class AudioResponseHandler : IDisposable
             return;
 
         // Check SISO mode (case-insensitive)
-        if (string.Equals(_config.TtsOutputMode, "siso", StringComparison.OrdinalIgnoreCase) && _pttStateMachine?.LastInputWasVoice != true)
-            return;
+        if (string.Equals(_config.TtsOutputMode, "siso", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_pttStateMachine == null)
+            {
+                _console.PrintWarning("TTS SISO mode requires voice input tracking — IPttStateMachine not available. Set TtsOutputMode to 'always-on' or 'off'.");
+                return;
+            }
+            if (_pttStateMachine.LastInputWasVoice != true)
+                return;
+        }
 
         if (_ttsProvider == null)
         {
@@ -126,6 +134,7 @@ public sealed class AudioResponseHandler : IDisposable
             {
                 if (string.Equals(_config.TtsTooLongFallback, "skip", StringComparison.OrdinalIgnoreCase))
                 {
+                    _console.PrintWarning($"Response ({textToSpeak.Length} chars) exceeds TtsMaxChars ({_config.TtsMaxChars}) — skipping TTS.");
                     return; // Don't speak this response
                 }
                 else // truncate

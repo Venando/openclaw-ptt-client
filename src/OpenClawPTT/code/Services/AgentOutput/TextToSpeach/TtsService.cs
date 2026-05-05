@@ -53,7 +53,7 @@ public sealed class TtsService : IDisposable
             TtsProviderType.Edge => config.TtsSubscriptionKey != null
                 ? new Providers.EdgeTtsProvider(config.TtsSubscriptionKey, config.TtsRegion ?? "eastus")
                 : null,
-            TtsProviderType.ElevenLabs => null,
+            TtsProviderType.ElevenLabs => throw new NotSupportedException("ElevenLabs TTS provider is not yet implemented. Use OpenAI, Edge, Coqui, Piper, or Python instead."),
             TtsProviderType.Python => new Providers.PythonTtsProvider(
                 console,
                 "",

@@ -40,6 +40,11 @@ public sealed class TtsSummarizer : ITtsSummarizer, IDisposable
 
         var prompt = BuildSummarizationPrompt(text, config);
         var summary = await _directLlm.SendAsync(prompt, ct);
+
+        // Guard against empty/no-response from LLM
+        if (string.IsNullOrWhiteSpace(summary) || summary == "(No response)")
+            throw new InvalidOperationException("LLM returned no usable content for summarization");
+
         return summary.Trim();
     }
 
