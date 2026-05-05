@@ -64,6 +64,8 @@ public class AppRunnerStabilityTests
             ITextMessageSender textSender,
             IInputHandler inputHandler,
             bool requireConfirmBeforeSend = false) => PttLoop.Object;
+
+        public ITtsSummarizer CreateTtsSummarizer(IDirectLlmService? directLlm) => Mock.Of<ITtsSummarizer>();
     }
 
     private static IAgentSettingsPersistence CreatePersistenceMock()

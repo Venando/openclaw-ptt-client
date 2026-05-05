@@ -78,4 +78,9 @@ public class ServiceFactory : IServiceFactory
         return new AppLoop(stateMachine, audioService, textSender, inputHandler, pttController, _colorConsole,
             requireConfirmBeforeSend);
     }
+
+    public ITtsSummarizer CreateTtsSummarizer(IDirectLlmService? directLlm)
+    {
+        return new TtsSummarizer(directLlm);
+    }
 }

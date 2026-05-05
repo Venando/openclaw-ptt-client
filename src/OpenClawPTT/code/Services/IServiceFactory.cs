@@ -34,4 +34,6 @@ public interface IServiceFactory
         ITextMessageSender textSender,
         IInputHandler inputHandler,
         bool requireConfirmBeforeSend = false);
+
+    ITtsSummarizer CreateTtsSummarizer(IDirectLlmService? directLlm);
 }
