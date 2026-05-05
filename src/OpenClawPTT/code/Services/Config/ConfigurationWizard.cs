@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -35,13 +37,18 @@ public sealed class ConfigurationWizard
         Done
     }
 
-    /// <summary>Fields whose stored value should be masked in confirmation messages.</summary>
-    private static readonly HashSet<Step> _secretSteps = new()
+    private static readonly Dictionary<Step, IWizardStepHandler> _handlers = new()
     {
-        Step.GroqApiKey,
-        Step.TtsApiKey,
-        Step.AuthToken,
+        [Step.GatewayUrl] = new GatewayUrlHandler(),
+        [Step.GroqApiKey] = new GroqApiKeyHandler(),
+        [Step.HotkeyCombination] = new HotkeyCombinationHandler(),
+        [Step.VisualFeedbackPosition] = new VisualFeedbackPositionHandler(),
+        [Step.VisualFeedbackColor] = new VisualFeedbackColorHandler(),
+        [Step.AudioResponseMode] = new AudioResponseModeHandler(),
     };
+
+    private static IWizardStepHandler? GetHandler(Step step)
+        => _handlers.GetValueOrDefault(step);
 
     private IStreamShellHost? _host;
     private AppConfig? _existing;
@@ -89,7 +96,7 @@ public sealed class ConfigurationWizard
             if (IsClearableField(step))
             {
                 ApplyValue(step, "");
-                _host.AddMessage($"[green]  ✓ (cleared)[/]");
+                _host.AddMessage("[green]  ✓ (cleared)[/]");
                 Advance();
                 return;
             }
@@ -119,7 +126,7 @@ public sealed class ConfigurationWizard
         ApplyValue(step, parsedValue ?? rawInput);
 
         // Show confirmation of what was set (masked for secrets)
-        var displayValue = _secretSteps.Contains(step)
+        var displayValue = IsSecretStep(step)
             ? MaskSecret(parsedValue ?? rawInput)
             : parsedValue ?? rawInput;
         _host.AddMessage($"[green]  ✓ {Markup.Escape(displayValue)}[/]");
@@ -178,7 +185,7 @@ public sealed class ConfigurationWizard
 
         if (hasDefault)
         {
-            var displayDefault = _secretSteps.Contains(step)
+            var displayDefault = IsSecretStep(step)
                 ? MaskSecret(defaultVal)
                 : defaultVal;
             _host?.AddMessage($"  [grey](current: {Markup.Escape(displayDefault)}, press Enter to keep)[/]");
@@ -203,6 +210,19 @@ public sealed class ConfigurationWizard
         _ => false
     };
 
+    private static bool IsSecretStep(Step step)
+    {
+        var handler = GetHandler(step);
+        if (handler != null)
+            return handler.IsSecret;
+        return step switch
+        {
+            Step.AuthToken => true,
+            Step.TtsApiKey => true,
+            _ => false
+        };
+    }
+
     private static string MaskSecret(string value)
     {
         if (string.IsNullOrEmpty(value))
@@ -213,98 +233,98 @@ public sealed class ConfigurationWizard
         return value[..4] + new string('*', Math.Min(value.Length - 4, 12));
     }
 
-    private static string GetDescription(Step step) => step switch
+    private static string GetDescription(Step step)
     {
-        Step.GatewayUrl => "Gateway URL", // No extra hint — wss:// is well known
-        Step.AuthToken => "Auth token (OPENCLAW_GATEWAY_TOKEN env)",
-        Step.TlsFingerprint => "TLS cert fingerprint (optional, for wss:// pinning)",
-        Step.GroqApiKey => "Groq API key (starts with gsk_)",
-        Step.Locale => "Locale (e.g. en-US, ja-JP, ru-RU)",
-        Step.SampleRate => "Audio sample rate (8000–48000 Hz)",
-        Step.MaxRecordSeconds => "Max recording length (5–600 seconds)",
-        Step.RealTimeReplyOutput => "Real-time reply streaming (true/false)",
-        Step.AgentName => "Your name, shown as reply prefix (-- to clear)",
-        Step.HotkeyCombination => "PTT hotkey (e.g. Alt+= or Ctrl+Shift+Space)",
-        Step.HoldToTalk => "Hold-to-talk (true = hold down, false = toggle)",
-        Step.TranscriptionPromptPrefix => "Transcription context prefix (-- to clear)",
-        Step.VisualFeedbackEnabled => "Show visual feedback indicator (true/false)",
-        Step.VisualFeedbackPosition => "Feedback position (TopLeft / TopRight / BottomLeft / BottomRight)",
-        Step.VisualFeedbackSize => "Feedback dot size (1–200 pixels)",
-        Step.VisualFeedbackOpacity => "Feedback opacity (0.0 transparent – 1.0 solid)",
-        Step.VisualFeedbackColor => "Feedback color (hex e.g. #00FF00)",
-        Step.VisualFeedbackRimThickness => "Feedback rim (0 = off, 1–50 pixels)",
-        Step.AudioResponseMode => "Audio response mode (text-only / audio-only / both)",
-        Step.TtsApiKey => "ElevenLabs API key (optional blank)",
-        Step.TtsVoiceId => "ElevenLabs voice ID",
-        _ => step.ToString()
-    };
+        var handler = GetHandler(step);
+        if (handler != null)
+            return handler.GetDescription();
+        return step switch
+        {
+            Step.AuthToken => "Auth token (OPENCLAW_GATEWAY_TOKEN env)",
+            Step.TlsFingerprint => "TLS cert fingerprint (optional, for wss:// pinning)",
+            Step.Locale => "Locale (e.g. en-US, ja-JP, ru-RU)",
+            Step.SampleRate => "Audio sample rate (8000–48000 Hz)",
+            Step.MaxRecordSeconds => "Max recording length (5–600 seconds)",
+            Step.RealTimeReplyOutput => "Real-time reply streaming (true/false)",
+            Step.AgentName => "Your name, shown as reply prefix (-- to clear)",
+            Step.HoldToTalk => "Hold-to-talk (true = hold down, false = toggle)",
+            Step.TranscriptionPromptPrefix => "Transcription context prefix (-- to clear)",
+            Step.VisualFeedbackEnabled => "Show visual feedback indicator (true/false)",
+            Step.VisualFeedbackSize => "Feedback dot size (1–200 pixels)",
+            Step.VisualFeedbackOpacity => "Feedback opacity (0.0 transparent – 1.0 solid)",
+            Step.VisualFeedbackRimThickness => "Feedback rim (0 = off, 1–50 pixels)",
+            Step.TtsApiKey => "ElevenLabs API key (optional blank)",
+            Step.TtsVoiceId => "ElevenLabs voice ID",
+            _ => step.ToString()
+        };
+    }
 
-    private static string GetValidationHint(Step step) => step switch
+    private static string GetValidationHint(Step step)
     {
-        Step.GatewayUrl => " Expected ws:// or wss:// URL (e.g. ws://localhost:18789)",
-        Step.AuthToken => "",
-        Step.TlsFingerprint => "",
-        Step.GroqApiKey => " Must start with gsk_",
-        Step.Locale => " At least 2 characters (e.g. en-US)",
-        Step.SampleRate => " Expected a number between 8000 and 48000",
-        Step.MaxRecordSeconds => " Expected a number between 5 and 600",
-        Step.RealTimeReplyOutput => " Expected true or false",
-        Step.AgentName => " Cannot be empty",
-        Step.HotkeyCombination => " Expected format like Alt+= or Ctrl+Shift+Space",
-        Step.HoldToTalk => " Expected true or false",
-        Step.TranscriptionPromptPrefix => " Cannot be empty (or -- to clear)",
-        Step.VisualFeedbackEnabled => " Expected true or false",
-        Step.VisualFeedbackPosition => " Choose: TopLeft, TopRight, BottomLeft, or BottomRight",
-        Step.VisualFeedbackSize => " Expected a number between 1 and 200",
-        Step.VisualFeedbackOpacity => " Expected a number between 0.0 and 1.0",
-        Step.VisualFeedbackColor => " Expected hex color like #00FF00",
-        Step.VisualFeedbackRimThickness => " Expected a number between 0 and 50",
-        Step.AudioResponseMode => " Choose: text-only, audio-only, or both",
-        Step.TtsApiKey => "",
-        Step.TtsVoiceId => "",
-        _ => ""
-    };
+        var handler = GetHandler(step);
+        if (handler != null)
+            return handler.GetValidationHint();
+        return step switch
+        {
+            Step.AuthToken => "",
+            Step.TlsFingerprint => "",
+            Step.Locale => " At least 2 characters (e.g. en-US)",
+            Step.SampleRate => " Expected a number between 8000 and 48000",
+            Step.MaxRecordSeconds => " Expected a number between 5 and 600",
+            Step.RealTimeReplyOutput => " Expected true or false",
+            Step.AgentName => " Cannot be empty",
+            Step.HoldToTalk => " Expected true or false",
+            Step.TranscriptionPromptPrefix => " Cannot be empty (or -- to clear)",
+            Step.VisualFeedbackEnabled => " Expected true or false",
+            Step.VisualFeedbackSize => " Expected a number between 1 and 200",
+            Step.VisualFeedbackOpacity => " Expected a number between 0.0 and 1.0",
+            Step.VisualFeedbackRimThickness => " Expected a number between 0 and 50",
+            Step.TtsApiKey => "",
+            Step.TtsVoiceId => "",
+            _ => ""
+        };
+    }
 
-    private string GetDefaultValue(Step step) => step switch
+    private string GetDefaultValue(Step step)
     {
-        Step.GatewayUrl => _config.GatewayUrl,
-        Step.AuthToken => _config.AuthToken ?? Environment.GetEnvironmentVariable("OPENCLAW_GATEWAY_TOKEN") ?? "",
-        Step.TlsFingerprint => _config.TlsFingerprint ?? "",
-        Step.GroqApiKey => _config.GroqApiKey,
-        Step.Locale => _config.Locale,
-        Step.SampleRate => _config.SampleRate.ToString(),
-        Step.MaxRecordSeconds => _config.MaxRecordSeconds.ToString(),
-        Step.RealTimeReplyOutput => _config.RealTimeReplyOutput.ToString(),
-        Step.AgentName => _config.AgentName,
-        Step.HotkeyCombination => _config.HotkeyCombination,
-        Step.HoldToTalk => _config.HoldToTalk.ToString(),
-        Step.TranscriptionPromptPrefix => _config.TranscriptionPromptPrefix,
-        Step.VisualFeedbackEnabled => _config.VisualFeedbackEnabled.ToString(),
-        Step.VisualFeedbackPosition => _config.VisualFeedbackPosition,
-        Step.VisualFeedbackSize => _config.VisualFeedbackSize.ToString(),
-        Step.VisualFeedbackOpacity => _config.VisualFeedbackOpacity.ToString("F2"),
-        Step.VisualFeedbackColor => _config.VisualFeedbackColor,
-        Step.VisualFeedbackRimThickness => _config.VisualFeedbackRimThickness.ToString(),
-        Step.AudioResponseMode => _config.AudioResponseMode ?? "text-only",
-        Step.TtsApiKey => _config.TtsApiKey ?? "",
-        Step.TtsVoiceId => _config.TtsVoiceId ?? "",
-        _ => throw new ArgumentOutOfRangeException(nameof(step), step, null)
-    };
+        var handler = GetHandler(step);
+        if (handler != null)
+            return handler.GetDefaultValue(_config);
+        return step switch
+        {
+            Step.AuthToken => _config.AuthToken ?? Environment.GetEnvironmentVariable("OPENCLAW_GATEWAY_TOKEN") ?? "",
+            Step.TlsFingerprint => _config.TlsFingerprint ?? "",
+            Step.Locale => _config.Locale,
+            Step.SampleRate => _config.SampleRate.ToString(),
+            Step.MaxRecordSeconds => _config.MaxRecordSeconds.ToString(),
+            Step.RealTimeReplyOutput => _config.RealTimeReplyOutput.ToString(),
+            Step.AgentName => _config.AgentName,
+            Step.HoldToTalk => _config.HoldToTalk.ToString(),
+            Step.TranscriptionPromptPrefix => _config.TranscriptionPromptPrefix,
+            Step.VisualFeedbackEnabled => _config.VisualFeedbackEnabled.ToString(),
+            Step.VisualFeedbackPosition => _config.VisualFeedbackPosition,
+            Step.VisualFeedbackSize => _config.VisualFeedbackSize.ToString(),
+            Step.VisualFeedbackOpacity => _config.VisualFeedbackOpacity.ToString("F2"),
+            Step.VisualFeedbackColor => _config.VisualFeedbackColor,
+            Step.VisualFeedbackRimThickness => _config.VisualFeedbackRimThickness.ToString(),
+            Step.TtsApiKey => _config.TtsApiKey ?? "",
+            Step.TtsVoiceId => _config.TtsVoiceId ?? "",
+            _ => throw new ArgumentOutOfRangeException(nameof(step), step, null)
+        };
+    }
 
     private static bool Validate(Step step, string rawInput, out string? parsedValue)
     {
         parsedValue = rawInput;
+        var handler = GetHandler(step);
+        if (handler != null)
+            return handler.Validate(rawInput, out parsedValue);
         switch (step)
         {
-            case Step.GatewayUrl:
-                return Uri.TryCreate(rawInput, UriKind.Absolute, out var uri)
-                       && (uri.Scheme == "ws" || uri.Scheme == "wss");
             case Step.AuthToken:
                 return true;
             case Step.TlsFingerprint:
                 return true;
-            case Step.GroqApiKey:
-                return rawInput.StartsWith("gsk_");
             case Step.Locale:
                 return rawInput.Length >= 2;
             case Step.SampleRate:
@@ -315,36 +335,18 @@ public sealed class ConfigurationWizard
                 return bool.TryParse(rawInput, out _);
             case Step.AgentName:
                 return !string.IsNullOrWhiteSpace(rawInput);
-            case Step.HotkeyCombination:
-                try
-                {
-                    HotkeyMapping.Parse(rawInput);
-                    return true;
-                }
-                catch
-                {
-                    return false;
-                }
             case Step.HoldToTalk:
                 return bool.TryParse(rawInput, out _);
             case Step.TranscriptionPromptPrefix:
                 return !string.IsNullOrWhiteSpace(rawInput);
             case Step.VisualFeedbackEnabled:
                 return bool.TryParse(rawInput, out _);
-            case Step.VisualFeedbackPosition:
-                return new[] { "TopLeft", "TopRight", "BottomLeft", "BottomRight" }
-                    .Contains(rawInput, StringComparer.OrdinalIgnoreCase);
             case Step.VisualFeedbackSize:
                 return int.TryParse(rawInput, out var n3) && n3 is >= 1 and <= 200;
             case Step.VisualFeedbackOpacity:
                 return double.TryParse(rawInput, out var d) && d >= 0.0 && d <= 1.0;
-            case Step.VisualFeedbackColor:
-                return Regex.IsMatch(rawInput, @"^#?([0-9A-Fa-f]{6})$");
             case Step.VisualFeedbackRimThickness:
                 return int.TryParse(rawInput, out var n4) && n4 is >= 0 and <= 50;
-            case Step.AudioResponseMode:
-                return new[] { "text-only", "audio-only", "both" }
-                    .Contains(rawInput, StringComparer.OrdinalIgnoreCase);
             case Step.TtsApiKey:
                 return true;
             case Step.TtsVoiceId:
@@ -356,19 +358,19 @@ public sealed class ConfigurationWizard
 
     private void ApplyValue(Step step, string rawInput)
     {
+        var handler = GetHandler(step);
+        if (handler != null)
+        {
+            handler.ApplyValue(rawInput, _config);
+            return;
+        }
         switch (step)
         {
-            case Step.GatewayUrl:
-                _config.GatewayUrl = rawInput;
-                break;
             case Step.AuthToken:
                 _config.AuthToken = string.IsNullOrWhiteSpace(rawInput) ? null : rawInput;
                 break;
             case Step.TlsFingerprint:
                 _config.TlsFingerprint = string.IsNullOrWhiteSpace(rawInput) ? null : rawInput;
-                break;
-            case Step.GroqApiKey:
-                _config.GroqApiKey = rawInput;
                 break;
             case Step.Locale:
                 _config.Locale = rawInput;
@@ -385,9 +387,6 @@ public sealed class ConfigurationWizard
             case Step.AgentName:
                 _config.AgentName = rawInput;
                 break;
-            case Step.HotkeyCombination:
-                _config.HotkeyCombination = rawInput;
-                break;
             case Step.HoldToTalk:
                 _config.HoldToTalk = bool.Parse(rawInput);
                 break;
@@ -397,27 +396,14 @@ public sealed class ConfigurationWizard
             case Step.VisualFeedbackEnabled:
                 _config.VisualFeedbackEnabled = bool.Parse(rawInput);
                 break;
-            case Step.VisualFeedbackPosition:
-                _config.VisualFeedbackPosition = new[] { "TopLeft", "TopRight", "BottomLeft", "BottomRight" }
-                    .First(p => p.Equals(rawInput, StringComparison.OrdinalIgnoreCase));
-                break;
             case Step.VisualFeedbackSize:
                 _config.VisualFeedbackSize = int.Parse(rawInput);
                 break;
             case Step.VisualFeedbackOpacity:
                 _config.VisualFeedbackOpacity = double.Parse(rawInput);
                 break;
-            case Step.VisualFeedbackColor:
-                _config.VisualFeedbackColor = rawInput.StartsWith("#")
-                    ? rawInput
-                    : $"#{rawInput}";
-                break;
             case Step.VisualFeedbackRimThickness:
                 _config.VisualFeedbackRimThickness = int.Parse(rawInput);
-                break;
-            case Step.AudioResponseMode:
-                _config.AudioResponseMode = new[] { "text-only", "audio-only", "both" }
-                    .First(m => string.Equals(m, rawInput, StringComparison.OrdinalIgnoreCase));
                 break;
             case Step.TtsApiKey:
                 _config.TtsApiKey = string.IsNullOrWhiteSpace(rawInput) ? null : rawInput;
