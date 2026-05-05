@@ -34,4 +34,7 @@ public interface IPttStateMachine
 
     /// <summary>Resets to Idle state, clearing all transient flags.</summary>
     void Reset();
+
+    /// <summary>True if the last input was via voice (PTT), false if typed.</summary>
+    bool LastInputWasVoice { get; set; }
 }

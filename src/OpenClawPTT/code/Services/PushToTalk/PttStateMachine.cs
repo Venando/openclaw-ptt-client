@@ -18,6 +18,8 @@ public sealed class PttStateMachine : IPttStateMachine
     /// <summary>True when the last OnHotkeyPressed was a toggle (i.e. stop was requested while already Recording).</summary>
     private bool _toggleStopRequested;
 
+    public bool LastInputWasVoice { get; set; } = false;
+
     public PttState CurrentState => _state;
 
     public bool ShouldStartRecording
@@ -97,5 +99,6 @@ public sealed class PttStateMachine : IPttStateMachine
         _startRecordingRequested = false;
         _stopRecordingRequested = false;
         _toggleStopRequested = false;
+        LastInputWasVoice = false;
     }
 }
