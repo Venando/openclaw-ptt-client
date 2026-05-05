@@ -110,6 +110,14 @@ public sealed class AppConfig
     public string? TtsApiKey { get; set; } // Optional ElevenLabs API key
     public string? TtsVoiceId { get; set; } // Default ElevenLabs voice
 
+    // TTS SISO settings
+    public string TtsOutputMode { get; set; } = "siso"; // "always-on", "siso", "off"
+    public int TtsDirectMaxChars { get; set; } = 300;   // Under this: speak directly
+    public int TtsMaxChars { get; set; } = 1500;        // Upper limit for TTS output
+    public string TtsCodeBlockMode { get; set; } = "smart"; // "summarize", "skip", "smart"
+    public string TtsTooLongFallback { get; set; } = "truncate"; // "truncate" or "skip"
+    public bool TtsUseDirectLlmSummary { get; set; } = true;
+
     [JsonIgnore]
     public string ClientVersion => "1.0.0";
 
