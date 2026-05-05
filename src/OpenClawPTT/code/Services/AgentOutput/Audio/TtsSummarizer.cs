@@ -45,7 +45,7 @@ public sealed class TtsSummarizer : ITtsSummarizer, IDisposable
 
     private static string BuildSummarizationPrompt(string text, AppConfig config)
     {
-        var codeBlockInstruction = config.TtsCodeBlockMode switch
+        var codeBlockInstruction = config.TtsCodeBlockMode.ToLowerInvariant() switch
         {
             "summarize" => "For code blocks: describe what the code does in one sentence",
             "skip" => "For code blocks: replace with '[Code block]' or mention the filename if present",

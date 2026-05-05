@@ -84,12 +84,12 @@ public sealed class AudioResponseHandler : IDisposable
             return;
         }
 
-        // Check if TTS is enabled
-        if (_config.TtsOutputMode == "off")
+        // Check if TTS is enabled (case-insensitive)
+        if (string.Equals(_config.TtsOutputMode, "off", StringComparison.OrdinalIgnoreCase))
             return;
 
-        // Check SISO mode
-        if (_config.TtsOutputMode == "siso" && _pttStateMachine?.LastInputWasVoice != true)
+        // Check SISO mode (case-insensitive)
+        if (string.Equals(_config.TtsOutputMode, "siso", StringComparison.OrdinalIgnoreCase) && _pttStateMachine?.LastInputWasVoice != true)
             return;
 
         if (_ttsProvider == null)
@@ -124,7 +124,7 @@ public sealed class AudioResponseHandler : IDisposable
 
             if (textToSpeak.Length > _config.TtsMaxChars)
             {
-                if (_config.TtsTooLongFallback == "skip")
+                if (string.Equals(_config.TtsTooLongFallback, "skip", StringComparison.OrdinalIgnoreCase))
                 {
                     return; // Don't speak this response
                 }
