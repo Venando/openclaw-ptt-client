@@ -3,7 +3,7 @@ namespace OpenClawPTT.Services;
 /// <summary>
 /// Summarizes text for TTS using Direct LLM.
 /// </summary>
-public interface ITtsSummarizer
+public interface ITtsSummarizer : IDisposable
 {
     /// <summary>
     /// Summarizes text for TTS output.

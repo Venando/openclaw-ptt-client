@@ -38,7 +38,7 @@ public class ServiceFactory : IServiceFactory
             "AgentSettingsPersistence not initialized. Call InitializeAgentSettingsPersistence first.");
     }
 
-    public virtual IGatewayService CreateGatewayService(AppConfig cfg) => new GatewayService(cfg, _colorConsole);
+    public virtual IGatewayService CreateGatewayService(AppConfig cfg, ITtsSummarizer? summarizer = null, IPttStateMachine? pttStateMachine = null) => new GatewayService(cfg, _colorConsole, summarizer, pttStateMachine);
 
     public virtual IAudioService CreateAudioService(AppConfig cfg)
     {

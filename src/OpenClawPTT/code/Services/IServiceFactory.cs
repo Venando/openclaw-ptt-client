@@ -19,7 +19,7 @@ public interface IServiceFactory
     /// </summary>
     IAgentSettingsPersistence GetAgentSettingsPersistence();
 
-    IGatewayService CreateGatewayService(AppConfig cfg);
+    IGatewayService CreateGatewayService(AppConfig cfg, ITtsSummarizer? summarizer = null, IPttStateMachine? pttStateMachine = null);
     IAudioService CreateAudioService(AppConfig cfg);
     IPttController CreatePttController(AppConfig cfg, IAudioService audioService, IHotkeyHookFactory? hotkeyHookFactory = null);
     IInputHandler CreateInputHandler(ITextMessageSender textSender);

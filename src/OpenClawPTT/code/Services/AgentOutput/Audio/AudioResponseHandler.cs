@@ -12,16 +12,20 @@ public sealed class AudioResponseHandler : IDisposable
     private readonly ITextToSpeech? _ttsProvider;
     private readonly AudioPlayerService _audioPlayer;
     private readonly TtsService? _ttsService;
+    private readonly ITtsSummarizer? _summarizer;
+    private readonly IPttStateMachine? _pttStateMachine;
     private readonly IColorConsole _console;
     private readonly IBackgroundJobRunner _jobRunner;
     private bool _disposed;
 
-    public AudioResponseHandler(AppConfig config, IColorConsole console, IBackgroundJobRunner? jobRunner = null)
+    public AudioResponseHandler(AppConfig config, IColorConsole console, IBackgroundJobRunner? jobRunner = null, ITtsSummarizer? summarizer = null, IPttStateMachine? pttStateMachine = null)
     {
         _config = config;
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _jobRunner = jobRunner ?? new BackgroundJobRunner(msg => _console.Log("jobrunner", msg));
         _audioPlayer = new AudioPlayerService(console);
+        _summarizer = summarizer;
+        _pttStateMachine = pttStateMachine;
 
         // Initialize TTS provider from config
         if (config.TtsProvider == TtsProviderType.OpenAI &&
@@ -63,29 +67,80 @@ public sealed class AudioResponseHandler : IDisposable
         return PlayTtsAsync(text, ct);
     }
 
-    private Task PlayTtsAsync(string text, CancellationToken ct)
+    private async Task PlayTtsAsync(string text, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(text))
-            return Task.CompletedTask;
+            return;
+
+        // Check if TTS is enabled
+        if (_config.TtsOutputMode == "off")
+            return;
+
+        // Check SISO mode
+        if (_config.TtsOutputMode == "siso" && _pttStateMachine?.LastInputWasVoice != true)
+            return;
 
         if (_ttsProvider == null)
         {
             _console.PrintWarning("TTS not configured - set TtsProvider in settings to enable audio responses.");
-            return Task.CompletedTask;
+            return;
         }
 
+        // Determine if we need summarization
+        var needsProcessing = TtsContentFilter.HasSpecialFormatting(text) ||
+                              text.Length > _config.TtsDirectMaxChars;
+
+        string textToSpeak;
+
+        if (needsProcessing && _config.TtsUseDirectLlmSummary && _summarizer != null)
+        {
+            try
+            {
+                textToSpeak = await _summarizer.SummarizeForTtsAsync(text, _config, ct);
+            }
+            catch (Exception ex)
+            {
+                _console.PrintWarning($"TTS summarization failed: {ex.Message}. Falling back to truncation.");
+                textToSpeak = TtsContentFilter.SanitizeForTts(text);
+                textToSpeak = TtsContentFilter.Truncate(textToSpeak, _config.TtsMaxChars);
+            }
+        }
+        else if (needsProcessing)
+        {
+            // No Direct LLM available
+            textToSpeak = TtsContentFilter.SanitizeForTts(text);
+
+            if (textToSpeak.Length > _config.TtsMaxChars)
+            {
+                if (_config.TtsTooLongFallback == "skip")
+                {
+                    return; // Don't speak this response
+                }
+                else // truncate
+                {
+                    textToSpeak = TtsContentFilter.Truncate(textToSpeak, _config.TtsMaxChars);
+                }
+            }
+        }
+        else
+        {
+            // Short text, speak directly
+            textToSpeak = TtsContentFilter.SanitizeForTts(text);
+        }
+
+        if (string.IsNullOrWhiteSpace(textToSpeak))
+            return;
+
         // Synthesize and play via background job runner
-        var truncated = text.Length > 80 ? text[..80] + "..." : text;
+        var truncated = textToSpeak.Length > 80 ? textToSpeak[..80] + "..." : textToSpeak;
         _jobRunner.RunAndForget(async () =>
         {
-            var audioBytes = await _ttsProvider.SynthesizeAsync(text, _config.TtsVoice, null, ct);
+            var audioBytes = await _ttsProvider.SynthesizeAsync(textToSpeak, _config.TtsVoice, null, ct);
             if (audioBytes != null && audioBytes.Length > 0)
             {
                 _audioPlayer.Play(audioBytes);
             }
         }, $"tts-synthesis-{truncated}");
-
-        return Task.CompletedTask;
     }
 
     /// <summary>

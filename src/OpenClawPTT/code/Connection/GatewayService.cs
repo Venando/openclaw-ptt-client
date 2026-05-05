@@ -9,6 +9,8 @@ public sealed class GatewayService : IGatewayService
 {
     private readonly AppConfig _config;
     private readonly IColorConsole _console;
+    private readonly ITtsSummarizer? _summarizer;
+    private readonly IPttStateMachine? _pttStateMachine;
     private readonly DeviceIdentity _device;
     private IGatewayClient _gatewayClient;
     private AgentOutputAdapter? _uiAdapter;
@@ -23,10 +25,12 @@ public sealed class GatewayService : IGatewayService
     public event Action<string, JsonElement>? EventReceived;
     public event Action<string>? AgentReplyAudio;
 
-    public GatewayService(AppConfig config, IColorConsole console)
+    public GatewayService(AppConfig config, IColorConsole console, ITtsSummarizer? summarizer = null, IPttStateMachine? pttStateMachine = null)
     {
         _config = config;
         _console = console;
+        _summarizer = summarizer;
+        _pttStateMachine = pttStateMachine;
         _device = new DeviceIdentity(config.DataDir);
         _device.EnsureKeypair();
         _gatewayClient = CreateGatewayClient();
@@ -81,7 +85,7 @@ public sealed class GatewayService : IGatewayService
 
     private IGatewayClient CreateGatewayClient()
     {
-        _uiAdapter = new AgentOutputAdapter(_config, _console);
+        _uiAdapter = new AgentOutputAdapter(_config, _console, _summarizer, _pttStateMachine);
         var client = new GatewayClient(_config, _device, new GatewayEventSource(), _console);
         var events = ((IGatewayClient)client).GetEventSource();
 

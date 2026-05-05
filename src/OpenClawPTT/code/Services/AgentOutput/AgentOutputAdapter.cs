@@ -31,7 +31,7 @@ public sealed class AgentOutputAdapter : IDisposable
     // then pushes the complete reply as a single StreamShell message.
     private StreamShellCapturingConsole? _capturingConsole;
 
-    public AgentOutputAdapter(AppConfig config, IColorConsole console)
+    public AgentOutputAdapter(AppConfig config, IColorConsole console, ITtsSummarizer? summarizer = null, IPttStateMachine? pttStateMachine = null)
     {
         _config = config;
         _console = console ?? throw new ArgumentNullException(nameof(console));
@@ -41,7 +41,7 @@ public sealed class AgentOutputAdapter : IDisposable
 
         if (config.AudioResponseMode?.ToLowerInvariant() != "text-only")
         {
-            _audioResponseHandler = new AudioResponseHandler(config, console, _jobRunner);
+            _audioResponseHandler = new AudioResponseHandler(config, console, _jobRunner, summarizer, pttStateMachine);
         }
     }
 

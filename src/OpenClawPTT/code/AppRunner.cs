@@ -58,7 +58,12 @@ public class AppRunner : IDisposable
 
     private async Task<int> RunAppLoopAsync(CancellationToken ct)
     {
-        using var gateway = _factory.CreateGatewayService(_cfg);
+        // Create shared state machine and summarizer early so they can be wired into GatewayService
+        var pttStateMachine = new PttStateMachine();
+        using var directLlmService = _factory.CreateDirectLlmService(_cfg);
+        using var ttsSummarizer = _factory.CreateTtsSummarizer(directLlmService.IsConfigured ? directLlmService : null);
+
+        using var gateway = _factory.CreateGatewayService(_cfg, ttsSummarizer, pttStateMachine);
         try
         {
             await gateway.ConnectAsync(ct);
@@ -75,10 +80,10 @@ public class AppRunner : IDisposable
         {
             return (int)AppLoopExitCode.Error;
         }
-        return await RunPttLoopAsync(gateway, ct);
+        return await RunPttLoopAsync(gateway, pttStateMachine, directLlmService, ct);
     }
 
-    private async Task<int> RunPttLoopAsync(IGatewayService gateway, CancellationToken ct)
+    private async Task<int> RunPttLoopAsync(IGatewayService gateway, IPttStateMachine pttStateMachine, IDirectLlmService directLlmService, CancellationToken ct)
     {
         using var audioService = _factory.CreateAudioService(_cfg);
         var textSender = _factory.CreateTextMessageSender(gateway);
@@ -86,15 +91,11 @@ public class AppRunner : IDisposable
 
         // Agent settings (loaded in AppBootstrapper, already merged into AgentRegistry)
         var pttController = new PttController();
-        var pttStateMachine = new PttStateMachine();
 
         using var agentHotkeyService = new AgentHotkeyService(
             pttController, textSender, _shellHost, _cfg,
             _factory.GetAgentSettingsPersistence(),
             gatewayService: gateway, console: _console);
-
-        // Create direct LLM service if configured
-        using var directLlmService = _factory.CreateDirectLlmService(_cfg);
 
         // Register StreamShell commands (/quit, /reconfigure) before PTT loop
         using var shellCommands = new StreamShellInputHandler(
