@@ -66,7 +66,11 @@ public sealed class TtsService : IDisposable
             _ => null
         };
 
-        if (_provider == null && _providerType != TtsProviderType.Edge && _providerType != TtsProviderType.ElevenLabs)
+        if (_provider == null && _providerType == TtsProviderType.Edge)
+        {
+            // Edge with null key — warn but don't crash (TtsService still works, TTS just silent)
+        }
+        else if (_provider == null)
         {
             throw new InvalidOperationException($"Failed to initialize TTS provider: {_providerType}");
         }
