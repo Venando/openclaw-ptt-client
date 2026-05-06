@@ -441,6 +441,7 @@ public sealed class ConfigurationWizard
             HoldToTalk = source.HoldToTalk,
             ThinkingDisplayMode = source.ThinkingDisplayMode,
             ThinkingPreviewLines = source.ThinkingPreviewLines,
+            HistoryDisplayCount = source.HistoryDisplayCount,
             AgentName = source.AgentName,
             TranscriptionPromptPrefix = source.TranscriptionPromptPrefix,
             GroqRetryCount = source.GroqRetryCount,

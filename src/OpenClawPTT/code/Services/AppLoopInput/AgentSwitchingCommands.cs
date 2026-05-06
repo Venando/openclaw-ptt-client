@@ -99,7 +99,7 @@ public sealed class AgentSwitchingCommands
     /// <summary>Fetches and displays recent session history.</summary>
     public async Task PrintSessionHistory(string sessionKey)
     {
-        var history = await _gatewayService.FetchSessionHistoryAsync(sessionKey, limit: 5);
+        var history = await _gatewayService.FetchSessionHistoryAsync(sessionKey, limit: _appConfig.HistoryDisplayCount);
         if (history == null || history.Count == 0)
             return;
 
