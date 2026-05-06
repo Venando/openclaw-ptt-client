@@ -101,6 +101,10 @@ public sealed class AudioResponseHandler : IDisposable
                 return;
         }
 
+        // Suppress TTS during session history replay
+        if (_pttStateMachine?.DuringReplay == true)
+            return;
+
         if (_ttsProvider == null)
         {
             _console.PrintWarning("TTS not configured - set TtsProvider in settings to enable audio responses.");

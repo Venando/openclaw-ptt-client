@@ -95,7 +95,9 @@ public class AppRunner : IDisposable
         using var agentHotkeyService = new AgentHotkeyService(
             pttController, textSender, _shellHost, _cfg,
             _factory.GetAgentSettingsPersistence(),
-            gatewayService: gateway, console: _console);
+            gatewayService: gateway,
+            pttStateMachine: pttStateMachine,
+            console: _console);
 
         // Register StreamShell commands (/quit, /reconfigure) before PTT loop
         using var shellCommands = new StreamShellInputHandler(

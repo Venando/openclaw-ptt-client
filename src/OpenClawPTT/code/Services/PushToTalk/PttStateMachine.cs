@@ -30,6 +30,9 @@ public sealed class PttStateMachine : IPttStateMachine
 
     public string? LastTargetAgent { get; set; }
 
+    /// <summary>True while session history is being replayed — TTS should be suppressed.</summary>
+    public bool DuringReplay { get; set; }
+
     public PttState CurrentState => _state;
 
     public bool ShouldStartRecording

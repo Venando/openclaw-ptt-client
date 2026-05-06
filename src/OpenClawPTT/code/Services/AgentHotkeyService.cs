@@ -22,6 +22,7 @@ public sealed class AgentHotkeyService : IDisposable
     private readonly IGlobalHotkeyHook? _hook;
     private readonly IColorConsole _console;
     private readonly IAgentSettingsPersistence _agentSettingsPersistence;
+    private readonly IPttStateMachine? _pttStateMachine;
 
     public AgentHotkeyService(
         IPttController pttController,
@@ -30,6 +31,7 @@ public sealed class AgentHotkeyService : IDisposable
         AppConfig cfg,
         IAgentSettingsPersistence agentSettingsPersistence,
         IGatewayService? gatewayService = null,
+        IPttStateMachine? pttStateMachine = null,
         IHotkeyHookFactory? hookFactory = null,
         IColorConsole? console = null)
     {
@@ -39,6 +41,7 @@ public sealed class AgentHotkeyService : IDisposable
         _cfg = cfg;
         _agentSettingsPersistence = agentSettingsPersistence;
         _gatewayService = gatewayService;
+        _pttStateMachine = pttStateMachine;
         _console = console ?? new ColorConsole(shellHost);
 
         // Always create a hook — at minimum for Escape key cancellation.
@@ -121,13 +124,22 @@ public sealed class AgentHotkeyService : IDisposable
         var history = await _gatewayService!.FetchSessionHistoryAsync(sessionKey, limit: 5);
         if (history != null && history.Count > 0)
         {
-            _shellHost.AddMessage("  [grey]── previous messages ──[/]");
-            foreach (var entry in history)
+            // Suppress TTS during history replay
+            if (_pttStateMachine != null) _pttStateMachine.DuringReplay = true;
+            try
             {
-                if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
-                    _console.PrintUserMessage(entry.Content);
-                else
-                    _gatewayService!.DisplayHistoryEntry(entry);
+                _shellHost.AddMessage("  [grey]── previous messages ──[/]");
+                foreach (var entry in history)
+                {
+                    if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
+                        _console.PrintUserMessage(entry.Content);
+                    else
+                        _gatewayService!.DisplayHistoryEntry(entry);
+                }
+            }
+            finally
+            {
+                if (_pttStateMachine != null) _pttStateMachine.DuringReplay = false;
             }
         }
 

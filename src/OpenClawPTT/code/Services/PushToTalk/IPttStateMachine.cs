@@ -40,4 +40,7 @@ public interface IPttStateMachine
 
     /// <summary>Agent name the last message was sent to (for SISO agent-matching).</summary>
     string? LastTargetAgent { get; set; }
+
+    /// <summary>True while session history is being replayed — TTS should be suppressed.</summary>
+    bool DuringReplay { get; set; }
 }

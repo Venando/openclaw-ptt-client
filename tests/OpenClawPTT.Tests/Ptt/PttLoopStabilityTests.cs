@@ -22,6 +22,7 @@ public class PttLoopStabilityTests : IDisposable
         public PttState CurrentState { get; set; } = PttState.Idle;
         public bool LastInputWasVoice { get; set; } = false;
         public string? LastTargetAgent { get; set; }
+        public bool DuringReplay { get; set; }
         public bool ShouldStartRecording_Flag { get; set; }
         public bool ShouldStopRecording_Flag { get; set; }
         public bool ShouldToggleRecording_Flag { get; set; }

@@ -57,7 +57,7 @@ public sealed class StreamShellInputHandler : IDisposable
         _pttStateMachine = pttStateMachine;
         _ttsSummarizer = ttsSummarizer;
         _agentSettings = new AgentSettingsCommands(host, configService, agentSettingsPersistence);
-        _agentSwitching = new AgentSwitchingCommands(host, textSender, gatewayService, appConfig, console, agentSettingsPersistence);
+        _agentSwitching = new AgentSwitchingCommands(host, textSender, gatewayService, appConfig, console, agentSettingsPersistence, pttStateMachine);
         _messageComposer = new TextMessageComposer(host, textSender);
     }
 
