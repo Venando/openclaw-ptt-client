@@ -48,7 +48,7 @@ public sealed class TtsService : IDisposable
                 config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits",
                 config.CoquiConfigPath,
                 config.EspeakNgPath,
-                config.PythonTtsDebugLog),
+                true),
             TtsProviderType.Piper => new Providers.PiperTtsProvider(config.PiperPath ?? "piper", config.PiperModelPath ?? "", config.PiperVoice ?? "en_US-lessac"),
             TtsProviderType.Edge => config.TtsSubscriptionKey != null
                 ? new Providers.EdgeTtsProvider(config.TtsSubscriptionKey, config.TtsRegion ?? "eastus")
@@ -62,7 +62,7 @@ public sealed class TtsService : IDisposable
                 config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits",
                 config.CoquiConfigPath,
                 null,
-                config.PythonTtsDebugLog),
+                true),
             _ => null
         };
 

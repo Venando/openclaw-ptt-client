@@ -30,9 +30,8 @@ public sealed class AppConfig
     public int Channels { get; set; } = 1;
     public int BitsPerSample { get; set; } = 16;
     public int MaxRecordSeconds { get; set; } = 120;
-    public bool LogConnect { get; set; } = false;
-    public bool LogHello { get; set; } = false;
-    public bool LogSnapshot { get; set; } = false;
+    /// <summary>Controls diagnostic log output verbosity. Default = Error (only errors shown).</summary>
+    public LogLevel DebugLevel { get; set; } = LogLevel.Error;
     public string GroqApiKey { get; set; } = "gsk_";
     public bool RealTimeReplyOutput { get; set; } = true;
     public ReplyDisplayMode ReplyDisplayMode { get; set; } = ReplyDisplayMode.Both;
@@ -50,7 +49,7 @@ public sealed class AppConfig
     public bool HoldToTalk { get; set; } = false;
     public bool ShowThinking { get; set; } = false;
     public bool RequireConfirmBeforeSend { get; set; } = false;
-    public bool DebugToolCalls { get; set; } = false;
+
     public string AgentName { get; set; } = "Agent";
     public string TranscriptionPromptPrefix { get; set; } = "[It's a raw speech-to-text transcription]: ";
     // AudioWrapPrompt and IsAudioEnabled removed — no longer needed
@@ -96,8 +95,7 @@ public sealed class AppConfig
     // eSpeak NG path for Coqui TTS (platform-specific default)
     public string? EspeakNgPath { get; set; }
 
-    // Python TTS debug settings
-    public bool PythonTtsDebugLog { get; set; } = false;
+
 
     // Direct LLM settings (bypass agent for direct LLM calls)
     public string? DirectLlmToken { get; set; }

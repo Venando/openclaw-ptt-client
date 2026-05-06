@@ -58,6 +58,9 @@ public class AppRunner : IDisposable
 
     private async Task<int> RunAppLoopAsync(CancellationToken ct)
     {
+        // Apply configured debug level to console
+        _console.LogLevel = _cfg.DebugLevel;
+
         // Create shared state machine and summarizer early so they can be wired into GatewayService
         var pttStateMachine = new PttStateMachine();
         using var directLlmService = _factory.CreateDirectLlmService(_cfg);

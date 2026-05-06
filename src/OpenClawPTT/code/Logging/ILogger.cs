@@ -5,9 +5,9 @@ namespace OpenClawPTT;
 /// </summary>
 public interface ILogger
 {
-    /// <summary>Logs an informational message.</summary>
-    void Log(string source, string message);
+    /// <summary>Logs a message with the specified severity level.</summary>
+    void Log(string source, string message, LogLevel level = LogLevel.Debug);
 
     /// <summary>Logs an error message.</summary>
-    void LogError(string source, string message);
+    void LogError(string source, string message, LogLevel level = LogLevel.Error);
 }

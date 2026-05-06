@@ -441,9 +441,7 @@ public sealed class ConfigurationWizard
             Channels = source.Channels,
             BitsPerSample = source.BitsPerSample,
             MaxRecordSeconds = source.MaxRecordSeconds,
-            LogConnect = source.LogConnect,
-            LogHello = source.LogHello,
-            LogSnapshot = source.LogSnapshot,
+            DebugLevel = source.DebugLevel,
             GroqApiKey = source.GroqApiKey,
             RealTimeReplyOutput = source.RealTimeReplyOutput,
             ReplyDisplayMode = source.ReplyDisplayMode,
@@ -456,7 +454,7 @@ public sealed class ConfigurationWizard
             HotkeyCombination = source.HotkeyCombination,
             HoldToTalk = source.HoldToTalk,
             ShowThinking = source.ShowThinking,
-            DebugToolCalls = source.DebugToolCalls,
+
             AgentName = source.AgentName,
             TranscriptionPromptPrefix = source.TranscriptionPromptPrefix,
             GroqRetryCount = source.GroqRetryCount,
@@ -486,7 +484,7 @@ public sealed class ConfigurationWizard
             PiperModelPath = source.PiperModelPath,
             PiperVoice = source.PiperVoice,
             EspeakNgPath = source.EspeakNgPath,
-            PythonTtsDebugLog = source.PythonTtsDebugLog,
+
             AudioResponseMode = source.AudioResponseMode,
             TtsApiKey = source.TtsApiKey,
             TtsVoiceId = source.TtsVoiceId,
