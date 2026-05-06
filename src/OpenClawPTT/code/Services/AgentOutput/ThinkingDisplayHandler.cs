@@ -192,7 +192,6 @@ public sealed class ThinkingDisplayHandler
             if (maxLineWidth < 20) maxLineWidth = 79; // fallback
 
             var wrappedLines = TextWidth.WrapToVisualWidth(thinking, maxLineWidth);
-            int totalVisualChars = TextWidth.GetVisualWidth(thinking);
 
             var displayLines = wrappedLines.Take(_config.ThinkingPreviewLines).ToList();
             bool hasMore = wrappedLines.Count > _config.ThinkingPreviewLines;
@@ -204,13 +203,8 @@ public sealed class ThinkingDisplayHandler
 
             if (hasMore)
             {
-                // Count remaining visual characters
-                int remainingStart = 0;
-                for (int i = 0; i < _config.ThinkingPreviewLines && i < wrappedLines.Count; i++)
-                    remainingStart += wrappedLines[i].Length;
-                int remainingVisualWidth = TextWidth.GetVisualWidth(thinking[remainingStart..]);
-
-                _toolOutput.PrintLine($"... ({remainingVisualWidth} more chars)", ConsoleColor.DarkGray);
+                int remainingLines = wrappedLines.Count - _config.ThinkingPreviewLines;
+                _toolOutput.PrintLine($"... ({remainingLines} more lines)", ConsoleColor.DarkGray);
             }
         }
 
