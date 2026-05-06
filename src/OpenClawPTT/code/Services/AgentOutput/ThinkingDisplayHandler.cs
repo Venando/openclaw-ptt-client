@@ -2,6 +2,120 @@ using Spectre.Console;
 
 namespace OpenClawPTT.Services;
 
+public static class TextWidth
+{
+    /// <summary>
+    /// Returns the visual display width of a single character.
+    /// CJK / fullwidth characters have width 2; everything else width 1.
+    /// </summary>
+    public static int GetVisualWidth(char c)
+    {
+        if ((c >= 0x1100 && c <= 0x115f) || // Hangul Jamo
+            (c >= 0x2e80 && c <= 0xa4cf && c != 0x303f) || // CJK Radicals, Symbols, Kanji
+            (c >= 0xac00 && c <= 0xd7a3) || // Hangul Syllables
+            (c >= 0xf900 && c <= 0xfaff) || // CJK Compatibility Ideographs
+            (c >= 0xfe10 && c <= 0xfe19) || // Vertical forms
+            (c >= 0xfe30 && c <= 0xfe6f) || // CJK Compatibility Forms
+            (c >= 0xff00 && c <= 0xff60) || // Fullwidth Forms
+            (c >= 0xffe0 && c <= 0xffe6))   // Fullwidth Symbols
+        {
+            return 2;
+        }
+        return 1;
+    }
+
+    /// <summary>
+    /// Returns the total visual display width of a string.
+    /// </summary>
+    public static int GetVisualWidth(string input)
+    {
+        int width = 0;
+        foreach (char c in input)
+            width += GetVisualWidth(c);
+        return width;
+    }
+
+    /// <summary>
+    /// Splits text into lines each not exceeding <paramref name="maxWidth"/>
+    /// visual columns. Breaks at word boundaries (whitespace) when possible,
+    /// or at the exact column limit otherwise.
+    /// </summary>
+    public static List<string> WrapToVisualWidth(string text, int maxWidth)
+    {
+        var lines = new List<string>();
+        if (string.IsNullOrEmpty(text) || maxWidth <= 0)
+        {
+            if (!string.IsNullOrEmpty(text))
+                lines.Add(text);
+            return lines;
+        }
+
+        // Treat tab as a single space for wrapping purposes
+        text = text.Replace('\t', ' ');
+
+        int i = 0;
+        while (i < text.Length)
+        {
+            if (text[i] == '\n')
+            {
+                lines.Add("");
+                i++;
+                continue;
+            }
+
+            int lineStart = i;
+            int visualWidth = 0;
+
+            // Find the longest substring that fits within maxWidth
+            while (i < text.Length && text[i] != '\n')
+            {
+                int cw = GetVisualWidth(text[i]);
+                if (visualWidth + cw > maxWidth)
+                    break;
+                visualWidth += cw;
+                i++;
+            }
+
+            int lineEnd = i;
+
+            // If we can't fit even one character, force-break at current position
+            if (lineEnd == lineStart && i < text.Length)
+            {
+                int cw = GetVisualWidth(text[i]);
+                lineEnd = i + 1;
+                i = lineEnd;
+                lines.Add(text[lineStart..lineEnd]);
+                continue;
+            }
+
+            // If we broke mid-word, try to find the last whitespace for a cleaner break
+            if (i < text.Length && text[i] != '\n' && lineEnd > lineStart)
+            {
+                int breakAt = -1;
+                // Scan backwards from the break point for any whitespace
+                for (int j = lineEnd - 1; j >= lineStart; j--)
+                {
+                    if (char.IsWhiteSpace(text[j]))
+                    {
+                        breakAt = j;
+                        break;
+                    }
+                }
+
+                if (breakAt > lineStart)
+                {
+                    lineEnd = breakAt;
+                    i = breakAt + 1; // skip the whitespace so next line starts clean
+                }
+            }
+
+            lines.Add(text[lineStart..lineEnd]);
+        }
+
+        return lines;
+    }
+}
+
 /// <summary>
 /// Handles display of agent "thinking" content based on the configured
 /// <see cref="ThinkingMode"/>.
@@ -57,19 +171,43 @@ public sealed class ThinkingDisplayHandler
 
     /// <summary>
     /// Mode 3: Show emoji header + first N lines of thinking, tool-output style.
-    /// Reuses <see cref="IToolOutput.PrintTruncated"/> for consistent rendering.
+    /// Breaks thinking text into lines that fit within the console width,
+    /// accounting for full-width and half-width character differences,
+    /// and respecting <see cref="AppConfig.ThinkingPreviewLines"/>.
     /// </summary>
     private void DisplayFirstNLines(string thinking)
     {
         string emojiHeader = $"[gray93 on #333333]  💭 Thinking[/] ";
         _toolOutput.Start(emojiHeader);
-        _toolOutput.PrintTruncated(
-            thinking,
-            continuationPrefix: "",
-            rightMarginIndent: _config.RightMarginIndent,
-            color: ConsoleColor.Gray,
-            maxRows: _config.ThinkingPreviewLines);
-        _toolOutput.PrintLine("", ConsoleColor.Gray);
+
+        if (!string.IsNullOrEmpty(thinking))
+        {
+            // Available width: min of 80 and console width minus overhead
+            int consoleWidth = 80;
+            try { consoleWidth = Console.WindowWidth; } catch { }
+
+            // Estimate prefix visual width (~5 chars for "  💭 ", variable for rest)
+            int prefixWidth = TextWidth.GetVisualWidth("  💭 Thinking ");
+            int maxLineWidth = Math.Min(79, consoleWidth - prefixWidth - _config.RightMarginIndent);
+            if (maxLineWidth < 20) maxLineWidth = 79; // fallback
+
+            var wrappedLines = TextWidth.WrapToVisualWidth(thinking, maxLineWidth);
+
+            var displayLines = wrappedLines.Take(_config.ThinkingPreviewLines).ToList();
+            bool hasMore = wrappedLines.Count > _config.ThinkingPreviewLines;
+
+            foreach (var line in displayLines)
+            {
+                _toolOutput.PrintLine(line, ConsoleColor.Gray);
+            }
+
+            if (hasMore)
+            {
+                int remainingLines = wrappedLines.Count - _config.ThinkingPreviewLines;
+                _toolOutput.PrintMarkup($"[dim]... ({remainingLines} more lines)[/]\n");
+            }
+        }
+
         _toolOutput.Finish();
         _toolOutput.Flush();
     }

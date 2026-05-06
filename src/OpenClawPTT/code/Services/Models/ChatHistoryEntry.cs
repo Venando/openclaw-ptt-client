@@ -13,6 +13,12 @@ public class ChatHistoryEntry
     public DateTime? CreatedAt { get; init; }
 
     /// <summary>
+    /// Thinking content from content blocks of type "thinking" in the history response.
+    /// Displayed according to <see cref="AppConfig.ThinkingDisplayMode"/>.
+    /// </summary>
+    public string Thinking { get; init; } = "";
+
+    /// <summary>
     /// Tool calls associated with this entry (from content blocks of type "toolCall"
     /// or "tool_use" in the history response). Each entry has a tool name and
     /// its JSON arguments, matching the <c>OnAgentToolCall</c> event signature.

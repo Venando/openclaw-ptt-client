@@ -19,7 +19,8 @@ public static class UserMessageHelper
         }
 
         var toolCalls = new List<ToolCallEntry>();
-        var content = ExtractMessageContent(msg, toolCalls);
+        var thinkingBlocks = new List<string>();
+        var content = ExtractMessageContent(msg, toolCalls, thinkingBlocks);
         var createdAt = msg.TryGetProperty("createdAt", out var c)
             ? DateTime.TryParse(c.GetString(), out var dt) ? dt : (DateTime?)null
             : null;
@@ -49,6 +50,7 @@ public static class UserMessageHelper
             Role = role,
             Content = content ?? "",
             CreatedAt = createdAt,
+            Thinking = string.Join("\n", thinkingBlocks).Trim(),
             ToolCalls = toolCalls,
         };
         return true;
@@ -56,9 +58,10 @@ public static class UserMessageHelper
 
     /// <summary>
     /// Extracts text content from a message's content field (string or array of blocks).
-    /// Also populates <paramref name="toolCalls"/> with tool call blocks found in the array.
+    /// Also populates <paramref name="toolCalls"/> with tool call blocks found in the array
+    /// and <paramref name="thinkingBlocks"/> with thinking blocks.
     /// </summary>
-    private static string ExtractMessageContent(JsonElement msg, List<ToolCallEntry> toolCalls)
+    private static string ExtractMessageContent(JsonElement msg, List<ToolCallEntry> toolCalls, List<string> thinkingBlocks)
     {
         if (!msg.TryGetProperty("content", out var contentEl))
             return "";
@@ -77,6 +80,12 @@ public static class UserMessageHelper
                 if (type == "text" && block.TryGetProperty("text", out var textEl))
                 {
                     parts.Add(textEl.GetString() ?? "");
+                }
+                else if (type == "thinking" && block.TryGetProperty("thinking", out var thinkEl))
+                {
+                    var thinkText = thinkEl.GetString() ?? "";
+                    if (!string.IsNullOrEmpty(thinkText))
+                        thinkingBlocks.Add(thinkText);
                 }
                 else if ((type == "toolCall" || type == "tool_use")
                     && block.TryGetProperty("name", out var nameEl)
