@@ -27,12 +27,13 @@ public sealed class AgentOutputAdapter : IDisposable
     private string _currentPrefix = "";
     private string _newlineSuffix = "";
     private int _prefixLength;
+    private string _accumulatedText = "";
 
     // Capturing console used when StreamShell is active — accumulates formatter output
     // then pushes the complete reply as a single StreamShell message.
     private StreamShellCapturingConsole? _capturingConsole;
 
-    public AgentOutputAdapter(AppConfig config, IColorConsole console)
+    public AgentOutputAdapter(AppConfig config, IColorConsole console, ITtsSummarizer? summarizer = null, IPttStateMachine? pttStateMachine = null)
     {
         _config = config;
         _console = console ?? throw new ArgumentNullException(nameof(console));
@@ -43,7 +44,7 @@ public sealed class AgentOutputAdapter : IDisposable
 
         if (config.AudioResponseMode?.ToLowerInvariant() != "text-only")
         {
-            _audioResponseHandler = new AudioResponseHandler(config, console, _jobRunner);
+            _audioResponseHandler = new AudioResponseHandler(config, console, _jobRunner, summarizer, pttStateMachine);
         }
     }
 
@@ -76,8 +77,6 @@ public sealed class AgentOutputAdapter : IDisposable
     public void OnAgentReplyFull(string body)
     {
         var markdownBody = MarkdownToSpectreConverter.Convert(body);
-        // When StreamShell is active, use a capturing console for word-wrapped replies
-        // so the complete formatted reply gets pushed as a single StreamShell message.
         bool useCapturing = _console.GetStreamShellHost() != null;
 
         EnsurePrefixPrinted();
@@ -97,15 +96,22 @@ public sealed class AgentOutputAdapter : IDisposable
         {
             _console.PrintAgentReplyWithMarkdown(_currentPrefix, markdownBody);
         }
-        
+
         _prefixPrinted = false;
+        _hasAudioInCurrentMessage = false;
+
+        // Fire TTS for non-streaming (single-shot) responses
+        if (_audioResponseHandler != null && !string.IsNullOrWhiteSpace(body))
+        {
+            _ = _audioResponseHandler.HandleAudioMarkerAsync(body);
+        }
     }
 
     public void OnAgentThinking(string thinking)
     {
         if (_config.ThinkingDisplayMode != ThinkingMode.None)
         {
-            _thinkingDisplay.DisplayThinking(thinking);
+_thinkingDisplay.DisplayThinking(thinking);
             _prefixPrinted = false;
         }
         else
@@ -122,12 +128,14 @@ public sealed class AgentOutputAdapter : IDisposable
     public void OnAgentReplyDeltaStart()
     {
         _isDeltaStarted = true;
+        _accumulatedText = "";
         _formatter = null;
     }
 
     public void OnAgentReplyDelta(string delta)
     {
         if (!_isDeltaStarted) return;
+        _accumulatedText += delta;
         EnsurePrefixPrinted();
         if (_formatter != null)
         {
@@ -152,16 +160,20 @@ public sealed class AgentOutputAdapter : IDisposable
             _formatter.Finish();
             _formatter = null;
         }
+
+        // Fire TTS on accumulated text from streaming response
+        if (_audioResponseHandler != null && !string.IsNullOrWhiteSpace(_accumulatedText))
+        {
+            _ = _audioResponseHandler.HandleAudioMarkerAsync(_accumulatedText);
+        }
+
+        _accumulatedText = "";
     }
 
     public void OnAgentReplyAudio(string audioText)
     {
         _hasAudioInCurrentMessage = true;
-        // Audio handling is async; fire and forget
-        if (_audioResponseHandler != null)
-        {
-            _ = _audioResponseHandler.HandleAudioMarkerAsync(audioText);
-        }
+        // [audio] markers are no longer the TTS trigger — they only set the prefix emoji.
     }
 
     // ─── helpers ───────────────────────────────────────────────────
@@ -172,7 +184,7 @@ public sealed class AgentOutputAdapter : IDisposable
         _prefixPrinted = true;
 
         var isAudioEnabled = _config.AudioResponseMode?.ToLowerInvariant() != "text-only";
-        
+
         AgentRegistry.GetActiveNameAndEmoji(out var agentName, out var emoji, _config.AgentName);
 
         if (isAudioEnabled && _hasAudioInCurrentMessage)
@@ -193,7 +205,6 @@ public sealed class AgentOutputAdapter : IDisposable
 
         if (_config.EnableWordWrap)
         {
-            // When StreamShell is active, capture formatter output for final flush to Shell
             var shellHost = _console.GetStreamShellHost();
             if (shellHost != null)
             {

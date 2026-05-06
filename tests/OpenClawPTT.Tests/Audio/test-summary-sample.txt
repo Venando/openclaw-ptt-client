@@ -1,0 +1,38 @@
+# Test Summary Sample
+
+This is a **sample agent response** for testing the TTS pipeline.
+
+## Check Pipeline Status
+
+Here's the current status of everything:
+
+- **Pipeline health**: ✅ All scripts are operational
+- **Check episodes**: Runs every 20 minutes
+- **Cleanup episodes**: Daily at 23:30 Kiev time
+- **Summary follow up**: Fires at 10:00 and 22:00
+
+### Daemon Status
+The aria2 daemon is up on port **6800**.
+
+Current season is **Early May 2026**. Spring anime are airing.
+
+## Recent Activity
+
+Just fixed a batch torrent issue for Akane-banashi — episodes 1-24 were seeded from a single batch download. Everything is now registered in the database.
+
+## Download Rules
+
+Download window says downloads are **silent** during 2:00-5:59 PM Kiev time. No notifications while you are sleeping.
+
+---
+
+## Code Example
+```python
+def check_pipeline():
+    print("Pipeline operational")
+    return True
+```
+
+Check out the docs at https://docs.example.com for more info.
+
+*Anything specific you want me to check on?*

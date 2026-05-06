@@ -23,4 +23,8 @@
     <ProjectReference Include="..\..\src\OpenClawPTT\OpenClawPTT.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Audio\test-summary-sample.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

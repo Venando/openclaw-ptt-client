@@ -3,12 +3,6 @@ using OpenClawPTT.TTS;
 
 namespace OpenClawPTT;
 
-public enum VisualMode : int
-{
-    SolidDot = 1,
-    GlowDot = 2,
-}
-
 public enum ThinkingMode
 {
     /// <summary>Display nothing.</summary>
@@ -19,16 +13,6 @@ public enum ThinkingMode
     FirstNLines = 2,
     /// <summary>Show all thinking, agent-reply style (supports future streaming).</summary>
     Full = 3,
-}
-
-public enum ReplyDisplayMode
-{
-    /// <summary>Use streaming delta events only (AgentReplyDeltaStart/Delta/End). Suppresses AgentReplyFull.</summary>
-    Delta = 0,
-    /// <summary>Use full reply events only (AgentReplyFull). Suppresses delta events.</summary>
-    Full = 1,
-    /// <summary>Both delta and full reply fire (default). Use this if unsure.</summary>
-    Both = 2,
 }
 
 public sealed class AppConfig
@@ -42,9 +26,8 @@ public sealed class AppConfig
     public int Channels { get; set; } = 1;
     public int BitsPerSample { get; set; } = 16;
     public int MaxRecordSeconds { get; set; } = 120;
-    public bool LogConnect { get; set; } = false;
-    public bool LogHello { get; set; } = false;
-    public bool LogSnapshot { get; set; } = false;
+    /// <summary>Controls diagnostic log output verbosity. Default = Error (only errors shown).</summary>
+    public LogLevel DebugLevel { get; set; } = LogLevel.Error;
     public string GroqApiKey { get; set; } = "gsk_";
     public bool RealTimeReplyOutput { get; set; } = true;
     public ReplyDisplayMode ReplyDisplayMode { get; set; } = ReplyDisplayMode.Both;
@@ -63,7 +46,7 @@ public sealed class AppConfig
     public ThinkingMode ThinkingDisplayMode { get; set; } = ThinkingMode.None;
     public int ThinkingPreviewLines { get; set; } = 5;
     public bool RequireConfirmBeforeSend { get; set; } = false;
-    public bool DebugToolCalls { get; set; } = false;
+
     public string AgentName { get; set; } = "Agent";
     public string TranscriptionPromptPrefix { get; set; } = "[It's a raw speech-to-text transcription]: ";
     // AudioWrapPrompt and IsAudioEnabled removed — no longer needed
@@ -109,8 +92,7 @@ public sealed class AppConfig
     // eSpeak NG path for Coqui TTS (platform-specific default)
     public string? EspeakNgPath { get; set; }
 
-    // Python TTS debug settings
-    public bool PythonTtsDebugLog { get; set; } = false;
+
 
     // Direct LLM settings (bypass agent for direct LLM calls)
     public string? DirectLlmToken { get; set; }
@@ -123,9 +105,16 @@ public sealed class AppConfig
     public string? TtsApiKey { get; set; } // Optional ElevenLabs API key
     public string? TtsVoiceId { get; set; } // Default ElevenLabs voice
 
+    // TTS SISO settings
+    public string TtsOutputMode { get; set; } = "siso"; // "always-on", "siso", "off"
+    public int TtsDirectMaxChars { get; set; } = 300;   // Under this: speak directly
+    public int TtsMaxChars { get; set; } = 1500;        // Upper limit for TTS output
+    public string TtsCodeBlockMode { get; set; } = "smart"; // "summarize", "skip", "smart"
+    public string TtsTooLongFallback { get; set; } = "truncate"; // "truncate" or "skip"
+    public bool TtsUseDirectLlmSummary { get; set; } = true;
+
     [JsonIgnore]
     public string ClientVersion => "1.0.0";
-
 
     [JsonIgnore]
     public string? CustomDataDir { get; set; }

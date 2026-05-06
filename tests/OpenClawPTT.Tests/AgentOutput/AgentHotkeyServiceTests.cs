@@ -70,7 +70,7 @@ public class AgentHotkeyServiceTests : IDisposable
         var config = new AppConfig();
         var service = new TestableGatewayService(config, mockClient.Object);
 
-        using var svc = new AgentHotkeyService(pttCtrl.Object, Mock.Of<ITextMessageSender>(), Mock.Of<IStreamShellHost>(), config, CreatePersistenceMock(), service, _factory);
+        using var svc = new AgentHotkeyService(pttCtrl.Object, Mock.Of<ITextMessageSender>(), Mock.Of<IStreamShellHost>(), config, CreatePersistenceMock(), service, null, _factory);
 
         svc.HandleHotkeyPressed(0); // a1 is active by default
 
@@ -93,7 +93,7 @@ public class AgentHotkeyServiceTests : IDisposable
         var mockClient = new Mock<IGatewayClient>();
         var config = new AppConfig();
         var service = new TestableGatewayService(config, mockClient.Object);
-        using var svc = new AgentHotkeyService(pttCtrl.Object, sender.Object, shellHost.Object, config, CreatePersistenceMock(), service, _factory);
+        using var svc = new AgentHotkeyService(pttCtrl.Object, sender.Object, shellHost.Object, config, CreatePersistenceMock(), service, null, _factory);
 
         // Press hotkey for Beta (index 1), which is not active
         Assert.Equal("agent:a1:main", AgentRegistry.ActiveSessionKey);
@@ -118,7 +118,7 @@ public class AgentHotkeyServiceTests : IDisposable
         var mockClient = new Mock<IGatewayClient>();
         var config = new AppConfig();
         var service = new TestableGatewayService(config, mockClient.Object);
-        using var svc = new AgentHotkeyService(pttCtrl.Object, Mock.Of<ITextMessageSender>(), Mock.Of<IStreamShellHost>(), config, CreatePersistenceMock(), service, _factory);
+        using var svc = new AgentHotkeyService(pttCtrl.Object, Mock.Of<ITextMessageSender>(), Mock.Of<IStreamShellHost>(), config, CreatePersistenceMock(), service, null, _factory);
 
         // First press: switch to Beta
         svc.HandleHotkeyPressed(1);
@@ -139,7 +139,7 @@ public class AgentHotkeyServiceTests : IDisposable
         var cfg = new AppConfig { HoldToTalk = true };
         var mockClient = new Mock<IGatewayClient>();
         var service = new TestableGatewayService(cfg, mockClient.Object);
-        using var svc = new AgentHotkeyService(pttCtrl.Object, Mock.Of<ITextMessageSender>(), Mock.Of<IStreamShellHost>(), cfg, CreatePersistenceMock(), service, _factory);
+        using var svc = new AgentHotkeyService(pttCtrl.Object, Mock.Of<ITextMessageSender>(), Mock.Of<IStreamShellHost>(), cfg, CreatePersistenceMock(), service, null, _factory);
 
         svc.HandleHotkeyReleased(0);
 
@@ -156,7 +156,7 @@ public class AgentHotkeyServiceTests : IDisposable
         var cfg = new AppConfig { HoldToTalk = false };
         var mockClient = new Mock<IGatewayClient>();
         var service = new TestableGatewayService(cfg, mockClient.Object);
-        using var svc = new AgentHotkeyService(pttCtrl.Object, Mock.Of<ITextMessageSender>(), Mock.Of<IStreamShellHost>(), cfg, CreatePersistenceMock(), service, _factory);
+        using var svc = new AgentHotkeyService(pttCtrl.Object, Mock.Of<ITextMessageSender>(), Mock.Of<IStreamShellHost>(), cfg, CreatePersistenceMock(), service, null, _factory);
 
         svc.HandleHotkeyReleased(0);
 
@@ -173,7 +173,7 @@ public class AgentHotkeyServiceTests : IDisposable
         var mockClient = new Mock<IGatewayClient>();
         var config = new AppConfig();
         var service = new TestableGatewayService(config, mockClient.Object);
-        using var svc = new AgentHotkeyService(pttCtrl.Object, Mock.Of<ITextMessageSender>(), Mock.Of<IStreamShellHost>(), config, CreatePersistenceMock(), service, _factory);
+        using var svc = new AgentHotkeyService(pttCtrl.Object, Mock.Of<ITextMessageSender>(), Mock.Of<IStreamShellHost>(), config, CreatePersistenceMock(), service, null, _factory);
 
         svc.HandleHotkeyPressed(5); // out of range
         pttCtrl.Verify(p => p.StartRecording(), Times.Never);

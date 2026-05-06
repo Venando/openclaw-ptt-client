@@ -20,6 +20,8 @@ public class ServiceFactory : IServiceFactory
         _colorConsole = new ColorConsole(shellHost);
     }
 
+    public IColorConsole ColorConsole => _colorConsole;
+
     /// <summary>
     /// Initialize the agent settings persistence with the settings service.
     /// Called by AppBootstrapper after loading the config.
@@ -38,7 +40,7 @@ public class ServiceFactory : IServiceFactory
             "AgentSettingsPersistence not initialized. Call InitializeAgentSettingsPersistence first.");
     }
 
-    public virtual IGatewayService CreateGatewayService(AppConfig cfg) => new GatewayService(cfg, _colorConsole);
+    public virtual IGatewayService CreateGatewayService(AppConfig cfg, ITtsSummarizer? summarizer = null, IPttStateMachine? pttStateMachine = null) => new GatewayService(cfg, _colorConsole, summarizer, pttStateMachine);
 
     public virtual IAudioService CreateAudioService(AppConfig cfg)
     {
@@ -68,14 +70,19 @@ public class ServiceFactory : IServiceFactory
     public IColorConsole CreateColorConsole() => _colorConsole;
 
     public IAppLoop CreatePttLoop(
+        IPttStateMachine stateMachine,
         IAudioService audioService,
         IPttController pttController,
         ITextMessageSender textSender,
         IInputHandler inputHandler,
         bool requireConfirmBeforeSend = false)
     {
-        var stateMachine = new PttStateMachine();
         return new AppLoop(stateMachine, audioService, textSender, inputHandler, pttController, _colorConsole,
             requireConfirmBeforeSend);
+    }
+
+    public ITtsSummarizer CreateTtsSummarizer(IDirectLlmService? directLlm)
+    {
+        return new TtsSummarizer(directLlm, _colorConsole);
     }
 }

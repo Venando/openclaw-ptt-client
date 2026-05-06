@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Linq;
+using OpenClawPTT.Services.DirectLlm.Models;
 
 namespace OpenClawPTT.Services;
 
@@ -189,77 +190,5 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
         }
     }
 
-    // OpenAI API models
-    private sealed class OpenAiRequest
-    {
-        [JsonPropertyName("model")]
-        public string Model { get; set; } = "";
-        
-        [JsonPropertyName("messages")]
-        public OpenAiMessage[] Messages { get; set; } = Array.Empty<OpenAiMessage>();
-        
-        [JsonPropertyName("stream")]
-        public bool Stream { get; set; }
-    }
 
-    private sealed class OpenAiMessage
-    {
-        [JsonPropertyName("role")]
-        public string Role { get; set; } = "";
-        
-        [JsonPropertyName("content")]
-        public string Content { get; set; } = "";
-    }
-
-    private sealed class OpenAiResponse
-    {
-        [JsonPropertyName("choices")]
-        public OpenAiChoice[]? Choices { get; set; }
-    }
-
-    private sealed class OpenAiChoice
-    {
-        [JsonPropertyName("message")]
-        public OpenAiMessage? Message { get; set; }
-    }
-
-    // Anthropic API models
-    private sealed class AnthropicRequest
-    {
-        [JsonPropertyName("model")]
-        public string Model { get; set; } = "";
-        
-        [JsonPropertyName("messages")]
-        public AnthropicMessage[] Messages { get; set; } = Array.Empty<AnthropicMessage>();
-        
-        [JsonPropertyName("max_tokens")]
-        public int MaxTokens { get; set; }
-        
-        [JsonPropertyName("stream")]
-        public bool Stream { get; set; }
-    }
-
-    private sealed class AnthropicMessage
-    {
-        [JsonPropertyName("role")]
-        public string Role { get; set; } = "";
-        
-        [JsonPropertyName("content")]
-        public string Content { get; set; } = "";
-    }
-
-    private sealed class AnthropicResponse
-    {
-        [JsonPropertyName("content")]
-        public AnthropicContent[]? Content { get; set; }
-    }
-
-    private sealed class AnthropicContent
-    {
-        [JsonPropertyName("type")]
-        public string Type { get; set; } = "";
-        
-        [JsonPropertyName("text")]
-        public string Text { get; set; } = "";
-    }
 }

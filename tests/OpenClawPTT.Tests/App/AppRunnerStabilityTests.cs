@@ -41,7 +41,7 @@ public class AppRunnerStabilityTests
         public AppConfig? LastGatewayConfig { get; private set; }
         public int CreateGatewayServiceCallCount { get; private set; }
 
-        public IGatewayService CreateGatewayService(AppConfig cfg)
+        public IGatewayService CreateGatewayService(AppConfig cfg, ITtsSummarizer? summarizer = null, IPttStateMachine? pttStateMachine = null)
         {
             LastGatewayConfig = cfg;
             CreateGatewayServiceCallCount++;
@@ -58,11 +58,14 @@ public class AppRunnerStabilityTests
         public IAgentSettingsPersistence GetAgentSettingsPersistence() => CreatePersistenceMock();
         public IColorConsole CreateColorConsole() => Mock.Of<IColorConsole>();
         public IAppLoop CreatePttLoop(
+            IPttStateMachine stateMachine,
             IAudioService audioService,
             IPttController pttController,
             ITextMessageSender textSender,
             IInputHandler inputHandler,
             bool requireConfirmBeforeSend = false) => PttLoop.Object;
+
+        public ITtsSummarizer CreateTtsSummarizer(IDirectLlmService? directLlm) => Mock.Of<ITtsSummarizer>();
     }
 
     private static IAgentSettingsPersistence CreatePersistenceMock()

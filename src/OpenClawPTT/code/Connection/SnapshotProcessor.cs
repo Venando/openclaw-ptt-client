@@ -9,17 +9,14 @@ namespace OpenClawPTT;
 public sealed class SnapshotProcessor : ISnapshotProcessor
 {
     private readonly ILogger _logger;
-    private readonly bool _logHello;
 
     /// <summary>
     /// Creates a new SnapshotProcessor.
     /// </summary>
     /// <param name="logger">The logger for diagnostic output.</param>
-    /// <param name="logHello">Whether to log snapshot details.</param>
-    public SnapshotProcessor(ILogger logger, bool logHello = false)
+    public SnapshotProcessor(ILogger logger)
     {
         _logger = logger;
-        _logHello = logHello;
     }
 
     /// <inheritdoc />
@@ -28,12 +25,11 @@ public sealed class SnapshotProcessor : ISnapshotProcessor
         if (!hello.TryGetProperty("snapshot", out var snapshot))
             return;
 
-        if (_logHello)
         {
             var options = new JsonSerializerOptions { WriteIndented = true };
             string prettySnapshot = JsonSerializer.Serialize(snapshot, options);
             var lines = $"--- SERVER SNAPSHOT PAYLOAD ---\n{prettySnapshot}\n----------------------------".Split('\n');
-            foreach (var line in lines) _logger.Log("ws", line);
+            foreach (var line in lines) _logger.Log("ws", line, LogLevel.Verbose);
         }
 
         if (snapshot.TryGetProperty("health", out var health)
@@ -57,7 +53,7 @@ public sealed class SnapshotProcessor : ISnapshotProcessor
             }
 
             AgentRegistry.SetAgents(agentList);
-            _logger.Log("gateway", $"Loaded {agentList.Count} agent(s). Active session: {AgentRegistry.ActiveSessionKey}");
+            _logger.Log("gateway", $"Loaded {agentList.Count} agent(s). Active session: {AgentRegistry.ActiveSessionKey}", LogLevel.Info);
         }
     }
 }

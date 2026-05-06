@@ -41,6 +41,7 @@ public class AppBootstrapperTests : IDisposable
         _fakeFactory.Setup(x => x.CreateInputHandler(It.IsAny<ITextMessageSender>()))
             .Returns(new Mock<IInputHandler>().Object);
         _fakeFactory.Setup(x => x.CreatePttLoop(
+            It.IsAny<IPttStateMachine>(),
             It.IsAny<IAudioService>(),
             It.IsAny<IPttController>(),
             It.IsAny<ITextMessageSender>(),

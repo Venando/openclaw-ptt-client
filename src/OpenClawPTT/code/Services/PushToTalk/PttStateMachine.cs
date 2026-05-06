@@ -18,6 +18,21 @@ public sealed class PttStateMachine : IPttStateMachine
     /// <summary>True when the last OnHotkeyPressed was a toggle (i.e. stop was requested while already Recording).</summary>
     private bool _toggleStopRequested;
 
+    // Volatile for thread-safe cross-thread visibility (SISO mode TTS check)
+    private volatile bool _lastInputWasVoice;
+
+    public bool LastInputWasVoice
+    {
+        get => _lastInputWasVoice;
+        set => _lastInputWasVoice = value;
+    }
+
+
+    public string? LastTargetAgent { get; set; }
+
+    /// <summary>True while session history is being replayed — TTS should be suppressed.</summary>
+    public bool DuringReplay { get; set; }
+
     public PttState CurrentState => _state;
 
     public bool ShouldStartRecording
@@ -97,5 +112,6 @@ public sealed class PttStateMachine : IPttStateMachine
         _startRecordingRequested = false;
         _stopRecordingRequested = false;
         _toggleStopRequested = false;
+        _lastInputWasVoice = false;
     }
 }
