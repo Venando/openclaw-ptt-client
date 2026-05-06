@@ -27,8 +27,6 @@ public sealed class AudioResponseHandler : IDisposable
         _summarizer = summarizer;
         _pttStateMachine = pttStateMachine;
 
-        _console.Log("tts-debug", $"[AudioHandler] Constructor: TtsProvider={config.TtsProvider}, OutputMode={config.TtsOutputMode}, Summarizer={_summarizer != null}, PttStateMachine={_pttStateMachine != null}");
-
         // Initialize TTS provider from config
         if (config.TtsProvider == TtsProviderType.OpenAI &&
             string.IsNullOrEmpty(config.TtsOpenAiApiKey) &&
@@ -71,13 +69,8 @@ public sealed class AudioResponseHandler : IDisposable
 
     private async Task PlayTtsAsync(string text, CancellationToken ct)
     {
-        _console.Log("tts-debug", $"[Audio] PlayTtsAsync entered. TtsOutputMode={_config.TtsOutputMode}, LastInputWasVoice={_pttStateMachine?.LastInputWasVoice}, textLen={text?.Length}");
-
         if (string.IsNullOrWhiteSpace(text))
-        {
-            _console.Log("tts-debug", "[Audio] Skipped: text is null/whitespace.");
             return;
-        }
 
         // Validate config values
         if (_config.TtsMaxChars <= 0)
@@ -93,52 +86,35 @@ public sealed class AudioResponseHandler : IDisposable
 
         // Check if TTS is enabled (case-insensitive)
         if (string.Equals(_config.TtsOutputMode, "off", StringComparison.OrdinalIgnoreCase))
-        {
-            _console.Log("tts-debug", "[Audio] Skipped: TtsOutputMode is 'off'.");
             return;
-        }
 
         // Check SISO mode (case-insensitive)
         if (string.Equals(_config.TtsOutputMode, "siso", StringComparison.OrdinalIgnoreCase))
         {
             if (_pttStateMachine == null)
-            {
-                _console.Log("tts-debug", "[Audio] Skipped in SISO: IPttStateMachine is null.");
                 return;
-            }
             if (_pttStateMachine.LastInputWasVoice != true)
-            {
-                _console.Log("tts-debug", $"[Audio] Skipped in SISO: LastInputWasVoice={_pttStateMachine.LastInputWasVoice} (expected true).");
                 return;
-            }
-            _console.Log("tts-debug", "[Audio] SISO check PASSED — will speak.");
-        }
-        else
-        {
-            _console.Log("tts-debug", $"[Audio] Always-On mode — will speak (mode={_config.TtsOutputMode}).");
         }
 
         if (_ttsProvider == null)
         {
-            _console.Log("tts-debug", "[Audio] Skipped: _ttsProvider is null (not configured).");
+            _console.PrintWarning("TTS not configured - set TtsProvider in settings to enable audio responses.");
             return;
         }
-        _console.Log("tts-debug", $"[Audio] TTS provider ready: {_config.TtsProvider}");
 
         // Determine if we need summarization
         var needsProcessing = TtsContentFilter.HasSpecialFormatting(text) ||
                               text.Length > _config.TtsDirectMaxChars;
-        _console.Log("tts-debug", $"[Audio] needsProcessing={needsProcessing} (hasFormatting={TtsContentFilter.HasSpecialFormatting(text)}, len={text.Length}, directMax={_config.TtsDirectMaxChars})");
 
         string textToSpeak;
 
         if (needsProcessing && _config.TtsUseDirectLlmSummary && _summarizer != null)
         {
-            _console.Log("tts-debug", "[Audio] Path: LLM summarization.");
+            // Logging (model name + timing) is done inside TtsSummarizer
             try
             {
                 textToSpeak = await _summarizer.SummarizeForTtsAsync(text, _config, ct);
-                _console.Log("tts-debug", $"[Audio] LLM summary result ({textToSpeak.Length} chars): {textToSpeak}");
             }
             catch (Exception ex)
             {
@@ -149,7 +125,6 @@ public sealed class AudioResponseHandler : IDisposable
         }
         else if (needsProcessing)
         {
-            _console.Log("tts-debug", "[Audio] Path: No LLM, sanitize + truncate.");
             // No Direct LLM available
             textToSpeak = TtsContentFilter.SanitizeForTts(text);
 
@@ -158,11 +133,10 @@ public sealed class AudioResponseHandler : IDisposable
                 if (string.Equals(_config.TtsTooLongFallback, "skip", StringComparison.OrdinalIgnoreCase))
                 {
                     _console.PrintWarning($"Response ({textToSpeak.Length} chars) exceeds TtsMaxChars ({_config.TtsMaxChars}) — skipping TTS.");
-                    return; // Don't speak this response
+                    return;
                 }
-                else // truncate
+                else
                 {
-                    _console.Log("tts-debug", $"[Audio] Truncating from {textToSpeak.Length} to {_config.TtsMaxChars} chars.");
                     textToSpeak = TtsContentFilter.Truncate(textToSpeak, _config.TtsMaxChars);
                 }
             }
@@ -170,30 +144,21 @@ public sealed class AudioResponseHandler : IDisposable
         else
         {
             // Short text, speak directly
-            _console.Log("tts-debug", "[Audio] Path: Short text, speak directly.");
             textToSpeak = TtsContentFilter.SanitizeForTts(text);
         }
 
         if (string.IsNullOrWhiteSpace(textToSpeak))
-        {
-            _console.Log("tts-debug", "[Audio] Skipped: textToSpeak is empty after processing.");
             return;
-        }
-
-        _console.Log("tts-debug", $"[Audio] Final textToSpeak ({textToSpeak.Length} chars): {textToSpeak}");
 
         // Synthesize and play via background job runner
         var truncated = textToSpeak.Length > 80 ? textToSpeak[..80] + "..." : textToSpeak;
         _jobRunner.RunAndForget(async () =>
         {
-            _console.Log("tts-debug", $"[Audio] Synthesis STARTED: '{truncated}'");
-            // Use a fresh token to avoid cancellation exceptions in fire-and-forget
             var freshCt = CancellationToken.None;
             var audioBytes = await _ttsProvider.SynthesizeAsync(textToSpeak, _config.TtsVoice, null, freshCt);
             if (audioBytes != null && audioBytes.Length > 0)
             {
                 _audioPlayer.Play(audioBytes);
-                _console.Log("tts-debug", $"[Audio] Playback STARTED ({audioBytes.Length} bytes).");
             }
             else
             {

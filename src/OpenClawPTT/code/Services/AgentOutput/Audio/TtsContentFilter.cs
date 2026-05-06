@@ -102,8 +102,8 @@ public static class TtsContentFilter
 
     private static void StripInlineCode(StringBuilder sb)
     {
-        // Keep the text, just remove the backtick delimiters
-        var result = InlineCodeRegex.Replace(sb.ToString(), m => m.Groups[1].Value);
+        // Replace inline code with a readable marker
+        var result = InlineCodeRegex.Replace(sb.ToString(), _ => "[Code]");
         sb.Clear();
         sb.Append(result);
     }
@@ -140,7 +140,7 @@ public static class TtsContentFilter
 
     private static void StripUrls(StringBuilder sb)
     {
-        var result = UrlRegex.Replace(sb.ToString(), "[link]");
+        var result = UrlRegex.Replace(sb.ToString(), "[Link]");
         sb.Clear();
         sb.Append(result);
     }

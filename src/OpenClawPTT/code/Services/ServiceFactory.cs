@@ -20,6 +20,8 @@ public class ServiceFactory : IServiceFactory
         _colorConsole = new ColorConsole(shellHost);
     }
 
+    public IColorConsole ColorConsole => _colorConsole;
+
     /// <summary>
     /// Initialize the agent settings persistence with the settings service.
     /// Called by AppBootstrapper after loading the config.
@@ -81,6 +83,6 @@ public class ServiceFactory : IServiceFactory
 
     public ITtsSummarizer CreateTtsSummarizer(IDirectLlmService? directLlm)
     {
-        return new TtsSummarizer(directLlm);
+        return new TtsSummarizer(directLlm, _colorConsole);
     }
 }

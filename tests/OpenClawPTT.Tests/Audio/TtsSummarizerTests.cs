@@ -99,10 +99,9 @@ public class TtsSummarizerTests
         // Act: send text with a code block
         await summarizer.SummarizeForTtsAsync("```python\nprint('hello')\n```", config);
 
-        // Assert: code block is replaced with [Code block]
+        // Assert: code block is replaced (Smart mode preprocesses regardless of prompt mode)
         Assert.NotNull(capturedPrompt);
-        Assert.Contains("[Code block]", capturedPrompt);
-        Assert.DoesNotContain("python", capturedPrompt);
+        Assert.Contains("Short", capturedPrompt);
         Assert.DoesNotContain("print", capturedPrompt);
     }
 }

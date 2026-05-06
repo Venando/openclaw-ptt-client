@@ -21,11 +21,13 @@ public interface ITtsSummarizer : IDisposable
 public sealed class TtsSummarizer : ITtsSummarizer, IDisposable
 {
     private readonly IDirectLlmService? _directLlm;
+    private readonly IColorConsole? _console;
     private bool _disposed;
 
-    public TtsSummarizer(IDirectLlmService? directLlm)
+    public TtsSummarizer(IDirectLlmService? directLlm, IColorConsole? console = null)
     {
         _directLlm = directLlm;
+        _console = console;
     }
 
     public async Task<string> SummarizeForTtsAsync(string text, AppConfig config, CancellationToken ct = default)
@@ -38,10 +40,13 @@ public sealed class TtsSummarizer : ITtsSummarizer, IDisposable
         if (config.TtsMaxChars <= 0)
             throw new ArgumentException("TtsMaxChars must be greater than 0", nameof(config));
 
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        _console?.PrintMarkup($"[grey]  Summarizing for TTS ([bold]{config.DirectLlmModelName}[/])...[/] ");
         var prompt = BuildSummarizationPrompt(text, config);
         var summary = await _directLlm.SendAsync(prompt, ct);
+        sw.Stop();
 
-        // Guard against empty/no-response from LLM
+        _console?.PrintMarkup($"[grey]  TTS summary: [bold]{text.Length}[/] → [bold]{summary.Trim().Length}[/] chars in [bold]{sw.ElapsedMilliseconds}ms[/]\n");
         if (string.IsNullOrWhiteSpace(summary) || summary == "(No response)")
             throw new InvalidOperationException("LLM returned no usable content for summarization");
 

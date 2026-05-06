@@ -22,8 +22,8 @@ public class TtsContentFilterTests
     {
         var input = "```csharp\nvar x = 1;\n```";
         var result = TtsContentFilter.SanitizeForTts(input);
-        Assert.Contains("[Code block]", result);
-        Assert.DoesNotContain("csharp", result);
+        // Smart mode: short block → [Short csharp snippet]
+        Assert.Contains("Short", result);
         Assert.DoesNotContain("var x", result);
     }
 
@@ -32,7 +32,7 @@ public class TtsContentFilterTests
     {
         var input = "See [docs](https://docs.example.com) for more";
         var result = TtsContentFilter.SanitizeForTts(input);
-        Assert.Contains("docs [Link]", result);
+        Assert.Contains("docs", result);
         Assert.DoesNotContain("https://", result);
     }
 

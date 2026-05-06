@@ -44,15 +44,12 @@ public sealed class AgentOutputAdapter : IDisposable
         {
             _audioResponseHandler = new AudioResponseHandler(config, console, _jobRunner, summarizer, pttStateMachine);
         }
-
-        _console.Log("tts-debug", $"[Adapter] Constructor: AudioResponseHandler={_audioResponseHandler != null}, AudioResponseMode={config.AudioResponseMode}");
     }
 
     public AudioResponseHandler? AudioResponseHandler => _audioResponseHandler;
 
     public void AttachToService(IGatewayUIEvents service)
     {
-        _console.Log("tts-debug", "[Adapter] AttachToService — subscribing to events");
         service.AgentReplyFull += OnAgentReplyFull;
         service.AgentThinking += OnAgentThinking;
         service.AgentToolCall += OnAgentToolCall;
@@ -77,8 +74,6 @@ public sealed class AgentOutputAdapter : IDisposable
 
     public void OnAgentReplyFull(string body)
     {
-        _console.Log("tts-debug", $"[Adapter] OnAgentReplyFull called. body len={body?.Length}, _isDeltaStarted={_isDeltaStarted}, streaming={_accumulatedText?.Length}");
-
         var markdownBody = MarkdownToSpectreConverter.Convert(body);
         bool useCapturing = _console.GetStreamShellHost() != null;
 
@@ -106,7 +101,6 @@ public sealed class AgentOutputAdapter : IDisposable
         // Fire TTS for non-streaming (single-shot) responses
         if (_audioResponseHandler != null && !string.IsNullOrWhiteSpace(body))
         {
-            _console.Log("tts-debug", $"[Adapter] OnAgentReplyFull: calling HandleAudioMarkerAsync with {body.Length} chars");
             _ = _audioResponseHandler.HandleAudioMarkerAsync(body);
         }
     }
@@ -131,7 +125,6 @@ public sealed class AgentOutputAdapter : IDisposable
 
     public void OnAgentReplyDeltaStart()
     {
-        _console.Log("tts-debug", "[Adapter] OnAgentReplyDeltaStart");
         _isDeltaStarted = true;
         _accumulatedText = "";
         _formatter = null;
@@ -141,7 +134,6 @@ public sealed class AgentOutputAdapter : IDisposable
     {
         if (!_isDeltaStarted) return;
         _accumulatedText += delta;
-        _console.Log("tts-debug", $"[Adapter] OnAgentReplyDelta: delta len={delta.Length}, total accumulated={_accumulatedText.Length}");
         EnsurePrefixPrinted();
         if (_formatter != null)
         {
@@ -155,8 +147,6 @@ public sealed class AgentOutputAdapter : IDisposable
 
     public void OnAgentReplyDeltaEnd()
     {
-        _console.Log("tts-debug", $"[Adapter] OnAgentReplyDeltaEnd: _isDeltaStarted={_isDeltaStarted}, accumulated len={_accumulatedText?.Length}, _audioResponseHandler={_audioResponseHandler != null}");
-
         if (!_isDeltaStarted) return;
 
         _isDeltaStarted = false;
@@ -172,12 +162,7 @@ public sealed class AgentOutputAdapter : IDisposable
         // Fire TTS on accumulated text from streaming response
         if (_audioResponseHandler != null && !string.IsNullOrWhiteSpace(_accumulatedText))
         {
-            _console.Log("tts-debug", $"[Adapter] OnAgentReplyDeltaEnd: calling HandleAudioMarkerAsync with {_accumulatedText.Length} chars");
             _ = _audioResponseHandler.HandleAudioMarkerAsync(_accumulatedText);
-        }
-        else
-        {
-            _console.Log("tts-debug", $"[Adapter] TTS SKIPPED — _audioResponseHandler={(object?)_audioResponseHandler == null}, accumulatedEmpty={string.IsNullOrWhiteSpace(_accumulatedText)}");
         }
 
         _accumulatedText = "";
@@ -186,7 +171,6 @@ public sealed class AgentOutputAdapter : IDisposable
     public void OnAgentReplyAudio(string audioText)
     {
         _hasAudioInCurrentMessage = true;
-        _console.Log("tts-debug", $"[Adapter] OnAgentReplyAudio: text len={audioText?.Length} (marker-only, no TTS fired)");
         // [audio] markers are no longer the TTS trigger — they only set the prefix emoji.
     }
 
