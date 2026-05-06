@@ -9,6 +9,18 @@ public enum VisualMode : int
     GlowDot = 2,
 }
 
+public enum ThinkingMode
+{
+    /// <summary>Display nothing.</summary>
+    None = 0,
+    /// <summary>Show a thinking emoji like a tool call with empty args.</summary>
+    Emoji = 1,
+    /// <summary>Show first N lines of thinking, tool-output style.</summary>
+    FirstNLines = 2,
+    /// <summary>Show all thinking, agent-reply style (supports future streaming).</summary>
+    Full = 3,
+}
+
 public enum ReplyDisplayMode
 {
     /// <summary>Use streaming delta events only (AgentReplyDeltaStart/Delta/End). Suppresses AgentReplyFull.</summary>
@@ -48,7 +60,8 @@ public sealed class AppConfig
     // Shortcut settings
     public string HotkeyCombination { get; set; } = "Alt+=";
     public bool HoldToTalk { get; set; } = false;
-    public bool ShowThinking { get; set; } = false;
+    public ThinkingMode ThinkingDisplayMode { get; set; } = ThinkingMode.None;
+    public int ThinkingPreviewLines { get; set; } = 5;
     public bool RequireConfirmBeforeSend { get; set; } = false;
     public bool DebugToolCalls { get; set; } = false;
     public string AgentName { get; set; } = "Agent";
