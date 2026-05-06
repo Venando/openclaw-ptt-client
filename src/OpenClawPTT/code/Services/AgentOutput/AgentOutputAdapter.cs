@@ -26,6 +26,7 @@ public sealed class AgentOutputAdapter : IDisposable
     private string _currentPrefix = "";
     private string _newlineSuffix = "";
     private int _prefixLength;
+    private string _accumulatedText = "";
 
     // Capturing console used when StreamShell is active — accumulates formatter output
     // then pushes the complete reply as a single StreamShell message.
@@ -95,8 +96,9 @@ public sealed class AgentOutputAdapter : IDisposable
         {
             _console.PrintAgentReplyWithMarkdown(_currentPrefix, markdownBody);
         }
-        
+
         _prefixPrinted = false;
+        _hasAudioInCurrentMessage = false;
     }
 
     public void OnAgentThinking(string thinking)
@@ -121,12 +123,14 @@ public sealed class AgentOutputAdapter : IDisposable
     public void OnAgentReplyDeltaStart()
     {
         _isDeltaStarted = true;
+        _accumulatedText = "";
         _formatter = null;
     }
 
     public void OnAgentReplyDelta(string delta)
     {
         if (!_isDeltaStarted) return;
+        _accumulatedText += delta;
         EnsurePrefixPrinted();
         if (_formatter != null)
         {
@@ -151,16 +155,21 @@ public sealed class AgentOutputAdapter : IDisposable
             _formatter.Finish();
             _formatter = null;
         }
+
+        // Fire TTS on the accumulated full response text (always, not just on [audio] markers)
+        if (_audioResponseHandler != null && !string.IsNullOrWhiteSpace(_accumulatedText))
+        {
+            _ = _audioResponseHandler.HandleAudioMarkerAsync(_accumulatedText);
+        }
+
+        _accumulatedText = "";
     }
 
     public void OnAgentReplyAudio(string audioText)
     {
         _hasAudioInCurrentMessage = true;
-        // Audio handling is async; fire and forget
-        if (_audioResponseHandler != null)
-        {
-            _ = _audioResponseHandler.HandleAudioMarkerAsync(audioText);
-        }
+        // [audio] markers are no longer the TTS trigger — they only set the prefix emoji.
+        // TTS is now driven by OnAgentReplyDeltaEnd on the accumulated text.
     }
 
     // ─── helpers ───────────────────────────────────────────────────
@@ -171,7 +180,7 @@ public sealed class AgentOutputAdapter : IDisposable
         _prefixPrinted = true;
 
         var isAudioEnabled = _config.AudioResponseMode?.ToLowerInvariant() != "text-only";
-        
+
         AgentRegistry.GetActiveNameAndEmoji(out var agentName, out var emoji, _config.AgentName);
 
         if (isAudioEnabled && _hasAudioInCurrentMessage)
