@@ -67,6 +67,13 @@ public sealed class GatewayService : IGatewayService
 
     public void DisplayHistoryEntry(ChatHistoryEntry entry)
     {
+        // Render thinking via ThinkingDisplayHandler (respects ThinkingDisplayMode config)
+        if (!string.IsNullOrWhiteSpace(entry.Thinking))
+        {
+            var thinkingHandler = new ThinkingDisplayHandler(_config, _console.GetStreamShellHost());
+            thinkingHandler.DisplayThinking(entry.Thinking);
+        }
+
         // Render tool calls via ToolDisplayHandler if any
         if (entry.ToolCalls.Count > 0)
         {
