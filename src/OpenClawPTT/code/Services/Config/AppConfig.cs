@@ -44,7 +44,7 @@ public sealed class AppConfig
     public string HotkeyCombination { get; set; } = "Alt+=";
     public bool HoldToTalk { get; set; } = false;
     public ThinkingMode ThinkingDisplayMode { get; set; } = ThinkingMode.FirstNLines;
-    public int ThinkingPreviewLines { get; set; } = 5;
+    public int ThinkingPreviewLines { get; set; } = 1;
     public int HistoryDisplayCount { get; set; } = 8;
     public bool RequireConfirmBeforeSend { get; set; } = false;
 
