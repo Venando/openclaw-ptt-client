@@ -263,13 +263,16 @@ public sealed class StreamShellInputHandler : IDisposable
         var key = args[0];
         var value = args.Length > 1 ? string.Join(" ", args.Skip(1)) : null;
 
-        // Use reflection to get/set property
-        var property = typeof(AppConfig).GetProperty(key);
+        // Use reflection to get/set property (case-insensitive)
+        var property = typeof(AppConfig).GetProperty(key, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
         if (property == null)
         {
             _host.AddMessage($"[red]  Unknown config key: {key}[/]");
             return Task.CompletedTask;
         }
+
+        // Normalize to the canonical property name for consistent description lookup
+        key = property.Name;
 
         if (value == null)
         {
@@ -277,6 +280,9 @@ public sealed class StreamShellInputHandler : IDisposable
             var currentValue = property.GetValue(_appConfig);
             var displayValue = currentValue?.ToString() ?? "(null)";
             _host.AddMessage($"[cyan]  {key}:[/] {displayValue}");
+
+            if (AppConfig.PropertyDescriptions.TryGetValue(key, out var desc))
+                _host.AddMessage($"[grey]    → {Markup.Escape(desc)}[/]");
         }
         else
         {
