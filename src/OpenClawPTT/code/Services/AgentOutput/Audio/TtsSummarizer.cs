@@ -48,6 +48,15 @@ public sealed class TtsSummarizer : ITtsSummarizer, IDisposable
         return summary.Trim();
     }
 
+    /// <summary>
+    /// Pre-processes text before LLM summarization — strips markdown and URLs
+    /// so the LLM gets cleaner input and doesn't waste tokens on formatting noise.
+    /// </summary>
+    private static string PreprocessForLlm(string text)
+    {
+        return TtsContentFilter.SanitizeForTts(text);
+    }
+
     private static string BuildSummarizationPrompt(string text, AppConfig config)
     {
         var codeBlockInstruction = config.TtsCodeBlockMode.ToLowerInvariant() switch
@@ -58,12 +67,16 @@ public sealed class TtsSummarizer : ITtsSummarizer, IDisposable
             _ => "For code blocks: describe what the code does"
         };
 
+        // Pre-process: strip markdown, code blocks, URLs before sending to LLM
+        var cleanText = PreprocessForLlm(text);
+
         return $@"Summarize the following text for text-to-speech output. Strip all markdown formatting, remove URLs, keep the tone conversational, and output only the summarized text.
+
 
 {codeBlockInstruction}
 
 Text to summarize:
-{text}";
+{cleanText}";
     }
 
     public void Dispose()
