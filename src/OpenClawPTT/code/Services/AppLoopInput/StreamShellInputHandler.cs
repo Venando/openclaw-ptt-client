@@ -79,6 +79,13 @@ public sealed class StreamShellInputHandler : IDisposable
         // Config command to get/set any config value
         _host.AddCommand(new Command("config", "<key> [value] Get or set config value", ConfigHandler));
 
+        // Case-insensitive aliases for config command
+        foreach (var alias in new[] { "Config", "CONFIG" })
+        {
+            _host.AddCommand(new Command(alias, "[grey]/config alias (case-insensitive)[/]",
+                (args, named) => ConfigHandler(args, named)));
+        }
+
         // OpenClaw tool commands (for StreamShell hint support)
         foreach (var name in OpenClawCommands.Names)
         {
