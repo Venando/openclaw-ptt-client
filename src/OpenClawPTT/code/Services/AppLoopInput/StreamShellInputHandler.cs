@@ -76,13 +76,14 @@ public sealed class StreamShellInputHandler : IDisposable
         // TTS summary test command
         _host.AddCommand(new Command("tts-test", "Test TTS summarization pipeline with sample file", LlmTestSummaryHandler));
 
-        // Config command to get/set any config value
-        _host.AddCommand(new Command("config", "<key> [value] Get or set config value", ConfigHandler));
+        // AppConfig command to get/set any config value (named 'appconfig' to avoid
+        // conflict with OpenClaw's built-in /config command).
+        _host.AddCommand(new Command("appconfig", "<key> [value] Get or set app config value", ConfigHandler));
 
-        // Case-insensitive aliases for config command
-        foreach (var alias in new[] { "Config", "CONFIG" })
+        // Case-insensitive aliases for appconfig command
+        foreach (var alias in new[] { "Appconfig", "APPCONFIG" })
         {
-            _host.AddCommand(new Command(alias, "[grey]/config alias (case-insensitive)[/]",
+            _host.AddCommand(new Command(alias, "[grey]/appconfig alias (case-insensitive)[/]",
                 (args, named) => ConfigHandler(args, named)));
         }
 
@@ -253,10 +254,10 @@ public sealed class StreamShellInputHandler : IDisposable
     {
         if (args.Length == 0)
         {
-            _host.AddMessage("[yellow]  Usage: /config <key> [value][/]");
+            _host.AddMessage("[yellow]  Usage: /appconfig <key> [value][/]");
             _host.AddMessage("[grey]  Examples:[/]");
-            _host.AddMessage("    /config DirectLlmUrl           (show current value)");
-            _host.AddMessage("    /config DirectLlmUrl http://... (set new value)");
+            _host.AddMessage("    /appconfig DirectLlmUrl           (show current value)");
+            _host.AddMessage("    /appconfig DirectLlmUrl http://... (set new value)");
             return Task.CompletedTask;
         }
 
