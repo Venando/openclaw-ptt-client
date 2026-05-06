@@ -50,7 +50,7 @@ public sealed class ThinkingDisplayHandler
     /// </summary>
     private void DisplayEmojiOnly()
     {
-        string header = $"[gray93 on #333333]  💭 Thinking[/]";
+        string header = $"[gray93 on #333333]  💭 Thinking[/] ";
         _shellHost?.AddMessage(header);
         _shellHost?.AddMessage("");
     }
@@ -61,7 +61,7 @@ public sealed class ThinkingDisplayHandler
     /// </summary>
     private void DisplayFirstNLines(string thinking)
     {
-        string emojiHeader = $"[gray93 on #333333]  💭 Thinking[/]";
+        string emojiHeader = $"[gray93 on #333333]  💭 Thinking[/] ";
         _toolOutput.Start(emojiHeader);
         _toolOutput.PrintTruncated(
             thinking,

@@ -43,7 +43,7 @@ public sealed class AppConfig
     // Shortcut settings
     public string HotkeyCombination { get; set; } = "Alt+=";
     public bool HoldToTalk { get; set; } = false;
-    public ThinkingMode ThinkingDisplayMode { get; set; } = ThinkingMode.None;
+    public ThinkingMode ThinkingDisplayMode { get; set; } = ThinkingMode.FirstNLines;
     public int ThinkingPreviewLines { get; set; } = 5;
     public bool RequireConfirmBeforeSend { get; set; } = false;
 
