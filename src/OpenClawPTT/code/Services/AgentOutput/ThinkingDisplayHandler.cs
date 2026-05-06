@@ -37,8 +37,8 @@ public static class TextWidth
 
     /// <summary>
     /// Splits text into lines each not exceeding <paramref name="maxWidth"/>
-    /// visual columns. Breaks at word boundaries (spaces) when possible, or
-    /// at the exact column limit otherwise.
+    /// visual columns. Breaks at word boundaries (whitespace) when possible,
+    /// or at the exact column limit otherwise.
     /// </summary>
     public static List<string> WrapToVisualWidth(string text, int maxWidth)
     {
@@ -49,6 +49,9 @@ public static class TextWidth
                 lines.Add(text);
             return lines;
         }
+
+        // Treat tab as a single space for wrapping purposes
+        text = text.Replace('\t', ' ');
 
         int i = 0;
         while (i < text.Length)
@@ -75,14 +78,34 @@ public static class TextWidth
 
             int lineEnd = i;
 
-            // If we broke mid-word, try to find the last space for a cleaner break
+            // If we can't fit even one character, force-break at current position
+            if (lineEnd == lineStart && i < text.Length)
+            {
+                int cw = GetVisualWidth(text[i]);
+                lineEnd = i + 1;
+                i = lineEnd;
+                lines.Add(text[lineStart..lineEnd]);
+                continue;
+            }
+
+            // If we broke mid-word, try to find the last whitespace for a cleaner break
             if (i < text.Length && text[i] != '\n' && lineEnd > lineStart)
             {
-                int lastSpace = text.LastIndexOf(' ', lineEnd - 1, lineEnd - lineStart);
-                if (lastSpace > lineStart)
+                int breakAt = -1;
+                // Scan backwards from the break point for any whitespace
+                for (int j = lineEnd - 1; j >= lineStart; j--)
                 {
-                    lineEnd = lastSpace;
-                    i = lastSpace + 1; // skip the space
+                    if (char.IsWhiteSpace(text[j]))
+                    {
+                        breakAt = j;
+                        break;
+                    }
+                }
+
+                if (breakAt > lineStart)
+                {
+                    lineEnd = breakAt;
+                    i = breakAt + 1; // skip the whitespace so next line starts clean
                 }
             }
 
