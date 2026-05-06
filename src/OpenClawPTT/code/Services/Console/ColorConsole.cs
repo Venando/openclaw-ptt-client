@@ -10,6 +10,8 @@ public sealed class ColorConsole : IColorConsole
 {
     public const string AppEmoji = "🦞";
     private readonly IStreamShellHost _shellHost;
+    private AgentReplyFormatter? _userMessageFormatter;
+    private StreamShellCapturingConsole? _userMessageCapturingConsole;
 
     /// <inheritdoc />
     public LogLevel LogLevel { get; set; } = LogLevel.Error;
@@ -21,6 +23,16 @@ public sealed class ColorConsole : IColorConsole
     public ColorConsole(IStreamShellHost shellHost)
     {
         _shellHost = shellHost ?? throw new ArgumentNullException(nameof(shellHost));
+    }
+
+    private AgentReplyFormatter GetOrCreateUserMessageFormatter()
+    {
+        if (_userMessageFormatter == null)
+        {
+            _userMessageCapturingConsole = new StreamShellCapturingConsole(_shellHost);
+            _userMessageFormatter = new AgentReplyFormatter("", 10, prefixAlreadyPrinted: false, output: _userMessageCapturingConsole);
+        }
+        return _userMessageFormatter;
     }
 
     private void ShellMsg(string markup) => _shellHost.AddMessage(markup);
@@ -82,12 +94,11 @@ public sealed class ColorConsole : IColorConsole
 
     public void PrintFormatted(string prefix, string text)
     {
-        var streamShellCapturingConsole = new StreamShellCapturingConsole(_shellHost);
-        var userMessageFormatter = new AgentReplyFormatter("", 10, prefixAlreadyPrinted: false, output: streamShellCapturingConsole);
-        userMessageFormatter.Reconfigure(prefix);
-        userMessageFormatter.ProcessDelta(Markup.Escape(text));
-        userMessageFormatter.Finish();
-        streamShellCapturingConsole.FlushToStreamShell(prefix);
+        var fmt = GetOrCreateUserMessageFormatter();
+        fmt.Reconfigure(prefix);
+        fmt.ProcessDelta(Markup.Escape(text));
+        fmt.Finish();
+        _userMessageCapturingConsole!.FlushToStreamShell(prefix);
     }
 
     /// <inheritdoc />
