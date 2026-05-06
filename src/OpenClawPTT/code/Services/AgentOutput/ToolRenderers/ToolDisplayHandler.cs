@@ -49,7 +49,7 @@ public sealed class ToolDisplayHandler
     {
         _rightMarginIndent = rightMarginIndent;
         _shellHost = shellHost;
-        _output = new ToolOutputHelper(shellHost!);
+        _output = new ToolOutputHelper(shellHost!, _rightMarginIndent);
         _renderers = BuildDefaultRenderers(_output)
             .Where(r => !string.IsNullOrEmpty(r.ToolName))
             .ToDictionary(r => r.ToolName, r => r, StringComparer.OrdinalIgnoreCase);

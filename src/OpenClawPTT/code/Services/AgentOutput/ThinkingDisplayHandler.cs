@@ -21,7 +21,7 @@ public sealed class ThinkingDisplayHandler
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _shellHost = shellHost;
-        _toolOutput = new ToolOutputHelper(shellHost!);
+        _toolOutput = new ToolOutputHelper(shellHost!, _config.RightMarginIndent);
     }
 
     public void DisplayThinking(string thinking)
