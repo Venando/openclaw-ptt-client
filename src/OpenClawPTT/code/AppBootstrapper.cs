@@ -75,8 +75,14 @@ public sealed class AppBootstrapper : IDisposable
 
     private void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
     {
-        e.Cancel = true;
-        _cts?.Cancel();
+        // First CTRL+C: attempt graceful shutdown via cancellation token.
+        // Second CTRL+C: let the default handler terminate the process.
+        if (_cts is { IsCancellationRequested: false })
+        {
+            e.Cancel = true;
+            _cts.Cancel();
+        }
+        // else: allow the default behavior (terminates the process)
     }
 
     public void Dispose()
