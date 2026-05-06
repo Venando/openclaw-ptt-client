@@ -204,7 +204,7 @@ public sealed class ThinkingDisplayHandler
             if (hasMore)
             {
                 int remainingLines = wrappedLines.Count - _config.ThinkingPreviewLines;
-                _toolOutput.PrintLine($"... ({remainingLines} more lines)", ConsoleColor.DarkGray);
+                _toolOutput.PrintMarkup($"[dim]... ({remainingLines} more lines)[/]\n");
             }
         }
 
