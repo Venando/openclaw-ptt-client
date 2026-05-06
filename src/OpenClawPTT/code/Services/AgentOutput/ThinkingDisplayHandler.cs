@@ -50,7 +50,7 @@ public sealed class ThinkingDisplayHandler
     /// </summary>
     private void DisplayEmojiOnly()
     {
-        string header = $"[gray93 on #333333]  💭 Thinking[/]  ";
+        string header = $"[gray93 on #333333]  💭 Thinking[/]";
         _shellHost?.AddMessage(header);
         _shellHost?.AddMessage("");
     }
@@ -61,14 +61,15 @@ public sealed class ThinkingDisplayHandler
     /// </summary>
     private void DisplayFirstNLines(string thinking)
     {
-        string emojiHeader = $"[gray93 on #333333]  💭 Thinking[/]  ";
+        string emojiHeader = $"[gray93 on #333333]  💭 Thinking[/]";
         _toolOutput.Start(emojiHeader);
         _toolOutput.PrintTruncated(
             thinking,
             continuationPrefix: "",
             rightMarginIndent: _config.RightMarginIndent,
+            color: ConsoleColor.Gray,
             maxRows: _config.ThinkingPreviewLines);
-        _toolOutput.PrintLine("");
+        _toolOutput.PrintLine("", ConsoleColor.Gray);
         _toolOutput.Finish();
         _toolOutput.Flush();
     }
@@ -76,17 +77,13 @@ public sealed class ThinkingDisplayHandler
     /// <summary>
     /// Mode 4: Show all thinking through the agent-reply formatting pipeline
     /// (<see cref="AgentReplyFormatter"/> + <see cref="StreamShellCapturingConsole"/>),
-    /// enabling word-wrapped, Spectre-markup-rendered output. Ready for streaming
-    /// when thinking delta events are added.
+    /// enabling word-wrapped output. The text is rendered in gray to match tool
+    /// output styling. Ready for future streaming support.
     /// </summary>
     private void DisplayFull(string thinking)
     {
         if (_shellHost == null)
-        {
-            // No StreamShell available — fall back to simple console output
-            // (same as Emoji mode behavior without StreamShell)
             return;
-        }
 
         var capturingConsole = new StreamShellCapturingConsole(_shellHost);
         string prefix = $"  💭 Thinking: ";
@@ -96,11 +93,13 @@ public sealed class ThinkingDisplayHandler
             prefixAlreadyPrinted: false,
             output: capturingConsole);
 
-        // Apply the same markdown-to-Spectre conversion used for agent replies
-        var markdownBody = MarkdownToSpectreConverter.Convert(thinking);
-        formatter.ProcessMarkupDelta(markdownBody);
+        // Render thinking text in gray to match tool output style.
+        // Escape brackets so Spectre doesn't interpret them as markup tags,
+        // then wrap in gray color tag.
+        var escaped = Markup.Escape(thinking);
+        formatter.ProcessMarkupDelta($"[gray]{escaped}[/]");
         formatter.Finish();
 
-        capturingConsole.FlushToStreamShell($"[cyan]{Markup.Escape(prefix)}[/]");
+        capturingConsole.FlushToStreamShell($"[gray93 on #333333]{Markup.Escape(prefix.TrimEnd())}[/]");
     }
 }
