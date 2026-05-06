@@ -21,6 +21,7 @@ public class PttLoopStabilityTests : IDisposable
     {
         public PttState CurrentState { get; set; } = PttState.Idle;
         public bool LastInputWasVoice { get; set; } = false;
+        public string? LastTargetAgent { get; set; }
         public bool ShouldStartRecording_Flag { get; set; }
         public bool ShouldStopRecording_Flag { get; set; }
         public bool ShouldToggleRecording_Flag { get; set; }
@@ -195,7 +196,8 @@ public class PttLoopStabilityTests : IDisposable
         FakeTextMessageSender? sender = null,
         FakeInputHandler? input = null,
         FakePttController? pttCtrl = null,
-        IColorConsole? console = null)
+        IColorConsole? console = null,
+        AppConfig? config = null)
     {
         return new AppLoop(
             state ?? new FakePttStateMachine(),
@@ -203,7 +205,8 @@ public class PttLoopStabilityTests : IDisposable
             sender ?? new FakeTextMessageSender(),
             input ?? new FakeInputHandler(),
             pttCtrl ?? new FakePttController(),
-            console ?? new Mock<IColorConsole>().Object);
+            console ?? new Mock<IColorConsole>().Object,
+            config ?? new AppConfig());
     }
 
     public void Dispose() { }

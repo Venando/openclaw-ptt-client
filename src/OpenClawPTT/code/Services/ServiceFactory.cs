@@ -70,6 +70,7 @@ public class ServiceFactory : IServiceFactory
     public IColorConsole CreateColorConsole() => _colorConsole;
 
     public IAppLoop CreatePttLoop(
+        AppConfig config,
         IPttStateMachine stateMachine,
         IAudioService audioService,
         IPttController pttController,
@@ -78,7 +79,7 @@ public class ServiceFactory : IServiceFactory
         bool requireConfirmBeforeSend = false)
     {
         return new AppLoop(stateMachine, audioService, textSender, inputHandler, pttController, _colorConsole,
-            requireConfirmBeforeSend);
+            config, requireConfirmBeforeSend);
     }
 
     public ITtsSummarizer CreateTtsSummarizer(IDirectLlmService? directLlm)

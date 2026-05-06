@@ -27,6 +27,9 @@ public sealed class PttStateMachine : IPttStateMachine
         set => _lastInputWasVoice = value;
     }
 
+
+    public string? LastTargetAgent { get; set; }
+
     public PttState CurrentState => _state;
 
     public bool ShouldStartRecording

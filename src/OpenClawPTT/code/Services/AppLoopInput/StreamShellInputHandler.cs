@@ -139,8 +139,9 @@ public sealed class StreamShellInputHandler : IDisposable
         if (type == InputType.Command)
             return;
 
-        // Mark as typed input (not voice)
+        // Mark as typed input (not voice) — clear agent so SISO won't match a different agent
         _pttStateMachine.LastInputWasVoice = false;
+        _pttStateMachine.LastTargetAgent = null;
 
         _messageComposer.TryToComposeMessage(input, attachments, out string? composedMessage);
 

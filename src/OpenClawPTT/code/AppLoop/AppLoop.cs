@@ -17,8 +17,10 @@ public sealed class AppLoop : IAppLoop
     private readonly IInputHandler _inputHandler;
     private readonly IPttController _pttController;
     private readonly IColorConsole _console;
+    private readonly AppConfig _config;
     private readonly bool _requireConfirmBeforeSend;
     private bool _disposed;
+
 
     public AppLoop(
         IPttStateMachine stateMachine,
@@ -27,6 +29,7 @@ public sealed class AppLoop : IAppLoop
         IInputHandler inputHandler,
         IPttController pttController,
         IColorConsole console,
+        AppConfig config,
         bool requireConfirmBeforeSend = false)
     {
         _pttStateMachine = stateMachine;
@@ -35,6 +38,7 @@ public sealed class AppLoop : IAppLoop
         _inputHandler = inputHandler;
         _pttController = pttController;
         _console = console;
+        _config = config;
         _requireConfirmBeforeSend = requireConfirmBeforeSend;
     }
 
@@ -145,12 +149,11 @@ public sealed class AppLoop : IAppLoop
         try
         {
             _pttStateMachine.LastInputWasVoice = true;
-            _console.Log("tts-debug", $"[Voice] SendTranscribedMessage: LastInputWasVoice set to TRUE (len={transcribed?.Length})");
+            _pttStateMachine.LastTargetAgent = _config.AgentName;
             await _textSender.SendAsync(transcribed, ct);
         }
         catch (Exception ex)
         {
-            // Log the error so it's visible in diagnostics
             _console.LogError("ptt", $"Failed to send: {ex.GetType().Name}: {ex.Message}");
         }
     }

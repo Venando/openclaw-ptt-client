@@ -37,4 +37,7 @@ public interface IPttStateMachine
 
     /// <summary>True if the last input was via voice (PTT), false if typed.</summary>
     bool LastInputWasVoice { get; set; }
+
+    /// <summary>Agent name the last message was sent to (for SISO agent-matching).</summary>
+    string? LastTargetAgent { get; set; }
 }

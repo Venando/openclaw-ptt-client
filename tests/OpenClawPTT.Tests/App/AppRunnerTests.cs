@@ -41,6 +41,7 @@ public class AppRunnerTests
         public IAgentSettingsPersistence GetAgentSettingsPersistence() => CreatePersistenceMock();
         public IColorConsole CreateColorConsole() => Mock.Of<IColorConsole>();
         public IAppLoop CreatePttLoop(
+            AppConfig config,
             IPttStateMachine stateMachine,
             IAudioService audioService,
             IPttController pttController,
