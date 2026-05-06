@@ -68,10 +68,7 @@ public sealed class StreamShellInputHandler : IDisposable
         _host.AddCommand(new Command("chat", "<name|id> Switch active agent by name or ID", ChatHandler));
 
         // Direct LLM command (bypasses agent)
-        if (_directLlmService?.IsConfigured == true)
-        {
-            _host.AddCommand(new Command("llm", "<message> Send message directly to configured LLM", LlmHandler));
-        }
+        _host.AddCommand(new Command("llm", "<message> Send message directly to configured LLM", LlmHandler));
 
         // Config command to get/set any config value
         _host.AddCommand(new Command("config", "<key> [value] Get or set config value", ConfigHandler));
@@ -169,7 +166,7 @@ public sealed class StreamShellInputHandler : IDisposable
 
     private async Task LlmHandler(string[] args, System.Collections.Generic.Dictionary<string, string> named)
     {
-        if (_directLlmService == null)
+        if (_directLlmService == null || !_directLlmService.IsConfigured)
         {
             _host.AddMessage("[yellow]  Direct LLM is not configured. Set DirectLlmUrl and DirectLlmModelName in config.[/]");
             return;
@@ -187,10 +184,7 @@ public sealed class StreamShellInputHandler : IDisposable
         try
         {
             var response = await _directLlmService.SendAsync(message, CancellationToken.None);
-
-            // Display response
-            _host.AddMessage("[cyan]  LLM Response:[/]");
-            _host.AddMessage($"  {Markup.Escape(response)}");
+            _console.PrintFormatted("[cyan]  LLM Response:[/] ", response);
         }
         catch (Exception ex)
         {

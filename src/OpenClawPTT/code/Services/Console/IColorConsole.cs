@@ -24,7 +24,9 @@ public interface IColorConsole
     
     /// <summary>Display user's own text message.</summary>
     void PrintUserMessage(string text);
-    
+
+    void PrintFormatted(string prefix, string text);
+
     /// <summary>Display user's message with pre-formatted markup.</summary>
     void PrintMarkupedUserMessage(string text);
     

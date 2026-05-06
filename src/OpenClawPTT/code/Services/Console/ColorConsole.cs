@@ -72,9 +72,14 @@ public sealed class ColorConsole : IColorConsole
     /// <inheritdoc />
     public void PrintUserMessage(string text)
     {
+        var prefix = "[green]  You:[/] ";
+        PrintFormatted(prefix, text);
+    }
+
+    public void PrintFormatted(string prefix, string text)
+    {
         var streamShellCapturingConsole = new StreamShellCapturingConsole(_shellHost);
         var userMessageFormatter = new AgentReplyFormatter("", 10, prefixAlreadyPrinted: false, output: streamShellCapturingConsole);
-        var prefix = "[green]  You:[/] ";
         userMessageFormatter.Reconfigure(prefix);
         userMessageFormatter.ProcessDelta(Markup.Escape(text));
         userMessageFormatter.Finish();
