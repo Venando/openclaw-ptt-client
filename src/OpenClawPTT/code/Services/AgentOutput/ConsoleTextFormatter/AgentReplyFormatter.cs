@@ -69,6 +69,9 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
         {
             if (c == '\n')
             {
+                // Skip leading newlines - prevents blank row before agent name
+                if (_wordWrap.CurrentLineLength == 0 && _wordWrap.IsBufferEmpty)
+                    continue;
                 FlushAndWrite(_wordWrap.BufferLength);
                 WriteNewLine();
                 continue;
@@ -191,6 +194,9 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
 
             if (c == '\n')
             {
+                // Skip leading newlines - prevents blank row before agent name
+                if (_wordWrap.CurrentLineLength == 0 && _wordWrap.IsBufferEmpty)
+                    continue;
                 FlushAndWrite(visibleWordLen);
                 visibleWordLen = 0;
                 WriteNewLine();
