@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Threading;
 using OpenClawPTT.Services;
 
 namespace OpenClawPTT;
@@ -24,6 +25,7 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
 
     private readonly IColorConsole _console;
     private readonly CancellationTokenSource _cts = new();
+    private readonly ManualResetEventSlim _ready = new(false);
     private Thread? _thread;
 
     // evdev constants
@@ -81,58 +83,91 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
     {
         _thread = new Thread(ReadLoop) { IsBackground = true, Name = "EvdevHotkeyLoop" };
         _thread.Start();
+        _ready.Wait(TimeSpan.FromSeconds(5)); // give devices time to enumerate
     }
 
     // ── main device-reading loop ──────────────────────────────────────
 
     private void ReadLoop()
     {
-        List<string> devicePaths;
+        var ct = _cts.Token;
+        var readTasks = new List<Task>();
+
         try
         {
-            devicePaths = DiscoverKeyboardDevices();
+            // Discover devices, starting a reader immediately after each is identified
+            // so a keypress during discovery of later devices is not missed.
+            foreach (var path in Directory.GetFiles("/dev/input", "event*").OrderBy(x => x))
+            {
+                FileStream? fs = TryOpenDevice(path);
+                if (fs == null) continue;
+
+                // Check if this device reports key events (without re-opening)
+                if (!IsKeyboardDevice(fs))
+                {
+                    fs.Dispose();
+                    continue;
+                }
+
+                // Start reading from this device immediately.
+                readTasks.Add(ReadDeviceWithStreamAsync(fs, path, ct));
+
+                // Signal readiness as soon as the first device starts reading.
+                if (!_ready.IsSet)
+                    _ready.Set();
+            }
         }
         catch (DirectoryNotFoundException ex)
         {
             _console.Log("hotkey", $"Keyboard device directory not found: {ex.Message}");
+            _ready.Set();
             return;
         }
         catch (UnauthorizedAccessException ex)
         {
             _console.Log("hotkey", $"No permission to access keyboard devices: {ex.Message}");
             _console.Log("hotkey", "Fix: sudo usermod -aG input $USER  (then re-login)");
+            _ready.Set();
             return;
         }
 
-        if (devicePaths.Count == 0)
+        if (readTasks.Count == 0)
         {
             _console.Log("hotkey", "No accessible keyboard devices found in /dev/input/.");
             _console.Log("hotkey", "Fix: sudo usermod -aG input $USER  (then re-login)");
+            _ready.Set();
             return;
         }
 
-        _console.Log("hotkey", $"Watching {devicePaths.Count} keyboard device(s) for hotkey");
-
-        var ct = _cts.Token;
-
-        // Spawn one reader task per device — they all share modifier counts via Interlocked
-        var tasks = devicePaths
-            .Select(path => ReadDeviceAsync(path, ct))
-            .ToArray();
+        _console.Log("hotkey", $"Watching {readTasks.Count} keyboard device(s) for hotkey");
+        _ready.Set(); // ensure unblock (already set above, but idempotent)
 
         try
         {
-            Task.WaitAll(tasks, ct);
+            Task.WaitAll(readTasks.ToArray(), ct);
         }
         catch (OperationCanceledException) { }
         catch (AggregateException) { }
     }
 
-    private async Task ReadDeviceAsync(string path, CancellationToken ct)
+    /// <summary>Checks whether an already-open device file reports key events.</summary>
+    private static bool IsKeyboardDevice(FileStream fs)
     {
-        FileStream? fs = TryOpenDevice(path);
-        if (fs is null) return;
+        try
+        {
+            int fd = (int)fs.SafeFileHandle.DangerousGetHandle();
+            var evBits = new byte[4];
+            if (ioctl(fd, EVIOCGBIT(0, evBits.Length), evBits) < 0) return false;
+            return (evBits[EV_KEY / 8] & (1 << (EV_KEY % 8))) != 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
+    private async Task ReadDeviceWithStreamAsync(FileStream fs, string path, CancellationToken ct)
+    {
         await using (fs)
         {
             var buf = new byte[EVENT_SIZE];
@@ -252,37 +287,6 @@ internal sealed class LinuxEvdevHotkeyHook : IGlobalHotkeyHook
                ctrlRequired == ctrlPressed &&
                shiftRequired == shiftPressed &&
                winRequired == winPressed;
-    }
-
-    // ── device discovery ──────────────────────────────────────────────
-
-    private static List<string> DiscoverKeyboardDevices()
-    {
-        var results = new List<string>();
-
-        foreach (var path in Directory.GetFiles("/dev/input", "event*").OrderBy(x => x))
-        {
-            try
-            {
-                using var fs = new FileStream(path, FileMode.Open,
-                    FileAccess.Read, FileShare.ReadWrite);
-
-                int fd = (int)fs.SafeFileHandle.DangerousGetHandle();
-
-                // EVIOCGBIT(EV_KEY) — check that this device reports key events
-                var evBits = new byte[4];
-                if (ioctl(fd, EVIOCGBIT(0, evBits.Length), evBits) < 0) continue;
-                if ((evBits[EV_KEY / 8] & (1 << (EV_KEY % 8))) == 0) continue;
-
-                // We could verify the hotkey key exists, but skip for simplicity
-                // If the key doesn't exist on this device, it'll never trigger.
-
-                results.Add(path);
-            }
-            catch { /* no permission or not a suitable device */ }
-        }
-
-        return results;
     }
 
     // EVIOCGBIT(type, len) ioctl number for Linux/x86-64

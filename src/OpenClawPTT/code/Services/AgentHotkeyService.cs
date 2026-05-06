@@ -57,6 +57,15 @@ public sealed class AgentHotkeyService : IDisposable
             _hook.HotkeyIndexPressed += OnHotkeyPressed;
             _hook.HotkeyIndexReleased += OnHotkeyReleased;
         }
+        else
+        {
+            // No agents yet — register the global config hotkey as a fallback
+            // so recording still works with the PTT hotkey.
+            var defaultHotkey = HotkeyMapping.Parse(_cfg.HotkeyCombination);
+            _hook.SetHotkey(defaultHotkey);
+            _hook.HotkeyPressed += OnDefaultHotkeyPressed;
+            _hook.HotkeyReleased += OnDefaultHotkeyReleased;
+        }
 
         _hook.EscapePressed += OnEscapePressed;
         _hook.Start();
@@ -138,9 +147,41 @@ public sealed class AgentHotkeyService : IDisposable
 
     private void OnHotkeyPressed(int index) => HandleHotkeyPressed(index);
     private void OnHotkeyReleased(int index) => HandleHotkeyReleased(index);
+
+    private void OnDefaultHotkeyPressed()
+    {
+        if (_hook != null) _hook.BlockEscape = true;
+        _pttController.StartRecording();
+    }
+
+    private void OnDefaultHotkeyReleased()
+    {
+        if (_cfg.HoldToTalk)
+            _pttController.StopRecording();
+    }
+
     private void OnPersistedSettingsChanged()
     {
-        RegisterAllAgentHotkeys();
+        if (_hook == null) return;
+
+        // Unsubscribe fallback events (if any) before re-registering with indexed events.
+        _hook.HotkeyPressed -= OnDefaultHotkeyPressed;
+        _hook.HotkeyReleased -= OnDefaultHotkeyReleased;
+
+        if (AgentRegistry.Agents.Count > 0)
+        {
+            RegisterAllAgentHotkeys();
+            _hook.HotkeyIndexPressed += OnHotkeyPressed;
+            _hook.HotkeyIndexReleased += OnHotkeyReleased;
+        }
+        else
+        {
+            // Still no agents — keep using the global default hotkey.
+            var defaultHotkey = HotkeyMapping.Parse(_cfg.HotkeyCombination);
+            _hook.SetHotkey(defaultHotkey);
+            _hook.HotkeyPressed += OnDefaultHotkeyPressed;
+            _hook.HotkeyReleased += OnDefaultHotkeyReleased;
+        }
     }
 
     private void OnEscapePressed()
@@ -158,6 +199,8 @@ public sealed class AgentHotkeyService : IDisposable
         {
             _hook.HotkeyIndexPressed -= OnHotkeyPressed;
             _hook.HotkeyIndexReleased -= OnHotkeyReleased;
+            _hook.HotkeyPressed -= OnDefaultHotkeyPressed;
+            _hook.HotkeyReleased -= OnDefaultHotkeyReleased;
             _hook.EscapePressed -= OnEscapePressed;
             _hook.Dispose();
         }

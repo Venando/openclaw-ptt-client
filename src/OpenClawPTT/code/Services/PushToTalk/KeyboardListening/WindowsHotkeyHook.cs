@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Threading;
 
 namespace OpenClawPTT;
 
@@ -19,6 +20,7 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
     private const int VK_ESCAPE = 0x1B;
 
     private readonly Thread _thread;
+    private readonly ManualResetEventSlim _ready = new(false);
     private volatile IntPtr _hookHandle = IntPtr.Zero;
     private volatile bool _disposed;
     
@@ -87,7 +89,13 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
         set => _blockEscape = value;
     }
 
-    public void Start() => _thread.Start();
+    public void Start()
+    {
+        _thread.Start();
+        // Block until the hook is actually installed, so callers know
+        // that key events will be intercepted from this point on.
+        _ready.Wait();
+    }
 
     private IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam)
     {
@@ -187,8 +195,13 @@ internal sealed class WindowsHotkeyHook : IGlobalHotkeyHook
             GetModuleHandle(module.ModuleName), 0);
 
         if (_hookHandle == IntPtr.Zero)
+        {
+            _ready.Set(); // unblock caller so it can handle the error
             throw new InvalidOperationException(
                 $"SetWindowsHookEx failed: {Marshal.GetLastWin32Error()}");
+        }
+
+        _ready.Set(); // hook is installed — unblock Start()
 
         while (!_disposed && GetMessage(out var msg, IntPtr.Zero, 0, 0) > 0)
         {
