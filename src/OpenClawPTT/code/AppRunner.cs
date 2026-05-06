@@ -80,10 +80,10 @@ public class AppRunner : IDisposable
         {
             return (int)AppLoopExitCode.Error;
         }
-        return await RunPttLoopAsync(gateway, pttStateMachine, directLlmService, ct);
+        return await RunPttLoopAsync(gateway, pttStateMachine, directLlmService, ttsSummarizer, ct);
     }
 
-    private async Task<int> RunPttLoopAsync(IGatewayService gateway, IPttStateMachine pttStateMachine, IDirectLlmService directLlmService, CancellationToken ct)
+    private async Task<int> RunPttLoopAsync(IGatewayService gateway, IPttStateMachine pttStateMachine, IDirectLlmService directLlmService, ITtsSummarizer ttsSummarizer, CancellationToken ct)
     {
         using var audioService = _factory.CreateAudioService(_cfg);
         var textSender = _factory.CreateTextMessageSender(gateway);
@@ -108,7 +108,8 @@ public class AppRunner : IDisposable
             console: _console,
             agentSettingsPersistence: _factory.GetAgentSettingsPersistence(),
             pttStateMachine: pttStateMachine,
-            directLlmService: directLlmService.IsConfigured ? directLlmService : null
+            directLlmService: directLlmService.IsConfigured ? directLlmService : null,
+            ttsSummarizer: ttsSummarizer
         );
         await shellCommands.RegisterAsync();
         _console.PrintHelpMenu(_cfg);

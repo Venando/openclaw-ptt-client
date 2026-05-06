@@ -18,4 +18,7 @@
   <ItemGroup>
     <EmbeddedResource Include="scripts\**\*.py" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="test-summary-sample.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
