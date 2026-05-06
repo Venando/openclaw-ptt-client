@@ -125,12 +125,14 @@ public sealed class AgentOutputAdapter : IDisposable
         _isDeltaStarted = true;
         _accumulatedText = "";
         _formatter = null;
+        _console.Log("tts-debug", "[Adapter] OnAgentReplyDeltaStart");
     }
 
     public void OnAgentReplyDelta(string delta)
     {
         if (!_isDeltaStarted) return;
         _accumulatedText += delta;
+        _console.Log("tts-debug", $"[Adapter] OnAgentReplyDelta: delta len={delta.Length}, total accumulated={_accumulatedText.Length}");
         EnsurePrefixPrinted();
         if (_formatter != null)
         {
@@ -144,11 +146,14 @@ public sealed class AgentOutputAdapter : IDisposable
 
     public void OnAgentReplyDeltaEnd()
     {
+        _console.Log("tts-debug", $"[Adapter] OnAgentReplyDeltaEnd called. _isDeltaStarted={_isDeltaStarted}, _accumulatedText len={_accumulatedText?.Length}, _audioResponseHandler={_audioResponseHandler != null}");
+
         if (!_isDeltaStarted) return;
 
         _isDeltaStarted = false;
         _prefixPrinted = false;
         _hasAudioInCurrentMessage = false;
+
 
         if (_formatter != null)
         {
@@ -159,7 +164,12 @@ public sealed class AgentOutputAdapter : IDisposable
         // Fire TTS on the accumulated full response text (always, not just on [audio] markers)
         if (_audioResponseHandler != null && !string.IsNullOrWhiteSpace(_accumulatedText))
         {
+            _console.Log("tts-debug", $"[Adapter] Calling HandleAudioMarkerAsync with {_accumulatedText.Length} chars");
             _ = _audioResponseHandler.HandleAudioMarkerAsync(_accumulatedText);
+        }
+        else
+        {
+            _console.Log("tts-debug", $"[Adapter] TTS SKIPPED — _audioResponseHandler={(object?)_audioResponseHandler == null}, accumulatedEmpty={string.IsNullOrWhiteSpace(_accumulatedText)}");
         }
 
         _accumulatedText = "";
@@ -168,6 +178,7 @@ public sealed class AgentOutputAdapter : IDisposable
     public void OnAgentReplyAudio(string audioText)
     {
         _hasAudioInCurrentMessage = true;
+        _console.Log("tts-debug", $"[Adapter] OnAgentReplyAudio called (marker-only, text={audioText?.Length}): {audioText}");
         // [audio] markers are no longer the TTS trigger — they only set the prefix emoji.
         // TTS is now driven by OnAgentReplyDeltaEnd on the accumulated text.
     }
