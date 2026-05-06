@@ -38,7 +38,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
         _events = events;
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _socketFactory = socketFactory ?? (() => new ClientWebSocketAdapter());
-        _snapshotProcessor = snapshotProcessor ?? new SnapshotProcessor(new ConsoleLogger(console), cfg.LogHello);
+        _snapshotProcessor = snapshotProcessor ?? new SnapshotProcessor(new ConsoleLogger(console));
         _jobRunner = new BackgroundJobRunner(msg => _console.Log("jobrunner", msg));
         _gatewayReconnector = new GatewayReconnector(cfg, console, this, _disposeCts.Token);
     }
@@ -147,13 +147,10 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
 
         var sigPayload = _deviceIdentity.BuildV3Payload(platform, deviceFamily, clientId, mode, "operator", scopes, signedAt, authToken, nonce);
 
-        if (_cfg.LogConnect)
-        {
-            var redactedPayload = string.IsNullOrEmpty(authToken)
-                ? sigPayload
-                : sigPayload.Replace(authToken, "***REDACTED***");
-            _console.Log("gateway", $"Signature payload: {redactedPayload}");
-        }
+        var redactedPayload = string.IsNullOrEmpty(authToken)
+            ? sigPayload
+            : sigPayload.Replace(authToken, "***REDACTED***");
+        _console.Log("gateway", $"Signature payload: {redactedPayload}", LogLevel.Verbose);
 
         var signature = _deviceIdentity.Sign(sigPayload);
 
@@ -205,13 +202,10 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
     private int ProcessHelloPayload(JsonElement hello)
     {
         var options = new JsonSerializerOptions { WriteIndented = true };
-        if (_cfg.LogHello)
-        {
-            string prettyHello = JsonSerializer.Serialize(hello, options);
-            string extraPretty = Regex.Replace(prettyHello, "(?m)^(  )+", m => new string(' ', m.Length * 2));
-            var lines = $"--- SERVER HELLO PAYLOAD ---\n{extraPretty}\n----------------------------".Split('\n');
-            foreach (var line in lines) _console.Log("ws", line);
-        }
+        string prettyHello = JsonSerializer.Serialize(hello, options);
+        string extraPretty = Regex.Replace(prettyHello, "(?m)^(  )+", m => new string(' ', m.Length * 2));
+        var lines = $"--- SERVER HELLO PAYLOAD ---\n{extraPretty}\n----------------------------".Split('\n');
+        foreach (var line in lines) _console.Log("ws", line, LogLevel.Verbose);
 
         PersistDeviceTokenIfIssued(hello);
         var tickMs = ExtractTickIntervalMs(hello);

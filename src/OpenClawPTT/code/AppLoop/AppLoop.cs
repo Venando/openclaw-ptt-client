@@ -20,6 +20,7 @@ public sealed class AppLoop : IAppLoop
     private readonly bool _requireConfirmBeforeSend;
     private bool _disposed;
 
+
     public AppLoop(
         IPttStateMachine stateMachine,
         IAudioService audioService,
@@ -144,11 +145,12 @@ public sealed class AppLoop : IAppLoop
     {
         try
         {
+            _pttStateMachine.LastInputWasVoice = true;
+            _pttStateMachine.LastTargetAgent = AgentRegistry.ActiveAgentName;
             await _textSender.SendAsync(transcribed, ct);
         }
         catch (Exception ex)
         {
-            // Log the error so it's visible in diagnostics
             _console.LogError("ptt", $"Failed to send: {ex.GetType().Name}: {ex.Message}");
         }
     }

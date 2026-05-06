@@ -14,9 +14,9 @@ public class SnapshotProcessorTests
         _mockLogger = new Mock<ILogger>();
     }
 
-    private SnapshotProcessor CreateProcessor(bool logHello = false)
+    private SnapshotProcessor CreateProcessor()
     {
-        return new SnapshotProcessor(_mockLogger.Object, logHello);
+        return new SnapshotProcessor(_mockLogger.Object);
     }
 
     // ─── ProcessSnapshot ─────────────────────────────────────────────
@@ -92,33 +92,20 @@ public class SnapshotProcessorTests
 
         processor.ProcessSnapshot(json);
 
-        _mockLogger.Verify(x => x.Log("gateway", It.Is<string>(s => s.Contains("Loaded") && s.Contains("agent(s)") && s.Contains("Active session:"))), Times.Once);
+        _mockLogger.Verify(x => x.Log("gateway", It.Is<string>(s => s.Contains("Loaded") && s.Contains("agent(s)") && s.Contains("Active session:")), LogLevel.Info), Times.Once);
     }
 
     [Fact]
-    public void ProcessSnapshot_WithLogHelloEnabled_LogsSnapshotPayload()
+    public void ProcessSnapshot_LogsSnapshotPayloadAtVerboseLevel()
     {
-        var processor = CreateProcessor(logHello: true);
+        var processor = CreateProcessor();
         var json = JsonDocument.Parse(/* lang=json */ """
             {"snapshot":{"health":{"agents":[{"agentId":"test","name":"Test Agent","isDefault":true}]}}}
             """).RootElement;
 
         processor.ProcessSnapshot(json);
 
-        _mockLogger.Verify(x => x.Log("ws", It.Is<string>(s => s.Contains("SERVER SNAPSHOT PAYLOAD"))), Times.AtLeastOnce);
-    }
-
-    [Fact]
-    public void ProcessSnapshot_WithLogHelloDisabled_DoesNotLogSnapshotPayload()
-    {
-        var processor = CreateProcessor(logHello: false);
-        var json = JsonDocument.Parse(/* lang=json */ """
-            {"snapshot":{"health":{"agents":[{"agentId":"test","name":"Test Agent","isDefault":true}]}}}
-            """).RootElement;
-
-        processor.ProcessSnapshot(json);
-
-        _mockLogger.Verify(x => x.Log("ws", It.Is<string>(s => s.Contains("SERVER SNAPSHOT PAYLOAD"))), Times.Never);
+        _mockLogger.Verify(x => x.Log("ws", It.Is<string>(s => s.Contains("SERVER SNAPSHOT PAYLOAD")), LogLevel.Verbose), Times.AtLeastOnce);
     }
 
     [Fact]

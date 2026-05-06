@@ -29,6 +29,8 @@ public sealed class StreamShellInputHandler : IDisposable
     private readonly TextMessageComposer _messageComposer;
     private readonly IColorConsole _console;
     private readonly IAgentSettingsPersistence _agentSettingsPersistence;
+    private readonly IPttStateMachine _pttStateMachine;
+    private readonly ITtsSummarizer? _ttsSummarizer;
 
     public StreamShellInputHandler(
         IStreamShellHost host,
@@ -39,7 +41,9 @@ public sealed class StreamShellInputHandler : IDisposable
         Action onQuit,
         IColorConsole console,
         IAgentSettingsPersistence agentSettingsPersistence,
-        IDirectLlmService? directLlmService = null)
+        IPttStateMachine pttStateMachine,
+        IDirectLlmService? directLlmService = null,
+        ITtsSummarizer? ttsSummarizer = null)
     {
         _host = host;
         _textSender = textSender;
@@ -50,8 +54,10 @@ public sealed class StreamShellInputHandler : IDisposable
         _directLlmService = directLlmService;
         _console = console;
         _agentSettingsPersistence = agentSettingsPersistence;
+        _pttStateMachine = pttStateMachine;
+        _ttsSummarizer = ttsSummarizer;
         _agentSettings = new AgentSettingsCommands(host, configService, agentSettingsPersistence);
-        _agentSwitching = new AgentSwitchingCommands(host, textSender, gatewayService, appConfig, console, agentSettingsPersistence);
+        _agentSwitching = new AgentSwitchingCommands(host, textSender, gatewayService, appConfig, console, agentSettingsPersistence, pttStateMachine);
         _messageComposer = new TextMessageComposer(host, textSender);
     }
 
@@ -65,10 +71,10 @@ public sealed class StreamShellInputHandler : IDisposable
         _host.AddCommand(new Command("chat", "<name|id> Switch active agent by name or ID", ChatHandler));
 
         // Direct LLM command (bypasses agent)
-        if (_directLlmService?.IsConfigured == true)
-        {
-            _host.AddCommand(new Command("llm", "<message> Send message directly to configured LLM", LlmHandler));
-        }
+        _host.AddCommand(new Command("llm", "<message> Send message directly to configured LLM", LlmHandler));
+
+        // TTS summary test command
+        _host.AddCommand(new Command("tts-test", "Test TTS summarization pipeline with sample file", LlmTestSummaryHandler));
 
         // Config command to get/set any config value
         _host.AddCommand(new Command("config", "<key> [value] Get or set config value", ConfigHandler));
@@ -133,6 +139,10 @@ public sealed class StreamShellInputHandler : IDisposable
         if (type == InputType.Command)
             return;
 
+        // Mark as typed input (not voice) — clear agent so SISO won't match a different agent
+        _pttStateMachine.LastInputWasVoice = false;
+        _pttStateMachine.LastTargetAgent = null;
+
         _messageComposer.TryToComposeMessage(input, attachments, out string? composedMessage);
 
         // Use non-blocking send via fire-and-forget since StreamShell fires events synchronously.
@@ -163,7 +173,7 @@ public sealed class StreamShellInputHandler : IDisposable
 
     private async Task LlmHandler(string[] args, System.Collections.Generic.Dictionary<string, string> named)
     {
-        if (_directLlmService == null)
+        if (_directLlmService == null || !_directLlmService.IsConfigured)
         {
             _host.AddMessage("[yellow]  Direct LLM is not configured. Set DirectLlmUrl and DirectLlmModelName in config.[/]");
             return;
@@ -181,14 +191,49 @@ public sealed class StreamShellInputHandler : IDisposable
         try
         {
             var response = await _directLlmService.SendAsync(message, CancellationToken.None);
-
-            // Display response
-            _host.AddMessage("[cyan]  LLM Response:[/]");
-            _host.AddMessage($"  {Markup.Escape(response)}");
+            _console.PrintFormatted("[cyan]  LLM Response:[/] ", response);
         }
         catch (Exception ex)
         {
             _host.AddMessage($"[red]  LLM request failed: {Markup.Escape(ex.Message)}[/]");
+        }
+    }
+
+    private async Task LlmTestSummaryHandler(string[] args, System.Collections.Generic.Dictionary<string, string> named)
+    {
+        if (_ttsSummarizer == null)
+        {
+            _host.AddMessage("[yellow]  TTS summarizer not available. Make sure DirectLlmUrl is configured.[/]");
+            return;
+        }
+
+        // Load sample file from the app's output directory
+        var samplePath = Path.Combine(AppContext.BaseDirectory, "test-summary-sample.txt");
+        if (!File.Exists(samplePath))
+        {
+            _host.AddMessage($"[red]  Sample file not found: {samplePath}[/]");
+            return;
+        }
+
+
+        var rawText = await File.ReadAllTextAsync(samplePath);
+        _host.AddMessage($"[grey]  Loaded sample ({rawText.Length} chars raw)[/]");
+
+
+        _host.AddMessage($"[grey]  Running through TTS preprocessing...[/]");
+        var preprocessed = TtsContentFilter.SanitizeForTts(rawText);
+        _host.AddMessage($"[grey]  After sanitize: {preprocessed.Length} chars[/]:[white]{preprocessed}[/]");
+
+        _host.AddMessage($"[grey]  Sending to LLM ({_appConfig.DirectLlmModelName}) for summarization...[/]");
+        try
+        {
+            var summarized = await _ttsSummarizer.SummarizeForTtsAsync(rawText, _appConfig, CancellationToken.None);
+            _host.AddMessage($"[green]  Summary ({summarized.Length} chars):[/]");
+            _host.AddMessage($"  {Markup.Escape(summarized)}");
+        }
+        catch (Exception ex)
+        {
+            _host.AddMessage($"[red]  Summarization failed: {Markup.Escape(ex.Message)}[/]");
         }
     }
 

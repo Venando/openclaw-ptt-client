@@ -24,7 +24,9 @@ public interface IColorConsole
     
     /// <summary>Display user's own text message.</summary>
     void PrintUserMessage(string text);
-    
+
+    void PrintFormatted(string prefix, string text);
+
     /// <summary>Display user's message with pre-formatted markup.</summary>
     void PrintMarkupedUserMessage(string text);
     
@@ -68,12 +70,15 @@ public interface IColorConsole
     void PrintGatewayError(string message, string? detailCode = null, string? recommendedStep = null);
     
     // ── Logging ────────────────────────────────────────────────
+
+    /// <summary>Gets or sets the current log level threshold. Messages below this level are suppressed.</summary>
+    LogLevel LogLevel { get; set; }
+
+    /// <summary>Logs a message with the specified tag and severity level.</summary>
+    void Log(string tag, string msg, LogLevel level = LogLevel.Debug);
     
-    /// <summary>Logs a message with the specified tag.</summary>
-    void Log(string tag, string msg);
-    
-    /// <summary>Logs a success message with the specified tag.</summary>
-    void LogOk(string tag, string msg);
+    /// <summary>Logs a success message with the specified tag and severity level.</summary>
+    void LogOk(string tag, string msg, LogLevel level = LogLevel.Info);
     
     /// <summary>Logs an error message with the specified tag.</summary>
     void LogError(string tag, string msg);
