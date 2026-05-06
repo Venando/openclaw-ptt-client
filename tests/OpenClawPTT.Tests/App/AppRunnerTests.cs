@@ -30,7 +30,7 @@ public class AppRunnerTests
         public Mock<IInputHandler> InputHandler { get; } = new();
         public Mock<IAppLoop> PttLoop { get; } = new();
 
-        public IGatewayService CreateGatewayService(AppConfig cfg) => Gateway.Object;
+        public IGatewayService CreateGatewayService(AppConfig cfg, ITtsSummarizer? summarizer = null, IPttStateMachine? pttStateMachine = null) => Gateway.Object;
         public IAudioService CreateAudioService(AppConfig cfg) => Audio.Object;
         public IPttController CreatePttController(AppConfig cfg, IAudioService audioService, IHotkeyHookFactory? hotkeyHookFactory = null) => PttController.Object;
         public ITextMessageSender CreateTextMessageSender(IGatewayService gateway) => TextSender.Object;
@@ -41,11 +41,14 @@ public class AppRunnerTests
         public IAgentSettingsPersistence GetAgentSettingsPersistence() => CreatePersistenceMock();
         public IColorConsole CreateColorConsole() => Mock.Of<IColorConsole>();
         public IAppLoop CreatePttLoop(
+            IPttStateMachine stateMachine,
             IAudioService audioService,
             IPttController pttController,
             ITextMessageSender textSender,
             IInputHandler inputHandler,
             bool requireConfirmBeforeSend = false) => PttLoop.Object;
+
+        public ITtsSummarizer CreateTtsSummarizer(IDirectLlmService? directLlm) => Mock.Of<ITtsSummarizer>();
     }
 
     private static IAgentSettingsPersistence CreatePersistenceMock()

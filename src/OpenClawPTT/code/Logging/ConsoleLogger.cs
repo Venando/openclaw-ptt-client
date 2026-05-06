@@ -18,13 +18,13 @@ public sealed class ConsoleLogger : ILogger
     }
 
     /// <inheritdoc />
-    public void Log(string source, string message)
+    public void Log(string source, string message, LogLevel level = LogLevel.Debug)
     {
-        _console.Log(source, message);
+        _console.Log(source, message, level);
     }
 
     /// <inheritdoc />
-    public void LogError(string source, string message)
+    public void LogError(string source, string message, LogLevel level = LogLevel.Error)
     {
         _console.LogError(source, message);
     }

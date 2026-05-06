@@ -48,12 +48,12 @@ public sealed class TtsService : IDisposable
                 config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits",
                 config.CoquiConfigPath,
                 config.EspeakNgPath,
-                config.PythonTtsDebugLog),
+                true),
             TtsProviderType.Piper => new Providers.PiperTtsProvider(config.PiperPath ?? "piper", config.PiperModelPath ?? "", config.PiperVoice ?? "en_US-lessac"),
             TtsProviderType.Edge => config.TtsSubscriptionKey != null
                 ? new Providers.EdgeTtsProvider(config.TtsSubscriptionKey, config.TtsRegion ?? "eastus")
                 : null,
-            TtsProviderType.ElevenLabs => null,
+            TtsProviderType.ElevenLabs => throw new NotSupportedException("ElevenLabs TTS provider is not yet implemented. Use OpenAI, Edge, Coqui, Piper, or Python instead."),
             TtsProviderType.Python => new Providers.PythonTtsProvider(
                 console,
                 "",
@@ -62,11 +62,15 @@ public sealed class TtsService : IDisposable
                 config.CoquiModelName ?? "tts_models/multilingual/mxtts/vits",
                 config.CoquiConfigPath,
                 null,
-                config.PythonTtsDebugLog),
+                true),
             _ => null
         };
 
-        if (_provider == null && _providerType != TtsProviderType.Edge && _providerType != TtsProviderType.ElevenLabs)
+        if (_provider == null && _providerType == TtsProviderType.Edge)
+        {
+            // Edge with null key — warn but don't crash (TtsService still works, TTS just silent)
+        }
+        else if (_provider == null)
         {
             throw new InvalidOperationException($"Failed to initialize TTS provider: {_providerType}");
         }

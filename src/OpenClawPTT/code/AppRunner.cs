@@ -58,7 +58,15 @@ public class AppRunner : IDisposable
 
     private async Task<int> RunAppLoopAsync(CancellationToken ct)
     {
-        using var gateway = _factory.CreateGatewayService(_cfg);
+        // Apply configured debug level to console
+        _console.LogLevel = _cfg.DebugLevel;
+
+        // Create shared state machine and summarizer early so they can be wired into GatewayService
+        var pttStateMachine = new PttStateMachine();
+        using var directLlmService = _factory.CreateDirectLlmService(_cfg);
+        using var ttsSummarizer = _factory.CreateTtsSummarizer(directLlmService.IsConfigured ? directLlmService : null);
+
+        using var gateway = _factory.CreateGatewayService(_cfg, ttsSummarizer, pttStateMachine);
         try
         {
             await gateway.ConnectAsync(ct);
@@ -75,10 +83,10 @@ public class AppRunner : IDisposable
         {
             return (int)AppLoopExitCode.Error;
         }
-        return await RunPttLoopAsync(gateway, ct);
+        return await RunPttLoopAsync(gateway, pttStateMachine, directLlmService, ttsSummarizer, ct);
     }
 
-    private async Task<int> RunPttLoopAsync(IGatewayService gateway, CancellationToken ct)
+    private async Task<int> RunPttLoopAsync(IGatewayService gateway, IPttStateMachine pttStateMachine, IDirectLlmService directLlmService, ITtsSummarizer ttsSummarizer, CancellationToken ct)
     {
         using var audioService = _factory.CreateAudioService(_cfg);
         var textSender = _factory.CreateTextMessageSender(gateway);
@@ -90,10 +98,9 @@ public class AppRunner : IDisposable
         using var agentHotkeyService = new AgentHotkeyService(
             pttController, textSender, _shellHost, _cfg,
             _factory.GetAgentSettingsPersistence(),
-            gatewayService: gateway, console: _console);
-
-        // Create direct LLM service if configured
-        using var directLlmService = _factory.CreateDirectLlmService(_cfg);
+            gatewayService: gateway,
+            pttStateMachine: pttStateMachine,
+            console: _console);
 
         // Register StreamShell commands (/quit, /reconfigure) before PTT loop
         using var shellCommands = new StreamShellInputHandler(
@@ -105,13 +112,15 @@ public class AppRunner : IDisposable
             onQuit: () => _cts?.Cancel(),
             console: _console,
             agentSettingsPersistence: _factory.GetAgentSettingsPersistence(),
-            directLlmService: directLlmService.IsConfigured ? directLlmService : null
+            pttStateMachine: pttStateMachine,
+            directLlmService: directLlmService.IsConfigured ? directLlmService : null,
+            ttsSummarizer: ttsSummarizer
         );
         await shellCommands.RegisterAsync();
         _console.PrintHelpMenu(_cfg);
 
         using IAppLoop pttLoop = _factory.CreatePttLoop(
-            audioService, pttController, textSender, inputHandler,
+            pttStateMachine, audioService, pttController, textSender, inputHandler,
             requireConfirmBeforeSend: _cfg.RequireConfirmBeforeSend);
 
         return (int)(await pttLoop.RunAsync(ct));

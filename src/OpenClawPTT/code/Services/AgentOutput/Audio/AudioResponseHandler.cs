@@ -12,16 +12,20 @@ public sealed class AudioResponseHandler : IDisposable
     private readonly ITextToSpeech? _ttsProvider;
     private readonly AudioPlayerService _audioPlayer;
     private readonly TtsService? _ttsService;
+    private readonly ITtsSummarizer? _summarizer;
+    private readonly IPttStateMachine? _pttStateMachine;
     private readonly IColorConsole _console;
     private readonly IBackgroundJobRunner _jobRunner;
     private bool _disposed;
 
-    public AudioResponseHandler(AppConfig config, IColorConsole console, IBackgroundJobRunner? jobRunner = null)
+    public AudioResponseHandler(AppConfig config, IColorConsole console, IBackgroundJobRunner? jobRunner = null, ITtsSummarizer? summarizer = null, IPttStateMachine? pttStateMachine = null)
     {
         _config = config;
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _jobRunner = jobRunner ?? new BackgroundJobRunner(msg => _console.Log("jobrunner", msg));
         _audioPlayer = new AudioPlayerService(console);
+        _summarizer = summarizer;
+        _pttStateMachine = pttStateMachine;
 
         // Initialize TTS provider from config
         if (config.TtsProvider == TtsProviderType.OpenAI &&
@@ -63,29 +67,112 @@ public sealed class AudioResponseHandler : IDisposable
         return PlayTtsAsync(text, ct);
     }
 
-    private Task PlayTtsAsync(string text, CancellationToken ct)
+    private async Task PlayTtsAsync(string text, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(text))
-            return Task.CompletedTask;
+            return;
+
+        // Validate config values
+        if (_config.TtsMaxChars <= 0)
+        {
+            _console.PrintWarning($"Invalid TtsMaxChars config ({_config.TtsMaxChars}) - must be greater than 0.");
+            return;
+        }
+        if (_config.TtsDirectMaxChars <= 0)
+        {
+            _console.PrintWarning($"Invalid TtsDirectMaxChars config ({_config.TtsDirectMaxChars}) - must be greater than 0.");
+            return;
+        }
+
+        // Check if TTS is enabled (case-insensitive)
+        if (string.Equals(_config.TtsOutputMode, "off", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        // Check SISO mode (case-insensitive)
+        if (string.Equals(_config.TtsOutputMode, "siso", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_pttStateMachine == null)
+                return;
+            if (_pttStateMachine.LastInputWasVoice != true)
+                return;
+            // SISO: only speak if the response is from the same agent we sent the voice message to
+            if (!string.IsNullOrEmpty(_pttStateMachine.LastTargetAgent) &&
+                !string.Equals(_pttStateMachine.LastTargetAgent, AgentRegistry.ActiveAgentName, StringComparison.OrdinalIgnoreCase))
+                return;
+        }
+
+        // Suppress TTS during session history replay
+        if (_pttStateMachine?.DuringReplay == true)
+            return;
 
         if (_ttsProvider == null)
         {
             _console.PrintWarning("TTS not configured - set TtsProvider in settings to enable audio responses.");
-            return Task.CompletedTask;
+            return;
         }
 
+        // Determine if we need summarization
+        var needsProcessing = TtsContentFilter.HasSpecialFormatting(text) ||
+                              text.Length > _config.TtsDirectMaxChars;
+
+        string textToSpeak;
+
+        if (needsProcessing && _config.TtsUseDirectLlmSummary && _summarizer != null)
+        {
+            // Logging (model name + timing) is done inside TtsSummarizer
+            try
+            {
+                textToSpeak = await _summarizer.SummarizeForTtsAsync(text, _config, ct);
+            }
+            catch (Exception ex)
+            {
+                _console.PrintWarning($"TTS summarization failed: {ex.Message}. Falling back to truncation.");
+                textToSpeak = TtsContentFilter.SanitizeForTts(text);
+                textToSpeak = TtsContentFilter.Truncate(textToSpeak, _config.TtsMaxChars);
+            }
+        }
+        else if (needsProcessing)
+        {
+            // No Direct LLM available
+            textToSpeak = TtsContentFilter.SanitizeForTts(text);
+
+            if (textToSpeak.Length > _config.TtsMaxChars)
+            {
+                if (string.Equals(_config.TtsTooLongFallback, "skip", StringComparison.OrdinalIgnoreCase))
+                {
+                    _console.PrintWarning($"Response ({textToSpeak.Length} chars) exceeds TtsMaxChars ({_config.TtsMaxChars}) — skipping TTS.");
+                    return;
+                }
+                else
+                {
+                    textToSpeak = TtsContentFilter.Truncate(textToSpeak, _config.TtsMaxChars);
+                }
+            }
+        }
+        else
+        {
+            // Short text, speak directly
+            textToSpeak = TtsContentFilter.SanitizeForTts(text);
+        }
+
+        if (string.IsNullOrWhiteSpace(textToSpeak))
+            return;
+
         // Synthesize and play via background job runner
-        var truncated = text.Length > 80 ? text[..80] + "..." : text;
+        var truncated = textToSpeak.Length > 80 ? textToSpeak[..80] + "..." : textToSpeak;
         _jobRunner.RunAndForget(async () =>
         {
-            var audioBytes = await _ttsProvider.SynthesizeAsync(text, _config.TtsVoice, null, ct);
+            var freshCt = CancellationToken.None;
+            var audioBytes = await _ttsProvider.SynthesizeAsync(textToSpeak, _config.TtsVoice, null, freshCt);
             if (audioBytes != null && audioBytes.Length > 0)
             {
                 _audioPlayer.Play(audioBytes);
             }
+            else
+            {
+                _console.PrintWarning("TTS synthesis returned null/empty audio.");
+            }
         }, $"tts-synthesis-{truncated}");
-
-        return Task.CompletedTask;
     }
 
     /// <summary>

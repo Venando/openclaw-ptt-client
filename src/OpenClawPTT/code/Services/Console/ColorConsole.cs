@@ -11,8 +11,12 @@ public sealed class ColorConsole : IColorConsole
     public const string AppEmoji = "🦞";
     private readonly IStreamShellHost _shellHost;
 
+    /// <inheritdoc />
+    public LogLevel LogLevel { get; set; } = LogLevel.Error;
+
     /// <summary>
     /// Creates a new ColorConsole instance with the specified StreamShell host.
+    /// Log level defaults to Error (only errors shown). Update <see cref="LogLevel"/> at runtime.
     /// </summary>
     public ColorConsole(IStreamShellHost shellHost)
     {
@@ -72,9 +76,14 @@ public sealed class ColorConsole : IColorConsole
     /// <inheritdoc />
     public void PrintUserMessage(string text)
     {
+        var prefix = "[green]  You:[/] ";
+        PrintFormatted(prefix, text);
+    }
+
+    public void PrintFormatted(string prefix, string text)
+    {
         var streamShellCapturingConsole = new StreamShellCapturingConsole(_shellHost);
         var userMessageFormatter = new AgentReplyFormatter("", 10, prefixAlreadyPrinted: false, output: streamShellCapturingConsole);
-        var prefix = "[green]  You:[/] ";
         userMessageFormatter.Reconfigure(prefix);
         userMessageFormatter.ProcessDelta(Markup.Escape(text));
         userMessageFormatter.Finish();
@@ -169,20 +178,23 @@ public sealed class ColorConsole : IColorConsole
     // ── Logging ────────────────────────────────────────────────
 
     /// <inheritdoc />
-    public void Log(string tag, string msg)
+    public void Log(string tag, string msg, LogLevel level = LogLevel.Debug)
     {
+        if (level > LogLevel) return;
         ShellMsg($"[grey]  {Markup.Escape($"[{tag}]")} {Markup.Escape(msg)}[/]");
     }
 
     /// <inheritdoc />
-    public void LogOk(string tag, string msg)
+    public void LogOk(string tag, string msg, LogLevel level = LogLevel.Info)
     {
+        if (level > LogLevel) return;
         ShellMsg($"[green]  {Markup.Escape($"[{tag}]")} {Markup.Escape(msg)}[/]");
     }
 
     /// <inheritdoc />
     public void LogError(string tag, string msg)
     {
+        if (LogLevel == LogLevel.None) return;
         ShellMsg($"[red]  {Markup.Escape($"[{tag}]")} {Markup.Escape(msg)}[/]");
     }
 

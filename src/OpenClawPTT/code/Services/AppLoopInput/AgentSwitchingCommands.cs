@@ -19,8 +19,9 @@ public sealed class AgentSwitchingCommands
     private readonly AppConfig _appConfig;
     private readonly IColorConsole _console;
     private readonly IAgentSettingsPersistence _agentSettingsPersistence;
+    private readonly IPttStateMachine _pttStateMachine;
 
-    public AgentSwitchingCommands(IStreamShellHost host, ITextMessageSender textSender, IGatewayService gatewayService, AppConfig appConfig, IColorConsole console, IAgentSettingsPersistence agentSettingsPersistence)
+    public AgentSwitchingCommands(IStreamShellHost host, ITextMessageSender textSender, IGatewayService gatewayService, AppConfig appConfig, IColorConsole console, IAgentSettingsPersistence agentSettingsPersistence, IPttStateMachine pttStateMachine)
     {
         _host = host;
         _textSender = textSender;
@@ -28,6 +29,7 @@ public sealed class AgentSwitchingCommands
         _appConfig = appConfig;
         _console = console;
         _agentSettingsPersistence = agentSettingsPersistence;
+        _pttStateMachine = pttStateMachine;
     }
 
     /// <summary>Handler for /crew — lists available agents.</summary>
@@ -101,13 +103,23 @@ public sealed class AgentSwitchingCommands
         if (history == null || history.Count == 0)
             return;
 
-        _host.AddMessage("  [grey]── previous messages ──[/]");
-        foreach (var entry in history)
+
+        // Suppress TTS during history replay
+        _pttStateMachine.DuringReplay = true;
+        try
         {
-            if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
-                _console.PrintUserMessage(entry.Content);
-            else
-                _gatewayService.DisplayHistoryEntry(entry);
+            _host.AddMessage("  [grey]── previous messages ──[/]");
+            foreach (var entry in history)
+            {
+                if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
+                    _console.PrintUserMessage(entry.Content);
+                else
+                    _gatewayService.DisplayHistoryEntry(entry);
+            }
+        }
+        finally
+        {
+            _pttStateMachine.DuringReplay = false;
         }
     }
 
