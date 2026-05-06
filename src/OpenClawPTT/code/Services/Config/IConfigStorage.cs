@@ -67,6 +67,12 @@ public sealed class FileConfigStorage : IConfigStorage
         File.WriteAllText(path, JsonSerializer.Serialize(cfg, JsonOpts));
     }
 
-    private static string ConfigPath(AppConfig cfg) =>
-        Path.Combine(cfg.DataDir, "config.json");
+    private static string ConfigPath(AppConfig cfg)
+    {
+        var filename = "config.json";
+#if DEBUG
+        filename = "config.debug.json";
+#endif
+        return Path.Combine(cfg.DataDir, filename);
+    }
 }
