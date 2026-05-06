@@ -5,6 +5,11 @@ using Xunit;
 
 namespace OpenClawPTT.Tests.Services.TestMode;
 
+/// <summary>
+/// Slow tests — these use real async timeouts and are single-threaded.
+/// Filter with --filter "Category!=Slow" to skip during development.
+/// </summary>
+[Trait("Category", "Slow")]
 public class MockServicesTests
 {
     private readonly Mock<IColorConsole> _mockConsole;

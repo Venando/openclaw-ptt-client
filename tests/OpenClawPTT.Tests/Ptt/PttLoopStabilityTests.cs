@@ -12,7 +12,10 @@ namespace OpenClawPTT.Tests;
 /// Stability and edge-case tests for PttLoop.
 /// Uses simple test doubles for core domain interfaces (IPttStateMachine, IAudioService,
 /// ITextMessageSender, IPttController, IInputHandler).
+/// NOTE: Marked Slow — these tests use real Task.Delay and are single-threaded.
+/// Filter with --filter "Category!=Slow" to skip during development.
 /// </summary>
+[Trait("Category", "Slow")]
 public class PttLoopStabilityTests : IDisposable
 {
     #region Test Doubles
