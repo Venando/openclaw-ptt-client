@@ -45,7 +45,7 @@ public sealed class TtsSummarizer : ITtsSummarizer, IDisposable
         if (string.IsNullOrWhiteSpace(summary) || summary == "(No response)")
             throw new InvalidOperationException("LLM returned no usable content for summarization");
 
-        return summary.Trim();
+        return TtsContentFilter.SanitizeForTts(summary.Trim());
     }
 
     /// <summary>
@@ -70,10 +70,17 @@ public sealed class TtsSummarizer : ITtsSummarizer, IDisposable
         // Pre-process: strip markdown, code blocks, URLs before sending to LLM
         var cleanText = PreprocessForLlm(text);
 
-        return $@"Summarize the following text for text-to-speech output. Strip all markdown formatting, remove URLs, keep the tone conversational, and output only the summarized text.
+        return $@"Act as a concise narrator. Summarize the text below specifically for clear text-to-speech reading. 
 
-
-{codeBlockInstruction}
+Rules:
+- NO markdown (no asterisks, hashtags, or bolding).
+- Use short, punchy sentences.
+- Avoid lists or bullet points; use flowing paragraphs instead.
+- Use simple, phonetic words (avoid complex jargon or long acronyms).
+- {codeBlockInstruction}
+- Output ONLY the summary. Do not say 'Here is the summary' or use quotes.
+- Write out all numbers, dates, and times in full natural language (e.g., write 'eleven thirty P-M' instead of '11:30 PM', and 'twenty-twenty-six' instead of '2026').
+- Convert all symbols to words (e.g., write 'percent' for '%', and 'dollars' for '$').
 
 Text to summarize:
 {cleanText}";

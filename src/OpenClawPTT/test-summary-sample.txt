@@ -1,38 +1,69 @@
-# Test Summary Sample
+## ANALYSIS RESULTS
 
-This is a **sample agent response** for testing the TTS pipeline.
+### SRP Violations Found: 6 major
 
-## Check Pipeline Status
+1. **ConfigurationWizard.cs (496 lines)** - Massive SRP violation handling 22 different configuration steps with all validation, display formatting, default value generation, and UI interaction in one class.
 
-Here's the current status of everything:
+2. **AgentReplyFormatter.cs (500+ lines)** - Handles word wrapping, markup parsing, Spectre tag validation (with 300+ hardcoded color names), tag normalization, and multi-format output all in one class.
 
-- **Pipeline health**: ✅ All scripts are operational
-- **Check episodes**: Runs every 20 minutes
-- **Cleanup episodes**: Daily at 23:30 Kiev time
-- **Summary follow up**: Fires at 10:00 and 22:00
+3. **TerminalCommandParser.cs (400+ lines)** - Contains 3 models (CommandType, CommandMetadata, HereDocInfo), complex parsing logic, multiple regex patterns, and tokenization all in a single file.
 
-### Daemon Status
-The aria2 daemon is up on port **6800**.
+4. **AppConfig.cs (119 lines, 60+ properties)** - Configuration God Object spanning TTS, STT, Visual Feedback, Gateway, Auth, and UI settings. Should be split into domain-specific config classes.
 
-Current season is **Early May 2026**. Spring anime are airing.
+5. **ToolDisplayHandler.cs** - Two different constructors with different responsibilities (accepts dependencies vs creates them). Acts as both factory and handler.
 
-## Recent Activity
+6. **ConsoleUi.cs (static class)** - Static facade with hidden dependency on `_shellHost`. Multiple similar methods (PrintAgentReplyDelta has overload that ignores config parameter).
 
-Just fixed a batch torrent issue for Akane-banashi — episodes 1-24 were seeded from a single batch download. Everything is now registered in the database.
+### Code Duplications Found: 5 patterns
 
-## Download Rules
+1. **Tool Renderers - Severe Duplication (8 renderers affected)**:
+   - `MemorySearchToolRenderer`, `MemoryGetToolRenderer`, `SessionsListToolRenderer`, `SessionsSpawnToolRenderer`, `SessionStatusToolRenderer`, `ReadToolRenderer`, `WriteToolRenderer`, `WebFetchToolRenderer`
+   - All share identical boilerplate: constructor with `IToolOutput`, `_output` field, `ToolName` property
+   - Same pattern: `_output.Print(label, ConsoleColor.DarkGray); _output.Print(value, ConsoleColor.White);`
 
-Download window says downloads are **silent** during 2:00-5:59 PM Kiev time. No notifications while you are sleeping.
+2. **Color Output Pattern**:
+   - `ConsoleColor.DarkGray` for labels + `ConsoleColor.White` for values repeated in every tool renderer
+   - `ConsoleColor.Gray` for paths repeated in multiple renderers
 
----
+3. **PythonTtsProvider Dispatch Methods**:
+   - `DispatchProtocol()` and `DispatchLog()` have nearly identical JSON parsing structure with `JsonHelper.TryParseJson` and switch statements
 
-## Code Example
-```python
-def check_pipeline():
-    print("Pipeline operational")
-    return True
-```
+4. **TtsService Provider Instantiation**:
+   - Large switch statement in constructor should use factory pattern
 
-Check out the docs at https://docs.example.com for more info.
+5. **AgentOutputAdapter Prefix Logic**:
+   - Complex prefix construction with emoji/audio indicators duplicates formatting logic that could be extracted
 
-*Anything specific you want me to check on?*
+### Priority Issues (top 5 - ranked by impact)
+
+| Rank | Issue | Location | Impact |
+|------|-------|----------|--------|
+| 1 | **Tool Renderer Duplication** | All tool renderers | HIGH - 8 files with ~80% identical code, maintenance nightmare when changing output pattern |
+| 2 | **ConfigurationWizard God Class** | ConfigurationWizard.cs | HIGH - 496 lines, 22-step enum, 5 huge switch methods - impossible to test individual steps |
+| 3 | **AppConfig God Object** | AppConfig.cs | MEDIUM-HIGH - 60+ properties mixing unrelated domains, breaks separation of concerns |
+| 4 | **TerminalCommandParser File Size** | TerminalCommandParser.cs | MEDIUM - 400+ lines with models + logic, should split models into separate file |
+| 5 | **AgentReplyFormatter Color Set** | AgentReplyFormatter.cs | MEDIUM - 300+ hardcoded color names clutter the class, should be external data |
+
+### Recommendations
+
+1. **Extract ToolRendererBase** (from test-mode branch - apply it)
+   - Create abstract base class with `_output` field and constructor
+   - Add helper methods for common output patterns
+   - Reduces 8 renderers from ~30 lines each to ~10-15 lines each
+
+2. **Split ConfigurationWizard into Strategy Pattern**
+   - Create `IConfigurationStep` interface
+   - Extract each step into its own small class
+   - Wizard becomes orchestrator only
+
+3. **Split AppConfig into Domain Configs**
+   - `TtsConfig`, `SttConfig`, `VisualFeedbackConfig`, `GatewayConfig`
+   - Use composition: `AppConfig` holds these sub-configs
+
+4. **Extract TerminalCommandParser Models**
+   - Move `CommandType`, `CommandMetadata`, `HereDocInfo` to separate file
+   - Parser file should contain only parsing logic
+
+5. **Move Spectre Color Names to External Data**
+   - Extract `_knownSpectreTags` HashSet to static data class or resource file
+   - AgentReplyFormatter should reference, not own, this data

@@ -221,7 +221,7 @@ public sealed class StreamShellInputHandler : IDisposable
 
         _host.AddMessage($"[grey]  Running through TTS preprocessing...[/]");
         var preprocessed = TtsContentFilter.SanitizeForTts(rawText);
-        _host.AddMessage($"[grey]  After sanitize: {preprocessed.Length} chars[/]");
+        _host.AddMessage($"[grey]  After sanitize: {preprocessed.Length} chars[/]:[white]{preprocessed}[/]");
 
         _host.AddMessage($"[grey]  Sending to LLM ({_appConfig.DirectLlmModelName}) for summarization...[/]");
         try
