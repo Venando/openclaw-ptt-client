@@ -27,6 +27,8 @@ public sealed class AudioResponseHandler : IDisposable
         _summarizer = summarizer;
         _pttStateMachine = pttStateMachine;
 
+        _console.Log("tts-debug", $"[AudioHandler] Constructor: TtsProvider={config.TtsProvider}, OutputMode={config.TtsOutputMode}, Summarizer={_summarizer != null}, PttStateMachine={_pttStateMachine != null}");
+
         // Initialize TTS provider from config
         if (config.TtsProvider == TtsProviderType.OpenAI &&
             string.IsNullOrEmpty(config.TtsOpenAiApiKey) &&
