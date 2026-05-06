@@ -439,8 +439,8 @@ public sealed class ConfigurationWizard
             GroqModel = source.GroqModel,
             HotkeyCombination = source.HotkeyCombination,
             HoldToTalk = source.HoldToTalk,
-            ShowThinking = source.ShowThinking,
-
+            ThinkingDisplayMode = source.ThinkingDisplayMode,
+            ThinkingPreviewLines = source.ThinkingPreviewLines,
             AgentName = source.AgentName,
             TranscriptionPromptPrefix = source.TranscriptionPromptPrefix,
             GroqRetryCount = source.GroqRetryCount,

@@ -16,6 +16,7 @@ public sealed class AgentOutputAdapter : IDisposable
     private readonly ToolDisplayHandler _toolDisplayHandler;
     private readonly IBackgroundJobRunner _jobRunner;
     private readonly AudioResponseHandler? _audioResponseHandler;
+    private readonly ThinkingDisplayHandler _thinkingDisplay;
 
     private bool _prefixPrinted;
     private bool _isDeltaStarted;
@@ -38,6 +39,7 @@ public sealed class AgentOutputAdapter : IDisposable
         _console = console ?? throw new ArgumentNullException(nameof(console));
         var shellHost = console.GetStreamShellHost();
         _toolDisplayHandler = new ToolDisplayHandler(_config.RightMarginIndent, shellHost);
+        _thinkingDisplay = new ThinkingDisplayHandler(_config, shellHost);
         _jobRunner = new BackgroundJobRunner(msg => _console.Log("jobrunner", msg));
 
         if (config.AudioResponseMode?.ToLowerInvariant() != "text-only")
@@ -107,9 +109,9 @@ public sealed class AgentOutputAdapter : IDisposable
 
     public void OnAgentThinking(string thinking)
     {
-        if (_config.ShowThinking)
+        if (_config.ThinkingDisplayMode != ThinkingMode.None)
         {
-            _console.Log("agent-think", thinking);
+_thinkingDisplay.DisplayThinking(thinking);
             _prefixPrinted = false;
         }
         else

@@ -3,6 +3,18 @@ using OpenClawPTT.TTS;
 
 namespace OpenClawPTT;
 
+public enum ThinkingMode
+{
+    /// <summary>Display nothing.</summary>
+    None = 0,
+    /// <summary>Show a thinking emoji like a tool call with empty args.</summary>
+    Emoji = 1,
+    /// <summary>Show first N lines of thinking, tool-output style.</summary>
+    FirstNLines = 2,
+    /// <summary>Show all thinking, agent-reply style (supports future streaming).</summary>
+    Full = 3,
+}
+
 public sealed class AppConfig
 {
     public string GatewayUrl { get; set; } = "ws://localhost:18789";
@@ -31,7 +43,8 @@ public sealed class AppConfig
     // Shortcut settings
     public string HotkeyCombination { get; set; } = "Alt+=";
     public bool HoldToTalk { get; set; } = false;
-    public bool ShowThinking { get; set; } = false;
+    public ThinkingMode ThinkingDisplayMode { get; set; } = ThinkingMode.FirstNLines;
+    public int ThinkingPreviewLines { get; set; } = 5;
     public bool RequireConfirmBeforeSend { get; set; } = false;
 
     public string AgentName { get; set; } = "Agent";
