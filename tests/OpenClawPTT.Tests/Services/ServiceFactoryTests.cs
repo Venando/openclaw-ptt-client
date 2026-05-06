@@ -96,7 +96,6 @@ public class ServiceFactoryTests
         var mockInputHandler = new Mock<IInputHandler>();
 
         var loop = factory.CreatePttLoop(
-            new AppConfig(),
             mockStateMachine.Object,
             mockAudio.Object,
             mockPttController.Object,

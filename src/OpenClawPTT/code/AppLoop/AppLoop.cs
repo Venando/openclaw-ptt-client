@@ -17,7 +17,6 @@ public sealed class AppLoop : IAppLoop
     private readonly IInputHandler _inputHandler;
     private readonly IPttController _pttController;
     private readonly IColorConsole _console;
-    private readonly AppConfig _config;
     private readonly bool _requireConfirmBeforeSend;
     private bool _disposed;
 
@@ -29,7 +28,6 @@ public sealed class AppLoop : IAppLoop
         IInputHandler inputHandler,
         IPttController pttController,
         IColorConsole console,
-        AppConfig config,
         bool requireConfirmBeforeSend = false)
     {
         _pttStateMachine = stateMachine;
@@ -38,7 +36,6 @@ public sealed class AppLoop : IAppLoop
         _inputHandler = inputHandler;
         _pttController = pttController;
         _console = console;
-        _config = config;
         _requireConfirmBeforeSend = requireConfirmBeforeSend;
     }
 
@@ -149,7 +146,7 @@ public sealed class AppLoop : IAppLoop
         try
         {
             _pttStateMachine.LastInputWasVoice = true;
-            _pttStateMachine.LastTargetAgent = _config.AgentName;
+            _pttStateMachine.LastTargetAgent = AgentRegistry.ActiveAgentName;
             await _textSender.SendAsync(transcribed, ct);
         }
         catch (Exception ex)

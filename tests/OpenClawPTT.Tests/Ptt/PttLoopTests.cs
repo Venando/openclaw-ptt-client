@@ -23,8 +23,7 @@ public class PttLoopTests
 
         var loop = new AppLoop(
             mockState.Object, mockAudio.Object, mockSender.Object,
-            mockInput.Object, mockPttCtrl.Object, CreateMockConsole(),
-            new AppConfig { HoldToTalk = true });
+            mockInput.Object, mockPttCtrl.Object, CreateMockConsole());
 
         var cts = new CancellationTokenSource(50);
         var result = await loop.RunAsync(cts.Token);
@@ -43,8 +42,7 @@ public class PttLoopTests
 
         var loop = new AppLoop(
             mockState.Object, mockAudio.Object, mockSender.Object,
-            mockInput.Object, mockPttCtrl.Object, CreateMockConsole(),
-            new AppConfig { HoldToTalk = true });
+            mockInput.Object, mockPttCtrl.Object, CreateMockConsole());
 
         var cts = new CancellationTokenSource(50);
         var result = await loop.RunAsync(cts.Token);
@@ -74,8 +72,7 @@ public class PttLoopTests
 
         var loop = new AppLoop(
             mockState.Object, mockAudio.Object, mockSender.Object,
-            mockInput.Object, mockPttCtrl.Object, CreateMockConsole(),
-            new AppConfig());
+            mockInput.Object, mockPttCtrl.Object, CreateMockConsole());
 
         var cts = new CancellationTokenSource(100);
         await loop.RunAsync(cts.Token);

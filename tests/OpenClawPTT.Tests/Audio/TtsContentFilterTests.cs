@@ -9,8 +9,8 @@ public class TtsContentFilterTests
     [InlineData("Hello world", "Hello world")]
     [InlineData("**bold** text", "bold text")]
     [InlineData("*italic* text", "italic text")]
-    [InlineData("`code` here", "[Code] here")]
-    [InlineData("Check out https://example.com", "Check out [Link]")]
+    [InlineData("`code` here", "code here")]
+    [InlineData("Check out https://example.com", "Check out [link]")]
     public void SanitizeForTts_StripsMarkdown(string input, string expected)
     {
         var result = TtsContentFilter.SanitizeForTts(input);

@@ -117,7 +117,6 @@ public class AppRunner : IDisposable
         _console.PrintHelpMenu(_cfg);
 
         using IAppLoop pttLoop = _factory.CreatePttLoop(
-            _cfg,
             pttStateMachine, audioService, pttController, textSender, inputHandler,
             requireConfirmBeforeSend: _cfg.RequireConfirmBeforeSend);
 

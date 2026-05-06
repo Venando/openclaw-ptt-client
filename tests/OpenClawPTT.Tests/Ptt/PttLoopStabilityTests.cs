@@ -197,8 +197,7 @@ public class PttLoopStabilityTests : IDisposable
         FakeTextMessageSender? sender = null,
         FakeInputHandler? input = null,
         FakePttController? pttCtrl = null,
-        IColorConsole? console = null,
-        AppConfig? config = null)
+        IColorConsole? console = null)
     {
         return new AppLoop(
             state ?? new FakePttStateMachine(),
@@ -206,8 +205,7 @@ public class PttLoopStabilityTests : IDisposable
             sender ?? new FakeTextMessageSender(),
             input ?? new FakeInputHandler(),
             pttCtrl ?? new FakePttController(),
-            console ?? new Mock<IColorConsole>().Object,
-            config ?? new AppConfig());
+            console ?? new Mock<IColorConsole>().Object);
     }
 
     public void Dispose() { }

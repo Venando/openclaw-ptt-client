@@ -75,8 +75,8 @@ public class TtsSummarizerTests
         Assert.NotNull(capturedPrompt);
         Assert.DoesNotContain("https://", capturedPrompt);
         Assert.DoesNotContain("`code`", capturedPrompt);
-        Assert.Contains("[Code]", capturedPrompt);
-        Assert.Contains("[Link]", capturedPrompt);
+        Assert.Contains("code", capturedPrompt);
+        Assert.Contains("[link]", capturedPrompt);
     }
 
     [Fact]

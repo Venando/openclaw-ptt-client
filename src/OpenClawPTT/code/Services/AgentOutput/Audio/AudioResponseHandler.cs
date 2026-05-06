@@ -97,7 +97,7 @@ public sealed class AudioResponseHandler : IDisposable
                 return;
             // SISO: only speak if the response is from the same agent we sent the voice message to
             if (!string.IsNullOrEmpty(_pttStateMachine.LastTargetAgent) &&
-                !string.Equals(_pttStateMachine.LastTargetAgent, _config.AgentName, StringComparison.OrdinalIgnoreCase))
+                !string.Equals(_pttStateMachine.LastTargetAgent, AgentRegistry.ActiveAgentName, StringComparison.OrdinalIgnoreCase))
                 return;
         }
 
