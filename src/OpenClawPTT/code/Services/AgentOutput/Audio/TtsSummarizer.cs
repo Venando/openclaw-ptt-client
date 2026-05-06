@@ -58,16 +58,12 @@ public sealed class TtsSummarizer : ITtsSummarizer, IDisposable
             _ => "For code blocks: describe what the code does"
         };
 
-        return $"Summarize the following text for text-to-speech output.\n\n" +
-               $"Requirements:\n" +
-               $"- Maximum length: {config.TtsMaxChars} characters\n" +
-               $"- Strip all markdown formatting\n" +
-               $"- {codeBlockInstruction}\n" +
-               $"- Remove URLs or replace with '[Link]'\n" +
-               $"- Keep the tone conversational\n" +
-               $"- Focus on the key information\n" +
-               $"- Output only the summarized text, no explanations\n\n" +
-               $"Text to summarize:\n{text}";
+        return $@"Summarize the following text for text-to-speech output. Strip all markdown formatting, remove URLs, keep the tone conversational, and output only the summarized text.
+
+{codeBlockInstruction}
+
+Text to summarize:
+{text}";
     }
 
     public void Dispose()
