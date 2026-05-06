@@ -145,6 +145,7 @@ public sealed class AppLoop : IAppLoop
         try
         {
             _pttStateMachine.LastInputWasVoice = true;
+            _console.Log("tts-debug", $"[Voice] SendTranscribedMessage: LastInputWasVoice set to TRUE (len={transcribed?.Length})");
             await _textSender.SendAsync(transcribed, ct);
         }
         catch (Exception ex)
