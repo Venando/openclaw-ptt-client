@@ -43,9 +43,9 @@ public sealed class FirstConnectionWizard
 
         _host.AddMessage("");
         _host.AddMessage("[yellow]  ╔══════════════════════════════════════════╗[/]");
-        _host.AddMessage("[yellow]  ║       First connection detected!        ║[/]");
-        _host.AddMessage("[yellow]  ║  No agent settings found.               ║[/]");
-        _host.AddMessage("[yellow]  ║  Configure hotkeys, emojis, and colors? ║[/]");
+        _host.AddMessage("[yellow]  ║       First connection detected!         ║[/]");
+        _host.AddMessage("[yellow]  ║  No agent settings found.                ║[/]");
+        _host.AddMessage("[yellow]  ║  Configure hotkeys, emojis, and colors?  ║[/]");
         _host.AddMessage("[yellow]  ╚══════════════════════════════════════════╝[/]");
         _host.AddMessage("[cyan2]  Configure agents now? (y/N)[/]");
 
