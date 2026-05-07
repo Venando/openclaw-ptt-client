@@ -24,6 +24,7 @@ public sealed class GatewayService : IGatewayService
     public event Action<string, string>? AgentToolCall; // (toolName, arguments)
     public event Action<string, JsonElement>? EventReceived;
     public event Action<string>? AgentReplyAudio;
+    public event Action<string>? UserMessageReceived;
 
     public GatewayService(AppConfig config, IColorConsole console, ITtsSummarizer? summarizer = null, IPttStateMachine? pttStateMachine = null)
     {
@@ -135,6 +136,13 @@ public sealed class GatewayService : IGatewayService
         events.EventReceived += (name, json) =>
         {
             EventReceived?.Invoke(name, json);
+        };
+
+        // User messages from other nodes — display them in real-time
+        events.UserMessageReceived += text =>
+        {
+            _console.PrintUserMessage(text);
+            UserMessageReceived?.Invoke(text);
         };
 
         // ── Delta path (display mode: streaming) ──

@@ -15,6 +15,8 @@ public sealed class DeviceIdentity
 
     public string DeviceId { get; private set; } = "";
     public string PublicKeyBase64 { get; private set; } = ""; // base64url, no padding
+    /// <summary>Client identifier sent in connect params and used as sender.id in messages.</summary>
+    public string ClientId { get; private set; } = "cli";
 
     private static readonly IPlatformInfo _defaultPlatformInfo = new SystemPlatformInfo();
 

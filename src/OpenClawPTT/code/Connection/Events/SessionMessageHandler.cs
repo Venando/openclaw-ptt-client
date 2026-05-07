@@ -14,17 +14,20 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
     private readonly AppConfig _cfg;
     private readonly IContentExtractor _contentExtractor;
     private readonly IColorConsole _console;
+    private readonly DeviceIdentity? _device;
 
     public SessionMessageHandler(
         IGatewayEventSource events,
         AppConfig cfg,
         IContentExtractor? contentExtractor = null,
-        IColorConsole? console = null)
+        IColorConsole? console = null,
+        DeviceIdentity? device = null)
     {
         _events = events;
         _cfg = cfg;
         _contentExtractor = contentExtractor ?? new ContentExtractor();
         _console = console ?? new ColorConsole(new StreamShellHost());
+        _device = device;
     }
 
     public Task HandleAsync(SessionMessageEvent evt)
@@ -49,7 +52,16 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
     {
         if (!payload.TryGetProperty("message", out var messageEl)) return;
         if (!messageEl.TryGetProperty("role", out var roleEl)) return;
-        if (roleEl.GetString() != "assistant") return;
+        var role = roleEl.GetString();
+
+        // Handle user messages from other nodes — display in real-time
+        if (string.Equals(role, "user", StringComparison.OrdinalIgnoreCase))
+        {
+            HandleUserMessage(messageEl);
+            return;
+        }
+
+        if (role != "assistant") return;
         if (!messageEl.TryGetProperty("content", out var contentEl)) return;
         if (contentEl.ValueKind != JsonValueKind.Array) return;
 
@@ -178,5 +190,67 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
             }
         }
         return string.Join("", textParts);
+    }
+
+    /// <summary>
+    /// Handles a user message (role="user") from a <c>session.message</c> event.
+    /// Extracts text content and fires <see cref="IGatewayEventSource.RaiseUserMessageReceived(string)"/>
+    /// so that messages sent from other nodes are displayed in real-time.
+    /// </summary>
+    private void HandleUserMessage(JsonElement messageEl)
+    {
+        // Check sender metadata to avoid displaying our own echoed messages.
+        // Each instance has a unique deviceId; messages from other nodes should be displayed.
+        if (messageEl.TryGetProperty("sender", out var senderEl) &&
+            senderEl.TryGetProperty("id", out var senderIdEl))
+        {
+            var senderId = senderIdEl.GetString() ?? "";
+            if (senderId == _device?.ClientId)
+                return; // Our own message — skip
+        }
+
+        if (!messageEl.TryGetProperty("content", out var contentEl))
+            return;
+
+        // Filter out internal/system messages with no meaningful user text
+        var text = ExtractUserContentText(contentEl);
+        if (string.IsNullOrWhiteSpace(text))
+            return;
+
+        if (!UserMessageHelper.HasUserInput(text))
+            return;
+
+        var userText = UserMessageHelper.ExtractUserMessage(text);
+        if (string.IsNullOrWhiteSpace(userText))
+            return;
+
+        _events.RaiseUserMessageReceived(userText);
+    }
+
+    /// <summary>
+    /// Extracts text content from a user message's content field,
+    /// which may be a plain string or an array of content blocks.
+    /// </summary>
+    private static string ExtractUserContentText(JsonElement contentEl)
+    {
+        if (contentEl.ValueKind == JsonValueKind.String)
+            return contentEl.GetString() ?? string.Empty;
+
+        if (contentEl.ValueKind == JsonValueKind.Array)
+        {
+            var parts = new List<string>();
+            foreach (var block in contentEl.EnumerateArray())
+            {
+                if (block.TryGetProperty("type", out var typeEl) &&
+                    typeEl.GetString() == "text" &&
+                    block.TryGetProperty("text", out var textEl))
+                {
+                    parts.Add(textEl.GetString() ?? string.Empty);
+                }
+            }
+            return string.Join("", parts);
+        }
+
+        return string.Empty;
     }
 }

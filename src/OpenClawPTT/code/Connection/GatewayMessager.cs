@@ -17,6 +17,7 @@ public class GatewayMessager : IDisposable
     private readonly IColorConsole _console;
     private readonly IEventDispatcher _dispatcher;
     private readonly IBackgroundJobRunner _jobRunner;
+    private readonly DeviceIdentity? _device;
 
     public IMessageFraming GetFraming() => _framing;
 
@@ -29,7 +30,8 @@ public class GatewayMessager : IDisposable
         IContentExtractor? contentExtractor = null,
         IColorConsole? console = null,
         IEventDispatcher? dispatcher = null,
-        IBackgroundJobRunner? jobRunner = null)
+        IBackgroundJobRunner? jobRunner = null,
+        DeviceIdentity? device = null)
     {
         _ws = ws;
         _cfg = cfg;
@@ -41,10 +43,11 @@ public class GatewayMessager : IDisposable
         _console = console ?? new ColorConsole(new StreamShellHost());
         _dispatcher = dispatcher ?? new EventDispatcher(_console);
         _jobRunner = jobRunner ?? new BackgroundJobRunner(msg => _console.Log("jobrunner", msg));
+        _device = device ?? new DeviceIdentity(_cfg.DataDir);
 
         // Register default handlers
         _dispatcher.RegisterHandler<SessionMessageEvent>(
-            new SessionMessageHandler(_events, _cfg, _contentExtractor, _console));
+            new SessionMessageHandler(_events, _cfg, _contentExtractor, _console, _device));
         _dispatcher.RegisterHandler<GatewayDisconnectedEvent>(
             new GatewayConnectionHandler(_console, _onDisconnection));
     }
