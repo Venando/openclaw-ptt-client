@@ -157,13 +157,13 @@ public sealed class ColorConsole : IColorConsole
     /// <inheritdoc />
     public void PrintAgentReply(string prefix, string body)
     {
-        ShellMsg($"[cyan]{Markup.Escape(prefix)}[/]{Markup.Escape(body)}");
+        ShellMsg($"{prefix}{Markup.Escape(body)}");
     }
 
     /// <inheritdoc />
     public void PrintAgentReplyWithMarkdown(string prefix, string body)
     {
-        ShellMsg($"[cyan]{Markup.Escape(prefix)}[/]{body}");
+        ShellMsg($"{prefix}{body}");
     }
 
     /// <inheritdoc />

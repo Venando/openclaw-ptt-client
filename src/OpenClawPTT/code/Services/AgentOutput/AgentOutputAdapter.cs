@@ -89,7 +89,7 @@ public sealed class AgentOutputAdapter : IDisposable
 
             if (useCapturing && _capturingConsole != null)
             {
-                _capturingConsole.FlushToStreamShell($"[cyan]{Markup.Escape(_currentPrefix)}[/]");
+                _capturingConsole.FlushToStreamShell(_currentPrefix);
             }
         }
         else
