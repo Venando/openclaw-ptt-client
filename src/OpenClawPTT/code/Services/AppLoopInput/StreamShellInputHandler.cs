@@ -92,7 +92,10 @@ public sealed class StreamShellInputHandler : IDisposable
         if (!_agentSettingsPersistence.HasAnyPersistedSettings && AgentRegistry.Agents.Count > 0 && !FirstConnectionWizard.IsActive)
         {
             AgentRegistry.Deactivate();
-            var firstConnectionWizard = new FirstConnectionWizard(_host, _agentSettingsPersistence);
+            var firstConnectionWizard = new FirstConnectionWizard(_host, _agentSettingsPersistence, onAgentConfigured: agent =>
+            {
+                _ = _agentSwitching.PrintSessionHistory(agent.SessionKey);
+            });
             firstConnectionWizard.Run();
         }
         else

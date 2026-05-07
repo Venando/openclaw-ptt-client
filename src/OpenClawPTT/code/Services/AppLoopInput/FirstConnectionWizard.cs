@@ -18,14 +18,16 @@ public sealed class FirstConnectionWizard
 
     private readonly IStreamShellHost _host;
     private readonly IAgentSettingsPersistence _persistence;
+    private readonly Action<AgentInfo>? _onAgentConfigured;
     private Queue<AgentInfo> _pendingAgents = new();
     private AgentInfo? _currentAgent;
     private AgentInfo? _lastConfiguredAgent;
 
-    public FirstConnectionWizard(IStreamShellHost host, IAgentSettingsPersistence persistence)
+    public FirstConnectionWizard(IStreamShellHost host, IAgentSettingsPersistence persistence, Action<AgentInfo>? onAgentConfigured = null)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _persistence = persistence ?? throw new ArgumentNullException(nameof(persistence));
+        _onAgentConfigured = onAgentConfigured;
     }
 
     public void Run()
@@ -79,11 +81,12 @@ public sealed class FirstConnectionWizard
             IsActive = false;
             _host.AddMessage("[green]  ✓ All agents configured![/]");
 
-            // Reactivate the last configured agent
+            // Reactivate the last configured agent and pull history
             if (_lastConfiguredAgent != null)
             {
                 AgentRegistry.SetActiveAgent(_lastConfiguredAgent.AgentId);
                 _host.AddMessage($"[cyan]  Active agent: {Markup.Escape(_lastConfiguredAgent.Name)} — use /chat <name> or hotkey to switch, /crew config to edit[/]");
+                _onAgentConfigured?.Invoke(_lastConfiguredAgent);
             }
             return;
         }
