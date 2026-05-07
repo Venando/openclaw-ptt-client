@@ -205,8 +205,17 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
             senderEl.TryGetProperty("id", out var senderIdEl))
         {
             var senderId = senderIdEl.GetString() ?? "";
+            _console.Log("debug", $"[HandleUserMessage] sender.id=\"{senderId}\" vs our ClientId=\"{_device?.ClientId}\"", LogLevel.Debug);
             if (senderId == _device?.ClientId)
+            {
+                _console.Log("debug", $"[HandleUserMessage] skipping own message", LogLevel.Debug);
                 return; // Our own message — skip
+            }
+            _console.Log("debug", $"[HandleUserMessage] displaying remote message", LogLevel.Debug);
+        }
+        else
+        {
+            _console.Log("debug", "[HandleUserMessage] no sender.id found", LogLevel.Debug);
         }
 
         if (!messageEl.TryGetProperty("content", out var contentEl))

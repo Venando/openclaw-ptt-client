@@ -141,6 +141,7 @@ public sealed class GatewayService : IGatewayService
         // User messages from other nodes — display them in real-time
         events.UserMessageReceived += text =>
         {
+            _console.Log("debug", $"[UserMessageReceived handler] printing: {text}", LogLevel.Debug);
             _console.PrintUserMessage(text);
             UserMessageReceived?.Invoke(text);
         };
