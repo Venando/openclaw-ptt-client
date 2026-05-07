@@ -88,16 +88,19 @@ public sealed class StreamShellInputHandler : IDisposable
 
         _host.UserInputSubmitted += OnUserInput;
 
-        // Fetch initial session history after commands are registered
-        var sessionKey = AgentRegistry.ActiveSessionKey;
-        if (sessionKey != null)
-            await _agentSwitching.PrintSessionHistory(sessionKey);
-
-        // First-connection: prompt to configure agents if no settings exist
+        // First-connection: skip history and prompt to configure agents
         if (!_agentSettingsPersistence.HasAnyPersistedSettings && AgentRegistry.Agents.Count > 0 && !FirstConnectionWizard.IsActive)
         {
+            AgentRegistry.Deactivate();
             var firstConnectionWizard = new FirstConnectionWizard(_host, _agentSettingsPersistence);
             firstConnectionWizard.Run();
+        }
+        else
+        {
+            // Fetch initial session history after commands are registered
+            var sessionKey = AgentRegistry.ActiveSessionKey;
+            if (sessionKey != null)
+                await _agentSwitching.PrintSessionHistory(sessionKey);
         }
     }
 

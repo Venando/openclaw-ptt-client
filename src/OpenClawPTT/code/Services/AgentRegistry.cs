@@ -172,12 +172,13 @@ public static class AgentRegistry
 
     /// <summary>
     /// Returns true if the message's sessionKey matches the currently active session.
-    /// If no active session is set, all messages pass through.
+    /// System messages (null sessionKey) always pass. When no agent is active,
+    /// agent messages (non-null sessionKey) are suppressed.
     /// </summary>
     public static bool IsMessageForActiveSession(string? sessionKey)
     {
         if (sessionKey == null) return true;
-        lock (_lock) return _activeSessionKey == null || sessionKey == _activeSessionKey;
+        lock (_lock) return _activeSessionKey != null && sessionKey == _activeSessionKey;
     }
 
     /// <summary>Gets the active agent's display name and emoji via the legacy bridge.</summary>
