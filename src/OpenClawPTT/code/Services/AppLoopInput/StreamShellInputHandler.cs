@@ -65,7 +65,7 @@ public sealed class StreamShellInputHandler : IDisposable
         // Application commands
         _host.AddCommand(new Command("quit", "Exit the application", QuitHandler));
         _host.AddCommand(new Command("reconfigure", "Run reconfiguration wizard", ReconfigureHandler));
-        _host.AddCommand(new Command("crew", "List available agents", CrewHandler));
+        _host.AddCommand(new Command("crew", "List available agents. \"/crew config\" to config", CrewHandler));
         _host.AddCommand(new Command("chat", "<name|id> Switch active agent by name or ID", ChatHandler));
 
         // Direct LLM command (bypasses agent)
