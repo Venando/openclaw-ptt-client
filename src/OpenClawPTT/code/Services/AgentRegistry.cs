@@ -157,6 +157,12 @@ public static class AgentRegistry
         }
     }
 
+    /// <summary>Returns the default agent (marked IsDefault), or the first available, or null.</summary>
+    public static AgentInfo? GetDefaultAgent()
+    {
+        lock (_lock) return AgentRegistryHelpers.GetDefaultOrFirst(_agents);
+    }
+
     /// <summary>Deactivates the active agent (sets active session to null).</summary>
     public static void Deactivate()
     {

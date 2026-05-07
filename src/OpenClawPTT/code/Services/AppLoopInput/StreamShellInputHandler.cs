@@ -94,7 +94,6 @@ public sealed class StreamShellInputHandler : IDisposable
             AgentRegistry.Deactivate();
             var firstConnectionWizard = new FirstConnectionWizard(_host, _agentSettingsPersistence, onAgentConfigured: agent =>
             {
-                _console.PrintAgentIntroduction(_appConfig);
                 _ = _agentSwitching.PrintSessionHistory(agent.SessionKey);
             });
             firstConnectionWizard.Run();

@@ -21,7 +21,7 @@ public sealed class FirstConnectionWizard
     private readonly Action<AgentInfo>? _onAgentConfigured;
     private Queue<AgentInfo> _pendingAgents = new();
     private AgentInfo? _currentAgent;
-    private AgentInfo? _lastConfiguredAgent;
+    private bool _anyConfigured;
 
     public FirstConnectionWizard(IStreamShellHost host, IAgentSettingsPersistence persistence, Action<AgentInfo>? onAgentConfigured = null)
     {
@@ -71,6 +71,18 @@ public sealed class FirstConnectionWizard
         {
             IsActive = false;
             _host.AddMessage("[grey]  Skipped agent configuration. Use /crew config anytime.[/]");
+            ActivateDefault();
+        }
+    }
+
+    private void ActivateDefault()
+    {
+        var defaultAgent = AgentRegistry.GetDefaultAgent();
+        if (defaultAgent != null)
+        {
+            AgentRegistry.SetActiveAgent(defaultAgent.AgentId);
+            _host.AddMessage($"[cyan]  Active agent: {Markup.Escape(defaultAgent.Name)} — use /chat <name> or hotkey to switch, /crew config to edit[/]");
+            _onAgentConfigured?.Invoke(defaultAgent);
         }
     }
 
@@ -79,15 +91,8 @@ public sealed class FirstConnectionWizard
         if (_pendingAgents.Count == 0)
         {
             IsActive = false;
-            _host.AddMessage("[green]  ✓ All agents configured![/]");
-
-            // Reactivate the last configured agent and pull history
-            if (_lastConfiguredAgent != null)
-            {
-                AgentRegistry.SetActiveAgent(_lastConfiguredAgent.AgentId);
-                _host.AddMessage($"[cyan]  Active agent: {Markup.Escape(_lastConfiguredAgent.Name)} — use /chat <name> or hotkey to switch, /crew config to edit[/]");
-                _onAgentConfigured?.Invoke(_lastConfiguredAgent);
-            }
+            _host.AddMessage("[green]  ✓ All configured![/]");
+            ActivateDefault();
             return;
         }
 
@@ -132,8 +137,8 @@ public sealed class FirstConnectionWizard
 
     private void OnAgentConfigCompleted()
     {
-        // AgentConfigWizard finished — remember this was configured and resume the loop
-        _lastConfiguredAgent = _currentAgent;
+        // AgentConfigWizard finished — resume the loop
+        _anyConfigured = true;
         ProcessNextAgent();
     }
 }
