@@ -92,6 +92,13 @@ public sealed class StreamShellInputHandler : IDisposable
         var sessionKey = AgentRegistry.ActiveSessionKey;
         if (sessionKey != null)
             await _agentSwitching.PrintSessionHistory(sessionKey);
+
+        // First-connection: prompt to configure agents if no settings exist
+        if (!_agentSettingsPersistence.HasAnyPersistedSettings && AgentRegistry.Agents.Count > 0 && !FirstConnectionWizard.IsActive)
+        {
+            var firstConnectionWizard = new FirstConnectionWizard(_host, _agentSettingsPersistence);
+            firstConnectionWizard.Run();
+        }
     }
 
     public void Dispose()
@@ -135,7 +142,7 @@ public sealed class StreamShellInputHandler : IDisposable
     private void OnUserInput(string input, InputType type, IReadOnlyList<Attachment> attachments)
     {
         // Don't process input while wizard is active — wizard handles it
-        if (AgentConfigWizard.IsActive)
+        if (AgentConfigWizard.IsActive || FirstConnectionWizard.IsActive)
             return;
 
         // Commands are auto-executed by StreamShell — skip

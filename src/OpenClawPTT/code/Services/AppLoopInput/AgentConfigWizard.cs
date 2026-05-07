@@ -18,6 +18,9 @@ public sealed class AgentConfigWizard
     /// <summary>Set to true while any wizard is active, so main input handler skips processing.</summary>
     public static bool IsActive { get; private set; }
 
+    /// <summary>Fires when the wizard completes all steps.</summary>
+    public event Action? Completed;
+
     private enum Step
     {
         SelectAgent,
@@ -136,6 +139,7 @@ public sealed class AgentConfigWizard
     {
         IsActive = false;
         _host.UserInputSubmitted -= OnUserInputSubmitted;
+        Completed?.Invoke();
     }
 
     private void SendPrompt(Step step)

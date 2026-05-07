@@ -103,6 +103,15 @@ public sealed class AgentSettingsPersistence : IAgentSettingsPersistence
     }
 
     /// <inheritdoc />
+    public bool HasAnyPersistedSettings
+    {
+        get
+        {
+            lock (_lock) return _agentSettings.Count > 0;
+        }
+    }
+
+    /// <inheritdoc />
     public void MergePersistedSettings(AgentsConfig persisted)
     {
         lock (_lock)

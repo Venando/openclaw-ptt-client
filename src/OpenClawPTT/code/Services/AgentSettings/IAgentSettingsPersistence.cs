@@ -32,6 +32,9 @@ public interface IAgentSettingsPersistence
     /// <summary>All agents with their effective hotkey, emoji, and color.</summary>
     IReadOnlyList<(AgentInfo Agent, string? Hotkey, string? Emoji, string? Color)> AllAgentSettings { get; }
 
+    /// <summary>True if at least one agent has any persisted setting (hotkey, emoji, or color).</summary>
+    bool HasAnyPersistedSettings { get; }
+
     /// <summary>Merge persisted settings from agents.json into the registry.</summary>
     void MergePersistedSettings(AgentsConfig persisted);
 
