@@ -30,9 +30,6 @@ public sealed class ErrorClassification
 /// <summary>Classifies GatewayException and connection errors into actionable categories.</summary>
 public static class GatewayErrorClassifier
 {
-    /// <summary>Known detail codes from the OpenClaw gateway.</summary>
-    private static readonly string[] TransientCodes = Array.Empty<string>(); // Transient = no code, just network errors
-
     /// <summary>Classify a raw exception (network-level failures).</summary>
     public static ErrorClassification Classify(Exception ex)
     {
@@ -112,7 +109,7 @@ public static class GatewayErrorClassifier
 
         if (string.Equals(code, "AUTH_DEVICE_TOKEN_MISMATCH", StringComparison.OrdinalIgnoreCase))
         {
-            var actions = new System.Collections.Generic.List<string>
+            var actions = new List<string>
             {
                 "Clear DeviceToken from config and restart the app.",
                 "Or run: openclaw device token rotate"
@@ -135,7 +132,7 @@ public static class GatewayErrorClassifier
         if (string.Equals(code, "PAIRING_REQUIRED", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("pairing required", StringComparison.OrdinalIgnoreCase))
         {
-            var actions = new System.Collections.Generic.List<string>
+            var actions = new List<string>
             {
                 "Run 'openclaw devices list' to see pending requests.",
                 "Then run 'openclaw devices approve <request-id>' to approve."
@@ -187,8 +184,9 @@ public static class GatewayErrorClassifier
             };
         }
 
-        if (message.Contains("unauthorized", StringComparison.OrdinalIgnoreCase) &&
-            !message.Contains("token mismatch", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(code, "UNAUTHORIZED", StringComparison.OrdinalIgnoreCase) ||
+            (message.Contains("unauthorized", StringComparison.OrdinalIgnoreCase) &&
+             !string.Equals(code, "AUTH_DEVICE_TOKEN_MISMATCH", StringComparison.OrdinalIgnoreCase)))
         {
             return new ErrorClassification
             {

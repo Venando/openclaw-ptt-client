@@ -24,14 +24,14 @@ public sealed class ErrorLogEntry
 /// Thread-safe, append-only error log store.
 /// Persists to {dataDir}/diagnostics/errors.json with bounded capacity.
 /// </summary>
-public sealed class ErrorLogStore
+public sealed class ErrorLogStore : IDisposable
 {
     private const int DefaultMaxEntries = 1000;
     private readonly string _filePath;
     private readonly int _maxEntries;
     private readonly ReaderWriterLockSlim _lock = new();
 
-    private List<ErrorLogEntry> _entries = new();
+    private List<ErrorLogEntry> _entries;
 
     public ErrorLogStore(string dataDir, int maxEntries = DefaultMaxEntries)
     {
