@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,6 +26,9 @@ public sealed class GatewayService : IGatewayService
     public event Action<string, JsonElement>? EventReceived;
     public event Action<string>? AgentReplyAudio;
     public event Action<string>? UserMessageReceived;
+
+    private readonly ConcurrentDictionary<string, long> _recentUserMessages = new();
+    private const int RecentUserMessageWindowMs = 1000;
 
     public GatewayService(AppConfig config, IColorConsole console, ITtsSummarizer? summarizer = null, IPttStateMachine? pttStateMachine = null)
     {
@@ -141,7 +145,37 @@ public sealed class GatewayService : IGatewayService
         // User messages from other nodes — display them in real-time
         events.UserMessageReceived += text =>
         {
-            _console.Log("debug", $"[UserMessageReceived handler] printing: {text}", LogLevel.Debug);
+            // Dedup: gateway may send session.message twice for the same user message.
+            // Track by text hash within a 1-second window to suppress duplicates.
+            var now = Environment.TickCount64;
+            var isDuplicate = false;
+
+            _recentUserMessages.AddOrUpdate(text,
+                addValue: now,
+                updateValueFactory: (key, existingTimestamp) =>
+                {
+                    if (now - existingTimestamp < RecentUserMessageWindowMs)
+                    {
+                        isDuplicate = true;
+                        return existingTimestamp; // keep existing, skip this
+                    }
+                    return now; // stale entry, refresh and allow
+                });
+
+            if (isDuplicate)
+                return;
+
+            // Bounded cleanup
+            if (_recentUserMessages.Count > 50)
+            {
+                var cutoff = now - RecentUserMessageWindowMs;
+                foreach (var kvp in _recentUserMessages)
+                {
+                    if (kvp.Value < cutoff)
+                        _recentUserMessages.TryRemove(kvp.Key, out _);
+                }
+            }
+
             _console.PrintUserMessage(text);
             UserMessageReceived?.Invoke(text);
         };

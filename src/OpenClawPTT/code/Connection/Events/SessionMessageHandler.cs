@@ -57,7 +57,7 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
         // Handle user messages from other nodes — display in real-time
         if (string.Equals(role, "user", StringComparison.OrdinalIgnoreCase))
         {
-            HandleUserMessage(messageEl);
+            HandleUserMessage(payload, messageEl);
             return;
         }
 
@@ -197,25 +197,17 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
     /// Extracts text content and fires <see cref="IGatewayEventSource.RaiseUserMessageReceived(string)"/>
     /// so that messages sent from other nodes are displayed in real-time.
     /// </summary>
-    private void HandleUserMessage(JsonElement messageEl)
+    private void HandleUserMessage(JsonElement payload, JsonElement messageEl)
     {
-        // Check sender metadata to avoid displaying our own echoed messages.
-        // Each instance has a unique deviceId; messages from other nodes should be displayed.
-        if (messageEl.TryGetProperty("sender", out var senderEl) &&
+        // Check sender metadata at the ROOT level of the event payload.
+        // The sender object (with id, label) is on the session.message event itself,
+        // not inside the message sub-object.
+        if (payload.TryGetProperty("sender", out var senderEl) &&
             senderEl.TryGetProperty("id", out var senderIdEl))
         {
             var senderId = senderIdEl.GetString() ?? "";
-            _console.Log("debug", $"[HandleUserMessage] sender.id=\"{senderId}\" vs our ClientId=\"{_device?.ClientId}\"", LogLevel.Debug);
             if (senderId == _device?.ClientId)
-            {
-                _console.Log("debug", $"[HandleUserMessage] skipping own message", LogLevel.Debug);
-                return; // Our own message — skip
-            }
-            _console.Log("debug", $"[HandleUserMessage] displaying remote message", LogLevel.Debug);
-        }
-        else
-        {
-            _console.Log("debug", "[HandleUserMessage] no sender.id found", LogLevel.Debug);
+                return; // Our own message — skip (echo from gateway)
         }
 
         if (!messageEl.TryGetProperty("content", out var contentEl))
