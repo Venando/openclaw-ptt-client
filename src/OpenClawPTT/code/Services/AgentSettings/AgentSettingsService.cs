@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text.Json;
 using OpenClawPTT.Services;
 
+
+
 namespace OpenClawPTT;
 
 /// <summary>Loads, saves, and queries per-agent settings from agents.json.</summary>
@@ -17,7 +19,11 @@ public sealed class AgentSettingsService
 
     public AgentSettingsService(string dataDir, IColorConsole console)
     {
-        _filePath = Path.Combine(dataDir, "agents.json");
+        var filename = "agents.json";
+#if DEBUG
+        filename = "agents.debug.json";
+#endif
+        _filePath = Path.Combine(dataDir, filename);
         _console = console;
     }
 
@@ -37,12 +43,12 @@ public sealed class AgentSettingsService
         }
         catch (JsonException ex)
         {
-            _console.LogError("settings", $"Failed to parse agents.json: {ex.Message}. Starting with empty settings.");
+            _console.LogError("settings", $"Failed to parse {Path.GetFileName(_filePath)}: {ex.Message}. Starting with empty settings.");
             _settings = new List<AgentPersistedSettings>();
         }
         catch (IOException ex)
         {
-            _console.LogError("settings", $"Failed to read agents.json: {ex.Message}. Starting with empty settings.");
+            _console.LogError("settings", $"Failed to read {Path.GetFileName(_filePath)}: {ex.Message}. Starting with empty settings.");
             _settings = new List<AgentPersistedSettings>();
         }
     }
