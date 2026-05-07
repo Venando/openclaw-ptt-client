@@ -162,6 +162,10 @@ public sealed class StreamShellInputHandler : IDisposable
                 return _agentSettings.HandleHotkeyCommand(args.Skip(1).ToArray());
             if (args[0].Equals("emoji", System.StringComparison.OrdinalIgnoreCase))
                 return _agentSettings.HandleEmojiCommand(args.Skip(1).ToArray());
+            if (args[0].Equals("color", System.StringComparison.OrdinalIgnoreCase))
+                return _agentSettings.HandleColorCommand(args.Skip(1).ToArray());
+            if (args[0].Equals("config", System.StringComparison.OrdinalIgnoreCase))
+                return _agentSwitching.HandleConfigCommand(args.Skip(1).ToArray());
         }
 
         return _agentSwitching.HandleCrew(args);

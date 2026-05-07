@@ -186,18 +186,23 @@ _thinkingDisplay.DisplayThinking(thinking);
         var isAudioEnabled = _config.AudioResponseMode?.ToLowerInvariant() != "text-only";
 
         AgentRegistry.GetActiveNameAndEmoji(out var agentName, out var emoji, _config.AgentName);
+        var color = AgentRegistry.GetActiveColor();
+        var agentNameStr = agentName.ToString();
+        var colorTag = color != null ? $"[{color}]" : "";
+        var colorClose = color != null ? $"[/{color}]" : "";
+        var coloredName = $"{colorTag}{agentNameStr}{colorClose}";
 
         if (isAudioEnabled && _hasAudioInCurrentMessage)
         {
-            _currentPrefix = $"  {emoji} 🔊 {agentName}: ";
+            _currentPrefix = $"  {emoji} 🔊 {coloredName}: ";
         }
         else if (isAudioEnabled)
         {
-            _currentPrefix = $"  {emoji} ✍️ {agentName}: ";
+            _currentPrefix = $"  {emoji} ✍️ {coloredName}: ";
         }
         else
         {
-            _currentPrefix = $"  {emoji} {agentName}: ";
+            _currentPrefix = $"  {emoji} {coloredName}: ";
         }
 
         _prefixLength = _currentPrefix.Length;
