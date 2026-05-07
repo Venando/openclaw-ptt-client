@@ -190,7 +190,7 @@ _thinkingDisplay.DisplayThinking(thinking);
         var effectiveColor = color ?? AgentPersistedSettings.DefaultColor;
         var agentNameStr = agentName.ToString();
         var colorTag = $"[{effectiveColor}]";
-        var colorClose = $"[/{effectiveColor}]";
+        var colorClose = "[/]";
         var coloredName = $"{colorTag}{agentNameStr}{colorClose}";
 
         if (isAudioEnabled && _hasAudioInCurrentMessage)

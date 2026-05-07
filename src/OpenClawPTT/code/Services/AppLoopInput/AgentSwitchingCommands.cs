@@ -55,7 +55,7 @@ public sealed class AgentSwitchingCommands
             var emojiDisplay = entry.Emoji ?? "🤖";
             var effectiveColor = entry.Color ?? AgentPersistedSettings.DefaultColor;
             var colorTag = $"[{effectiveColor}]";
-            var colorClose = $"[/{effectiveColor}]";
+            var colorClose = "[/]";
             var nameDisplay = $"{colorTag}{Markup.Escape(entry.Agent.Name)}{colorClose}";
             var hotkeyDisplay = entry.Hotkey != null
                 ? Markup.Escape(entry.Hotkey)

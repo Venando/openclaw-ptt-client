@@ -70,7 +70,7 @@ public sealed class ColorConsole : IColorConsole
         var color = AgentRegistry.GetActiveColor();
         var effectiveColor = color ?? AgentPersistedSettings.DefaultColor;
         var nameStr = agentName.ToString();
-        var coloredName = $"[{effectiveColor}]{Markup.Escape(nameStr)}[/{effectiveColor}]";
+        var coloredName = $"[{effectiveColor}]{Markup.Escape(nameStr)}[/]";
         var modeDescription = appConfig.HoldToTalk ? "Hold-to-talk" : "Toggle recording";
         var middleContent = $"   Agent: [white on gray15]{emoji} {coloredName}[/] [deepskyblue3]·[/] [white on gray15]{Markup.Escape($"[{hotkeyCombination}]")}[/] [deepskyblue3]·[/] {modeDescription} [deepskyblue3]·[/] /help [deepskyblue3]·[/] /quit    ";
         var dashCount = Markup.Remove(middleContent).Length;
