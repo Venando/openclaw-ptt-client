@@ -91,6 +91,11 @@ public sealed class AgentSwitchingCommands
             }
 
             var wizard = new AgentConfigWizard(_host, _agentSettingsPersistence);
+            wizard.OnConfigured = agent =>
+            {
+                AgentRegistry.SetActiveAgent(agent.AgentId);
+                _ = PrintSessionHistory(agent.SessionKey);
+            };
             _ = wizard.RunAsync(matched);
             return Task.CompletedTask;
         }
@@ -108,6 +113,11 @@ public sealed class AgentSwitchingCommands
         _host.AddMessage("");
 
         var wizard2 = new AgentConfigWizard(_host, _agentSettingsPersistence);
+        wizard2.OnConfigured = agent =>
+        {
+            AgentRegistry.SetActiveAgent(agent.AgentId);
+            _ = PrintSessionHistory(agent.SessionKey);
+        };
         _ = wizard2.RunAsync();
         return Task.CompletedTask;
     }

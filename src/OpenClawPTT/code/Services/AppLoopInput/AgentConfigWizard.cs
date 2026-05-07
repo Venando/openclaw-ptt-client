@@ -21,6 +21,9 @@ public sealed class AgentConfigWizard
     /// <summary>Fires when the wizard completes all steps.</summary>
     public event Action? Completed;
 
+    /// <summary>Fires after completion with the configured agent (if any), for reactivation+trace.</summary>
+    public Action<AgentInfo>? OnConfigured { get; set; }
+
     private enum Step
     {
         SelectAgent,
@@ -140,6 +143,8 @@ public sealed class AgentConfigWizard
         IsActive = false;
         _host.UserInputSubmitted -= OnUserInputSubmitted;
         Completed?.Invoke();
+        if (_agent != null)
+            OnConfigured?.Invoke(_agent);
     }
 
     private void SendPrompt(Step step)
