@@ -73,9 +73,39 @@ public sealed class AgentSwitchingCommands
     /// <summary>Handler for /crew config — interactive agent configuration wizard.</summary>
     public Task HandleConfigCommand(string[] args)
     {
-        // Start the agent config wizard — it will prompt for the agent name
-        var wizard = new AgentConfigWizard(_host, _agentSettingsPersistence);
-        _ = wizard.RunAsync(); // Fire and forget — wizard uses events
+        if (args.Length > 0)
+        {
+            // Resolve agent name/ID and skip the agent selection step
+            var search = string.Join(" ", args);
+            var matched = AgentRegistry.Agents.FirstOrDefault(a =>
+                a.Name.Equals(search, StringComparison.OrdinalIgnoreCase) ||
+                a.AgentId.Equals(search, StringComparison.OrdinalIgnoreCase));
+
+            if (matched == null)
+            {
+                _host.AddMessage($"[red]  Agent not found: {Markup.Escape(search)}[/]");
+                return Task.CompletedTask;
+            }
+
+            var wizard = new AgentConfigWizard(_host, _agentSettingsPersistence);
+            _ = wizard.RunAsync(matched);
+            return Task.CompletedTask;
+        }
+
+        // Show agent list, then start the wizard with agent selection step
+        var agents = AgentRegistry.Agents;
+        _host.AddMessage("[cyan2]  Select an agent to configure:[/]");
+        foreach (var agent in agents)
+        {
+            var emoji = _agentSettingsPersistence.GetPersistedEmoji(agent.AgentId) ?? "🤖";
+            var color = _agentSettingsPersistence.GetPersistedColor(agent.AgentId);
+            var nameStr = color != null ? $"[{color}]{Markup.Escape(agent.Name)}[/]" : Markup.Escape(agent.Name);
+            _host.AddMessage($"  {emoji} {nameStr} [grey]({Markup.Escape(agent.AgentId)})[/]");
+        }
+        _host.AddMessage("");
+
+        var wizard2 = new AgentConfigWizard(_host, _agentSettingsPersistence);
+        _ = wizard2.RunAsync();
         return Task.CompletedTask;
     }
 

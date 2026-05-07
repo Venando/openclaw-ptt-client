@@ -39,10 +39,11 @@ public sealed class AgentConfigWizard
         _persistence = persistence ?? throw new ArgumentNullException(nameof(persistence));
     }
 
-    public Task RunAsync()
+    public Task RunAsync(AgentInfo? preSelectedAgent = null)
     {
         IsActive = true;
-        _currentStep = Step.SelectAgent;
+        _agent = preSelectedAgent;
+        _currentStep = preSelectedAgent != null ? Step.Hotkey : Step.SelectAgent;
         _isFirstPrompt = true;
 
         _host.UserInputSubmitted += OnUserInputSubmitted;
