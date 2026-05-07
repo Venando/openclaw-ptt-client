@@ -94,6 +94,7 @@ public sealed class StreamShellInputHandler : IDisposable
             AgentRegistry.Deactivate();
             var firstConnectionWizard = new FirstConnectionWizard(_host, _agentSettingsPersistence, onAgentConfigured: agent =>
             {
+                _console.PrintAgentIntroduction(_appConfig);
                 _ = _agentSwitching.PrintSessionHistory(agent.SessionKey);
             });
             firstConnectionWizard.Run();
@@ -129,6 +130,7 @@ public sealed class StreamShellInputHandler : IDisposable
         }
 
         // Deactivate the current agent so messages don't interfere with the wizard
+        var previousAgentId = AgentRegistry.ActiveAgentId;
         AgentRegistry.Deactivate();
 
         _host.AddMessage("[cyan2]  Starting reconfiguration wizard...[/]");
@@ -136,6 +138,15 @@ public sealed class StreamShellInputHandler : IDisposable
         {
             var newCfg = await _configService.ReconfigureAsync(_host, currentCfg, CancellationToken.None);
             _host.AddMessage("[green]  Configuration updated.[/]");
+
+            // Reactivate the previous agent and pull history
+            if (previousAgentId != null && AgentRegistry.SetActiveAgent(previousAgentId))
+            {
+                _console.PrintAgentIntroduction(_appConfig);
+                var activeKey = AgentRegistry.ActiveSessionKey;
+                if (activeKey != null)
+                    await _agentSwitching.PrintSessionHistory(activeKey);
+            }
         }
         catch (OperationCanceledException)
         {
