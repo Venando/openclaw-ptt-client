@@ -11,6 +11,9 @@ namespace OpenClawPTT;
 
 public sealed class ConfigurationWizard
 {
+    /// <summary>Set to true while the wizard is active, so main input handler skips processing.</summary>
+    public static bool IsActive { get; private set; }
+
     private enum Step
     {
         GatewayUrl,
@@ -66,6 +69,7 @@ public sealed class ConfigurationWizard
         _currentStep = Step.GatewayUrl;
         _tcs = new TaskCompletionSource<AppConfig>();
         _isFirstPrompt = true;
+        IsActive = true;
 
         if (ct.CanBeCanceled)
         {
@@ -160,6 +164,7 @@ public sealed class ConfigurationWizard
 
     private void Unsubscribe()
     {
+        IsActive = false;
         if (_host != null)
         {
             _host.UserInputSubmitted -= OnUserInputSubmitted;

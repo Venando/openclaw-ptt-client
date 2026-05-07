@@ -21,7 +21,6 @@ public sealed class FirstConnectionWizard
     private readonly Action<AgentInfo>? _onAgentConfigured;
     private Queue<AgentInfo> _pendingAgents = new();
     private AgentInfo? _currentAgent;
-    private bool _anyConfigured;
 
     public FirstConnectionWizard(IStreamShellHost host, IAgentSettingsPersistence persistence, Action<AgentInfo>? onAgentConfigured = null)
     {
@@ -138,7 +137,6 @@ public sealed class FirstConnectionWizard
     private void OnAgentConfigCompleted()
     {
         // AgentConfigWizard finished — resume the loop
-        _anyConfigured = true;
         ProcessNextAgent();
     }
 }

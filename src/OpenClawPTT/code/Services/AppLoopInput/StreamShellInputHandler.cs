@@ -160,8 +160,8 @@ public sealed class StreamShellInputHandler : IDisposable
     /// </summary>
     private void OnUserInput(string input, InputType type, IReadOnlyList<Attachment> attachments)
     {
-        // Don't process input while wizard is active — wizard handles it
-        if (AgentConfigWizard.IsActive || FirstConnectionWizard.IsActive)
+        // Don't process input while any wizard is active — wizard handles it
+        if (AgentConfigWizard.IsActive || FirstConnectionWizard.IsActive || ConfigurationWizard.IsActive)
             return;
 
         // Commands are auto-executed by StreamShell — skip
@@ -174,11 +174,15 @@ public sealed class StreamShellInputHandler : IDisposable
 
         _messageComposer.TryToComposeMessage(input, attachments, out string? composedMessage);
 
+        // Don't try to send null/empty input
+        if (composedMessage == null)
+            return;
+
         // Use non-blocking send via fire-and-forget since StreamShell fires events synchronously.
         // Exceptions are caught and surfaced inside SendWithAttachmentsAsync.
         _ = Task.Run(async () =>
         {
-            await _messageComposer.SendWithAttachmentsAsync(composedMessage!, CancellationToken.None);
+            await _messageComposer.SendWithAttachmentsAsync(composedMessage, CancellationToken.None);
         });
     }
 
