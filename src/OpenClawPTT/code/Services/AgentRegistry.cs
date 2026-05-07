@@ -157,6 +157,19 @@ public static class AgentRegistry
         }
     }
 
+    /// <summary>Deactivates the active agent (sets active session to null).</summary>
+    public static void Deactivate()
+    {
+        lock (_lock)
+        {
+            if (_activeSessionKey != null)
+            {
+                _activeSessionKey = null;
+                ActiveSessionChanged?.Invoke(null);
+            }
+        }
+    }
+
     /// <summary>
     /// Returns true if the message's sessionKey matches the currently active session.
     /// If no active session is set, all messages pass through.

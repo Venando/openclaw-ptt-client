@@ -122,6 +122,9 @@ public sealed class StreamShellInputHandler : IDisposable
             return;
         }
 
+        // Deactivate the current agent so messages don't interfere with the wizard
+        AgentRegistry.Deactivate();
+
         _host.AddMessage("[cyan2]  Starting reconfiguration wizard...[/]");
         try
         {

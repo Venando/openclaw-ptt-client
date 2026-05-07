@@ -73,6 +73,9 @@ public sealed class AgentSwitchingCommands
     /// <summary>Handler for /crew config — interactive agent configuration wizard.</summary>
     public Task HandleConfigCommand(string[] args)
     {
+        // Deactivate the current agent so messages don't interfere with the wizard
+        AgentRegistry.Deactivate();
+
         if (args.Length > 0)
         {
             // Resolve agent name/ID and skip the agent selection step

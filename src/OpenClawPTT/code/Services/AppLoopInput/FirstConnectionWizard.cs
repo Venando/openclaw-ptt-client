@@ -37,6 +37,7 @@ public sealed class FirstConnectionWizard
         }
 
         IsActive = true;
+        AgentRegistry.Deactivate();
         _pendingAgents = new Queue<AgentInfo>(agents);
 
         _host.AddMessage("");
