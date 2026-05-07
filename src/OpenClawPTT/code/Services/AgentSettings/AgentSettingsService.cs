@@ -75,6 +75,16 @@ public sealed class AgentSettingsService
     public void SetEmoji(string agentId, string? emoji)
         => SetField(agentId, s => s.Emoji = emoji);
 
+    public string? GetColor(string agentId)
+    {
+        var entry = _settings.FirstOrDefault(s =>
+            s.AgentId.Equals(agentId, System.StringComparison.OrdinalIgnoreCase));
+        return entry?.Color;
+    }
+
+    public void SetColor(string agentId, string? color)
+        => SetField(agentId, s => s.Color = color);
+
     private void SetField(string agentId, System.Action<AgentPersistedSettings> setter)
     {
         var entry = _settings.FirstOrDefault(s =>

@@ -34,7 +34,7 @@ public class AgentHotkeyServiceTests : IDisposable
     {
         var mock = new Mock<IAgentSettingsPersistence>();
         mock.Setup(x => x.AllAgentsWithHotkeys).Returns(new List<(AgentInfo Agent, string? Hotkey)>().AsReadOnly());
-        mock.Setup(x => x.AllAgentSettings).Returns(new List<(AgentInfo Agent, string? Hotkey, string? Emoji)>().AsReadOnly());
+        mock.Setup(x => x.AllAgentSettings).Returns(new List<(AgentInfo Agent, string? Hotkey, string? Emoji, string? Color)>().AsReadOnly());
         return mock.Object;
     }
 

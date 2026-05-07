@@ -41,6 +41,8 @@ public sealed class AgentSwitchingCommands
                 return Task.CompletedTask; // handled by AgentSettingsCommands
             if (args[0].Equals("emoji", StringComparison.OrdinalIgnoreCase))
                 return Task.CompletedTask; // handled by AgentSettingsCommands
+            if (args[0].Equals("color", StringComparison.OrdinalIgnoreCase))
+                return Task.CompletedTask; // handled by AgentSettingsCommands
         }
 
         var agents = AgentRegistry.Agents;
@@ -59,9 +61,11 @@ public sealed class AgentSwitchingCommands
             var marker = isActive ? " ►" : "  ";
             var emoji = _agentSettingsPersistence.GetPersistedEmoji(agent.AgentId);
             var emojiStr = emoji != null ? $"{emoji} " : "";
-            _host.AddMessage($"  {marker} {emojiStr}[bold]{Markup.Escape(agent.Name)}[/] [grey]({Markup.Escape(agent.AgentId)})[/]");
+            var color = _agentSettingsPersistence.GetPersistedColor(agent.AgentId);
+            var nameStr = color != null ? $"[{color}]{Markup.Escape(agent.Name)}[/{color}]" : Markup.Escape(agent.Name);
+            _host.AddMessage($"  {marker} {emojiStr}[bold]{nameStr}[/] [grey]({Markup.Escape(agent.AgentId)})[/]");
         }
-        _host.AddMessage("[grey]  Use /chat <name|id> to switch, /crew hotkey or /crew emoji to manage settings[/]");
+        _host.AddMessage("[grey]  Use /chat <name|id> to switch, /crew hotkey, /crew emoji, or /crew color to manage settings[/]");
         return Task.CompletedTask;
     }
 

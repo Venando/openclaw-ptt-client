@@ -8,7 +8,7 @@ namespace OpenClawPTT;
 
 /// <summary>
 /// Handles StreamShell commands for per-agent configuration:
-/// hotkey overrides and emoji overrides.
+/// hotkey overrides, emoji overrides, and color overrides.
 /// Extracted from StreamShellInputHandler to honor Single Responsibility.
 /// </summary>
 public sealed class AgentSettingsCommands
@@ -126,8 +126,35 @@ public sealed class AgentSettingsCommands
             (target, value) => _agentSettingsPersistence.SetPersistedEmoji(target.AgentId, value));
     }
 
+    /// <summary>Handler for /crew color.</summary>
+    public Task HandleColorCommand(string[] args)
+    {
+        const string settingName = "color";
+
+        if (args.Length == 0)
+        {
+            ListAgentSettings(settingName, _agentSettingsPersistence.AllAgentSettings, entry =>
+            {
+                var color = entry.Color;
+                return color != null ? Markup.Escape(color) : "[grey](default)[/]";
+            });
+            return Task.CompletedTask;
+        }
+
+        return HandleSingleAgentSetting(
+            args,
+            settingName,
+            target =>
+            {
+                var color = _agentSettingsPersistence.GetPersistedColor(target.AgentId);
+                return color ?? "(default)";
+            },
+            target => _agentSettingsPersistence.GetPersistedColor(target.AgentId),
+            (target, value) => _agentSettingsPersistence.SetPersistedColor(target.AgentId, value));
+    }
+
     /// <summary>Lists all agents with a formatted setting value.</summary>
-    private void ListAgentSettings(string title, IReadOnlyList<(AgentInfo Agent, string? Hotkey, string? Emoji)> agents, Func<(AgentInfo Agent, string? Hotkey, string? Emoji), string> formatValue)
+    private void ListAgentSettings(string title, IReadOnlyList<(AgentInfo Agent, string? Hotkey, string? Emoji, string? Color)> agents, Func<(AgentInfo Agent, string? Hotkey, string? Emoji, string? Color), string> formatValue)
     {
         _host.AddMessage($"[cyan2]  {title}:[/]");
         foreach (var entry in agents)

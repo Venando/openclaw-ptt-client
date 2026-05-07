@@ -45,11 +45,17 @@ public static class AgentSettingsPersistenceLegacy
     /// <summary>Set or clear per-agent emoji override.</summary>
     public static void SetPersistedEmoji(string agentId, string? emoji) => GetInstance().SetPersistedEmoji(agentId, emoji);
 
+    /// <summary>Get per-agent color override, or null for default.</summary>
+    public static string? GetPersistedColor(string agentId) => GetInstance().GetPersistedColor(agentId);
+
+    /// <summary>Set or clear per-agent color override.</summary>
+    public static void SetPersistedColor(string agentId, string? color) => GetInstance().SetPersistedColor(agentId, color);
+
     /// <summary>All agents with their effective hotkey (override or null).</summary>
     public static IReadOnlyList<(AgentInfo Agent, string? Hotkey)> AllAgentsWithHotkeys => GetInstance().AllAgentsWithHotkeys;
 
-    /// <summary>All agents with their effective hotkey and emoji.</summary>
-    public static IReadOnlyList<(AgentInfo Agent, string? Hotkey, string? Emoji)> AllAgentSettings => GetInstance().AllAgentSettings;
+    /// <summary>All agents with their effective hotkey, emoji, and color.</summary>
+    public static IReadOnlyList<(AgentInfo Agent, string? Hotkey, string? Emoji, string? Color)> AllAgentSettings => GetInstance().AllAgentSettings;
 
     /// <summary>Merge persisted settings from agents.json into the registry.</summary>
     public static void MergePersistedSettings(AgentsConfig persisted) => GetInstance().MergePersistedSettings(persisted);

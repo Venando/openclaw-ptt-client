@@ -179,4 +179,14 @@ public static class AgentRegistry
                 : defaultEmoji;
         }
     }
+
+    /// <summary>Gets the active agent's color via the legacy bridge, or null for default.</summary>
+    public static string? GetActiveColor()
+    {
+        lock (_lock)
+        {
+            var active = AgentRegistryHelpers.FindBySessionKey(_agents, _activeSessionKey);
+            return active != null ? AgentSettingsPersistenceLegacy.GetPersistedColor(active.AgentId) : null;
+        }
+    }
 }

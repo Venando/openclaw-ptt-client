@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace OpenClawPTT;
 
 /// <summary>
-/// Interface for managing per-agent persisted settings (hotkey, emoji) persisted to agents.json.
+/// Interface for managing per-agent persisted settings (hotkey, emoji, color) persisted to agents.json.
 /// </summary>
 public interface IAgentSettingsPersistence
 {
@@ -20,11 +20,17 @@ public interface IAgentSettingsPersistence
     /// <summary>Get per-agent emoji override, or null for default (🤖).</summary>
     string? GetPersistedEmoji(string agentId);
 
+    /// <summary>Set or clear per-agent color override. Fires PersistedSettingsChanged.</summary>
+    void SetPersistedColor(string agentId, string? color);
+
+    /// <summary>Get per-agent color override, or null for default.</summary>
+    string? GetPersistedColor(string agentId);
+
     /// <summary>All agents with their effective hotkey (override or null).</summary>
     IReadOnlyList<(AgentInfo Agent, string? Hotkey)> AllAgentsWithHotkeys { get; }
 
-    /// <summary>All agents with their effective hotkey and emoji.</summary>
-    IReadOnlyList<(AgentInfo Agent, string? Hotkey, string? Emoji)> AllAgentSettings { get; }
+    /// <summary>All agents with their effective hotkey, emoji, and color.</summary>
+    IReadOnlyList<(AgentInfo Agent, string? Hotkey, string? Emoji, string? Color)> AllAgentSettings { get; }
 
     /// <summary>Merge persisted settings from agents.json into the registry.</summary>
     void MergePersistedSettings(AgentsConfig persisted);

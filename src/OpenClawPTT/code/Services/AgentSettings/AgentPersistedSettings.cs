@@ -8,4 +8,6 @@ public sealed class AgentPersistedSettings
     public string? HotkeyCombination { get; set; }
     /// <summary>Emoji override for agent prefix and listings. Null means use default (🤖).</summary>
     public string? Emoji { get; set; }
+    /// <summary>Color override for agent name display. Null means use default.</summary>
+    public string? Color { get; set; }
 }

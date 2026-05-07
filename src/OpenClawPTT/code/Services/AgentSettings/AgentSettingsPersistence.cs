@@ -5,7 +5,7 @@ using System.Linq;
 namespace OpenClawPTT;
 
 /// <summary>
-/// Manages per-agent persisted settings (hotkey, emoji) persisted to agents.json.
+/// Manages per-agent persisted settings (hotkey, emoji, color) persisted to agents.json.
 /// This is the non-static DI-based implementation.
 /// </summary>
 public sealed class AgentSettingsPersistence : IAgentSettingsPersistence
@@ -33,8 +33,9 @@ public sealed class AgentSettingsPersistence : IAgentSettingsPersistence
     /// <inheritdoc />
     public void SetPersistedHotkey(string agentId, string? hotkeyCombo)
     {
-        var existing = GetPersistedEmoji(agentId);
-        SetPersistedField(agentId, hotkeyCombo, existing);
+        var existingEmoji = GetPersistedEmoji(agentId);
+        var existingColor = GetPersistedColor(agentId);
+        SetPersistedField(agentId, hotkeyCombo, existingEmoji, existingColor);
     }
 
     /// <inheritdoc />
@@ -49,8 +50,26 @@ public sealed class AgentSettingsPersistence : IAgentSettingsPersistence
     /// <inheritdoc />
     public void SetPersistedEmoji(string agentId, string? emoji)
     {
-        var existing = GetPersistedHotkey(agentId);
-        SetPersistedField(agentId, existing, emoji);
+        var existingHotkey = GetPersistedHotkey(agentId);
+        var existingColor = GetPersistedColor(agentId);
+        SetPersistedField(agentId, existingHotkey, emoji, existingColor);
+    }
+
+    /// <inheritdoc />
+    public string? GetPersistedColor(string agentId)
+    {
+        lock (_lock)
+        {
+            return _agentSettings.TryGetValue(agentId, out var s) ? s.Color : null;
+        }
+    }
+
+    /// <inheritdoc />
+    public void SetPersistedColor(string agentId, string? color)
+    {
+        var existingHotkey = GetPersistedHotkey(agentId);
+        var existingEmoji = GetPersistedEmoji(agentId);
+        SetPersistedField(agentId, existingHotkey, existingEmoji, color);
     }
 
     /// <inheritdoc />
@@ -68,7 +87,7 @@ public sealed class AgentSettingsPersistence : IAgentSettingsPersistence
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<(AgentInfo Agent, string? Hotkey, string? Emoji)> AllAgentSettings
+    public IReadOnlyList<(AgentInfo Agent, string? Hotkey, string? Emoji, string? Color)> AllAgentSettings
     {
         get
         {
@@ -77,7 +96,7 @@ public sealed class AgentSettingsPersistence : IAgentSettingsPersistence
                 return AgentRegistry.Agents.Select(a =>
                 {
                     _agentSettings.TryGetValue(a.AgentId, out var s);
-                    return (a, s?.HotkeyCombination, s?.Emoji);
+                    return (a, s?.HotkeyCombination, s?.Emoji, s?.Color);
                 }).ToList().AsReadOnly();
             }
         }
@@ -98,7 +117,7 @@ public sealed class AgentSettingsPersistence : IAgentSettingsPersistence
     /// <inheritdoc />
     public event Action? PersistedSettingsChanged;
 
-    private void SetPersistedField(string agentId, string? hotkeyCombo, string? emoji)
+    private void SetPersistedField(string agentId, string? hotkeyCombo, string? emoji, string? color)
     {
         lock (_lock)
         {
@@ -109,10 +128,12 @@ public sealed class AgentSettingsPersistence : IAgentSettingsPersistence
             }
             s.HotkeyCombination = hotkeyCombo;
             s.Emoji = emoji;
+            s.Color = color;
 
             // Sync with settings service for persistence
             _settingsService.SetHotkey(agentId, hotkeyCombo);
             _settingsService.SetEmoji(agentId, emoji);
+            _settingsService.SetColor(agentId, color);
             _settingsService.Save();
         }
         PersistedSettingsChanged?.Invoke();
