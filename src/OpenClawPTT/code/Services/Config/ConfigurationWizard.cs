@@ -279,7 +279,7 @@ public sealed class ConfigurationWizard
             Step.RealTimeReplyOutput => " Expected true or false",
             Step.AgentName => " Cannot be empty",
             Step.HoldToTalk => " Expected true or false",
-            Step.TranscriptionPromptPrefix => " Cannot be empty (or -- to clear)",
+            Step.TranscriptionPromptPrefix => "",
             Step.VisualFeedbackEnabled => " Expected true or false",
             Step.VisualFeedbackSize => " Expected a number between 1 and 200",
             Step.VisualFeedbackOpacity => " Expected a number between 0.0 and 1.0",
@@ -343,7 +343,7 @@ public sealed class ConfigurationWizard
             case Step.HoldToTalk:
                 return bool.TryParse(rawInput, out _);
             case Step.TranscriptionPromptPrefix:
-                return !string.IsNullOrWhiteSpace(rawInput);
+                return true; // any input valid (-- to clear)
             case Step.VisualFeedbackEnabled:
                 return bool.TryParse(rawInput, out _);
             case Step.VisualFeedbackSize:
