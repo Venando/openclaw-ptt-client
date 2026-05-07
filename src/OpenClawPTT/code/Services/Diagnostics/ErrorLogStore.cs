@@ -6,18 +6,32 @@ using System.Threading;
 
 namespace OpenClawPTT.Services.Diagnostics;
 
-/// <summary>A single error log entry.</summary>
+/// <summary>A single error log entry with rich gateway error details.</summary>
 public sealed class ErrorLogEntry
 {
     public DateTime Timestamp { get; init; }
     public string Level { get; init; } = "error";
     public string Category { get; init; } = "gateway";
-    public string Code { get; init; } = string.Empty;
+    public string Code { get; init; } = string.Empty;           // Detail code e.g. PAIRING_REQUIRED
+    public string OuterCode { get; init; } = string.Empty;      // Top-level code e.g. NOT_PAIRED
     public string Message { get; init; } = string.Empty;
     public string[] SuggestedActions { get; init; } = Array.Empty<string>();
     public int? RetryAttempt { get; init; }
     public string? RawException { get; init; }
     public string? StackTrace { get; init; }
+
+    // ── Rich gateway error details (parsed from error.details) ──
+    public string? Reason { get; init; }          // e.g. scope-upgrade, not-paired
+    public string? RequestId { get; init; }        // Pairing request ID
+    public string? DeviceId { get; init; }         // Device ID
+    public string? RequestedRole { get; init; }    // e.g. operator
+    public string[]? RequestedScopes { get; init; }
+    public string[]? ApprovedScopes { get; init; }
+    public string[]? ApprovedRoles { get; init; }
+    public string? Method { get; init; }           // For UNAVAILABLE errors
+    public bool? CanRetryWithDeviceToken { get; init; }
+    public string? RecommendedNextStep { get; init; }
+    public int? RetryAfterMs { get; init; }        // For retryable errors
 }
 
 /// <summary>

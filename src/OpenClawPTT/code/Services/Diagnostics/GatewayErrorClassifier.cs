@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json;
 
 namespace OpenClawPTT.Services.Diagnostics;
@@ -17,14 +18,54 @@ public enum ErrorCategory
 /// <summary>Result of classifying a gateway error.</summary>
 public sealed class ErrorClassification
 {
-    public ErrorCategory Category { get; init; }
-    public string Code { get; init; } = string.Empty;
-    public string HumanMessage { get; init; } = string.Empty;
-    public string[] SuggestedActions { get; init; } = Array.Empty<string>();
-    public bool ShouldRetry { get; init; }
-    public bool ShouldStopApp { get; init; }
-    public string? RawMessage { get; init; }
-    public string? StackTrace { get; init; }
+    public ErrorCategory Category { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string HumanMessage { get; set; } = string.Empty;
+    public string[] SuggestedActions { get; set; } = Array.Empty<string>();
+    public bool ShouldRetry { get; set; }
+    public bool ShouldStopApp { get; set; }
+    public string OuterCode { get; set; } = string.Empty;
+    public string? RawMessage { get; set; }
+    public string? StackTrace { get; set; }
+    public string? Reason { get; set; }
+    public string? RequestId { get; set; }
+    public string? DeviceId { get; set; }
+    public string? RequestedRole { get; set; }
+    public string[]? RequestedScopes { get; set; }
+    public string[]? ApprovedScopes { get; set; }
+    public string[]? ApprovedRoles { get; set; }
+    public string? Method { get; set; }
+    public bool? CanRetryWithDeviceToken { get; set; }
+    public string? RecommendedNextStep { get; set; }
+    public int? RetryAfterMs { get; set; }
+
+    public ErrorLogEntry ToLogEntry(string level = "error", string category = "gateway", int? retryAttempt = null)
+    {
+        return new ErrorLogEntry
+        {
+            Timestamp = DateTime.UtcNow,
+            Level = level,
+            Category = category,
+            Code = Code,
+            OuterCode = OuterCode,
+            Message = HumanMessage,
+            SuggestedActions = SuggestedActions,
+            RetryAttempt = retryAttempt,
+            RawException = RawMessage,
+            StackTrace = StackTrace,
+            Reason = Reason,
+            RequestId = RequestId,
+            DeviceId = DeviceId,
+            RequestedRole = RequestedRole,
+            RequestedScopes = RequestedScopes,
+            ApprovedScopes = ApprovedScopes,
+            ApprovedRoles = ApprovedRoles,
+            Method = Method,
+            CanRetryWithDeviceToken = CanRetryWithDeviceToken,
+            RecommendedNextStep = RecommendedNextStep,
+            RetryAfterMs = RetryAfterMs
+        };
+    }
 }
 
 /// <summary>Classifies GatewayException and connection errors into actionable categories.</summary>

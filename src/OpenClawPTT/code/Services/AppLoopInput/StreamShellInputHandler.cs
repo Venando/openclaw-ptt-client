@@ -166,17 +166,7 @@ public sealed class StreamShellInputHandler : IDisposable
             catch (Exception ex)
             {
                 var classification = GatewayErrorClassifier.Classify(ex);
-                _errorLog.Write(new ErrorLogEntry
-                {
-                    Timestamp = DateTime.UtcNow,
-                    Level = "error",
-                    Category = "gateway",
-                    Code = classification.Code,
-                    Message = classification.HumanMessage,
-                    SuggestedActions = classification.SuggestedActions,
-                    RawException = classification.RawMessage,
-                    StackTrace = classification.StackTrace
-                });
+                _errorLog.Write(classification.ToLogEntry());
                 _host.AddMessage($"[red]  Failed to send: {classification.HumanMessage}[/]");
             }
         });

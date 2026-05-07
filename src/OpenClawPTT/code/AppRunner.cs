@@ -109,17 +109,7 @@ public class AppRunner : IDisposable
             var classification = GatewayErrorClassifier.Classify(ex);
 
             // Always log the error
-            _errorLog.Write(new ErrorLogEntry
-            {
-                Timestamp = DateTime.UtcNow,
-                Level = "error",
-                Category = "gateway",
-                Code = classification.Code,
-                Message = classification.HumanMessage,
-                SuggestedActions = classification.SuggestedActions,
-                RawException = classification.RawMessage,
-                StackTrace = classification.StackTrace
-            });
+            _errorLog.Write(classification.ToLogEntry());
 
             // Show user-friendly message
             _console.PrintWarning($"Gateway connection failed [{classification.Code}]");

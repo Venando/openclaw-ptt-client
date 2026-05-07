@@ -75,17 +75,7 @@ public sealed class GatewayService : IGatewayService
 
     private void LogClassifiedError(ErrorClassification classification, Exception ex)
     {
-        _errorLog?.Write(new ErrorLogEntry
-        {
-            Timestamp = DateTime.UtcNow,
-            Level = "error",
-            Category = "gateway",
-            Code = classification.Code,
-            Message = classification.HumanMessage,
-            SuggestedActions = classification.SuggestedActions,
-            RawException = classification.RawMessage,
-            StackTrace = classification.StackTrace
-        });
+        _errorLog?.Write(classification.ToLogEntry());
     }
 
     public void RecreateWithConfig(AppConfig newConfig)
