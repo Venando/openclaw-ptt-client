@@ -107,7 +107,7 @@ public sealed class StreamShellInputHandler : IDisposable
     public void Dispose()
     {
         _host.UserInputSubmitted -= OnUserInput;
-        _errorLog.Dispose();
+        // ErrorLogStore is owned by AppRunner — do not dispose here
     }
 
     private Task QuitHandler(string[] args, System.Collections.Generic.Dictionary<string, string> named)

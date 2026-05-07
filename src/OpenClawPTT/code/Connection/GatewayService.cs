@@ -52,18 +52,7 @@ public sealed class GatewayService : IGatewayService
 
     public async Task SendTextAsync(string text, CancellationToken ct)
     {
-        try
-        {
-            await _gatewayClient.SendTextAsync(text, ct);
-        }
-        catch (GatewayException ex)
-        {
-            LogClassifiedError(GatewayErrorClassifier.ClassifyGatewayError(ex), ex);
-        }
-        catch (Exception ex)
-        {
-            LogClassifiedError(GatewayErrorClassifier.Classify(ex), ex);
-        }
+        await _gatewayClient.SendTextAsync(text, ct);
     }
 
     public async Task<JsonElement> SendRpcAsync(string method, object? parameters, CancellationToken ct)
@@ -75,12 +64,12 @@ public sealed class GatewayService : IGatewayService
         catch (GatewayException ex)
         {
             LogClassifiedError(GatewayErrorClassifier.ClassifyGatewayError(ex), ex);
-            return default;
+            throw; // Re-throw so callers can handle failure UI
         }
         catch (Exception ex)
         {
             LogClassifiedError(GatewayErrorClassifier.Classify(ex), ex);
-            return default;
+            throw; // Re-throw so callers can handle failure UI
         }
     }
 
