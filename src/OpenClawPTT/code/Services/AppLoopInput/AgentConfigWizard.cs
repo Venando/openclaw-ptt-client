@@ -144,7 +144,11 @@ public sealed class AgentConfigWizard
         _host.UserInputSubmitted -= OnUserInputSubmitted;
         Completed?.Invoke();
         if (_agent != null)
+        {
+            // Force a save so the file is created even if all defaults were kept
+            _persistence.SetPersistedHotkey(_agent.AgentId, _persistence.GetPersistedHotkey(_agent.AgentId));
             OnConfigured?.Invoke(_agent);
+        }
     }
 
     private void SendPrompt(Step step)
