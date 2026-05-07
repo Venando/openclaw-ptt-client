@@ -83,7 +83,7 @@ public sealed class FirstConnectionWizard
             if (_lastConfiguredAgent != null)
             {
                 AgentRegistry.SetActiveAgent(_lastConfiguredAgent.AgentId);
-                _host.AddMessage($"[cyan]  Active agent: {Markup.Escape(_lastConfiguredAgent.Name)} — use /chat <name> to switch, /crew config to edit[/]");
+                _host.AddMessage($"[cyan]  Active agent: {Markup.Escape(_lastConfiguredAgent.Name)} — use /chat <name> or hotkey to switch, /crew config to edit[/]");
             }
             return;
         }
