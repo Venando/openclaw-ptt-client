@@ -24,7 +24,6 @@ public sealed class StreamShellInputHandler : IDisposable
     private readonly IDirectLlmService? _directLlmService;
     private readonly AppConfig _appConfig;
     private readonly Action _onQuit;
-    private readonly AgentSettingsCommands _agentSettings;
     private readonly AgentSwitchingCommands _agentSwitching;
     private readonly TextMessageComposer _messageComposer;
     private readonly IColorConsole _console;
@@ -56,7 +55,6 @@ public sealed class StreamShellInputHandler : IDisposable
         _agentSettingsPersistence = agentSettingsPersistence;
         _pttStateMachine = pttStateMachine;
         _ttsSummarizer = ttsSummarizer;
-        _agentSettings = new AgentSettingsCommands(host, configService, agentSettingsPersistence);
         _agentSwitching = new AgentSwitchingCommands(host, textSender, gatewayService, appConfig, console, agentSettingsPersistence, pttStateMachine);
         _messageComposer = new TextMessageComposer(host, textSender);
     }
@@ -136,6 +134,10 @@ public sealed class StreamShellInputHandler : IDisposable
     /// </summary>
     private void OnUserInput(string input, InputType type, IReadOnlyList<Attachment> attachments)
     {
+        // Don't process input while wizard is active — wizard handles it
+        if (AgentConfigWizard.IsActive)
+            return;
+
         // Commands are auto-executed by StreamShell — skip
         if (type == InputType.Command)
             return;
@@ -156,17 +158,8 @@ public sealed class StreamShellInputHandler : IDisposable
 
     private Task CrewHandler(string[] args, System.Collections.Generic.Dictionary<string, string> named)
     {
-        if (args.Length > 0)
-        {
-            if (args[0].Equals("hotkey", System.StringComparison.OrdinalIgnoreCase))
-                return _agentSettings.HandleHotkeyCommand(args.Skip(1).ToArray());
-            if (args[0].Equals("emoji", System.StringComparison.OrdinalIgnoreCase))
-                return _agentSettings.HandleEmojiCommand(args.Skip(1).ToArray());
-            if (args[0].Equals("color", System.StringComparison.OrdinalIgnoreCase))
-                return _agentSettings.HandleColorCommand(args.Skip(1).ToArray());
-            if (args[0].Equals("config", System.StringComparison.OrdinalIgnoreCase))
-                return _agentSwitching.HandleConfigCommand(args.Skip(1).ToArray());
-        }
+        if (args.Length > 0 && args[0].Equals("config", System.StringComparison.OrdinalIgnoreCase))
+            return _agentSwitching.HandleConfigCommand(args.Skip(1).ToArray());
 
         return _agentSwitching.HandleCrew(args);
     }

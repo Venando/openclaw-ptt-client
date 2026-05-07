@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
 using Spectre.Console;
@@ -14,8 +15,12 @@ namespace OpenClawPTT;
 /// </summary>
 public sealed class AgentConfigWizard
 {
+    /// <summary>Set to true while any wizard is active, so main input handler skips processing.</summary>
+    public static bool IsActive { get; private set; }
+
     private enum Step
     {
+        SelectAgent,
         Hotkey,
         Emoji,
         Color,
@@ -34,10 +39,10 @@ public sealed class AgentConfigWizard
         _persistence = persistence ?? throw new ArgumentNullException(nameof(persistence));
     }
 
-    public Task RunAsync(AgentInfo agent)
+    public Task RunAsync()
     {
-        _agent = agent;
-        _currentStep = Step.Hotkey;
+        IsActive = true;
+        _currentStep = Step.SelectAgent;
         _isFirstPrompt = true;
 
         _host.UserInputSubmitted += OnUserInputSubmitted;
@@ -48,40 +53,68 @@ public sealed class AgentConfigWizard
 
     private void OnUserInputSubmitted(string input, InputType type, IReadOnlyList<Attachment> attachments)
     {
-        if (_agent == null)
-            return;
-
-        var rawInput = input.Trim();
-        var step = _currentStep;
-
-        // "--" means clear the field (set to null)
-        if (rawInput == "--")
+        try
         {
-            ApplyValue(step, null);
-            _host.AddMessage("[green]  ✓ (cleared)[/]");
+            if (type == InputType.Command) return;
+            if (input == null) return;
+
+            var rawInput = input.Trim();
+            var step = _currentStep;
+
+            // Handle SelectAgent step
+            if (step == Step.SelectAgent)
+            {
+                var matched = AgentRegistry.Agents.FirstOrDefault(a =>
+                    a.Name.Equals(rawInput, StringComparison.OrdinalIgnoreCase) ||
+                    a.AgentId.Equals(rawInput, StringComparison.OrdinalIgnoreCase));
+                if (matched == null)
+                {
+                    _host.AddMessage($"[red]  ✗ Agent not found: {Markup.Escape(rawInput)}[/]");
+                    SendPrompt(step);
+                    return;
+                }
+                _agent = matched;
+                _host.AddMessage($"[green]  ✓ {Markup.Escape(matched.Name)}[/]");
+                Advance();
+                return;
+            }
+
+            if (_agent == null)
+                return;
+
+            // "--" means clear the field (set to null)
+            if (rawInput == "--")
+            {
+                ApplyValue(step, null);
+                _host.AddMessage("[green]  ✓ (cleared)[/]");
+                Advance();
+                return;
+            }
+
+            // Empty input keeps the current value — just advance
+            if (string.IsNullOrEmpty(rawInput))
+            {
+                _host.AddMessage("[green]  ✓ (kept current)[/]");
+                Advance();
+                return;
+            }
+
+            // Validate
+            if (!Validate(step, rawInput, out var errorHint))
+            {
+                _host.AddMessage($"[red]  ✗ {errorHint}[/]");
+                SendPrompt(step);
+                return;
+            }
+
+            ApplyValue(step, rawInput);
+            _host.AddMessage($"[green]  ✓ {Markup.Escape(rawInput)}[/]");
             Advance();
-            return;
         }
-
-        // Empty input keeps the current value — just advance
-        if (string.IsNullOrEmpty(rawInput))
+        catch (Exception ex)
         {
-            _host.AddMessage("[green]  ✓ (kept current)[/]");
-            Advance();
-            return;
+            _host.AddMessage($"[red]  ✗ Wizard error: {Markup.Escape(ex.Message)}[/]");
         }
-
-        // Validate
-        if (!Validate(step, rawInput, out var errorHint))
-        {
-            _host.AddMessage($"[red]  ✗ {errorHint}[/]");
-            SendPrompt(step);
-            return;
-        }
-
-        ApplyValue(step, rawInput);
-        _host.AddMessage($"[green]  ✓ {Markup.Escape(rawInput)}[/]");
-        Advance();
     }
 
     private void Advance()
@@ -100,6 +133,7 @@ public sealed class AgentConfigWizard
 
     private void Unsubscribe()
     {
+        IsActive = false;
         _host.UserInputSubmitted -= OnUserInputSubmitted;
     }
 
@@ -115,7 +149,8 @@ public sealed class AgentConfigWizard
         _host.AddMessage($"[cyan2]▸ {description}[/]");
         if (currentValue != null)
         {
-            _host.AddMessage($"  [grey](current: {Markup.Escape(currentValue)}, press Enter to keep)[/]");
+            var escaped = Markup.Escape(currentValue);
+            _host.AddMessage($"  [grey](current: {escaped}, press Enter to keep)[/]");
         }
         else
         {
@@ -125,20 +160,19 @@ public sealed class AgentConfigWizard
 
     private (string Description, string? CurrentValue) GetStepInfo(Step step)
     {
-        if (_agent == null)
-            return (step.ToString(), null);
-
         switch (step)
         {
+            case Step.SelectAgent:
+                return ("Type the agent name or ID to configure", null);
             case Step.Hotkey:
-                return ("Set hotkey combination (e.g. Alt+1, Ctrl+F5, -- to clear)",
-                    _persistence.GetPersistedHotkey(_agent.AgentId));
+                var agentHotkey = _agent != null ? _persistence.GetPersistedHotkey(_agent.AgentId) : null;
+                return ("Set hotkey combination (e.g. Alt+1, Ctrl+F5, -- to clear)", agentHotkey);
             case Step.Emoji:
-                return ("Set emoji (e.g. 🎮, 🐧, 🤖 — -- to clear)",
-                    _persistence.GetPersistedEmoji(_agent.AgentId));
+                var agentEmoji = _agent != null ? _persistence.GetPersistedEmoji(_agent.AgentId) : null;
+                return ("Set emoji (e.g. 🎮, 🐧, 🤖 — -- to clear)", agentEmoji);
             case Step.Color:
-                return ("Set color (Spectre.Console color name or #hex, e.g. cyan2, springgreen4, #ff6600 — -- to clear).\n       See https://spectreconsole.net/appendix/colors for color names",
-                    _persistence.GetPersistedColor(_agent.AgentId));
+                var agentColor = _agent != null ? _persistence.GetPersistedColor(_agent.AgentId) : null;
+                return ("Set color (Spectre.Console color name or #hex, e.g. cyan2, springgreen4, #ff6600 — -- to clear).\n       See https://spectreconsole.net/console/reference/color-reference for color names", agentColor);
             default:
                 return (step.ToString(), null);
         }

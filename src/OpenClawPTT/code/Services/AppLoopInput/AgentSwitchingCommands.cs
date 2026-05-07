@@ -35,8 +35,6 @@ public sealed class AgentSwitchingCommands
     /// <summary>Handler for /crew — lists available agents with all settings.</summary>
     public Task HandleCrew(string[] args)
     {
-        // Subcommands (hotkey, emoji, color, config) are routed upstream —
-        // here we only show the unified display for the bare /crew command.
         var agents = AgentRegistry.Agents;
         var activeKey = AgentRegistry.ActiveSessionKey;
 
@@ -55,56 +53,29 @@ public sealed class AgentSwitchingCommands
             var isActive = entry.Agent.SessionKey == activeKey;
             var marker = isActive ? " ►" : "  ";
             var emojiDisplay = entry.Emoji ?? "🤖";
-            var colorTag = entry.Color != null ? $"[{entry.Color}]" : "";
-            var colorClose = entry.Color != null ? $"[/{entry.Color}]" : "";
+            var effectiveColor = entry.Color ?? AgentPersistedSettings.DefaultColor;
+            var colorTag = $"[{effectiveColor}]";
+            var colorClose = $"[/{effectiveColor}]";
             var nameDisplay = $"{colorTag}{Markup.Escape(entry.Agent.Name)}{colorClose}";
             var hotkeyDisplay = entry.Hotkey != null
                 ? Markup.Escape(entry.Hotkey)
                 : $"[grey](global: {Markup.Escape(globalHotkey)})[/]";
-            var colorValueDisplay = entry.Color != null
-                ? $"{colorTag}{Markup.Escape(entry.Color)}{colorClose}"
-                : "[grey]default[/]";
+            var colorValueDisplay = $"{colorTag}{Markup.Escape(effectiveColor)}{colorClose}";
+            if (entry.Color == null)
+                colorValueDisplay += " [grey](default)[/]";
 
             _host.AddMessage($"  {marker} {emojiDisplay} [bold]{nameDisplay}[/] [grey]({Markup.Escape(entry.Agent.AgentId)})[/] — hotkey: {hotkeyDisplay}, emoji: {Markup.Escape(emojiDisplay)}, color: {colorValueDisplay}");
         }
-        _host.AddMessage("[grey]  Use /crew config for interactive setup, or /crew hotkey, /crew emoji, /crew color to change individual settings[/]");
+        _host.AddMessage("[grey]  Use /crew config for interactive setup[/]");
         return Task.CompletedTask;
     }
 
     /// <summary>Handler for /crew config — interactive agent configuration wizard.</summary>
     public Task HandleConfigCommand(string[] args)
     {
-        if (args.Length == 0)
-        {
-            // Show list and prompt to type agent name
-            var agents = AgentRegistry.Agents;
-            _host.AddMessage("[cyan2]  Select an agent to configure:[/]");
-            foreach (var agent in agents)
-            {
-                var emoji = _agentSettingsPersistence.GetPersistedEmoji(agent.AgentId) ?? "🤖";
-                var color = _agentSettingsPersistence.GetPersistedColor(agent.AgentId);
-                var nameStr = color != null ? $"[{color}]{Markup.Escape(agent.Name)}[/{color}]" : Markup.Escape(agent.Name);
-                _host.AddMessage($"  {emoji} {nameStr} [grey]({Markup.Escape(agent.AgentId)})[/]");
-            }
-            _host.AddMessage("[grey]  Type /crew config <agent-name> to start the setup wizard[/]");
-            return Task.CompletedTask;
-        }
-
-        // Agent specified — start config wizard
-        var agentName = string.Join(" ", args);
-        var matched = AgentRegistry.Agents.FirstOrDefault(a =>
-            a.Name.Equals(agentName, StringComparison.OrdinalIgnoreCase) ||
-            a.AgentId.Equals(agentName, StringComparison.OrdinalIgnoreCase));
-
-        if (matched == null)
-        {
-            _host.AddMessage($"[red]  Agent not found: {Markup.Escape(agentName)}[/]");
-            return Task.CompletedTask;
-        }
-
-        // Start the agent config wizard
+        // Start the agent config wizard — it will prompt for the agent name
         var wizard = new AgentConfigWizard(_host, _agentSettingsPersistence);
-        _ = wizard.RunAsync(matched); // Fire and forget — wizard uses events
+        _ = wizard.RunAsync(); // Fire and forget — wizard uses events
         return Task.CompletedTask;
     }
 

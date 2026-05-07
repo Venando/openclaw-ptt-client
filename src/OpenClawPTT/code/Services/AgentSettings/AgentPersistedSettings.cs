@@ -3,6 +3,9 @@ namespace OpenClawPTT;
 /// <summary>Per-agent settings persisted to agents.json.</summary>
 public sealed class AgentPersistedSettings
 {
+    /// <summary>Default color used when no per-agent color override is set.</summary>
+    public const string DefaultColor = "cyan";
+
     public string AgentId { get; set; } = "";
     /// <summary>Hotkey override, e.g. "Alt+1". Null means "use global from config.json".</summary>
     public string? HotkeyCombination { get; set; }
