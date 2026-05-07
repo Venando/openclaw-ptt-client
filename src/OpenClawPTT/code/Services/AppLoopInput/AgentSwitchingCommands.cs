@@ -94,7 +94,7 @@ public sealed class AgentSwitchingCommands
             wizard.OnConfigured = agent =>
             {
                 AgentRegistry.SetActiveAgent(agent.AgentId);
-                _ = PrintSessionHistory(agent.SessionKey);
+                _ = ActivateWithHistoryAsync(agent);
             };
             _ = wizard.RunAsync(matched);
             return Task.CompletedTask;
@@ -116,7 +116,7 @@ public sealed class AgentSwitchingCommands
         wizard2.OnConfigured = agent =>
         {
             AgentRegistry.SetActiveAgent(agent.AgentId);
-            _ = PrintSessionHistory(agent.SessionKey);
+            _ = ActivateWithHistoryAsync(agent);
         };
         _ = wizard2.RunAsync();
         return Task.CompletedTask;
@@ -151,6 +151,14 @@ public sealed class AgentSwitchingCommands
         {
             _host.AddMessage("[yellow]  That agent is already active.[/]");
         }
+    }
+
+    /// <summary>Reusable helper: pull session history then show agent introduction banner.</summary>
+    public async Task ActivateWithHistoryAsync(AgentInfo agent)
+    {
+        AgentRegistry.SetActiveAgent(agent.AgentId);
+        await PrintSessionHistory(agent.SessionKey);
+        _console.PrintAgentIntroduction(_appConfig);
     }
 
     /// <summary>Fetches and displays recent session history.</summary>
