@@ -55,10 +55,18 @@ public sealed class AgentSettingsService
 
     public void Save()
     {
-        var config = new AgentsConfig { Agents = _settings };
-        var dir = Path.GetDirectoryName(_filePath)!;
-        Directory.CreateDirectory(dir);
-        File.WriteAllText(_filePath, JsonSerializer.Serialize(config, JsonOpts));
+        try
+        {
+            var config = new AgentsConfig { Agents = _settings };
+            var dir = Path.GetDirectoryName(_filePath)!;
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(_filePath, JsonSerializer.Serialize(config, JsonOpts));
+            _console.LogOk("settings", $"Saved {_settings.Count} agent(s) to {_filePath}");
+        }
+        catch (Exception ex)
+        {
+            _console.LogError("settings", $"Failed to save agents file: {ex.Message}");
+        }
     }
 
     public string? GetHotkey(string agentId)
