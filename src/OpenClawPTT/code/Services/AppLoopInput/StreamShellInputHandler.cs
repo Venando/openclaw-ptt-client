@@ -108,6 +108,10 @@ public sealed class StreamShellInputHandler : IDisposable
             await _agentSwitching.PrintSessionHistory(sessionKey);
     }
 
+    /// <summary>Exposes session history printing for wiring with AgentHotkeyService.</summary>
+    public Task PrintSessionHistory(string sessionKey) =>
+        _agentSwitching.PrintSessionHistory(sessionKey);
+
     public void Dispose()
     {
         _host.UserInputSubmitted -= OnUserInput;

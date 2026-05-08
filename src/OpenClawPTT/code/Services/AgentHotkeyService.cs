@@ -106,7 +106,17 @@ public sealed class AgentHotkeyService : IDisposable
             AgentRegistry.SetActiveAgent(agent.AgentId);
             // Fetch and print session history, then agent intro (fire-and-forget)
             if (_gatewayService != null)
-                _ = PrintHistoryAfterSwitchAsync(agent.SessionKey);
+                // Use the shared PrintSessionHistory from AgentSwitchingCommands
+                // followed by agent introduction
+                if (PrintSessionHistoryAsync != null)
+                {
+                    _ = PrintSessionHistoryAsync(agent.SessionKey).ContinueWith(_ =>
+                        _console.PrintAgentIntroduction(_cfg), TaskContinuationOptions.ExecuteSynchronously);
+                }
+                else
+                {
+                    _console.PrintAgentIntroduction(_cfg);
+                }
         }
     }
 
@@ -128,33 +138,12 @@ public sealed class AgentHotkeyService : IDisposable
         }
     }
 
-    private async Task PrintHistoryAfterSwitchAsync(string sessionKey)
-    {
-        var history = await _gatewayService!.FetchSessionHistoryAsync(sessionKey, limit: 5);
-        if (history != null && history.Count > 0)
-        {
-            // Suppress TTS during history replay
-            if (_pttStateMachine != null) _pttStateMachine.DuringReplay = true;
-            try
-            {
-                _shellHost.AddMessage("  [grey]── previous messages ──[/]");
-                foreach (var entry in history)
-                {
-                    if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
-                        _console.PrintUserMessage(entry.Content);
-                    else
-                        _gatewayService!.DisplayHistoryEntry(entry);
-                }
-            }
-            finally
-            {
-                if (_pttStateMachine != null) _pttStateMachine.DuringReplay = false;
-            }
-        }
-
-        // Print agent intro after history (so it appears at the bottom)
-        _console.PrintAgentIntroduction(_cfg);
-    }
+    /// <summary>
+    /// Optional delegate for printing session history after an agent switch.
+    /// When set, used instead of the local duplicate logic.
+    /// Wired by AppRunner to point at AgentSwitchingCommands.PrintSessionHistory.
+    /// </summary>
+    public Func<string, Task>? PrintSessionHistoryAsync { get; set; }
 
 
     private void OnHotkeyPressed(int index) => HandleHotkeyPressed(index);

@@ -166,6 +166,10 @@ public class AppRunner : IDisposable
             errorLogStore: _errorLog
         );
         await shellCommands.RegisterAsync();
+
+        // Wire agent hotkey history printing to the canonical shared method
+        agentHotkeyService.PrintSessionHistoryAsync = shellCommands.PrintSessionHistory;
+
         _console.PrintHelpMenu(_cfg);
 
         using IAppLoop pttLoop = _factory.CreatePttLoop(
