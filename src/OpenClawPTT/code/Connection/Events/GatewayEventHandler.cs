@@ -15,9 +15,7 @@ public class GatewayEventHandler : IEventHandler<GatewayEvent>
     {
         "error",
         "warning",
-        "usage.warning",
-        "usage.exhausted",
-        "model.switched",
+        "model.failover",
     };
 
     private static readonly HashSet<string> QuietEvents = new(StringComparer.OrdinalIgnoreCase)

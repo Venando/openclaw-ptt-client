@@ -52,14 +52,7 @@ public sealed class GatewayService : IGatewayService
 
     public async Task SendTextAsync(string text, CancellationToken ct)
     {
-        try
-        {
-            await _gatewayClient.SendTextAsync(text, ct);
-        }
-        catch
-        {
-            throw;
-        }
+        await _gatewayClient.SendTextAsync(text, ct);
     }
 
     public async Task<JsonElement> SendRpcAsync(string method, object? parameters, CancellationToken ct)
@@ -209,72 +202,7 @@ public sealed class GatewayService : IGatewayService
         }
     }
 
-    // Not working correctry:
-    /// <summary>
-    /// Calls the usage.status RPC to check provider quota status.
-    /// If any provider has exhausted its quota, shows a warning.
-    /// </summary>
-    // private async Task CheckUsageStatusAsync(CancellationToken ct)
-    // {
-    //     try
-    //     {
-    //         var result = await _gatewayClient.SendEventAsync("usage.status", null, ct);
-    //         if (result.ValueKind == JsonValueKind.Undefined || result.ValueKind == JsonValueKind.Null)
-    //             return;
 
-    //         _console.Log("debug", $"usage.status response: {result.ToString()[..Math.Min(result.ToString().Length, 500)]}", LogLevel.Debug);
-
-    //         // Parse response: it returns {"providers": [{"provider":"...", "windows":[...], "error":"..."}, ...]}
-    //         // Iterate the providers array, not top-level object properties
-    //         JsonElement providersArr = default;
-    //         if (result.TryGetProperty("providers", out var pArr) && pArr.ValueKind == JsonValueKind.Array)
-    //             providersArr = pArr;
-
-    //         if (providersArr.ValueKind == JsonValueKind.Array)
-    //         {
-    //             foreach (var providerEntry in providersArr.EnumerateArray())
-    //             {
-    //                 var providerName = providerEntry.TryGetProperty("provider", out var nameEl)
-    //                     ? nameEl.GetString() ?? "unknown"
-    //                     : "unknown";
-
-    //                 // Check usage windows for high utilization
-    //                 // (Provider-level errors like HTTP 401 are OAuth integration issues,
-    //                 // not model provider problems — skip them silently)
-    //                 if (providerEntry.TryGetProperty("windows", out var windowsEl) && windowsEl.ValueKind == JsonValueKind.Array)
-    //                 {
-    //                     foreach (var window in windowsEl.EnumerateArray())
-    //                     {
-    //                         var label = window.TryGetProperty("label", out var l) ? l.GetString() : "window";
-    //                         var usedPercent = window.TryGetProperty("usedPercent", out var pct) ? pct.GetDouble() : 0.0;
-    //                         var resetAt = window.TryGetProperty("resetAt", out var r) ? r.GetInt64() : (long?)null;
-
-    //                         if (usedPercent >= 100)
-    //                         {
-    //                             var errMsg = $"{providerName} quota exhausted ({label}";
-    //                             if (resetAt.HasValue)
-    //                                 errMsg += $", resets {DateTimeOffset.FromUnixTimeMilliseconds(resetAt.Value):HH:mm}";
-    //                             errMsg += ")";
-    //                             _console.PrintModelFailed(errMsg);
-    //                         }
-    //                         else if (usedPercent >= 90)
-    //                         {
-    //                             _console.PrintModelQuotaWarning(providerName,
-    //                                 $"{usedPercent:F0}% used ({label}" +
-    //                                 (resetAt.HasValue ? $", resets {DateTimeOffset.FromUnixTimeMilliseconds(resetAt.Value):HH:mm}" : "") +
-    //                                 ")");
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     catch (GatewayException gex)
-    //     {
-    //         // usage.status might not be available if scope is insufficient
-    //         _console.Log("debug", $"usage.status RPC: {gex.Message}", LogLevel.Debug);
-    //     }
-    // }
 
     public void Dispose()
     {

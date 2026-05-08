@@ -208,15 +208,6 @@ public sealed class ColorConsole : IColorConsole
     public void PrintModelFailed(string errorMessage)
     {
         ShellMsg($"[red]  ✗ Model failed: {Markup.Escape(errorMessage)}[/]");
-    }
-
-    /// <inheritdoc />
-    public void PrintModelQuotaWarning(string provider, string message)
-    {
-        var safeProvider = Markup.Escape(provider);
-        var safeMessage = Markup.Escape(message);
-        ShellMsg($"[yellow]  ⚠ [bold]{safeProvider}[/] quota: {safeMessage}[/]");
-    }
 
     // ── Logging ────────────────────────────────────────────────
 

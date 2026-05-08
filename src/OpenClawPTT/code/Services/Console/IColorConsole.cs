@@ -83,9 +83,6 @@ public interface IColorConsole
     /// <summary>Logs a message with the specified tag and severity level.</summary>
     void Log(string tag, string msg, LogLevel level = LogLevel.Debug);
     
-    /// <summary>Logs a model quota warning (depleted/approaching limit).</summary>
-    void PrintModelQuotaWarning(string provider, string message);
-
     /// <summary>Logs a success message with the specified tag and severity level.</summary>
     void LogOk(string tag, string msg, LogLevel level = LogLevel.Info);
     
