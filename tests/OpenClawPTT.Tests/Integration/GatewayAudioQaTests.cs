@@ -153,10 +153,8 @@ public class GatewayAudioQaTests
         var cfg = new AppConfig { AudioResponseMode = "text-only", AgentName = "TestBot" };
         var adapter = new AgentOutputAdapter(cfg, CreateMockConsole());
 
-        adapter.Dispose();
-        adapter.Dispose(); // should not throw
-
-        Assert.True(true);
+        var ex = Record.Exception(() => { adapter.Dispose(); adapter.Dispose(); });
+        Assert.Null(ex);
     }
 
     [Fact]
@@ -196,9 +194,8 @@ public class GatewayAudioQaTests
         var cfg = new AppConfig { AudioResponseMode = "text-only" };
         var handler = new AudioResponseHandler(cfg, CreateMockConsole());
 
-        handler.Dispose();
-        handler.Dispose(); // should not throw, should not re-dispose TTS service
-        Assert.True(true);
+        var ex = Record.Exception(() => { handler.Dispose(); handler.Dispose(); });
+        Assert.Null(ex);
     }
 
     [Fact]
@@ -247,17 +244,16 @@ public class GatewayAudioQaTests
     public void AudioPlayerService_Dispose_WithoutPlay_DoesNotThrow()
     {
         var player = new AudioPlayerService(CreateMockConsole());
-        player.Dispose();
-        Assert.True(true);
+        var ex = Record.Exception(() => player.Dispose());
+        Assert.Null(ex);
     }
 
     [Fact]
     public void AudioPlayerService_Dispose_CanBeCalledMultipleTimes()
     {
         var player = new AudioPlayerService(CreateMockConsole());
-        player.Dispose();
-        player.Dispose();
-        Assert.True(true);
+        var ex = Record.Exception(() => { player.Dispose(); player.Dispose(); });
+        Assert.Null(ex);
     }
 
     [Fact]

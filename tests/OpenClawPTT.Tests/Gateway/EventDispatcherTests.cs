@@ -107,15 +107,17 @@ public class EventDispatcherTests
     {
         var dispatcher = new EventDispatcher(_mockConsole.Object);
         var handlerMock = new Mock<IEventHandler<GatewayEvent>>();
+        var signal = new ManualResetEventSlim(false);
         handlerMock.Setup(x => x.HandleAsync(It.IsAny<GatewayEvent>()))
             .ThrowsAsync(new InvalidOperationException("test error"));
+
+        _mockConsole.Setup(x => x.LogError(It.IsAny<string>(), It.IsAny<string>()))
+            .Callback(() => signal.Set());
 
         dispatcher.RegisterHandler(handlerMock.Object);
         dispatcher.DispatchAndForget(new GatewayEvent("test", default));
 
-        // Give background task time to complete
-        Thread.Sleep(100);
-
+        Assert.True(signal.Wait(1000), "Expected error log within timeout");
         _mockConsole.Verify(x => x.LogError("EventDispatcher", It.Is<string>(s => s.Contains("test error"))), Times.Once);
     }
 

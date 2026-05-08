@@ -29,48 +29,27 @@ public class ConfigurationWizardTests
 
         var task = wizard.RunSetupAsync(host);
 
-        // 1. GatewayUrl
-        host.SubmitInput("wss://localhost:18789");
-        // 2. AuthToken
-        host.SubmitInput("my-token");
-        // 3. TlsFingerprint (wss:// triggers this prompt)
-        host.SubmitInput("sha256/abc123");
-        // 4. GroqApiKey
-        host.SubmitInput("gsk_testkey123");
-        // 5. Locale
-        host.SubmitInput("en-US");
-        // 6. SampleRate
-        host.SubmitInput("16000");
-        // 7. MaxRecordSeconds
-        host.SubmitInput("120");
-        // 8. RealTimeReplyOutput
-        host.SubmitInput("true");
-        // 9. AgentName
-        host.SubmitInput("MyAgent");
-        // 10. HotkeyCombination
-        host.SubmitInput("Alt+=");
-        // 11. HoldToTalk
-        host.SubmitInput("false");
-        // 12. TranscriptionPromptPrefix
-        host.SubmitInput("[Transcribe]:");
-        // 13. VisualFeedbackEnabled
-        host.SubmitInput("true");
-        // 14. VisualFeedbackPosition
-        host.SubmitInput("TopRight");
-        // 15. VisualFeedbackSize
-        host.SubmitInput("20");
-        // 16. VisualFeedbackOpacity
-        host.SubmitInput("1.0");
-        // 17. VisualFeedbackColor
-        host.SubmitInput("#FF0000");
-        // 18. VisualFeedbackRimThickness
-        host.SubmitInput("8");
-        // 19. AudioResponseMode
-        host.SubmitInput("both");
-        // 20. TtsApiKey
-        host.SubmitInput("eleven-key");
-        // 21. TtsVoiceId
-        host.SubmitInput("voice123");
+        host.SubmitInput("wss://localhost:18789");  // GatewayUrl
+        host.SubmitInput("my-token");              // AuthToken
+        host.SubmitInput("sha256/abc123");         // TlsFingerprint
+        host.SubmitInput("gsk_testkey123");        // GroqApiKey
+        host.SubmitInput("en-US");                 // Locale
+        host.SubmitInput("16000");                 // SampleRate
+        host.SubmitInput("120");                   // MaxRecordSeconds
+        host.SubmitInput("true");                  // RealTimeReplyOutput
+        host.SubmitInput("MyAgent");               // AgentName
+        host.SubmitInput("Alt+=");                 // HotkeyCombination
+        host.SubmitInput("false");                 // HoldToTalk
+        host.SubmitInput("[Transcribe]:");         // TranscriptionPromptPrefix
+        host.SubmitInput("true");                  // VisualFeedbackEnabled
+        host.SubmitInput("TopRight");              // VisualFeedbackPosition
+        host.SubmitInput("20");                    // VisualFeedbackSize
+        host.SubmitInput("1.0");                   // VisualFeedbackOpacity
+        host.SubmitInput("#FF0000");               // VisualFeedbackColor
+        host.SubmitInput("8");                     // VisualFeedbackRimThickness
+        host.SubmitInput("both");                  // AudioResponseMode
+        host.SubmitInput("eleven-key");            // TtsApiKey
+        host.SubmitInput("voice123");              // TtsVoiceId
 
         var config = await task;
 
@@ -187,29 +166,26 @@ public class ConfigurationWizardTests
 
         var task = wizard.RunSetupAsync(host, existing);
 
-        // Step through to AgentName (12 fields before it)
-        host.SubmitInput("ws://localhost:18789"); // GatewayUrl
-        host.SubmitInput("");                     // AuthToken
-        host.SubmitInput("gsk_testkey123");       // GroqApiKey
-        host.SubmitInput("en-US");                // Locale
-        host.SubmitInput("16000");                // SampleRate
-        host.SubmitInput("60");                   // MaxRecordSeconds
-        host.SubmitInput("true");                 // RealTimeReplyOutput
-        host.SubmitInput("--");                   // AgentName: clear it
-        host.SubmitInput("Alt+=");                // HotkeyCombination
-        host.SubmitInput("false");                // HoldToTalk
-        host.SubmitInput("--");                   // TranscriptionPromptPrefix: clear it
-
-        // Remainder of the fields (just fill with valid values)
-        host.SubmitInput("true");                 // VisualFeedbackEnabled
-        host.SubmitInput("TopLeft");              // VisualFeedbackPosition
-        host.SubmitInput("10");                   // VisualFeedbackSize
-        host.SubmitInput("0.5");                  // VisualFeedbackOpacity
-        host.SubmitInput("#00FF00");              // VisualFeedbackColor
-        host.SubmitInput("5");                    // VisualFeedbackRimThickness
-        host.SubmitInput("text-only");            // AudioResponseMode
-        host.SubmitInput("");                     // TtsApiKey
-        host.SubmitInput("");                     // TtsVoiceId
+        host.SubmitInput("ws://localhost:18789");  // GatewayUrl
+        host.SubmitInput("");                      // AuthToken
+        host.SubmitInput("gsk_testkey123");        // GroqApiKey
+        host.SubmitInput("en-US");                 // Locale
+        host.SubmitInput("16000");                 // SampleRate
+        host.SubmitInput("60");                    // MaxRecordSeconds
+        host.SubmitInput("true");                  // RealTimeReplyOutput
+        host.SubmitInput("--");                    // AgentName: clear
+        host.SubmitInput("Alt+=");                 // HotkeyCombination
+        host.SubmitInput("false");                 // HoldToTalk
+        host.SubmitInput("--");                    // TranscriptionPromptPrefix: clear
+        host.SubmitInput("true");                  // VisualFeedbackEnabled
+        host.SubmitInput("TopLeft");               // VisualFeedbackPosition
+        host.SubmitInput("10");                    // VisualFeedbackSize
+        host.SubmitInput("0.5");                   // VisualFeedbackOpacity
+        host.SubmitInput("#00FF00");               // VisualFeedbackColor
+        host.SubmitInput("5");                     // VisualFeedbackRimThickness
+        host.SubmitInput("text-only");             // AudioResponseMode
+        host.SubmitInput("");                      // TtsApiKey
+        host.SubmitInput("");                      // TtsVoiceId
 
         var config = await task;
 

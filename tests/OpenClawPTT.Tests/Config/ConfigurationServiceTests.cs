@@ -115,13 +115,8 @@ public class ConfigurationServiceTests
     [Fact]
     public void Constructor_NullConfigStorage_HandledGracefully()
     {
-        // Arrange & Act - passing null should not throw
-        // Note: The constructor accepts IConfigStorage, passing null may cause NullReferenceException
-        // when Load/Save are called. The service itself doesn't null-check.
-        // This test verifies the current behavior - null storage is passed through.
         var service = new ConfigurationService(null!);
 
-        // Assert - just verify the service was constructed (may throw on use, which is acceptable)
         Assert.NotNull(service);
     }
 }

@@ -62,8 +62,6 @@ public class ServiceFactoryTests
         public IGlobalHotkeyHook Create(Hotkey mapping, IColorConsole console) => new NoOpHotkeyHook();
     }
 
-    #region Test 1: CreatePttController_Returns_IPttController
-
     [Fact]
     public void CreatePttController_Returns_IPttController()
     {
@@ -79,10 +77,6 @@ public class ServiceFactoryTests
 
         controller.Dispose();
     }
-
-    #endregion
-
-    #region Test 2: CreatePttLoop_Returns_IPttLoop
 
     [Fact]
     public void CreatePttLoop_Returns_IPttLoop()
@@ -108,10 +102,6 @@ public class ServiceFactoryTests
         loop.Dispose();
     }
 
-    #endregion
-
-    #region Test 3: CreatePttController_ThenDispose_NoDoubleDisposeCrash
-
     [Fact]
     public void CreatePttController_ThenDispose_NoDoubleDisposeCrash()
     {
@@ -122,16 +112,11 @@ public class ServiceFactoryTests
 
         var controller = factory.CreatePttController(cfg, mockAudio.Object, noOpFactory);
 
-        controller.Dispose(); // First dispose — should succeed
+        controller.Dispose();
 
-        // Second dispose — should not throw
         var ex = Record.Exception(() => controller.Dispose());
         Assert.Null(ex);
     }
-
-    #endregion
-
-    #region Test 4: CreateAudioService_Returns_IAudioService
 
     [Fact]
     public void CreateAudioService_Returns_IAudioService()
@@ -149,10 +134,6 @@ public class ServiceFactoryTests
         audio.Dispose();
     }
 
-    #endregion
-
-    #region Test 5: CreateGatewayService_Returns_IGatewayService
-
     [Fact]
     public void CreateGatewayService_Returns_IGatewayService()
     {
@@ -167,14 +148,10 @@ public class ServiceFactoryTests
         gateway.Dispose();
     }
 
-    #endregion
-
-    #region Test 6: ServiceFactory_WithDefaultConfig_DoesNotThrow
-
     [Fact]
     public void ServiceFactory_WithDefaultConfig_DoesNotThrow()
     {
-        var cfg = new AppConfig(); // all defaults
+        var cfg = new AppConfig();
 
         var ex = Record.Exception(() =>
         {
@@ -187,6 +164,4 @@ public class ServiceFactoryTests
 
         Assert.Null(ex);
     }
-
-    #endregion
 }

@@ -73,34 +73,31 @@ public class GatewayReconnectorTests : IDisposable
     }
 
     [Fact]
-    public async Task ScheduleReconnectAsync_SetsIsReconnecting()
+    public async Task ScheduleReconnectAsync_WhenCalledTwice_OnlyStartsOneLoop()
     {
-        var reconn = CreateReconnector();
-
-        // Use a connect that hangs so reconn stays in reconnecting state
-        var hangCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var hangConnector = new Mock<IGatewayConnector>();
-        hangConnector.Setup(x => x.ConnectAsync(It.IsAny<CancellationToken>()))
+        // Arrange: connector hangs until released (so _isReconnecting stays true)
+        var hangSignal = new SemaphoreSlim(0, 1);
+        var callCount = 0;
+        _mockConnector.Setup(x => x.ConnectAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => callCount++)
             .Returns(async () => {
-                try { await Task.Delay(Timeout.Infinite, hangCts.Token); }
-                catch (OperationCanceledException) { throw; }
+                // Wait until the test releases us
+                await hangSignal.WaitAsync();
             });
 
-        var reconnWithHang = new GatewayReconnector(_cfg, _mockConsole.Object, hangConnector.Object, _cts.Token);
+        // Act: schedule reconnect twice in quick succession
+        var firstTask = _reconnector.ScheduleReconnectAsync(CancellationToken.None);
+        // Give first loop time to enter the hang
+        await Task.Delay(50);
+        var secondTask = _reconnector.ScheduleReconnectAsync(CancellationToken.None);
 
-        var scheduleTask = reconnWithHang.ScheduleReconnectAsync(CancellationToken.None);
+        // Assert: ConnectAsync should only be called once (second call exits early via _isReconnecting)
+        Assert.Equal(1, callCount);
 
-        // Give it a moment to enter the reconnect loop
-        await Task.Delay(100);
-
-        // Lock should be held (indicating reconnect in progress)
-        Assert.True(reconnWithHang.ReconnectLock.Wait(0), "Lock should be held during reconnect");
-
-        hangCts.Cancel();
+        // Cleanup: release the hang
+        hangSignal.Release();
         _cts.Cancel();
-
-        try { await scheduleTask.WaitAsync(TimeSpan.FromSeconds(2)); } catch { /* ignore */ }
-        reconnWithHang.Dispose();
+        try { await firstTask; } catch { /* ignore */ }
     }
 
     [Fact]

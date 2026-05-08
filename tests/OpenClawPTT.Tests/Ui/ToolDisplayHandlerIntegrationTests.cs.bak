@@ -632,6 +632,22 @@ public class ToolDisplayHandlerIntegrationTests
         var content = string.Join("\n", shellHost.Messages);
         Assert.Contains("dotnet", content);
     }
+
+    [Fact]
+    public void Handle_ExecTool_WithGrepRegexCommand()
+    {
+        var (handler, shellHost) = CreateHandler();
+
+        var arguments = "{\"command\":\"grep \\\"Markup\\\\.\\\" ~/.openclaw/workspace/projects/openclaw-ptt/repo/.worktrees/exec-tool-renderer/src/OpenClawPTT/code/Services/AgentOutput/ToolRenderers/Renderers/ExecToolRenderer.cs\"}";
+        handler.Handle("exec", arguments);
+
+        Assert.NotEmpty(shellHost.Messages);
+        AssertAllMessagesHaveValidMarkup(shellHost);
+        var content = string.Join("\n", shellHost.Messages);
+        Assert.Contains("grep", content);
+        Assert.Contains("Markup", content);
+    }
+
     [Fact]
     public void Handle_ExecTool_WithChainedBuildTestCommand()
     {
@@ -649,6 +665,24 @@ public class ToolDisplayHandlerIntegrationTests
         // Chained commands should be on separate rows
         Assert.Contains("\n", content);
     }
+
+    [Fact]
+    public void Handle_ExecTool_WithGitCommitMessageCommand()
+    {
+        var (handler, shellHost) = CreateHandler();
+
+        var arguments = "{\"command\":\"cd ~/.openclaw/workspace/projects/openclaw-ptt/repo/.worktrees/exec-tool-renderer && git add -A && git commit -m \\\"fix: use Markup.Escape instead of Markup.Remove in ExecToolRenderer\\n\\nMarkup.Remove strips all markup tags from text, losing content.\\nMarkup.Escape properly escapes brackets as [[/]] so they display\\nliterally without interfering with outer [color]...[/] wrapping.\\\" && git push origin feat/exec-tool-renderer --force-with-lease\"}";
+        handler.Handle("exec", arguments);
+
+        Assert.NotEmpty(shellHost.Messages);
+        AssertAllMessagesHaveValidMarkup(shellHost);
+        var content = string.Join("\n", shellHost.Messages);
+        Assert.Contains("git", content);
+        Assert.Contains("Markup.Escape", content);
+        // Chained commands should be on separate rows
+        Assert.Contains("\n", content);
+    }
+
     [Fact]
     public void Handle_ExecTool_SimpleChainedCommands_StartOnNewRows()
     {
@@ -676,6 +710,61 @@ public class ToolDisplayHandlerIntegrationTests
         bool echoOnSameLineAsCat = lines.Any(l => l.Contains("cat") && l.Contains("echo"));
         Assert.False(echoOnSameLineAsCat, "echo should not be on the same line as cat — chained commands need a newline");
     }
+
+    [Fact]
+    public void Handle_ExecTool_ChainedWithCd_StartOnNewRows()
+    {
+        var (handler, shellHost) = CreateHandler();
+
+        var arguments = "{\"command\":\"cd /tmp && mkdir test && echo ok && rm -rf test\"}";
+        handler.Handle("exec", arguments);
+
+        Assert.NotEmpty(shellHost.Messages);
+        AssertAllMessagesHaveValidMarkup(shellHost);
+        var content = string.Join("\n", shellHost.Messages);
+        Assert.Contains("mkdir", content);
+        Assert.Contains("echo", content);
+        Assert.Contains("rm", content);
+        // Each chained command starts on its own row
+        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        bool echoOnSameLineAsMkdir = lines.Any(l => l.Contains("mkdir") && l.Contains("echo"));
+        Assert.False(echoOnSameLineAsMkdir, "echo should not be on the same line as mkdir — chained commands need a newline");
+        bool rmOnSameLineAsEcho = lines.Any(l => l.Contains("echo") && l.Contains("rm"));
+        Assert.False(rmOnSameLineAsEcho, "rm should not be on the same line as echo — chained commands need a newline");
+    }
+
+    [Fact]
+    public void Handle_ExecTool_WithPythonUnicodeScriptCommand()
+    {
+        var (handler, shellHost) = CreateHandler();
+
+        var arguments = "{\"command\":\"python3 -c \\\"\\nimport re, sys\\nsys.path.insert(0, '.')\\n\\n# Simulate filter_torrents for Kill Ao Ep4 with the bad torrent\\nbad_title = '【喵萌奶茶屋】★04月新番★[殺手青春 / KILL BLUE / Kill Ao][01][1080p][繁日雙語]'\\n\\nanilist_id = 198113\\nepisode = 4\\nseason_int = 1\\n\\n# Check bracket episode extraction\\nm = re.search(r'\\\\[(\\\\d{2,3})\\\\]', bad_title)\\nprint(f'Bracket match: {m.group(1) if m else None}')\\n\\nfile_ep = None\\nbracket_ep = None\\nm = re.search(r'\\\\[(\\\\d{2,3})\\\\]', bad_title)\\nif m:\\n bracket_ep = int(m.group(1))\\n print(f'Bracket ep: {bracket_ep}, target ep: {episode}, would reject: {bracket_ep != episode}')\\n\\\"\"}";
+        handler.Handle("exec", arguments);
+
+        Assert.NotEmpty(shellHost.Messages);
+        AssertAllMessagesHaveValidMarkup(shellHost);
+        var content = string.Join("\n", shellHost.Messages);
+        Assert.Contains("python3", content);
+        Assert.Contains("-c", content);
+    }
+
+    [Fact]
+    public void Handle_ExecTool_WithAnimeTorrentFilteringCommand()
+    {
+        var (handler, shellHost) = CreateHandler();
+
+        var arguments = "{\"command\":\"cd /home/ven/.openclaw/anime-agent && python3 -c \\\"\\nimport sys\\nsys.path.insert(0, '.')\\nimport importlib, json, re\\n\\n# Re-load the module to pick up changes\\nimport find_and_queue\\nimportlib.reload(find_and_queue)\\n\\n# Simulate what the search returns for Kill Ao Ep4\\n# We'll manually create the torrent list from Nyaa results\\ntorrents = [\\n {'title': '[SubsPlease] Kill Ao - 04 (1080p) [4B7FF44F].mkv', 'downloads': 2712, 'link': 'https://nyaa.si/view/2105366'},\\n {'title': '[Erai-raws] Kill Ao - 04 [1080p CR WEB-DL AVC AAC][MultiSub][657C6F22]', 'downloads': 1192, 'link': 'https://nyaa.si/view/2105357'},\\n {'title': '[ASW] Kill Ao - 04 [1080p HEVC x265 10Bit][AAC]', 'downloads': 836, 'link': 'https://nyaa.si/view/2105398'},\\n {'title': '【喵萌奶茶屋】★04月新番★[殺手青春 / KILL BLUE / Kill Ao][03][1080p][繁日雙語]', 'downloads': 248, 'link': 'https://nyaa.si/view/2104971'},\\n {'title': '【喵萌奶茶屋】★04月新番★[殺手青春 / KILL BLUE / Kill Ao][01][1080p][繁日雙語]', 'downloads': 317, 'link': 'https://nyaa.si/view/2098138'},\\n {'title': '【喵萌奶茶屋】★04月新番★[殺手青春 / KILL BLUE / Kill Ao][02][1080p][繁日雙語]', 'downloads': 269, 'link': 'https://nyaa.si/view/2100286'},\\n {'title': '[ANi] KILL BLUE / 殺手青春 - 04 [1080P][Baha][WEB-DL][AAC AVC][CHT][MP4]', 'downloads': 1274, 'link': 'https://nyaa.si/view/2105361'},\\n]\\n\\nfrom find_and_queue import filter_torrents, pick_best_torrent\\nfiltered = filter_torrents(\\n torrents=torrents,\\n anilist_id=198113,\\n episode=4,\\n season_int=1,\\n title_romaji='Kill Ao'\\n)\\nprint(f'Filtered count: {len(filtered)}')\\nfor t in filtered:\\n print(f' [{t[\\\"downloads\\\"]}d] {t[\\\"title\\\"]}')\\n\\nbest = pick_best_torrent(filtered)\\nprint()\\nprint('BEST:', best['title'] if best else 'NONE')\\n\\\"\"}";
+        handler.Handle("exec", arguments);
+
+        Assert.NotEmpty(shellHost.Messages);
+        AssertAllMessagesHaveValidMarkup(shellHost);
+        var content = string.Join("\n", shellHost.Messages);
+        Assert.Contains("python3", content);
+        Assert.Contains("-c", content);
+        Assert.Contains("📂", content);
+        Assert.Contains("anime-agent", content);
+    }
+
     // ════════════════════════════════════════════════════════════════════════════
     // THEORYS — all known tools produce at least a header message
     // ════════════════════════════════════════════════════════════════════════════
