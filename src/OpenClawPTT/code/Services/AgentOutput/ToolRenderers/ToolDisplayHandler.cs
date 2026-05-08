@@ -29,6 +29,8 @@ public sealed class ToolDisplayHandler
         ["image_generate"] = "🎨",
         ["subagents"]      = "🎮🤖",
         ["sessions_spawn"] = "➕🤖",
+        ["update_plan"]  = "📋",
+        ["plan"]          = "📋",
     };
 
     public ToolDisplayHandler(IToolOutput output, IEnumerable<IToolRenderer> renderers, int rightMarginIndent, IStreamShellHost? shellHost = null)
@@ -68,6 +70,7 @@ public sealed class ToolDisplayHandler
         yield return new MemoryGetToolRenderer(output);
         yield return new SubagentsToolRenderer(output);
         yield return new SessionsSpawnToolRenderer(output);
+        yield return new UpdatePlanToolRenderer(output);
     }
 
     public void Handle(string toolName, string arguments)
