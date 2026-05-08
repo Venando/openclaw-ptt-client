@@ -130,8 +130,9 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
 
     /// <summary>
     /// Handles an error response from the agent (stopReason=error).
-    /// Extracts the error message from errorMessage, provider, and model fields.
-    /// Shows a gateway error with all available detail.
+    /// The lifecycle agent event (phase=error) already displays the error
+    /// prominently — this is a secondary data source with extra metadata
+    /// (provider, model). Log at debug to avoid duplicate display.
     /// </summary>
     private void HandleErrorMessage(JsonElement messageEl)
     {
@@ -143,18 +144,8 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
         var model = messageEl.TryGetProperty("model", out var modEl)
             ? modEl.GetString() : null;
 
-        var prefix = provider != null ? $"{provider}/{model}" : "Agent";
-        var fullMsg = $"{prefix} error: {errorMessage}";
-
-        // Check if it's a quota error
-        if (IsQuotaError(errorMessage))
-        {
-            _console.PrintModelFailed(fullMsg);
-        }
-        else
-        {
-            _console.PrintError(fullMsg);
-        }
+        var providerModel = provider != null ? $"{provider}/{model}" : "?";
+        _console.Log("debug", $"{providerModel} stopReason=error: {errorMessage}", LogLevel.Debug);
     }
 
     private void HandleAgentStream(JsonElement payload)
