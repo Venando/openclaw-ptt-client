@@ -27,7 +27,7 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
     // response arrives on the same session, we compare the message's provider
     // against the recorded error provider to detect a fallback.
     // Uses ConcurrentDictionary for thread safety across concurrent sessions.
-    private readonly ConcurrentDictionary<string, SessionErrorState> _sessionErrors =
+    private static readonly ConcurrentDictionary<string, SessionErrorState> _sessionErrors =
         new(StringComparer.Ordinal);
 
     private sealed record SessionErrorState(
@@ -35,6 +35,17 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
         string? Model,
         string? ErrorMessage,
         bool FallbackNotifiedForRun);
+
+    /// <summary>
+    /// Builds a compound key for per-session error tracking.
+    /// Includes agentId when available so errors from different agents
+    /// on the same session key are tracked independently.
+    /// </summary>
+    private static string ErrorStateKey(string? sessionKey, string? agentId)
+    {
+        if (sessionKey == null) return string.Empty;
+        return agentId != null ? $"{sessionKey}:{agentId}" : sessionKey;
+    }
 
     public SessionMessageHandler(
         IGatewayEventSource events,
@@ -70,6 +81,8 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
     {
         var sessionKey = payload.TryGetProperty("sessionKey", out var skEl)
             ? skEl.GetString() : null;
+        var agentId = payload.TryGetProperty("agentId", out var aEl)
+            ? aEl.GetString() : null;
 
         if (!payload.TryGetProperty("message", out var messageEl)) return;
         if (!messageEl.TryGetProperty("role", out var roleEl)) return;
@@ -80,7 +93,7 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
         // not a fallback. Fallback detection is handled after successful responses.
         if (messageEl.TryGetProperty("stopReason", out var stopReason) && stopReason.GetString() == "error")
         {
-            HandleErrorMessage(messageEl, sessionKey);
+            HandleErrorMessage(messageEl, sessionKey, agentId);
             return;
         }
 
@@ -153,7 +166,7 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
 
         // Detect fallback by comparing the message's provider to the errored provider.
         // No RPC needed — the message itself carries the provider that produced it.
-        DetectFallbackFromMessage(sessionKey, messageEl);
+        DetectFallbackFromMessage(sessionKey, messageEl, agentId);
     }
 
     /// <summary>
@@ -162,7 +175,7 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
     /// (phase=error lifecycle event) — this method only records state
     /// for later fallback detection.
     /// </summary>
-    private void HandleErrorMessage(JsonElement messageEl, string? sessionKey)
+    private void HandleErrorMessage(JsonElement messageEl, string? sessionKey, string? agentId)
     {
         var errorMessage = messageEl.TryGetProperty("errorMessage", out var errEl)
             ? errEl.GetString() ?? "Unknown error"
@@ -175,10 +188,11 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
         var providerModel = provider != null ? $"{provider}/{model}" : "?";
         _console.Log("debug", $"{providerModel} stopReason=error: {errorMessage}", LogLevel.Debug);
 
-        // Record error state for fallback detection (per-session)
-        if (sessionKey != null)
+        // Record error state for fallback detection (per-session, per-agent)
+        var errorKey = ErrorStateKey(sessionKey, agentId);
+        if (errorKey.Length > 0)
         {
-            _sessionErrors[sessionKey] = new SessionErrorState(provider, model, errorMessage, FallbackNotifiedForRun: false);
+            _sessionErrors[errorKey] = new SessionErrorState(provider, model, errorMessage, FallbackNotifiedForRun: false);
         }
     }
 
@@ -188,10 +202,11 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
     /// The message envelope carries the provider that actually produced
     /// the response — no RPC call needed.
     /// </summary>
-    private void DetectFallbackFromMessage(string? sessionKey, JsonElement messageEl)
+    private void DetectFallbackFromMessage(string? sessionKey, JsonElement messageEl, string? agentId)
     {
-        if (sessionKey == null) return;
-        if (!_sessionErrors.TryGetValue(sessionKey, out var state)) return;
+        var errorKey = ErrorStateKey(sessionKey, agentId);
+        if (errorKey.Length == 0) return;
+        if (!_sessionErrors.TryGetValue(errorKey, out var state)) return;
         if (state.FallbackNotifiedForRun) return;
 
         var currentProvider = messageEl.TryGetProperty("provider", out var cp) ? cp.GetString() : null;
@@ -209,7 +224,7 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
         // If provider is the same, no fallback — the errored model handled it successfully
         if (string.Equals(currentProvider, state.Provider, StringComparison.OrdinalIgnoreCase))
         {
-            _sessionErrors.TryUpdate(sessionKey, state with { FallbackNotifiedForRun = true }, state);
+            _sessionErrors.TryUpdate(errorKey, state with { FallbackNotifiedForRun = true }, state);
             return;
         }
 
@@ -221,7 +236,7 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
             currentModel,
             isQuotaError: IsQuotaError(state.ErrorMessage ?? ""));
 
-        _sessionErrors.TryUpdate(sessionKey, state with { FallbackNotifiedForRun = true }, state);
+        _sessionErrors.TryUpdate(errorKey, state with { FallbackNotifiedForRun = true }, state);
     }
 
     private void HandleAgentStream(JsonElement payload)
@@ -237,8 +252,10 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
             {
                 // New agent run starting — clear stale error state from previous runs
                 var sessionKey = payload.TryGetProperty("sessionKey", out var sk) ? sk.GetString() : null;
-                if (sessionKey != null)
-                    _sessionErrors.TryRemove(sessionKey, out _);
+                var agentId = payload.TryGetProperty("agentId", out var aId) ? aId.GetString() : null;
+                var errorKey = ErrorStateKey(sessionKey, agentId);
+                if (errorKey.Length > 0)
+                    _sessionErrors.TryRemove(errorKey, out _);
 
                 if (_cfg.RealTimeReplyOutput)
                     _events.RaiseAgentReplyDeltaStart();
