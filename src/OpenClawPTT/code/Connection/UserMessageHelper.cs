@@ -26,21 +26,14 @@ public static class UserMessageHelper
         //   - a Unix-millisecond number → /Date(1234567890123)/
         //   - an ISO-8601 string → DateTime.Parse
         //   - an object (message w/ role, content, etc.) → skip
-        // createdAt can be:
-        //   - missing → null
-        //   - a Unix-millisecond number
-        //   - an ISO-8601 string
-        //   - an object (message with role, content, etc.) — skip
+        // Gateway history messages use "timestamp" (Unix ms number).
+        // createdAt/created-at are not used.
         DateTime? createdAt = null;
-        if (msg.TryGetProperty("createdAt", out var c))
+        if (msg.TryGetProperty("timestamp", out var ts) &&
+            ts.ValueKind == JsonValueKind.Number &&
+            ts.TryGetInt64(out var ms))
         {
-            if (c.ValueKind == JsonValueKind.Number && c.TryGetInt64(out var ms))
-                createdAt = DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime;
-            else if (c.ValueKind == JsonValueKind.String)
-            {
-                if (DateTime.TryParse(c.GetString(), out var dtVal))
-                    createdAt = dtVal;
-            }
+            createdAt = DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime;
         }
 
         // For assistant messages, allow entry even if text content is empty
