@@ -21,9 +21,27 @@ public static class UserMessageHelper
         var toolCalls = new List<ToolCallEntry>();
         var thinkingBlocks = new List<string>();
         var content = ExtractMessageContent(msg, toolCalls, thinkingBlocks);
-        var createdAt = msg.TryGetProperty("createdAt", out var c)
-            ? DateTime.TryParse(c.GetString(), out var dt) ? dt : (DateTime?)null
-            : null;
+        // createdAt can be:
+        //   - missing → null
+        //   - a Unix-millisecond number → /Date(1234567890123)/
+        //   - an ISO-8601 string → DateTime.Parse
+        //   - an object (message w/ role, content, etc.) → skip
+        // createdAt can be:
+        //   - missing → null
+        //   - a Unix-millisecond number
+        //   - an ISO-8601 string
+        //   - an object (message with role, content, etc.) — skip
+        DateTime? createdAt = null;
+        if (msg.TryGetProperty("createdAt", out var c))
+        {
+            if (c.ValueKind == JsonValueKind.Number && c.TryGetInt64(out var ms))
+                createdAt = DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime;
+            else if (c.ValueKind == JsonValueKind.String)
+            {
+                if (DateTime.TryParse(c.GetString(), out var dtVal))
+                    createdAt = dtVal;
+            }
+        }
 
         // For assistant messages, allow entry even if text content is empty
         // as long as there are tool calls.
