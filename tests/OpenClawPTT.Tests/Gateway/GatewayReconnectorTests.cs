@@ -216,6 +216,59 @@ public class GatewayReconnectorTests : IDisposable
         try { await reconnectTask.WaitAsync(TimeSpan.FromSeconds(1)); } catch { /* ignore */ }
     }
 
+    [Fact]
+    public async Task ReconnectLoop_OnFatalError_LogsFatalMessageAndDoesNotRetry()
+    {
+        // Arrange: connector fails with a non-GatewayException that's not network-related
+        var callCount = 0;
+        _mockConnector.Setup(x => x.ConnectAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => callCount++)
+            .ThrowsAsync(new InvalidOperationException("Something went terribly wrong"));
+
+        _mockConsole.Setup(x => x.Log(It.IsAny<string>(), It.IsAny<string>()));
+        _mockConsole.Setup(x => x.LogError(It.IsAny<string>(), It.IsAny<string>()));
+
+        // Act: start reconnection
+        var reconnectTask = _reconnector.ScheduleReconnectAsync(CancellationToken.None);
+
+        await Task.Delay(500);
+
+        // Assert: only attempted once, logged fatal message
+        Assert.Equal(1, callCount);
+        _mockConsole.Verify(x => x.LogError("gateway",
+            It.Is<string>(s => s.Contains("Fatal error"))), Times.AtLeastOnce);
+
+        _cts.Cancel();
+        try { await reconnectTask.WaitAsync(TimeSpan.FromSeconds(1)); } catch { /* ignore */ }
+    }
+
+    [Fact]
+    public async Task ReconnectLoop_OnPairingRequired_LogsSuggestionAndDoesNotRetry()
+    {
+        var callCount = 0;
+        _mockConnector.Setup(x => x.ConnectAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => callCount++)
+            .ThrowsAsync(new GatewayException("Pairing required",
+                JsonDocument.Parse(/* lang=json */ """
+                    {"error":{"code":"PAIRING_REQUIRED","details":{"code":"PAIRING_REQUIRED"}}}
+                """).RootElement));
+
+        _mockConsole.Setup(x => x.Log(It.IsAny<string>(), It.IsAny<string>()));
+        _mockConsole.Setup(x => x.LogError(It.IsAny<string>(), It.IsAny<string>()));
+
+        var reconnectTask = _reconnector.ScheduleReconnectAsync(CancellationToken.None);
+        await Task.Delay(500);
+
+        Assert.Equal(1, callCount);
+        _mockConsole.Verify(x => x.LogError("gateway",
+            It.Is<string>(s => s.Contains("Pairing required"))), Times.AtLeastOnce);
+        _mockConsole.Verify(x => x.Log("gateway",
+            It.Is<string>(s => s.Contains("openclaw devices list"))), Times.AtLeastOnce);
+
+        _cts.Cancel();
+        try { await reconnectTask.WaitAsync(TimeSpan.FromSeconds(1)); } catch { /* ignore */ }
+    }
+
     public void Dispose()
     {
         _cts.Cancel();

@@ -58,12 +58,10 @@ public class GatewayReconnector : IDisposable
                 {
                     await _gatewayConnector.ConnectAsync(linkedCt);
                     _console.LogOk("gateway", "Reconnected successfully.");
-                    _isReconnecting = false;
                     break;
                 }
                 catch (OperationCanceledException) when (linkedCt.IsCancellationRequested)
                 {
-                    _isReconnecting = false;
                     break;
                 }
                 catch (Exception ex)
@@ -78,7 +76,10 @@ public class GatewayReconnector : IDisposable
                             foreach (var action in classification.SuggestedActions)
                                 _console.Log("gateway", $"  - {action}");
                         }
-                        _isReconnecting = false;
+                        if (classification.ShouldStopApp)
+                        {
+                            _console.LogError("gateway", "Fatal error — the application cannot continue. Please restart.");
+                        }
                         break;
                     }
                     _console.LogError("gateway", $"Reconnection failed: {ex.Message}");
@@ -87,6 +88,7 @@ public class GatewayReconnector : IDisposable
         }
         finally
         {
+            _isReconnecting = false;
             linkCts.Dispose();
         }
     }
