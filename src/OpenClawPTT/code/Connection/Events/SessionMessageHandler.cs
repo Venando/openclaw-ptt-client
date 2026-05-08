@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using OpenClawPTT.Services;
 using OpenClawPTT.Services.Diagnostics;
@@ -25,11 +26,17 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
     // After an error, we record the failed provider/model. When a successful
     // response arrives on the same session, we compare the message's provider
     // against the recorded error provider to detect a fallback.
-    private string? _lastErrorProvider;
-    private string? _lastErrorModel;
-    private string? _lastErrorMessage;
-    private string? _lastErrorSessionKey;
-    private bool _fallbackNotifiedForRun;
+    // Uses ConcurrentDictionary for thread safety across concurrent sessions.
+    private readonly ConcurrentDictionary<string, SessionErrorState> _sessionErrors =
+        new(StringComparer.Ordinal);
+
+    private sealed class SessionErrorState
+    {
+        public string? Provider { get; set; }
+        public string? Model { get; set; }
+        public string? ErrorMessage { get; set; }
+        public bool FallbackNotifiedForRun { get; set; }
+    }
 
     public SessionMessageHandler(
         IGatewayEventSource events,
@@ -71,16 +78,10 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
         if (roleEl.GetString() != "assistant") return;
 
         // Check for error messages (stopReason=error, content may be empty)
-        // IMPORTANT: detect fallback BEFORE recording the error. If the gateway
-        // fell back on this same message (provider differs from previous error),
-        // we want to show the fallback notification and skip error state recording
-        // (the fallback response itself will have provider=deepseek etc. here).
+        // When stopReason=error, the message carries the provider that FAILED,
+        // not a fallback. Fallback detection is handled after successful responses.
         if (messageEl.TryGetProperty("stopReason", out var stopReason) && stopReason.GetString() == "error")
         {
-            // Check if a fallback occurred on this same response before recording error state.
-            // This prevents false error recording when the gateway successfully switched models.
-            DetectFallbackFromMessage(sessionKey, messageEl);
-
             HandleErrorMessage(messageEl, sessionKey);
             return;
         }
@@ -176,12 +177,17 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
         var providerModel = provider != null ? $"{provider}/{model}" : "?";
         _console.Log("debug", $"{providerModel} stopReason=error: {errorMessage}", LogLevel.Debug);
 
-        // Record error state for fallback detection
-        _lastErrorProvider = provider;
-        _lastErrorModel = model;
-        _lastErrorMessage = errorMessage;
-        _lastErrorSessionKey = sessionKey;
-        _fallbackNotifiedForRun = false;
+        // Record error state for fallback detection (per-session)
+        if (sessionKey != null)
+        {
+            _sessionErrors[sessionKey] = new SessionErrorState
+            {
+                Provider = provider,
+                Model = model,
+                ErrorMessage = errorMessage,
+                FallbackNotifiedForRun = false
+            };
+        }
     }
 
     /// <summary>
@@ -192,10 +198,9 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
     /// </summary>
     private void DetectFallbackFromMessage(string? sessionKey, JsonElement messageEl)
     {
-        if (_lastErrorProvider == null || _fallbackNotifiedForRun)
-            return;
-        if (sessionKey != _lastErrorSessionKey)
-            return;
+        if (sessionKey == null) return;
+        if (!_sessionErrors.TryGetValue(sessionKey, out var state)) return;
+        if (state.FallbackNotifiedForRun) return;
 
         var currentProvider = messageEl.TryGetProperty("provider", out var cp) ? cp.GetString() : null;
         var currentModel = messageEl.TryGetProperty("model", out var cm) ? cm.GetString() : null;
@@ -204,21 +209,21 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
             return;
 
         // If provider is the same, no fallback — the errored model handled it successfully
-        if (string.Equals(currentProvider, _lastErrorProvider, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(currentProvider, state.Provider, StringComparison.OrdinalIgnoreCase))
         {
-            _fallbackNotifiedForRun = true;
+            state.FallbackNotifiedForRun = true;
             return;
         }
 
         // Different provider = the gateway switched after the error (auto-fallback)
         _console.PrintModelFallback(
-            _lastErrorProvider,
-            _lastErrorModel ?? "?",
+            state.Provider ?? "?",
+            state.Model ?? "?",
             currentProvider,
             currentModel,
-            isQuotaError: IsQuotaError(_lastErrorMessage ?? ""));
+            isQuotaError: IsQuotaError(state.ErrorMessage ?? ""));
 
-        _fallbackNotifiedForRun = true;
+        state.FallbackNotifiedForRun = true;
     }
 
     private void HandleAgentStream(JsonElement payload)
