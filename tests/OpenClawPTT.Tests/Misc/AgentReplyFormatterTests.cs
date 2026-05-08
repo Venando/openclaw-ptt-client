@@ -40,7 +40,7 @@ public class AgentReplyFormatterTests
         formatter.Finish();
     }
 
-[Fact]
+    [Fact]
     public void Finish_DoesNotThrow()
     {
         var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 10, prefixAlreadyPrinted: false, output: new StringWriterTextOutput());
@@ -65,7 +65,7 @@ public class AgentReplyFormatterTests
         Assert.Equal("hello", output.Result.Trim());
     }
 
-[Fact]
+    [Fact]
     public void ProcessDelta_MultipleIncrementalChunks_AccumulatesAndFinishes()
     {
         var output = new StringWriterTextOutput();
@@ -175,7 +175,7 @@ public class AgentReplyFormatterTests
         ValidateMarkup(output);
     }
 
-[Fact]
+    [Fact]
     public void ProcessDelta_MultipleIncrementalChunks_NegativeWidth_DoesNotCrash()
     {
         // Incremental chunks with specific margin config; no crash expected.

@@ -65,7 +65,7 @@ public class JsonHelperTests
         doc!.Dispose();
     }
 
-// Test 4: Missing `type` property → returns false
+    // Test 4: Missing `type` property → returns false
     [Fact]
     public void TryParseJson_MissingType_ReturnsFalse()
     {
