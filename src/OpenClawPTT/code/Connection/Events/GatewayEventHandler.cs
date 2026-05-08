@@ -25,6 +25,7 @@ public class GatewayEventHandler : IEventHandler<GatewayEvent>
         "heartbeat",
         "presence",
         "tick",
+        "sessions.changed",
         "device.pair.requested",
         "device.pair.resolved",
         "node.pair.requested",

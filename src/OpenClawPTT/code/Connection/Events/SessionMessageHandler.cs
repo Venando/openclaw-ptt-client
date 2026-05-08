@@ -7,6 +7,8 @@ namespace OpenClawPTT;
 /// Handles session-related gateway events: session.message, agent, and chat.
 /// Extracts content blocks (text, thinking, tool calls, audio) and fires
 /// the appropriate events through <see cref="IGatewayEventSource"/>.
+/// Also detects phase=error lifecycle events and stopReason=error messages,
+/// surfacing provider failures and fallback information.
 /// </summary>
 public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
 {
@@ -50,6 +52,14 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
         if (!payload.TryGetProperty("message", out var messageEl)) return;
         if (!messageEl.TryGetProperty("role", out var roleEl)) return;
         if (roleEl.GetString() != "assistant") return;
+
+        // Check for error messages (stopReason=error, content may be empty)
+        if (messageEl.TryGetProperty("stopReason", out var stopReason) && stopReason.GetString() == "error")
+        {
+            HandleErrorMessage(messageEl);
+            return;
+        }
+
         if (!messageEl.TryGetProperty("content", out var contentEl)) return;
         if (contentEl.ValueKind != JsonValueKind.Array) return;
 
@@ -118,19 +128,90 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
             _events.RaiseAgentReplyDeltaEnd();
     }
 
+    /// <summary>
+    /// Handles an error response from the agent (stopReason=error).
+    /// Extracts the error message from errorMessage, provider, and model fields.
+    /// Shows a gateway error with all available detail.
+    /// </summary>
+    private void HandleErrorMessage(JsonElement messageEl)
+    {
+        var errorMessage = messageEl.TryGetProperty("errorMessage", out var errEl)
+            ? errEl.GetString() ?? "Unknown error"
+            : "Unknown error";
+        var provider = messageEl.TryGetProperty("provider", out var provEl)
+            ? provEl.GetString() : null;
+        var model = messageEl.TryGetProperty("model", out var modEl)
+            ? modEl.GetString() : null;
+
+        var prefix = provider != null ? $"{provider}/{model}" : "Agent";
+        var fullMsg = $"{prefix} error: {errorMessage}";
+
+        // Check if it's a quota error
+        if (IsQuotaError(errorMessage))
+        {
+            _console.PrintModelFailed(fullMsg);
+        }
+        else
+        {
+            _console.PrintError(fullMsg);
+        }
+    }
+
     private void HandleAgentStream(JsonElement payload)
     {
-        if (!_cfg.RealTimeReplyOutput) return;
         if (!payload.TryGetProperty("data", out var data)) return;
 
+        // Handle lifecycle events
         if (data.TryGetProperty("phase", out var phase))
         {
             var phaseType = phase.GetString() ?? string.Empty;
-            if (phaseType == "start") _events.RaiseAgentReplyDeltaStart();
-            if (phaseType == "end") _events.RaiseAgentReplyDeltaEnd();
+
+            if (phaseType == "start")
+            {
+                if (_cfg.RealTimeReplyOutput)
+                    _events.RaiseAgentReplyDeltaStart();
+            }
+            else if (phaseType == "end")
+            {
+                if (_cfg.RealTimeReplyOutput)
+                    _events.RaiseAgentReplyDeltaEnd();
+            }
+            else if (phaseType == "error")
+            {
+                // Gateway sends lifecycle error events to WebSocket clients.
+                // Show the error message immediately regardless of reply mode.
+                var errorMsg = data.TryGetProperty("error", out var e)
+                    ? e.GetString() ?? "Unknown agent error"
+                    : "Unknown agent error";
+
+                _console.Log("debug", $"Agent lifecycle error: {errorMsg}", LogLevel.Debug);
+
+                if (IsQuotaError(errorMsg))
+                {
+                    _console.PrintModelFailed(errorMsg);
+                }
+                else if (errorMsg.Contains("fallback", StringComparison.OrdinalIgnoreCase) ||
+                         errorMsg.Contains("failover", StringComparison.OrdinalIgnoreCase))
+                {
+                    _console.PrintWarning($"Agent: {errorMsg}");
+                }
+                else
+                {
+                    _console.PrintError($"Agent error: {errorMsg}");
+
+                    // Also notify adapter for display
+                    if (_cfg.RealTimeReplyOutput)
+                    {
+                        _events.RaiseAgentReplyDeltaStart();
+                        _events.RaiseAgentReplyFull(errorMsg);
+                        _events.RaiseAgentReplyDeltaEnd();
+                    }
+                }
+            }
         }
 
-        if (data.TryGetProperty("delta", out var delta))
+        // Handle streaming delta (only in realtime mode)
+        if (_cfg.RealTimeReplyOutput && data.TryGetProperty("delta", out var delta))
         {
             var chunk = delta.GetString() ?? string.Empty;
             if (!string.IsNullOrEmpty(chunk))
@@ -178,5 +259,15 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
             }
         }
         return string.Join("", textParts);
+    }
+
+    private static bool IsQuotaError(string message)
+    {
+        return message.Contains("usage limit", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("quota", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("insufficient funds", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("billing cycle", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("billing error", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("insufficient balance", StringComparison.OrdinalIgnoreCase);
     }
 }

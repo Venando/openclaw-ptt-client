@@ -79,8 +79,6 @@ public sealed class GatewayService : IGatewayService
                     await Task.Delay(200, ct);
                     // Check provider quota (covers exhausted primary models)
                     await CheckUsageStatusAsync(ct);
-                    // Check session model override (detects silent fallback)
-                    await CheckSessionModelOverrideAsync(ct);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -255,28 +253,56 @@ public sealed class GatewayService : IGatewayService
 
             _console.Log("debug", $"usage.status response: {result.ToString()[..Math.Min(result.ToString().Length, 500)]}", LogLevel.Debug);
 
-            // Parse response looking for exhausted/cooldown providers
-            var providers = result.ValueKind == JsonValueKind.Object
-                ? result.EnumerateObject()
-                : default;
+            // Parse response: it returns {"providers": [{"provider":"...", "windows":[...], "error":"..."}, ...]}
+            // Iterate the providers array, not top-level object properties
+            JsonElement providersArr = default;
+            if (result.TryGetProperty("providers", out var pArr) && pArr.ValueKind == JsonValueKind.Array)
+                providersArr = pArr;
 
-            foreach (var prop in providers)
+            if (providersArr.ValueKind == JsonValueKind.Array)
             {
-                var providerName = prop.Name;
-                var status = prop.Value;
-
-                // Check for quota exhaustion indicators
-                var statusStr = status.ToString();
-                if (statusStr.Contains("exhausted", StringComparison.OrdinalIgnoreCase) ||
-                    statusStr.Contains("cooldown", StringComparison.OrdinalIgnoreCase) ||
-                    statusStr.Contains("disabled", StringComparison.OrdinalIgnoreCase) ||
-                    statusStr.Contains("limit", StringComparison.OrdinalIgnoreCase) ||
-                    statusStr.Contains("quota", StringComparison.OrdinalIgnoreCase) ||
-                    statusStr.Contains("error", StringComparison.OrdinalIgnoreCase) ||
-                    statusStr.Contains("usage limit", StringComparison.OrdinalIgnoreCase) ||
-                    statusStr.Contains("billing", StringComparison.OrdinalIgnoreCase))
+                foreach (var providerEntry in providersArr.EnumerateArray())
                 {
-                    _console.PrintModelQuotaWarning(providerName, statusStr[..Math.Min(statusStr.Length, 300)]);
+                    var providerName = providerEntry.TryGetProperty("provider", out var nameEl)
+                        ? nameEl.GetString() ?? "unknown"
+                        : "unknown";
+
+                    // Check for errors on the provider itself (e.g. HTTP 401 for github-copilot)
+                    if (providerEntry.TryGetProperty("error", out var errEl) && errEl.ValueKind == JsonValueKind.String)
+                    {
+                        var errStr = errEl.GetString() ?? string.Empty;
+                        if (!string.IsNullOrEmpty(errStr))
+                        {
+                            _console.PrintWarning($"{providerName} API error: {errStr}");
+                        }
+                    }
+
+                    // Check usage windows for high utilization
+                    if (providerEntry.TryGetProperty("windows", out var windowsEl) && windowsEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var window in windowsEl.EnumerateArray())
+                        {
+                            var label = window.TryGetProperty("label", out var l) ? l.GetString() : "window";
+                            var usedPercent = window.TryGetProperty("usedPercent", out var pct) ? pct.GetDouble() : 0.0;
+                            var resetAt = window.TryGetProperty("resetAt", out var r) ? r.GetInt64() : (long?)null;
+
+                            if (usedPercent >= 100)
+                            {
+                                var errMsg = $"{providerName} quota exhausted ({label}";
+                                if (resetAt.HasValue)
+                                    errMsg += $", resets {DateTimeOffset.FromUnixTimeMilliseconds(resetAt.Value):HH:mm}";
+                                errMsg += ")";
+                                _console.PrintModelFailed(errMsg);
+                            }
+                            else if (usedPercent >= 90)
+                            {
+                                _console.PrintModelQuotaWarning(providerName,
+                                    $"{usedPercent:F0}% used ({label}" +
+                                    (resetAt.HasValue ? $", resets {DateTimeOffset.FromUnixTimeMilliseconds(resetAt.Value):HH:mm}" : "") +
+                                    ")");
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -284,75 +310,6 @@ public sealed class GatewayService : IGatewayService
         {
             // usage.status might not be available if scope is insufficient
             _console.Log("debug", $"usage.status RPC: {gex.Message}", LogLevel.Debug);
-        }
-    }
-
-    /// <summary>
-    /// Checks the current session model state to detect if a fallback
-    /// auto-override was applied. When modelOverrideSource is "auto",
-    /// the primary model failed and a fallback was used instead.
-    /// </summary>
-    private async Task CheckSessionModelOverrideAsync(CancellationToken ct)
-    {
-        try
-        {
-            var sessionKey = AgentRegistry.ActiveSessionKey ?? "main";
-            var result = await _gatewayClient.SendEventAsync("sessions.list", new Dictionary<string, object?>
-            {
-                ["sessionKey"] = sessionKey
-            }, ct);
-
-            if (result.ValueKind == JsonValueKind.Undefined || result.ValueKind == JsonValueKind.Null)
-                return;
-
-            _console.Log("debug", $"sessions.list response: {result.ToString()[..Math.Min(result.ToString().Length, 800)]}", LogLevel.Debug);
-
-            // Try to find the session and check modelOverrideSource
-            JsonElement sessionEl = result;
-            // The response might be an array or have a sessions property
-            if (result.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var s in result.EnumerateArray())
-                {
-                    if (s.TryGetProperty("key", out var k) && k.GetString() == sessionKey)
-                    {
-                        sessionEl = s;
-                        break;
-                    }
-                }
-            }
-            else if (result.TryGetProperty("sessions", out var arr) && arr.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var s in arr.EnumerateArray())
-                {
-                    if (s.TryGetProperty("key", out var k) && k.GetString() == sessionKey)
-                    {
-                        sessionEl = s;
-                        break;
-                    }
-                }
-            }
-
-            // Check for modelOverrideSource = "auto" or model/provider override fields
-            if (sessionEl.TryGetProperty("modelOverrideSource", out var source) &&
-                source.GetString() == "auto")
-            {
-                var currentModel = sessionEl.TryGetProperty("model", out var m) ? m.GetString() : "unknown";
-                var currentProvider = sessionEl.TryGetProperty("modelProvider", out var p) ? p.GetString() : "unknown";
-                var originalModel = sessionEl.TryGetProperty("originalModel", out var om) ? om.GetString() : null;
-                var originalProvider = sessionEl.TryGetProperty("originalProvider", out var op) ? op.GetString() : null;
-
-                _console.PrintModelFallback(
-                    originalProvider ?? currentProvider ?? "?",
-                    originalModel ?? currentModel ?? "?",
-                    currentProvider ?? "?",
-                    currentModel ?? "?",
-                    false);
-            }
-        }
-        catch (GatewayException gex)
-        {
-            _console.Log("debug", $"sessions.list check: {gex.Message}", LogLevel.Debug);
         }
     }
 
