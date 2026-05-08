@@ -218,6 +218,7 @@ public sealed class AgentSwitchingCommands
                     ["reason"] = reason
                 }, CancellationToken.None);
                 _console.PrintMarkupedUserMessage($"[blue on gray15]⚡ {Markup.Escape(displayCommand)} [/]");
+                _console.PrintMarkup("");
             }
             catch (Exception ex)
             {

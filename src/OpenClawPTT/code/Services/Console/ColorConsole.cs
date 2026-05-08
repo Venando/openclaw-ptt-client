@@ -202,12 +202,15 @@ public sealed class ColorConsole : IColorConsole
         {
             ShellMsg($"[yellow]  ⚠ Model fallback: [red]{Markup.Escape(fromProvider)}/{Markup.Escape(fromModel)}[/] unavailable → [green]{Markup.Escape(toProvider)}/{Markup.Escape(toModel)}[/][/]");
         }
+
+        ShellMsg("");
     }
 
     /// <inheritdoc />
     public void PrintModelFailed(string errorMessage)
     {
         ShellMsg($"[red]  ✗ Model failed: {Markup.Escape(errorMessage)}[/]");
+        ShellMsg("");
     }
 
     // ── Logging ────────────────────────────────────────────────
