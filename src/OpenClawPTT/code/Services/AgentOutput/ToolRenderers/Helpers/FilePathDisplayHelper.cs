@@ -51,6 +51,10 @@ internal static class FilePathDisplayHelper
             currentLength += addLength;
         }
 
+        // Always keep at least the immediate parent directory
+        if (kept.Count == 0 && parts.Length > 0)
+            kept.Add(parts[^1]);
+
         string shortFolder = kept.Count == 0
             ? "..."
             : kept.Count < parts.Length
