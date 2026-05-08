@@ -256,6 +256,9 @@ internal sealed class TestableGatewayService : IGatewayService
     public Task SendTextAsync(string text, CancellationToken ct = default) =>
         _gatewayClient.SendTextAsync(text, ct);
 
+    public async Task<JsonElement> SendRpcAsync(string method, object? parameters, CancellationToken ct = default) =>
+        await _gatewayClient.SendEventAsync(method, parameters, ct);
+
     public void RecreateWithConfig(AppConfig newConfig)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(TestableGatewayService));

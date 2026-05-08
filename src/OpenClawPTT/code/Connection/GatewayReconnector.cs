@@ -1,5 +1,6 @@
 using OpenClawPTT;
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Diagnostics;
 
 public class GatewayReconnector : IDisposable
 {
@@ -57,22 +58,37 @@ public class GatewayReconnector : IDisposable
                 {
                     await _gatewayConnector.ConnectAsync(linkedCt);
                     _console.LogOk("gateway", "Reconnected successfully.");
-                    _isReconnecting = false;
                     break;
                 }
                 catch (OperationCanceledException) when (linkedCt.IsCancellationRequested)
                 {
-                    _isReconnecting = false;
                     break;
                 }
                 catch (Exception ex)
                 {
+                    var classification = GatewayErrorClassifier.Classify(ex);
+                    if (!classification.ShouldRetry)
+                    {
+                        _console.LogError("gateway", classification.HumanMessage);
+                        if (classification.SuggestedActions.Length > 0)
+                        {
+                            _console.Log("gateway", "Suggested actions:");
+                            foreach (var action in classification.SuggestedActions)
+                                _console.Log("gateway", $"  - {action}");
+                        }
+                        if (classification.ShouldStopApp)
+                        {
+                            _console.LogError("gateway", "Fatal error — the application cannot continue. Please restart.");
+                        }
+                        break;
+                    }
                     _console.LogError("gateway", $"Reconnection failed: {ex.Message}");
                 }
             }
         }
         finally
         {
+            _isReconnecting = false;
             linkCts.Dispose();
         }
     }

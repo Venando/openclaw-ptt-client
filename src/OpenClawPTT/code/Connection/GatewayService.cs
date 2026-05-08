@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using OpenClawPTT.Services.Diagnostics;
 
 namespace OpenClawPTT.Services;
 
@@ -14,6 +16,7 @@ public sealed class GatewayService : IGatewayService
     private readonly DeviceIdentity _device;
     private IGatewayClient _gatewayClient;
     private AgentOutputAdapter? _uiAdapter;
+    private ErrorLogStore? _errorLog;
     private bool _disposed;
 
     public event Action<string>? AgentReplyFull;
@@ -36,6 +39,12 @@ public sealed class GatewayService : IGatewayService
         _gatewayClient = CreateGatewayClient();
     }
 
+    /// <summary>Wire an ErrorLogStore for logging send/connect failures.</summary>
+    public void SetErrorLogStore(ErrorLogStore store)
+    {
+        _errorLog = store;
+    }
+
     public async Task ConnectAsync(CancellationToken ct)
     {
         await _gatewayClient.ConnectAsync(ct);
@@ -44,6 +53,29 @@ public sealed class GatewayService : IGatewayService
     public async Task SendTextAsync(string text, CancellationToken ct)
     {
         await _gatewayClient.SendTextAsync(text, ct);
+    }
+
+    public async Task<JsonElement> SendRpcAsync(string method, object? parameters, CancellationToken ct)
+    {
+        try
+        {
+            return await _gatewayClient.SendEventAsync(method, parameters, ct);
+        }
+        catch (GatewayException ex)
+        {
+            LogClassifiedError(GatewayErrorClassifier.ClassifyGatewayError(ex), ex);
+            throw; // Re-throw so callers can handle failure UI
+        }
+        catch (Exception ex)
+        {
+            LogClassifiedError(GatewayErrorClassifier.Classify(ex), ex);
+            throw; // Re-throw so callers can handle failure UI
+        }
+    }
+
+    private void LogClassifiedError(ErrorClassification classification, Exception ex)
+    {
+        _errorLog?.Write(classification.ToLogEntry());
     }
 
     public void RecreateWithConfig(AppConfig newConfig)

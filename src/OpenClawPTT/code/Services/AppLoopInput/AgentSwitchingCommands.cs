@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Diagnostics;
 using Spectre.Console;
 
 namespace OpenClawPTT;
@@ -20,8 +22,9 @@ public sealed class AgentSwitchingCommands
     private readonly IColorConsole _console;
     private readonly IAgentSettingsPersistence _agentSettingsPersistence;
     private readonly IPttStateMachine _pttStateMachine;
+    private readonly ErrorLogStore _errorLog;
 
-    public AgentSwitchingCommands(IStreamShellHost host, ITextMessageSender textSender, IGatewayService gatewayService, AppConfig appConfig, IColorConsole console, IAgentSettingsPersistence agentSettingsPersistence, IPttStateMachine pttStateMachine)
+    public AgentSwitchingCommands(IStreamShellHost host, ITextMessageSender textSender, IGatewayService gatewayService, AppConfig appConfig, IColorConsole console, IAgentSettingsPersistence agentSettingsPersistence, IPttStateMachine pttStateMachine, ErrorLogStore errorLog)
     {
         _host = host;
         _textSender = textSender;
@@ -30,6 +33,7 @@ public sealed class AgentSwitchingCommands
         _console = console;
         _agentSettingsPersistence = agentSettingsPersistence;
         _pttStateMachine = pttStateMachine;
+        _errorLog = errorLog;
     }
 
     /// <summary>Handler for /crew — lists available agents with all settings.</summary>
@@ -186,11 +190,44 @@ public sealed class AgentSwitchingCommands
 
     /// <summary>
     /// Forwards an OpenClaw slash command (e.g. /new, /stop) to the gateway.
+    /// /new and /reset are sent via the sessions.reset RPC rather than
+    /// as text commands, because the OpenClaw gateway no longer processes
+    /// slash commands from chat.send (regression in OpenClaw 2026.5.x).
     /// </summary>
-    public async Task HandleOpenClawCommand(string commandName, string[] args, System.Collections.Generic.Dictionary<string, string> named)
+    public async Task HandleOpenClawCommand(string commandName, string[] args, Dictionary<string, string> named)
     {
-        // Reconstruct the command text
-        var parts = new System.Collections.Generic.List<string> { "/" + commandName };
+        // Intercept /new and /reset — use sessions.reset RPC directly
+        if (string.Equals(commandName, "reset", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(commandName, "new", StringComparison.OrdinalIgnoreCase))
+        {
+            var sessionKey = AgentRegistry.ActiveSessionKey;
+            if (sessionKey == null)
+            {
+                _host.AddMessage("[yellow]  No active session to reset.[/]");
+                return;
+            }
+
+            var reason = string.Equals(commandName, "new", StringComparison.OrdinalIgnoreCase) ? "new" : "reset";
+            var displayCommand = "/" + commandName;
+
+            try
+            {
+                await _gatewayService.SendRpcAsync("sessions.reset", new Dictionary<string, object?>
+                {
+                    ["key"] = sessionKey,
+                    ["reason"] = reason
+                }, CancellationToken.None);
+                _console.PrintMarkupedUserMessage($"[blue on gray15]⚡ {Markup.Escape(displayCommand)} [/]");
+            }
+            catch (Exception ex)
+            {
+                _host.AddMessage($"[red]  Failed to reset session: {Markup.Escape(ex.Message)}[/]");
+            }
+            return;
+        }
+
+        // For all other commands, forward as text via chat.send
+        var parts = new List<string> { "/" + commandName };
         parts.AddRange(args);
         foreach (var kvp in named)
             parts.Add($"{kvp.Key}={kvp.Value}");
@@ -199,13 +236,110 @@ public sealed class AgentSwitchingCommands
 
         try
         {
-            await _textSender.SendAsync(commandText, System.Threading.CancellationToken.None, printMessage: false);
+            await _textSender.SendAsync(commandText, CancellationToken.None, printMessage: false);
             _console.PrintMarkupedUserMessage($"[blue on gray15]⚡ {Markup.Escape(commandText)} [/]");
             _console.PrintMarkup("");
         }
         catch (Exception ex)
         {
             _host.AddMessage($"[red]  Failed to send command: {Markup.Escape(ex.Message)}[/]");
+        }
+    }
+
+    /// <summary>Handler for /errors — display recent error log entries with rich details.</summary>
+    public Task HandleErrorsCommand(string[] args)
+    {
+        if (args.Length > 0 && args[0].Equals("clear", StringComparison.OrdinalIgnoreCase))
+        {
+            _errorLog.Clear();
+            _host.AddMessage("[green]  Error log cleared.[/]");
+            return Task.CompletedTask;
+        }
+
+        int count = 10;
+        if (args.Length > 0 && int.TryParse(args[0], out var requested))
+            count = Math.Clamp(requested, 1, 100);
+
+        var entries = _errorLog.GetRecent(count);
+
+        if (entries.Count == 0)
+        {
+            _host.AddMessage("[green]  No errors logged.[/]");
+            return Task.CompletedTask;
+        }
+
+        _host.AddMessage($"[cyan2]  Recent errors ({entries.Count}):[/]");
+        foreach (var entry in entries)
+        {
+            var ts = entry.Timestamp.ToString("HH:mm:ss");
+
+            // Main error line
+            var codeStr = entry.Code;
+            if (!string.IsNullOrEmpty(entry.OuterCode) && entry.OuterCode != entry.Code)
+                codeStr = $"{entry.OuterCode} → {entry.Code}";
+            _host.AddMessage($"  [grey]{ts}[/] [bold]{Markup.Escape(codeStr)}[/] {Markup.Escape(entry.Message)}");
+
+            // Rich details (compact)
+            if (!string.IsNullOrEmpty(entry.Reason))
+                _host.AddMessage($"    Reason: [grey]{Markup.Escape(entry.Reason)}[/]");
+            if (!string.IsNullOrEmpty(entry.RequestId))
+                _host.AddMessage($"    RequestId: [grey]{Markup.Escape(entry.RequestId)}[/]");
+            if (!string.IsNullOrEmpty(entry.DeviceId))
+                _host.AddMessage($"    DeviceId: [grey]{Markup.Escape(entry.DeviceId)}[/]");
+            if (!string.IsNullOrEmpty(entry.RequestedRole))
+                _host.AddMessage($"    Requested role: [grey]{Markup.Escape(entry.RequestedRole)}[/]");
+            if (entry.RequestedScopes is { Length: > 0 })
+                _host.AddMessage($"    Requested scopes: [grey]{Markup.Escape(string.Join(", ", entry.RequestedScopes))}[/]");
+            if (entry.ApprovedScopes is { Length: > 0 })
+                _host.AddMessage($"    Approved scopes: [grey]{Markup.Escape(string.Join(", ", entry.ApprovedScopes))}[/]");
+            if (entry.ApprovedRoles is { Length: > 0 })
+                _host.AddMessage($"    Approved roles: [grey]{Markup.Escape(string.Join(", ", entry.ApprovedRoles))}[/]");
+            if (!string.IsNullOrEmpty(entry.Method))
+                _host.AddMessage($"    Method: [grey]{Markup.Escape(entry.Method)}[/]");
+            if (entry.RetryAfterMs.HasValue)
+                _host.AddMessage($"    Retry after: [grey]{entry.RetryAfterMs.Value}ms[/]");
+            if (!string.IsNullOrEmpty(entry.RecommendedNextStep))
+                _host.AddMessage($"    Recommended: [grey]{Markup.Escape(entry.RecommendedNextStep)}[/]");
+            if (entry.CanRetryWithDeviceToken == true)
+                _host.AddMessage($"    Can retry with device token: [grey]yes[/]");
+
+            // Suggested actions
+            if (entry.SuggestedActions.Length > 0)
+            {
+                foreach (var action in entry.SuggestedActions)
+                    _host.AddMessage($"    → [grey]{Markup.Escape(action)}[/]");
+            }
+        }
+        _host.AddMessage("[grey]  Use /errors N to show more, /errors clear to clear[/]");
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Handler for /reconnect — attempt to reconnect to the gateway.</summary>
+    public async Task HandleReconnectCommand(string[] args)
+    {
+        _host.AddMessage("[cyan2]  Attempting to reconnect to gateway...[/]");
+        try
+        {
+            // GatewayService.RecreateWithConfig creates a fresh internal client
+            // but we need to dispose the old one. GatewayService handles this internally.
+            await _gatewayService.ConnectAsync(CancellationToken.None);
+            _host.AddMessage("[green]  Reconnected successfully.[/]");
+            // Pull session history for the now-active agent
+            var sessionKey = AgentRegistry.ActiveSessionKey;
+            if (sessionKey != null)
+                await PrintSessionHistory(sessionKey);
+        }
+        catch (Exception ex)
+        {
+            var classification = GatewayErrorClassifier.Classify(ex);
+            _errorLog.Write(classification.ToLogEntry());
+            _host.AddMessage($"[red]  Reconnect failed: {classification.HumanMessage}[/]");
+            if (classification.SuggestedActions.Length > 0)
+            {
+                _host.AddMessage("[grey]  Suggested actions:[/]");
+                foreach (var action in classification.SuggestedActions)
+                    _host.AddMessage($"    → [grey]{Markup.Escape(action)}[/]");
+            }
         }
     }
 }
