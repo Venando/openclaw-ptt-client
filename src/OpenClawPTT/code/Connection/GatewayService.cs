@@ -48,11 +48,48 @@ public sealed class GatewayService : IGatewayService
     public async Task ConnectAsync(CancellationToken ct)
     {
         await _gatewayClient.ConnectAsync(ct);
+
+        // Proactively check provider quotas after connection
+        // Delayed slightly to let the initial session setup complete
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(500, ct);
+                await CheckUsageStatusAsync(ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _console.Log("debug", $"usage.status check failed: {ex.Message}", LogLevel.Debug);
+            }
+        }, ct);
     }
 
     public async Task SendTextAsync(string text, CancellationToken ct)
     {
-        await _gatewayClient.SendTextAsync(text, ct);
+        try
+        {
+            await _gatewayClient.SendTextAsync(text, ct);
+
+            // After a successful send, check usage status to detect quota exhaustion
+            // (runs in background, doesn't block the message flow)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(200, ct);
+                    await CheckUsageStatusAsync(ct);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _console.Log("debug", $"usage.status check failed: {ex.Message}", LogLevel.Debug);
+                }
+            }, ct);
+        }
+        catch
+        {
+            throw;
+        }
     }
 
     public async Task<JsonElement> SendRpcAsync(string method, object? parameters, CancellationToken ct)
@@ -199,6 +236,52 @@ public sealed class GatewayService : IGatewayService
                 _uiAdapter!.OnAgentReplyFull(body);
                 AgentReplyFull?.Invoke(body);
             };
+        }
+    }
+
+    /// <summary>
+    /// Calls the usage.status RPC to check provider quota status.
+    /// If any provider has exhausted its quota, shows a warning.
+    /// </summary>
+    private async Task CheckUsageStatusAsync(CancellationToken ct)
+    {
+        try
+        {
+            var result = await _gatewayClient.SendEventAsync("usage.status", null, ct);
+            if (result.ValueKind == JsonValueKind.Undefined || result.ValueKind == JsonValueKind.Null)
+                return;
+
+            _console.Log("debug", $"usage.status response: {result.ToString()[..Math.Min(result.ToString().Length, 500)]}", LogLevel.Debug);
+
+            // Parse response looking for exhausted/cooldown providers
+            var providers = result.ValueKind == JsonValueKind.Object
+                ? result.EnumerateObject()
+                : default;
+
+            foreach (var prop in providers)
+            {
+                var providerName = prop.Name;
+                var status = prop.Value;
+
+                // Check for quota exhaustion indicators
+                var statusStr = status.ToString();
+                if (statusStr.Contains("exhausted", StringComparison.OrdinalIgnoreCase) ||
+                    statusStr.Contains("cooldown", StringComparison.OrdinalIgnoreCase) ||
+                    statusStr.Contains("disabled", StringComparison.OrdinalIgnoreCase) ||
+                    statusStr.Contains("limit", StringComparison.OrdinalIgnoreCase) ||
+                    statusStr.Contains("quota", StringComparison.OrdinalIgnoreCase) ||
+                    statusStr.Contains("error", StringComparison.OrdinalIgnoreCase) ||
+                    statusStr.Contains("usage limit", StringComparison.OrdinalIgnoreCase) ||
+                    statusStr.Contains("billing", StringComparison.OrdinalIgnoreCase))
+                {
+                    _console.PrintModelQuotaWarning(providerName, statusStr[..Math.Min(statusStr.Length, 300)]);
+                }
+            }
+        }
+        catch (GatewayException gex)
+        {
+            // usage.status might not be available if scope is insufficient
+            _console.Log("debug", $"usage.status RPC: {gex.Message}", LogLevel.Debug);
         }
     }
 

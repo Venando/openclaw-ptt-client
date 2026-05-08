@@ -82,6 +82,9 @@ public class GatewayMessager : IDisposable
 
                 var json = Encoding.UTF8.GetString(ms.ToArray());
 
+                // DEBUG: Log received frame (truncated for readability)
+                _console.Log("debug", $"RX frame ({json.Length} bytes): {json[..Math.Min(json.Length, 400)]}", LogLevel.Debug);
+
                 ProcessFrame(json);
             }
         }
@@ -110,6 +113,8 @@ public class GatewayMessager : IDisposable
         var root = doc.RootElement;
         var type = root.GetProperty("type").GetString();
 
+        _console.Log("debug", $"Frame type={type}", LogLevel.Debug);
+
         switch (type)
         {
             case "res":
@@ -118,6 +123,9 @@ public class GatewayMessager : IDisposable
             case "event":
                 HandleEvent(root);
                 break;
+            default:
+                _console.Log("debug", $"Unknown frame type: {type}", LogLevel.Debug);
+                break;
         }
     }
 
@@ -125,20 +133,32 @@ public class GatewayMessager : IDisposable
     {
         var id = root.GetProperty("id").GetString()!;
         if (!_framing.TryRemovePending(id, out var tcs) || tcs == null)
+        {
+            _console.Log("debug", $"Response for untracked id={id}, dropping", LogLevel.Debug);
             return;
+        }
 
         var ok = root.GetProperty("ok").GetBoolean();
+        _console.Log("debug", $"Response id={id} ok={ok}", LogLevel.Debug);
+
         if (ok)
         {
-            tcs.SetResult(root.TryGetProperty("payload", out var p)
-                ? p.Clone()
-                : default);
+            var payload = root.TryGetProperty("payload", out var p) ? p.Clone() : default;
+            tcs.SetResult(payload);
+
+            // DEBUG: Log response payload (truncated)
+            if (payload.ValueKind == JsonValueKind.Object)
+            {
+                var payloadStr = payload.ToString();
+                _console.Log("debug", $"Response payload: {payloadStr[..Math.Min(payloadStr.Length, 600)]}", LogLevel.Debug);
+            }
         }
         else
         {
             var err = root.TryGetProperty("error", out var e)
                 ? e.Clone().ToString()
                 : "unknown error";
+            _console.Log("debug", $"Response error: {err[..Math.Min(err.Length, 400)]}", LogLevel.Debug);
             tcs.SetException(new GatewayException(err, root.Clone()));
         }
     }
@@ -148,16 +168,31 @@ public class GatewayMessager : IDisposable
         var name = root.GetProperty("event").GetString()!;
         var payload = root.TryGetProperty("payload", out var p) ? p.Clone() : default;
 
+        _console.Log("debug", $"Event name={name}", LogLevel.Debug);
+
+        // Debug: log all events for error/fallback detection
+        var isNoteworthy = IsNoteworthyEvent(name);
+        if (isNoteworthy || _console.LogLevel <= LogLevel.Debug)
+        {
+            var payloadStr = payload.ValueKind == JsonValueKind.Object || payload.ValueKind == JsonValueKind.Array
+                ? payload.ToString() : payload.ToString();
+            var truncated = payloadStr.Length > 500 ? payloadStr[..500] + "..." : payloadStr;
+            _console.Log("debug", $"Event payload: {truncated}", LogLevel.Debug);
+        }
+
         // resolve one-shot waiter via MessageFraming (skip if _framing not yet initialized)
         if (_framing != null)
             _framing.ResolveEventWaiter(name, payload);
 
         // Filter messages not belonging to the active agent session
-        if (payload.TryGetProperty("sessionKey", out JsonElement sessionKeyEl))
+        if (payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("sessionKey", out JsonElement sessionKeyEl))
         {
             var msgSessionKey = sessionKeyEl.GetString();
             if (!AgentRegistry.IsMessageForActiveSession(msgSessionKey))
+            {
+                _console.Log("debug", $"Event {name} filtered out (sessionKey={msgSessionKey})", LogLevel.Debug);
                 return;
+            }
         }
 
         // Fire raw event received through the gateway event source
@@ -178,6 +213,17 @@ public class GatewayMessager : IDisposable
                     HandleApprovalRequest(payload);
                 return;
         }
+    }
+
+    private static bool IsNoteworthyEvent(string name)
+    {
+        return name.Contains("error", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("fallback", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("failover", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("quota", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("model", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("usage", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("warning", StringComparison.OrdinalIgnoreCase);
     }
 
     private void HandleApprovalRequest(JsonElement payload)
