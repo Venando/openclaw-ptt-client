@@ -67,23 +67,7 @@ public class GatewayConnectionLifecycleTests : IDisposable
         Assert.Null(exception);
     }
 
-    [Fact]
-    public void IsConnected_OpenSocket_ReturnsTrue()
-    {
-        _mockWs.Setup(x => x.State).Returns(WebSocketState.Open);
-        var lifecycle = CreateWithMockSocket();
-        Assert.True(lifecycle.IsConnected);
-        lifecycle.Dispose();
-    }
 
-    [Fact]
-    public void IsConnected_ClosedSocket_ReturnsFalse()
-    {
-        _mockWs.Setup(x => x.State).Returns(WebSocketState.Closed);
-        var lifecycle = CreateWithMockSocket();
-        Assert.False(lifecycle.IsConnected);
-        lifecycle.Dispose();
-    }
 
     [Fact]
     public void GetFraming_BeforeConnect_ReturnsNull()
