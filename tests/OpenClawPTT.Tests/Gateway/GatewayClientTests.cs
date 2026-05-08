@@ -1,16 +1,18 @@
 using System.Text.Json;
 using Moq;
-using OpenClawPTT;
 using OpenClawPTT.Services;
 using Xunit;
 
 namespace OpenClawPTT.Tests.Gateway;
 
-public class GatewayClientTests : IDisposable
+public class GatewayClientTests
 {
     private static Mock<IColorConsole> CreateMockConsole() => new();
-    [Fact]
-    public void GatewayClient_WithMockLifecycle_ConstructsWithoutThrowing()
+
+    /// <summary>
+    /// Creates a GatewayClient with a mock lifecycle factory for testing.
+    /// </summary>
+    private (GatewayClient Client, Mock<IGatewayConnectionLifecycle> MockLifecycle, GatewayEventSource Events) BuildClient()
     {
         var mockLifecycle = new Mock<IGatewayConnectionLifecycle>();
         var cfg = new AppConfig { CustomDataDir = Path.GetTempPath(), GatewayUrl = "wss://test", AuthToken = "test" };
@@ -19,7 +21,13 @@ public class GatewayClientTests : IDisposable
         var events = new GatewayEventSource();
 
         var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
+        return (client, mockLifecycle, events);
+    }
 
+    [Fact]
+    public void GatewayClient_WithMockLifecycle_ConstructsWithoutThrowing()
+    {
+        var (client, _, _) = BuildClient();
         Assert.NotNull(client);
         Assert.False(client.IsDisposed);
         client.Dispose();
@@ -28,15 +36,8 @@ public class GatewayClientTests : IDisposable
     [Fact]
     public void GatewayClient_WithMockLifecycle_IsConnected_DelegatesToLifecycle()
     {
-        var mockLifecycle = new Mock<IGatewayConnectionLifecycle>();
+        var (client, mockLifecycle, _) = BuildClient();
         mockLifecycle.Setup(x => x.IsConnected).Returns(true);
-
-        var cfg = new AppConfig { CustomDataDir = Path.GetTempPath(), GatewayUrl = "wss://test", AuthToken = "test" };
-        var dev = new DeviceIdentity(cfg.DataDir);
-        dev.EnsureKeypair();
-        var events = new GatewayEventSource();
-
-        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
 
         Assert.True(client.IsConnected);
         client.Dispose();
@@ -45,13 +46,7 @@ public class GatewayClientTests : IDisposable
     [Fact]
     public void Dispose_CallsLifecycle_Dispose()
     {
-        var mockLifecycle = new Mock<IGatewayConnectionLifecycle>();
-        var cfg = new AppConfig { CustomDataDir = Path.GetTempPath(), GatewayUrl = "wss://test", AuthToken = "test" };
-        var dev = new DeviceIdentity(cfg.DataDir);
-        dev.EnsureKeypair();
-        var events = new GatewayEventSource();
-
-        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
+        var (client, mockLifecycle, _) = BuildClient();
         client.Dispose();
 
         mockLifecycle.Verify(x => x.Dispose(), Times.Once);
@@ -60,13 +55,7 @@ public class GatewayClientTests : IDisposable
     [Fact]
     public void ConnectAsync_ThrowsObjectDisposed_WhenDisposed()
     {
-        var mockLifecycle = new Mock<IGatewayConnectionLifecycle>();
-        var cfg = new AppConfig { CustomDataDir = Path.GetTempPath(), GatewayUrl = "wss://test", AuthToken = "test" };
-        var dev = new DeviceIdentity(cfg.DataDir);
-        dev.EnsureKeypair();
-        var events = new GatewayEventSource();
-
-        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
+        var (client, _, _) = BuildClient();
         client.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() => client.ConnectAsync(CancellationToken.None).GetAwaiter().GetResult());
@@ -75,15 +64,8 @@ public class GatewayClientTests : IDisposable
     [Fact]
     public async Task SendTextAsync_NotConnected_ThrowsInvalidOperationException()
     {
-        var mockLifecycle = new Mock<IGatewayConnectionLifecycle>();
+        var (client, mockLifecycle, _) = BuildClient();
         mockLifecycle.Setup(x => x.IsConnected).Returns(false);
-
-        var cfg = new AppConfig { CustomDataDir = Path.GetTempPath(), GatewayUrl = "wss://test", AuthToken = "test" };
-        var dev = new DeviceIdentity(cfg.DataDir);
-        dev.EnsureKeypair();
-        var events = new GatewayEventSource();
-
-        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await client.SendTextAsync("hello", CancellationToken.None));
@@ -102,16 +84,10 @@ public class GatewayClientTests : IDisposable
             It.IsAny<TimeSpan?>()))
             .ReturnsAsync(JsonDocument.Parse(@"{""ok"":true}").RootElement);
 
-        var mockLifecycle = new Mock<IGatewayConnectionLifecycle>();
+        var (client, mockLifecycle, _) = BuildClient();
         mockLifecycle.Setup(x => x.IsConnected).Returns(true);
         mockLifecycle.Setup(x => x.GetFraming()).Returns(mockFraming.Object);
 
-        var cfg = new AppConfig { CustomDataDir = Path.GetTempPath(), GatewayUrl = "wss://test", AuthToken = "test" };
-        var dev = new DeviceIdentity(cfg.DataDir);
-        dev.EnsureKeypair();
-        var events = new GatewayEventSource();
-
-        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
         await client.SendTextAsync("hello", CancellationToken.None);
 
         mockFraming.Verify(x => x.SendRequestAsync(
@@ -126,15 +102,8 @@ public class GatewayClientTests : IDisposable
     [Fact]
     public async Task SendAudioAsync_NotConnected_ThrowsInvalidOperationException()
     {
-        var mockLifecycle = new Mock<IGatewayConnectionLifecycle>();
+        var (client, mockLifecycle, _) = BuildClient();
         mockLifecycle.Setup(x => x.IsConnected).Returns(false);
-
-        var cfg = new AppConfig { CustomDataDir = Path.GetTempPath(), GatewayUrl = "wss://test", AuthToken = "test" };
-        var dev = new DeviceIdentity(cfg.DataDir);
-        dev.EnsureKeypair();
-        var events = new GatewayEventSource();
-
-        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await client.SendAudioAsync(new byte[] { 0 }, CancellationToken.None));
@@ -145,15 +114,8 @@ public class GatewayClientTests : IDisposable
     [Fact]
     public async Task SendEventAsync_NotConnected_ThrowsInvalidOperationException()
     {
-        var mockLifecycle = new Mock<IGatewayConnectionLifecycle>();
+        var (client, mockLifecycle, _) = BuildClient();
         mockLifecycle.Setup(x => x.IsConnected).Returns(false);
-
-        var cfg = new AppConfig { CustomDataDir = Path.GetTempPath(), GatewayUrl = "wss://test", AuthToken = "test" };
-        var dev = new DeviceIdentity(cfg.DataDir);
-        dev.EnsureKeypair();
-        var events = new GatewayEventSource();
-
-        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await client.SendEventAsync("test.event", null, CancellationToken.None));
@@ -164,13 +126,7 @@ public class GatewayClientTests : IDisposable
     [Fact]
     public void GetEventSource_ReturnsInjectedEventSource()
     {
-        var mockLifecycle = new Mock<IGatewayConnectionLifecycle>();
-        var cfg = new AppConfig { CustomDataDir = Path.GetTempPath(), GatewayUrl = "wss://test", AuthToken = "test" };
-        var dev = new DeviceIdentity(cfg.DataDir);
-        dev.EnsureKeypair();
-        var events = new GatewayEventSource();
-
-        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
+        var (client, _, events) = BuildClient();
         var result = client.GetEventSource();
 
         Assert.Same(events, result);
@@ -180,18 +136,11 @@ public class GatewayClientTests : IDisposable
     [Fact]
     public void SessionKey_ReturnsActiveSessionKey()
     {
-        var mockLifecycle = new Mock<IGatewayConnectionLifecycle>();
-        var cfg = new AppConfig { CustomDataDir = Path.GetTempPath(), GatewayUrl = "wss://test", AuthToken = "test" };
-        var dev = new DeviceIdentity(cfg.DataDir);
-        dev.EnsureKeypair();
-        var events = new GatewayEventSource();
+        var (client, _, _) = BuildClient();
 
         AgentRegistry.SetAgents(new[] { new AgentInfo { AgentId = "main", Name = "Main", SessionKey = "agent:main:main", IsDefault = true } });
 
-        var client = new GatewayClient(cfg, dev, events, CreateMockConsole().Object, () => mockLifecycle.Object);
         Assert.Equal("agent:main:main", client.SessionKey);
         client.Dispose();
     }
-
-    public void Dispose() { }
 }

@@ -41,7 +41,7 @@ public class GatewayMessagerTests : IDisposable
         _messager = new GatewayMessager(_mockWs.Object, _mockEvents.Object, _cfg, null, () => _realFraming);
     }
 
-    // ─── Existing construction tests ─────────────────────────────
+    // ─── Construction tests ─────────────────────────────────────
 
     [Fact]
     public void GetFraming_ReturnsProvidedFraming()
@@ -68,7 +68,6 @@ public class GatewayMessagerTests : IDisposable
     [Fact]
     public void Construct_WithNullFramingFactory_CreatesRealFraming()
     {
-        // Use null factory — should fall back to real MessageFraming (backwards compat)
         var messager = new GatewayMessager(_mockWs.Object, _mockEvents.Object, _cfg);
         Assert.NotNull(messager.GetFraming());
         Assert.IsType<MessageFraming>(messager.GetFraming());
@@ -82,8 +81,7 @@ public class GatewayMessagerTests : IDisposable
         var messager = new GatewayMessager(_mockWs.Object, _mockEvents.Object, _cfg,
             null, () => _realFraming, null, null, mockDispatcher.Object);
 
-        // Verify the mock dispatcher was not asked to register handlers
-        // (when a custom dispatcher is provided, GatewayMessager still registers handlers)
+        // Verify default handlers are still registered
         mockDispatcher.Verify(x => x.RegisterHandler(It.IsAny<IEventHandler<SessionMessageEvent>>()), Times.Once);
         mockDispatcher.Verify(x => x.RegisterHandler(It.IsAny<IEventHandler<GatewayDisconnectedEvent>>()), Times.Once);
 

@@ -65,21 +65,7 @@ public class JsonHelperTests
         doc!.Dispose();
     }
 
-    [Fact]
-    public void TryParseJson_TrailingGarbageOtherForm_ReturnsTrue()
-    {
-        // "garbage" can mean various forms of non-JSON trailing content
-        var json = "{\"type\":\"speak\"} some_extra_text";
-
-        var result = JsonHelper.TryParseJson(json, out var doc, out var type);
-
-        Assert.True(result);
-        Assert.NotNull(doc);
-        Assert.Equal("speak", type);
-        doc!.Dispose();
-    }
-
-    // Test 4: Missing `type` property → returns false
+// Test 4: Missing `type` property → returns false
     [Fact]
     public void TryParseJson_MissingType_ReturnsFalse()
     {

@@ -40,16 +40,7 @@ public class AgentReplyFormatterTests
         formatter.Finish();
     }
 
-    [Fact]
-    public void ProcessDelta_IncrementalChunks_AccumulatesCorrectly()
-    {
-        var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 20, prefixAlreadyPrinted: false, output: new StringWriterTextOutput());
-        formatter.ProcessDelta("Hello ");
-        formatter.ProcessDelta("World");
-        formatter.Finish();
-    }
-
-    [Fact]
+[Fact]
     public void Finish_DoesNotThrow()
     {
         var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 10, prefixAlreadyPrinted: false, output: new StringWriterTextOutput());
@@ -74,17 +65,7 @@ public class AgentReplyFormatterTests
         Assert.Equal("hello", output.Result.Trim());
     }
 
-    [Fact]
-    public void ProcessDelta_SingleWordWithExplicitWidth_OutputsText()
-    {
-        var output = new StringWriterTextOutput();
-        var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 10, prefixAlreadyPrinted: false, output: output);
-        formatter.ProcessDelta("hello");
-        formatter.Finish();
-        Assert.Contains("hello", output.Result);
-    }
-
-    [Fact]
+[Fact]
     public void ProcessDelta_MultipleIncrementalChunks_AccumulatesAndFinishes()
     {
         var output = new StringWriterTextOutput();
@@ -194,17 +175,10 @@ public class AgentReplyFormatterTests
         ValidateMarkup(output);
     }
 
-    [Fact]
-    public void Finish_WithoutProcessDelta_DoesNotCrash()
-    {
-        var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 10, prefixAlreadyPrinted: false, output: new StringWriterTextOutput());
-        formatter.Finish(); // should not throw
-    }
-
-    [Fact]
+[Fact]
     public void ProcessDelta_MultipleIncrementalChunks_NegativeWidth_DoesNotCrash()
     {
-        // Negative width should be normalised to 80; no crash expected.
+        // Incremental chunks with specific margin config; no crash expected.
         var output = new StringWriterTextOutput();
         var formatter = new AgentReplyFormatter(prefix: "  ", rightMarginIndent: 5, prefixAlreadyPrinted: false, output: output);
         formatter.ProcessDelta("chunk1 ");

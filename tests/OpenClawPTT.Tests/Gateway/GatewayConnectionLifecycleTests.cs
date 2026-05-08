@@ -2,7 +2,6 @@ using System.Net.WebSockets;
 using System.Reflection;
 using System.Text.Json;
 using Moq;
-using OpenClawPTT;
 using OpenClawPTT.Services;
 using Xunit;
 
@@ -37,6 +36,12 @@ public class GatewayConnectionLifecycleTests : IDisposable
         return new GatewayConnectionLifecycle(_cfg, _dev, _events, _mockConsole.Object, () => _mockWs.Object);
     }
 
+    private GatewayConnectionLifecycle CreateWithMockSocketAndSnapshotProcessor(ISnapshotProcessor? processor = null)
+    {
+        processor ??= new Mock<ISnapshotProcessor>().Object;
+        return new GatewayConnectionLifecycle(_cfg, _dev, _events, _mockConsole.Object, () => _mockWs.Object, processor);
+    }
+
     // ─── reflection helpers ─────────────────────────────────────────
 
     private static T InvokePrivate<T>(object target, string name, params object[] args)
@@ -67,7 +72,7 @@ public class GatewayConnectionLifecycleTests : IDisposable
     {
         _mockWs.Setup(x => x.State).Returns(WebSocketState.Open);
         var lifecycle = CreateWithMockSocket();
-        Assert.Equal(WebSocketState.Open, _mockWs.Object.State);
+        Assert.True(lifecycle.IsConnected);
         lifecycle.Dispose();
     }
 
@@ -99,14 +104,6 @@ public class GatewayConnectionLifecycleTests : IDisposable
 
     [Fact]
     public void Dispose_AfterConstruction_DoesNotThrow()
-    {
-        var lifecycle = CreateWithMockSocket();
-        var exception = Record.Exception(() => lifecycle.Dispose());
-        Assert.Null(exception);
-    }
-
-    [Fact]
-    public void Dispose_WithNullSocket_DoesNotThrow()
     {
         var lifecycle = CreateWithMockSocket();
         var exception = Record.Exception(() => lifecycle.Dispose());
@@ -309,18 +306,8 @@ public class GatewayConnectionLifecycleTests : IDisposable
     [Fact]
     public void PersistDeviceTokenIfIssued_WithDeviceToken_SetsConfig()
     {
-        var cfg = new AppConfig
-        {
-            CustomDataDir = Path.GetTempPath(),
-            GatewayUrl = "wss://127.0.0.1:9999/test",
-            AuthToken = "test-token",
-            DeviceToken = null
-        };
-        var dev = new DeviceIdentity(cfg.DataDir);
-        dev.EnsureKeypair();
-        var events = new GatewayEventSource();
-        var mockConsole = new Mock<IColorConsole>();
-        var lifecycle = new GatewayConnectionLifecycle(cfg, dev, events, mockConsole.Object, () => new Mock<IClientWebSocket>().Object);
+        _cfg.DeviceToken = null;
+        var lifecycle = CreateWithMockSocket();
 
         var json = JsonDocument.Parse(/* lang=json */ """
             {"auth":{"deviceToken":"issued-token-xyz"}}
@@ -328,7 +315,7 @@ public class GatewayConnectionLifecycleTests : IDisposable
 
         InvokeVoid(lifecycle, "PersistDeviceTokenIfIssued", json);
 
-        Assert.Equal("issued-token-xyz", cfg.DeviceToken);
+        Assert.Equal("issued-token-xyz", _cfg.DeviceToken);
         lifecycle.Dispose();
     }
 
@@ -365,18 +352,8 @@ public class GatewayConnectionLifecycleTests : IDisposable
     [Fact]
     public void ProcessHelloPayload_ReturnsTickIntervalFromPolicy()
     {
-        var cfg = new AppConfig
-        {
-            CustomDataDir = Path.GetTempPath(),
-            GatewayUrl = "wss://127.0.0.1:9999/test",
-            AuthToken = "test-token"
-        };
-        var dev = new DeviceIdentity(cfg.DataDir);
-        dev.EnsureKeypair();
-        var events = new GatewayEventSource();
         var mockSnapshotProcessor = new Mock<ISnapshotProcessor>();
-        var mockConsole = new Mock<IColorConsole>();
-        var lifecycle = new GatewayConnectionLifecycle(cfg, dev, events, mockConsole.Object, () => new Mock<IClientWebSocket>().Object, mockSnapshotProcessor.Object);
+        var lifecycle = CreateWithMockSocketAndSnapshotProcessor(mockSnapshotProcessor.Object);
 
         var json = JsonDocument.Parse(/* lang=json */ """
             {
@@ -390,7 +367,7 @@ public class GatewayConnectionLifecycleTests : IDisposable
         var tickMs = InvokePrivate<int>(lifecycle, "ProcessHelloPayload", json);
 
         Assert.Equal(20_000, tickMs);
-        Assert.Equal("tok", cfg.DeviceToken);
+        Assert.Equal("tok", _cfg.DeviceToken);
         mockSnapshotProcessor.Verify(x => x.ProcessSnapshot(json), Times.Once);
         lifecycle.Dispose();
     }
@@ -399,7 +376,8 @@ public class GatewayConnectionLifecycleTests : IDisposable
     public void ProcessHelloPayload_WithoutOptionalFields_ReturnsDefaultTickMs()
     {
         var mockSnapshotProcessor = new Mock<ISnapshotProcessor>();
-        var lifecycle = new GatewayConnectionLifecycle(_cfg, _dev, _events, _mockConsole.Object, () => _mockWs.Object, mockSnapshotProcessor.Object);
+        var lifecycle = CreateWithMockSocketAndSnapshotProcessor(mockSnapshotProcessor.Object);
+
         var json = JsonDocument.Parse(/* lang=json */ """
             {"type":"hello-ok"}
             """).RootElement;
@@ -411,8 +389,5 @@ public class GatewayConnectionLifecycleTests : IDisposable
         lifecycle.Dispose();
     }
 
-    public void Dispose()
-    {
-        // cleanup if needed
-    }
+    public void Dispose() { }
 }

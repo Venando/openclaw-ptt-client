@@ -8,21 +8,17 @@ public class GatewayServiceTests
 {
     private static IColorConsole CreateMockConsole() => new Mock<IColorConsole>().Object;
 
+    private static AppConfig CreateConfig() => new()
+    {
+        GatewayUrl = "wss://test.example.com",
+        AuthToken = "test-token",
+        AudioResponseMode = "text-only"
+    };
+
     [Fact]
     public void GatewayService_Constructs_WithoutThrowing()
     {
-        // Arrange: minimal config (DataDir uses default UserProfile path)
-        var cfg = new AppConfig
-        {
-            GatewayUrl = "wss://test.example.com",
-            AuthToken = "test-token",
-            AudioResponseMode = "text-only"
-        };
-
-        // Act: constructing the service should not throw
-        var service = new GatewayService(cfg, CreateMockConsole());
-
-        // Assert: service was created
+        var service = new GatewayService(CreateConfig(), CreateMockConsole());
         Assert.NotNull(service);
         service.Dispose();
     }
@@ -30,34 +26,18 @@ public class GatewayServiceTests
     [Fact]
     public void GatewayService_ImplementsIGatewayService()
     {
-        var cfg = new AppConfig
-        {
-            GatewayUrl = "wss://test.example.com",
-            AuthToken = "test-token",
-            AudioResponseMode = "text-only"
-        };
-
-        IGatewayService service = new GatewayService(cfg, CreateMockConsole());
-
-        Assert.True(service is GatewayService);
+        IGatewayService service = new GatewayService(CreateConfig(), CreateMockConsole());
+        Assert.IsType<GatewayService>(service);
         service.Dispose();
     }
 
     [Fact]
     public void Dispose_CanBeCalledMultipleTimes()
     {
-        var cfg = new AppConfig
-        {
-            GatewayUrl = "wss://test.example.com",
-            AuthToken = "test-token",
-            AudioResponseMode = "text-only"
-        };
-
-        var service = new GatewayService(cfg, CreateMockConsole());
+        var service = new GatewayService(CreateConfig(), CreateMockConsole());
 
         service.Dispose();
-        service.Dispose(); // should not throw
-
-        Assert.True(true);
+        var exception = Record.Exception(() => service.Dispose());
+        Assert.Null(exception);
     }
 }
