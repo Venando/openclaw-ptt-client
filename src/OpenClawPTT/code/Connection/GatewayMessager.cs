@@ -5,7 +5,15 @@ using OpenClawPTT.Services;
 
 namespace OpenClawPTT;
 
-public class GatewayMessager : IDisposable
+/// <summary>
+///Abstraction over GatewayMessager for RPC calls made from event handlers.
+/// </summary>
+public interface IRpcCaller
+{
+    Task<JsonElement> SendEventAsync(string eventName, object? parameters, CancellationToken ct);
+}
+
+public class GatewayMessager : IDisposable, IRpcCaller
 {
     private readonly IClientWebSocket _ws;
     private readonly IGatewayEventSource _events;
@@ -44,7 +52,7 @@ public class GatewayMessager : IDisposable
 
         // Register default handlers
         _dispatcher.RegisterHandler<SessionMessageEvent>(
-            new SessionMessageHandler(_events, _cfg, _contentExtractor, _console));
+            new SessionMessageHandler(_events, this, _cfg, _contentExtractor, _console));
         _dispatcher.RegisterHandler<GatewayDisconnectedEvent>(
             new GatewayConnectionHandler(_console, _onDisconnection));
         _dispatcher.RegisterHandler<ModelFallbackEvent>(
@@ -258,6 +266,14 @@ public class GatewayMessager : IDisposable
         CancellationToken ct,
         TimeSpan? timeout = null)
         => await _framing.SendRequestAsync(method, parameters, ct, timeout);
+
+    /// <summary>
+    /// Sends a gateway RPC event and returns the response.
+    /// Used by handlers that need to query gateway state (e.g. sessions.preview
+    /// for fallback detection).
+    /// </summary>
+    public async Task<JsonElement> SendEventAsync(string eventName, object? parameters, CancellationToken ct)
+        => await _framing.SendRequestAsync(eventName, parameters, ct);
 
     public void ClearFraming()
     {

@@ -7,23 +7,41 @@ namespace OpenClawPTT;
 /// Handles session-related gateway events: session.message, agent, and chat.
 /// Extracts content blocks (text, thinking, tool calls, audio) and fires
 /// the appropriate events through <see cref="IGatewayEventSource"/>.
-/// Also detects phase=error lifecycle events and stopReason=error messages,
-/// surfacing provider failures and fallback information.
+///
+/// Also detects model fallback: when the primary model fails with an error,
+/// this handler calls sessions.preview after the next successful response
+/// to determine if the gateway performed an automatic fallback (modelOverrideSource="auto")
+/// or the user intentionally switched models (modelOverrideSource="user").
+/// Only auto-fallbacks trigger a user-visible notification.
 /// </summary>
 public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
 {
     private readonly IGatewayEventSource _events;
+    private readonly IRpcCaller _rpc;
     private readonly AppConfig _cfg;
     private readonly IContentExtractor _contentExtractor;
     private readonly IColorConsole _console;
 
+
+    // Per-session error tracking for fallback detection.
+    // Keyed by session key so multi-agent setups are handled correctly.
+    // After an error, we record the failed provider/model. When a successful
+    // response arrives on the same session, we call sessions.preview to
+    // determine if it was an auto-fallback (user didn't intentionally switch).
+    private string? _lastErrorProvider;
+    private string? _lastErrorModel;
+    private string? _lastErrorSessionKey;
+    private bool _fallbackNotifiedForRun;
+
     public SessionMessageHandler(
         IGatewayEventSource events,
+        IRpcCaller rpc,
         AppConfig cfg,
         IContentExtractor? contentExtractor = null,
         IColorConsole? console = null)
     {
         _events = events;
+        _rpc = rpc;
         _cfg = cfg;
         _contentExtractor = contentExtractor ?? new ContentExtractor();
         _console = console ?? new ColorConsole(new StreamShellHost());
@@ -49,6 +67,10 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
 
     private void HandleSessionMessage(JsonElement payload)
     {
+        var sessionKey = payload.TryGetProperty("sessionKey", out var skEl)
+            ? skEl.GetString() : null;
+
+
         if (!payload.TryGetProperty("message", out var messageEl)) return;
         if (!messageEl.TryGetProperty("role", out var roleEl)) return;
         if (roleEl.GetString() != "assistant") return;
@@ -56,7 +78,7 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
         // Check for error messages (stopReason=error, content may be empty)
         if (messageEl.TryGetProperty("stopReason", out var stopReason) && stopReason.GetString() == "error")
         {
-            HandleErrorMessage(messageEl);
+            HandleErrorMessage(messageEl, sessionKey);
             return;
         }
 
@@ -126,15 +148,23 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
 
         if (emitDelta && startFired)
             _events.RaiseAgentReplyDeltaEnd();
+
+        // After a successful non-error response, check if a fallback occurred.
+        // Only act if we previously saw an error on this session and haven't
+        // yet notified for this fallback run.
+        if (_lastErrorProvider != null && !_fallbackNotifiedForRun)
+        {
+            _ = CheckAndNotifyFallbackAsync(sessionKey);
+        }
     }
 
     /// <summary>
-    /// Handles an error response from the agent (stopReason=error).
-    /// The lifecycle agent event (phase=error) already displays the error
-    /// prominently — this is a secondary data source with extra metadata
-    /// (provider, model). Log at debug to avoid duplicate display.
+    /// Records an error for this session. Called when stopReason=error.
+    /// The actual display of the error is handled by HandleAgentStream
+    /// (phase=error lifecycle event) — this method only records state
+    /// for later fallback detection.
     /// </summary>
-    private void HandleErrorMessage(JsonElement messageEl)
+    private void HandleErrorMessage(JsonElement messageEl, string? sessionKey)
     {
         var errorMessage = messageEl.TryGetProperty("errorMessage", out var errEl)
             ? errEl.GetString() ?? "Unknown error"
@@ -146,6 +176,74 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
 
         var providerModel = provider != null ? $"{provider}/{model}" : "?";
         _console.Log("debug", $"{providerModel} stopReason=error: {errorMessage}", LogLevel.Debug);
+
+        // Record error state for fallback detection
+        _lastErrorProvider = provider;
+        _lastErrorModel = model;
+        _lastErrorSessionKey = sessionKey;
+        _fallbackNotifiedForRun = false;
+    }
+
+    /// <summary>
+    /// After a successful response following an error, calls sessions.preview
+    /// to determine if the gateway performed an automatic fallback.
+    /// Shows a fallback notification only when modelOverrideSource="auto".
+    /// </summary>
+    private async Task CheckAndNotifyFallbackAsync(string? sessionKey)
+    {
+        // Ignore if already on the same session key (shouldn't happen but guard anyway)
+        if (sessionKey != _lastErrorSessionKey || _fallbackNotifiedForRun)
+            return;
+
+        try
+        {
+            // sessions.preview returns the current model state for the session.
+            // When modelOverrideSource="auto", the gateway automatically switched
+            // models due to a primary model failure.
+            // When modelOverrideSource="user", the user intentionally switched.
+            var result = await _rpc.SendEventAsync("sessions.preview", new Dictionary<string, object?>
+            {
+                ["key"] = sessionKey ?? "main"
+            }, CancellationToken.None);
+
+            if (result.ValueKind == JsonValueKind.Undefined || result.ValueKind == JsonValueKind.Null)
+                return;
+
+            _console.Log("debug", $"sessions.preview [{sessionKey}]: {result.ToString()[..Math.Min(result.ToString().Length, 600)]}", LogLevel.Debug);
+
+            var overrideSource = result.TryGetProperty("modelOverrideSource", out var src)
+                ? src.GetString() : null;
+
+            if (overrideSource == "auto")
+            {
+                // Auto-fallback: the gateway switched models automatically.
+                // Show fallback notification with the original (failed) and
+                // current (active) provider/model details.
+                var currentProvider = result.TryGetProperty("modelProvider", out var cp) ? cp.GetString() : null;
+                var currentModel = result.TryGetProperty("model", out var cm) ? cm.GetString() : null;
+                var originalProvider = result.TryGetProperty("originalProvider", out var op) ? op.GetString() : null;
+                var originalModel = result.TryGetProperty("originalModel", out var om) ? om.GetString() : null;
+
+                _console.PrintModelFallback(
+                    originalProvider ?? _lastErrorProvider ?? "?",
+                    originalModel ?? _lastErrorModel ?? "?",
+                    currentProvider ?? "?",
+                    currentModel ?? "?",
+                    isQuotaError: IsQuotaError(_lastErrorModel ?? ""));
+
+                _fallbackNotifiedForRun = true;
+            }
+            else if (overrideSource == "user")
+            {
+                // User intentionally switched models — no notification needed
+                _fallbackNotifiedForRun = true;
+            }
+            // else overrideSource is null or unknown — keep state, check again next response
+        }
+        catch (Exception ex)
+        {
+            _console.Log("debug", $"sessions.preview fallback check: {ex.Message}", LogLevel.Debug);
+        }
     }
 
     private void HandleAgentStream(JsonElement payload)
