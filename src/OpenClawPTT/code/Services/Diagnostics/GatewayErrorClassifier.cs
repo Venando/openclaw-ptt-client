@@ -279,4 +279,27 @@ public static class GatewayErrorClassifier
             StackTrace = ex.StackTrace
         };
     }
+
+    /// <summary>Determines if an error message indicates a quota/limit exceeded condition.</summary>
+    public static bool IsQuotaError(string message)
+    {
+        return message.Contains("usage limit", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("quota", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("rate limit", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("billing", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("insufficient funds", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("insufficient balance", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("billing cycle", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("billing error", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("exhausted", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Determines if an error message indicates a rate limit condition.</summary>
+    public static bool IsRateLimitError(string message)
+    {
+        return message.Contains("rate limit", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("too many requests", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("429", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("too many concurrent", StringComparison.OrdinalIgnoreCase);
+    }
 }

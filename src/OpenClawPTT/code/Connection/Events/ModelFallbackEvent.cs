@@ -1,4 +1,5 @@
 using System.Text.Json;
+using OpenClawPTT.Services.Diagnostics;
 
 namespace OpenClawPTT;
 
@@ -32,19 +33,7 @@ public record ModelFallbackEvent(
     public bool Succeeded => Decision == "candidate_succeeded";
 
     /// <summary>Whether the error was a quota/limit issue (403/429/401).</summary>
-    public bool IsQuotaError
-    {
-        get
-        {
-            var msg = ErrorMessage ?? string.Empty;
-            return msg.Contains("usage limit", StringComparison.OrdinalIgnoreCase)
-                || msg.Contains("quota", StringComparison.OrdinalIgnoreCase)
-                || msg.Contains("rate limit", StringComparison.OrdinalIgnoreCase)
-                || msg.Contains("billing", StringComparison.OrdinalIgnoreCase)
-                || msg.Contains("insufficient", StringComparison.OrdinalIgnoreCase)
-                || msg.Contains("exhausted", StringComparison.OrdinalIgnoreCase);
-        }
-    }
+    public bool IsQuotaError => GatewayErrorClassifier.IsQuotaError(ErrorMessage ?? string.Empty);
 
     private string? TryGet(string key)
     {

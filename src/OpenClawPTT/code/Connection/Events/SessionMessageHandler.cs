@@ -1,5 +1,6 @@
 using System.Text.Json;
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Diagnostics;
 
 namespace OpenClawPTT;
 
@@ -318,12 +319,5 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
     }
 
     private static bool IsQuotaError(string message)
-    {
-        return message.Contains("usage limit", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("quota", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("insufficient funds", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("billing cycle", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("billing error", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("insufficient balance", StringComparison.OrdinalIgnoreCase);
-    }
+        => GatewayErrorClassifier.IsQuotaError(message);
 }

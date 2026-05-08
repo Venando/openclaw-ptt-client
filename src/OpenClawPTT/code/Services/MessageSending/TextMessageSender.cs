@@ -1,3 +1,5 @@
+using OpenClawPTT.Services.Diagnostics;
+
 namespace OpenClawPTT.Services;
 
 /// <summary>Unified text message sender that sends text directly to the gateway.</summary>
@@ -56,18 +58,8 @@ public sealed class TextMessageSender : ITextMessageSender
     }
 
     private static bool IsQuotaError(string message)
-    {
-        return message.Contains("usage limit", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("quota", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("insufficient funds", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("billing cycle", StringComparison.OrdinalIgnoreCase);
-    }
+        => GatewayErrorClassifier.IsQuotaError(message);
 
     private static bool IsRateLimitError(string message)
-    {
-        return message.Contains("rate limit", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("too many requests", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("429", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("too many concurrent", StringComparison.OrdinalIgnoreCase);
-    }
+        => GatewayErrorClassifier.IsRateLimitError(message);
 }
