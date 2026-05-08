@@ -200,6 +200,12 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
         if (currentProvider == null || currentModel == null)
             return;
 
+        // Skip gateway-injected system messages (e.g. "Model reset to default...").
+        // These carry provider="openclaw/gateway-injected" and are not actual model responses,
+        // so comparing them against the errored provider would produce a false fallback.
+        if (currentProvider.Contains("gateway-injected", StringComparison.OrdinalIgnoreCase))
+            return;
+
         // If provider is the same, no fallback — the errored model handled it successfully
         if (string.Equals(currentProvider, state.Provider, StringComparison.OrdinalIgnoreCase))
         {
@@ -229,6 +235,11 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
 
             if (phaseType == "start")
             {
+                // New agent run starting — clear stale error state from previous runs
+                var sessionKey = payload.TryGetProperty("sessionKey", out var sk) ? sk.GetString() : null;
+                if (sessionKey != null)
+                    _sessionErrors.TryRemove(sessionKey, out _);
+
                 if (_cfg.RealTimeReplyOutput)
                     _events.RaiseAgentReplyDeltaStart();
             }
