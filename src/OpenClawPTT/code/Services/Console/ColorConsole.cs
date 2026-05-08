@@ -208,6 +208,7 @@ public sealed class ColorConsole : IColorConsole
     public void PrintModelFailed(string errorMessage)
     {
         ShellMsg($"[red]  ✗ Model failed: {Markup.Escape(errorMessage)}[/]");
+    }
 
     // ── Logging ────────────────────────────────────────────────
 
