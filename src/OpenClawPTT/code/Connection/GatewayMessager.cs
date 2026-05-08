@@ -215,6 +215,12 @@ public class GatewayMessager : IDisposable, IRpcCaller
                 _dispatcher.DispatchAndForget(new SessionMessageEvent(name, payload));
                 return;
 
+            case "model.failover":
+                _dispatcher.DispatchAndForget(new ModelFallbackEvent(name, payload));
+                // Also dispatch as a GatewayEvent so the generic handler logs it
+                _dispatcher.DispatchAndForget(new GatewayEvent(name, payload));
+                return;
+
             default:
                 _dispatcher.DispatchAndForget(new GatewayEvent(name, payload));
                 if (name == "exec.approval.requested")

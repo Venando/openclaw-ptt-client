@@ -1,43 +1,38 @@
 using System.Text.Json;
-using OpenClawPTT.Services.Diagnostics;
 
 namespace OpenClawPTT;
 
 /// <summary>
 /// Event raised when the gateway falls back from one model provider to another.
 /// Contains the original provider/model that failed, the fallback target, and the raw error message.
+/// Payload field names match the DiagnosticFailoverEvent shape (fromProvider/fromModel/toProvider/toModel/reason).
 /// </summary>
 public record ModelFallbackEvent(
     string EventName,
     JsonElement Payload)
 {
-    /// <summary>The provider that failed (e.g. "kimi").</summary>
-    public string? FailedProvider => TryGet("candidateProvider");
+    /// <summary>The provider that failed.</summary>
+    public string? FailedProvider => TryGet("fromProvider");
 
-    /// <summary>The model that failed (e.g. "kimi-k2.6").</summary>
-    public string? FailedModel => TryGet("candidateModel");
+    /// <summary>The model that failed.</summary>
+    public string? FailedModel => TryGet("fromModel");
 
-    /// <summary>The provider the fallback switched to (e.g. "deepseek").</summary>
-    public string? FallbackProvider => TryGet("nextCandidateProvider");
+    /// <summary>The provider the fallback switched to.</summary>
+    public string? FallbackProvider => TryGet("toProvider");
     
-    /// <summary>The model the fallback switched to (e.g. "deepseek-v4-flash").</summary>
-    public string? FallbackModel => TryGet("nextCandidateModel");
+    /// <summary>The model the fallback switched to.</summary>
+    public string? FallbackModel => TryGet("toModel");
 
-    /// <summary>The raw error message from the failed provider.</summary>
-    public string? ErrorMessage => TryGet("errorPreview");
+    /// <summary>The reason for the fallback (e.g. "rate_limit", "timeout").</summary>
+    public string? ErrorMessage => TryGet("reason");
 
-    /// <summary>The decision made: "candidate_failed", "candidate_succeeded", etc.</summary>
-    public string? Decision => TryGet("decision");
-
-    /// <summary>Whether this fallback ultimately succeeded.</summary>
-    public bool Succeeded => Decision == "candidate_succeeded";
-
-    /// <summary>Whether the error was a quota/limit issue (403/429/401).</summary>
-    public bool IsQuotaError => GatewayErrorClassifier.IsQuotaError(ErrorMessage ?? string.Empty);
+    /// <summary>Whether this fallback ultimately succeeded (model.failover events are only sent when fallback occurs).</summary>
+    public bool Succeeded => true;
 
     private string? TryGet(string key)
     {
         if (Payload.ValueKind != JsonValueKind.Object) return null;
-        return Payload.TryGetProperty(key, out var el) ? el.GetString() : null;
+        if (!Payload.TryGetProperty(key, out var el)) return null;
+        return el.ValueKind == JsonValueKind.String ? el.GetString() : null;
     }
 }

@@ -1,4 +1,4 @@
-using System.Text.Json;
+using System;
 using OpenClawPTT.Services;
 
 namespace OpenClawPTT;
@@ -11,34 +11,26 @@ public class ModelFallbackHandler : IEventHandler<ModelFallbackEvent>
 {
     private readonly IColorConsole _console;
 
-    public ModelFallbackHandler(IColorConsole? console = null)
+    /// <summary>
+    /// Initializes the handler with a required console instance.
+    /// </summary>
+    /// <param name="console">The colored console for displaying fallback notifications.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="console"/> is null.</exception>
+    public ModelFallbackHandler(IColorConsole console)
     {
-        _console = console ?? new ColorConsole(new StreamShellHost());
+        _console = console ?? throw new ArgumentNullException(nameof(console));
     }
 
     public Task HandleAsync(ModelFallbackEvent evt)
     {
-        // Only show once for the final decision (succeeded or all failed)
-        if (evt.Decision == "candidate_failed")
-        {
-            // Intermediate failures are handled internally; 
-            // only show the final outcome
-            return Task.CompletedTask;
-        }
-
-        if (evt.Succeeded)
-        {
-            _console.PrintModelFallback(
-                evt.FailedProvider ?? "Unknown",
-                evt.FailedModel ?? "Unknown",
-                evt.FallbackProvider ?? "Unknown",
-                evt.FallbackModel ?? "Unknown",
-                evt.IsQuotaError);
-        }
-        else
-        {
-            _console.PrintModelFailed(evt.ErrorMessage ?? "Unknown error");
-        }
+        // model.failover events are only dispatched when a fallback occurs,
+        // so we always display the notification.
+        _console.PrintModelFallback(
+            evt.FailedProvider ?? "Unknown",
+            evt.FailedModel ?? "Unknown",
+            evt.FallbackProvider ?? "Unknown",
+            evt.FallbackModel ?? "Unknown",
+            isQuotaError: false); // quota detection happens in SessionMessageHandler
 
         return Task.CompletedTask;
     }
