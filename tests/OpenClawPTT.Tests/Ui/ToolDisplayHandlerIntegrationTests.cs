@@ -293,59 +293,20 @@ public class ToolDisplayHandlerIntegrationTests
         Assert.Contains("[", msg); // has markup
     }
 
-    [Fact]
-    public void Handle_ReadTool_WithMissingFile_DoesNotThrow()
-    {
-        var (handler, shellHost) = CreateHandler();
-        handler.Handle("read", "{}");
-        Assert.NotEmpty(shellHost.Messages);
-    }
 
-    [Fact]
-    public void Handle_WriteTool_WithMissingPath_DoesNotThrow()
+    [Theory]
+    [InlineData("read")]
+    [InlineData("write")]
+    [InlineData("edit")]
+    [InlineData("exec")]
+    [InlineData("web_fetch")]
+    [InlineData("sessions_list")]
+    [InlineData("session_status")]
+    [InlineData("sessions_spawn")]
+    public void Handle_EmptyArgs_ProducesMessages(string toolName)
     {
         var (handler, shellHost) = CreateHandler();
-        handler.Handle("write", "{}");
-        Assert.NotEmpty(shellHost.Messages);
-    }
-
-    [Fact]
-    public void Handle_EditTool_WithMinimalArgs_DoesNotThrow()
-    {
-        var (handler, shellHost) = CreateHandler();
-        handler.Handle("edit", "{}");
-        Assert.NotEmpty(shellHost.Messages);
-    }
-
-    [Fact]
-    public void Handle_ExecTool_WithMissingCommand_DoesNotThrow()
-    {
-        var (handler, shellHost) = CreateHandler();
-        handler.Handle("exec", "{}");
-        Assert.NotEmpty(shellHost.Messages);
-    }
-
-    [Fact]
-    public void Handle_WebFetchTool_WithMissingUrl_DoesNotThrow()
-    {
-        var (handler, shellHost) = CreateHandler();
-        handler.Handle("web_fetch", "{}");
-        Assert.NotEmpty(shellHost.Messages);
-    }
-
-    [Fact]
-    public void Handle_SessionsListTool_ProducesSessionInfo()
-    {
-        var (handler, shellHost) = CreateHandler();
-        handler.Handle("sessions_list", "{}");
-        Assert.NotEmpty(shellHost.Messages);
-    }
-
-    [Fact]
-    public void Handle_SessionStatusTool_WithMissingSessionId_DoesNotThrow()
-    {
-        var (handler, shellHost) = CreateHandler();
-        handler.Handle("session_status", "{}");
+        handler.Handle(toolName, "{}");
         Assert.NotEmpty(shellHost.Messages);
     }
 
@@ -354,14 +315,6 @@ public class ToolDisplayHandlerIntegrationTests
     {
         var (handler, shellHost) = CreateHandler();
         handler.Handle("memory_search", "{\"query\":\"test\",\"limit\":5}");
-        Assert.NotEmpty(shellHost.Messages);
-    }
-
-    [Fact]
-    public void Handle_SessionsSpawnTool_WithMissingFields_DoesNotThrow()
-    {
-        var (handler, shellHost) = CreateHandler();
-        handler.Handle("sessions_spawn", "{}");
         Assert.NotEmpty(shellHost.Messages);
     }
 
@@ -632,6 +585,7 @@ public class ToolDisplayHandlerIntegrationTests
         var content = string.Join("\n", shellHost.Messages);
         Assert.Contains("dotnet", content);
     }
+
     [Fact]
     public void Handle_ExecTool_WithChainedBuildTestCommand()
     {
@@ -649,6 +603,7 @@ public class ToolDisplayHandlerIntegrationTests
         // Chained commands should be on separate rows
         Assert.Contains("\n", content);
     }
+
     [Fact]
     public void Handle_ExecTool_SimpleChainedCommands_StartOnNewRows()
     {
