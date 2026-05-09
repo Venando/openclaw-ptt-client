@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Spectre.Console;
 using OpenClawPTT;
+using System.Drawing.Text;
 
 /// <summary>
 /// Converts a Markdown string (.md) into an equivalent Spectre.Console markup string.
@@ -67,6 +68,8 @@ public static class MarkdownToSpectreConverter
     // These are unlikely to appear in real markdown input.
     private const string CodePlaceholderPrefix = "\x00CODE";
     private const string CodePlaceholderSuffix = "\x00";
+
+    private const string TableEdgesMarkup = "deepskyblue3";
 
     /// <summary>
     /// Converts <paramref name="markdown"/> to a Spectre.Console markup string
@@ -236,12 +239,13 @@ public static class MarkdownToSpectreConverter
         for (int r = 1; r < table.FormattedRows.Count; r++)
             allBodyLines.Add(RenderContentRowLines(table.FormattedRows[r], colWidths, table.Alignments, isHeader: false));
 
-        // If any row (header or body) has 3+ physical lines, insert row
+        // If any row (header or body) has separatorFor+ physical lines, insert row
         // separators between body rows for readability.
-        bool useRowSeparators = headerLines.Count >= 3;
+        const int separatorFor = 1;
+        bool useRowSeparators = headerLines.Count >= separatorFor;
         if (!useRowSeparators)
             foreach (var row in allBodyLines)
-                if (row.Count >= 3) { useRowSeparators = true; break; }
+                if (row.Count >= separatorFor) { useRowSeparators = true; break; }
 
         result.MyAppendLine(RenderBorder(colWidths, '╭', '┬', '╮'));
         foreach (var line in headerLines)
@@ -405,7 +409,7 @@ public static class MarkdownToSpectreConverter
     private static string RenderBorder(int[] colWidths, char left, char join, char right)
     {
         var sb = new StringBuilder();
-        sb.Append("[blue]");
+        sb.Append($"[{TableEdgesMarkup}]");
         sb.Append(left);
 
         for (int c = 0; c < colWidths.Length; c++)
@@ -560,7 +564,7 @@ public static class MarkdownToSpectreConverter
         for (int li = 0; li < maxLines; li++)
         {
             var sb = new StringBuilder();
-            sb.Append("[blue]│[/]");
+            sb.Append($"[{TableEdgesMarkup}]│[/]");
 
             for (int c = 0; c < colWidths.Length; c++)
             {
@@ -598,7 +602,7 @@ public static class MarkdownToSpectreConverter
                 }
 
                 sb.Append(' '); // Right padding
-                sb.Append("[blue]│[/]");
+                sb.Append($"[{TableEdgesMarkup}]│[/]");
             }
 
             lines.Add(sb.ToString());

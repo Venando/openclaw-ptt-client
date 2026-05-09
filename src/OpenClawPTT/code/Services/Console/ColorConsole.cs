@@ -65,6 +65,8 @@ public sealed class ColorConsole : IColorConsole
             return;
         }
 
+        var tableColor = "deepskyblue3";
+
         var hotkeyCombination = AgentSettingsPersistenceLegacy.GetPersistedHotkey(AgentRegistry.ActiveAgentId!) ?? appConfig.HotkeyCombination;
         AgentRegistry.GetActiveNameAndEmoji(out var agentName, out var emoji);
         var color = AgentRegistry.GetActiveColor();
@@ -72,13 +74,13 @@ public sealed class ColorConsole : IColorConsole
         var nameStr = agentName.ToString();
         var coloredName = $"[{effectiveColor}]{Markup.Escape(nameStr)}[/]";
         var modeDescription = appConfig.HoldToTalk ? "Hold-to-talk" : "Toggle recording";
-        var middleContent = $"   Agent: [white on gray15]{emoji} {coloredName}[/] [deepskyblue3]·[/] [white on gray15]{Markup.Escape($"[{hotkeyCombination}]")}[/] [deepskyblue3]·[/] {modeDescription} [deepskyblue3]·[/] /help [deepskyblue3]·[/] /quit    ";
+        var middleContent = $"   Agent: [white on gray15]{emoji} {coloredName}[/] [{tableColor}]·[/] [white on gray15]{Markup.Escape($"[{hotkeyCombination}]")}[/] [{tableColor}]·[/] {modeDescription} [{tableColor}]·[/] /help [{tableColor}]·[/] /quit    ";
         var dashCount = Markup.Remove(middleContent).Length;
         var topLineStart = $"── {AppEmoji} PTT Active ─";
-        var topLine = $"[deepskyblue3]╭{topLineStart}{new string('─', dashCount - topLineStart.Length)}╮[/]";
-        var bottomLine = $"[deepskyblue3]╰{new string('─', dashCount)}╯[/]";
+        var topLine = $"[{tableColor}]╭{topLineStart}{new string('─', dashCount - topLineStart.Length)}╮[/]";
+        var bottomLine = $"[{tableColor}]╰{new string('─', dashCount)}╯[/]";
         ShellMsg(topLine);
-        ShellMsg($"[deepskyblue3]│[/]{middleContent}[deepskyblue3]│[/]");
+        ShellMsg($"[{tableColor}]│[/]{middleContent}[{tableColor}]│[/]");
         ShellMsg(bottomLine);
         ShellMsg("");
     }
