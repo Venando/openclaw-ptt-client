@@ -169,49 +169,50 @@ public sealed class AgentSwitchingCommands
     public async Task PrintSessionHistory(string sessionKey)
     {
         var history = await _gatewayService.FetchSessionHistoryAsync(sessionKey, limit: _appConfig.HistoryDisplayCount);
-        if (history == null || history.Count == 0)
-            return;
 
-
-        // Suppress TTS during history replay
-        _pttStateMachine.DuringReplay = true;
-        try
+        // Always show agent introduction, even if history is empty
+        if (history != null && history.Count > 0)
         {
-            _host.AddMessage("");
-            _host.AddMessage("  [gray93 on #333333]────── previous messages ──────[/]");
-            _host.AddMessage("");
-            foreach (var entry in history)
+            // Suppress TTS during history replay
+            _pttStateMachine.DuringReplay = true;
+            try
             {
-                if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
-                    _console.PrintUserMessage(entry.Content);
-                else
-                    _gatewayService.DisplayHistoryEntry(entry);
-            }
+                _host.AddMessage("");
+                _host.AddMessage("  [gray93 on #333333]────── previous messages ──────[/]");
+                _host.AddMessage("");
+                foreach (var entry in history)
+                {
+                    if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
+                        _console.PrintUserMessage(entry.Content);
+                    else
+                        _gatewayService.DisplayHistoryEntry(entry);
+                }
 
-            // Show how long ago the last message was
-            var lastEntry = history.LastOrDefault();
-            if (lastEntry?.CreatedAt != null)
+                // Show how long ago the last message was
+                var lastEntry = history.LastOrDefault();
+                if (lastEntry?.CreatedAt != null)
+                {
+                    var ago = DateTime.UtcNow - lastEntry.CreatedAt.Value.ToUniversalTime();
+                    string agoText;
+                    if (ago.TotalMinutes < 1)
+                        agoText = "just now";
+                    else if (ago.TotalMinutes < 60)
+                        agoText = $"{(int)ago.TotalMinutes}m ago";
+                    else if (ago.TotalHours < 24)
+                        agoText = $"{(int)ago.TotalHours}h {(int)(ago.TotalMinutes % 60)}m ago";
+                    else
+                        agoText = $"{(int)ago.TotalDays}d ago";
+                    _host.AddMessage($"  [grey]Last message: {agoText}[/]");
+                }
+                _host.AddMessage("");
+            }
+            finally
             {
-                var ago = DateTime.UtcNow - lastEntry.CreatedAt.Value.ToUniversalTime();
-                string agoText;
-                if (ago.TotalMinutes < 1)
-                    agoText = "just now";
-                else if (ago.TotalMinutes < 60)
-                    agoText = $"{(int)ago.TotalMinutes}m ago";
-                else if (ago.TotalHours < 24)
-                    agoText = $"{(int)ago.TotalHours}h {(int)(ago.TotalMinutes % 60)}m ago";
-                else
-                    agoText = $"{(int)ago.TotalDays}d ago";
-                _host.AddMessage($"  [grey]Last message: {agoText}[/]");
+                _pttStateMachine.DuringReplay = false;
             }
-            _host.AddMessage("");
+        }
 
-            _console.PrintAgentIntroduction(_appConfig);
-        }
-        finally
-        {
-            _pttStateMachine.DuringReplay = false;
-        }
+        _console.PrintAgentIntroduction(_appConfig);
     }
 
     /// <summary>
