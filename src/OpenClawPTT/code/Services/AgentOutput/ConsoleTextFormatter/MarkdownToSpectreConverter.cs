@@ -507,24 +507,27 @@ public static class MarkdownToSpectreConverter
 
             if (endPos == pos) endPos = pos + 1; // At least one character
 
-            // Try to break at a space for word-wrap — search backwards from
-            // the character boundary for the last space.
-            int wordBreak = -1;
-            for (int i = endPos - 1; i > pos; i--)
+            // When everything fits (endPos at string end), take it all.
+            // Otherwise try word-wrap: search backwards from the character
+            // boundary for the last space.
+            int actualEnd = endPos;
+            if (endPos < plain.Length)
             {
-                if (plain[i] == ' ')
+                for (int i = endPos - 1; i > pos; i--)
                 {
-                    wordBreak = i;
-                    break;
+                    if (plain[i] == ' ')
+                    {
+                        actualEnd = i;
+                        break;
+                    }
                 }
             }
-
-            int actualEnd = wordBreak > 0 ? wordBreak : endPos;
             string segment = plain.Substring(pos, actualEnd - pos);
             if (segment.Length > 0)
                 lines.Add(wrapPrefix + segment + wrapSuffix);
 
-            pos = wordBreak > 0 ? wordBreak + 1 : endPos;
+            // If we found a word break before the end, skip the space
+            pos = actualEnd < endPos ? actualEnd + 1 : endPos;
         }
 
         return lines;
