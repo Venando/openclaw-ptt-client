@@ -1,5 +1,6 @@
 using System;
 using System.Text.Json;
+using OpenClawPTT.TTS;
 using Spectre.Console;
 
 namespace OpenClawPTT.Services;
@@ -43,7 +44,27 @@ public sealed class AgentOutputAdapter : IDisposable
 
         if (config.AudioResponseMode?.ToLowerInvariant() != "text-only")
         {
-            _audioResponseHandler = new AudioResponseHandler(config, console, _jobRunner, summarizer, pttStateMachine);
+            var audioPlayer = new AudioPlayerService(console);
+            ITextToSpeech? ttsProvider = null;
+            try
+            {
+                var ttsService = new TtsService(config, console);
+                ttsProvider = ttsService.Provider;
+            }
+            catch (Exception ex)
+            {
+                var hint = config.TtsProvider switch
+                {
+                    TtsProviderType.OpenAI => "Set TtsOpenAiApiKey or OpenAiApiKey in config.",
+                    TtsProviderType.Coqui => "Verify PythonPath, CoquiModelName, and that Coqui TTS is installed (pip install TTS).",
+                    TtsProviderType.Piper => "Verify PiperPath and that a voice model (.onnx file) is downloaded.",
+                    TtsProviderType.Edge => "Set TtsSubscriptionKey (Azure API key) in config.",
+                    TtsProviderType.ElevenLabs => "Set TtsApiKey and TtsVoiceId for ElevenLabs in config.",
+                    _ => "Check provider configuration."
+                };
+                console.PrintWarning($"TTS provider initialization failed: {ex.Message} — {hint}");
+            }
+            _audioResponseHandler = new AudioResponseHandler(config, console, _jobRunner, audioPlayer, summarizer, pttStateMachine, ttsProvider);
         }
     }
 
