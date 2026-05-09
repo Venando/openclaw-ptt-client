@@ -1,7 +1,5 @@
 using System;
 using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using NAudio.Wave;
 
 namespace OpenClawPTT.Services;
@@ -12,6 +10,7 @@ namespace OpenClawPTT.Services;
 public sealed class AudioPlayerService : IAudioPlayer, IDisposable
 {
     private WaveOutEvent? _waveOut;
+    private WaveStream? _activeStream;
     private readonly IColorConsole _console;
     private bool _disposed;
     
@@ -82,6 +81,7 @@ public sealed class AudioPlayerService : IAudioPlayer, IDisposable
     
     private void PlayInternal(WaveStream waveStream)
     {
+        _activeStream = waveStream;
         _waveOut = new WaveOutEvent();
         _waveOut.Init(waveStream);
         _waveOut.PlaybackStopped += OnPlaybackStopped;
@@ -94,15 +94,23 @@ public sealed class AudioPlayerService : IAudioPlayer, IDisposable
         {
             _console.PrintError($"Playback error: {e.Exception.Message}");
         }
+        // Ensure cleanup when playback stops naturally
+        CleanupPlayback();
     }
     
     /// <summary>
-    /// Stop currently playing audio.
+    /// Stop currently playing audio and release resources.
     /// </summary>
     public void Stop()
     {
+        CleanupPlayback();
+    }
+
+    private void CleanupPlayback()
+    {
         if (_waveOut != null)
         {
+            _waveOut.PlaybackStopped -= OnPlaybackStopped;
             try
             {
                 _waveOut.Stop();
@@ -110,6 +118,12 @@ public sealed class AudioPlayerService : IAudioPlayer, IDisposable
             }
             catch { /* ignore */ }
             _waveOut = null;
+        }
+
+        if (_activeStream != null)
+        {
+            try { _activeStream.Dispose(); } catch { /* ignore */ }
+            _activeStream = null;
         }
     }
     

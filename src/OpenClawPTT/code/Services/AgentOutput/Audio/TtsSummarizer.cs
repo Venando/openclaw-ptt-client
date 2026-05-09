@@ -96,7 +96,6 @@ Text to summarize:
         if (!_disposed)
         {
             _disposed = true;
-            (_directLlm as IDisposable)?.Dispose();
         }
     }
 }

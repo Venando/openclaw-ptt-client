@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -421,66 +422,13 @@ public sealed class ConfigurationWizard
 
     private static AppConfig Clone(AppConfig source)
     {
-        return new AppConfig
-        {
-            GatewayUrl = source.GatewayUrl,
-            AuthToken = source.AuthToken,
-            DeviceToken = source.DeviceToken,
-            TlsFingerprint = source.TlsFingerprint,
-            Locale = source.Locale,
-            SampleRate = source.SampleRate,
-            Channels = source.Channels,
-            BitsPerSample = source.BitsPerSample,
-            MaxRecordSeconds = source.MaxRecordSeconds,
-            DebugLevel = source.DebugLevel,
-            GroqApiKey = source.GroqApiKey,
-            RealTimeReplyOutput = source.RealTimeReplyOutput,
-            ReplyDisplayMode = source.ReplyDisplayMode,
-            SttProvider = source.SttProvider,
-            OpenAiApiKey = source.OpenAiApiKey,
-            OpenAiModel = source.OpenAiModel,
-            WhisperCppPath = source.WhisperCppPath,
-            WhisperCppModelPath = source.WhisperCppModelPath,
-            GroqModel = source.GroqModel,
-            HotkeyCombination = source.HotkeyCombination,
-            HoldToTalk = source.HoldToTalk,
-            ThinkingDisplayMode = source.ThinkingDisplayMode,
-            ThinkingPreviewLines = source.ThinkingPreviewLines,
-            HistoryDisplayCount = source.HistoryDisplayCount,
-            AgentName = source.AgentName,
-            TranscriptionPromptPrefix = source.TranscriptionPromptPrefix,
-            GroqRetryCount = source.GroqRetryCount,
-            GroqRetryDelayMs = source.GroqRetryDelayMs,
-            GroqRetryBackoffFactor = source.GroqRetryBackoffFactor,
-            ReconnectDelaySeconds = source.ReconnectDelaySeconds,
-            RightMarginIndent = source.RightMarginIndent,
-            EnableWordWrap = source.EnableWordWrap,
-            VisualMode = source.VisualMode,
-            VisualFeedbackEnabled = source.VisualFeedbackEnabled,
-            VisualFeedbackPosition = source.VisualFeedbackPosition,
-            VisualFeedbackSize = source.VisualFeedbackSize,
-            VisualFeedbackOpacity = source.VisualFeedbackOpacity,
-            VisualFeedbackColor = source.VisualFeedbackColor,
-            VisualFeedbackRimThickness = source.VisualFeedbackRimThickness,
-            TtsProvider = source.TtsProvider,
-            TtsOpenAiApiKey = source.TtsOpenAiApiKey,
-            TtsSubscriptionKey = source.TtsSubscriptionKey,
-            TtsRegion = source.TtsRegion,
-            TtsVoice = source.TtsVoice,
-            TtsModel = source.TtsModel,
-            CoquiModelPath = source.CoquiModelPath,
-            CoquiModelName = source.CoquiModelName,
-            CoquiConfigPath = source.CoquiConfigPath,
-            PythonPath = source.PythonPath,
-            PiperPath = source.PiperPath,
-            PiperModelPath = source.PiperModelPath,
-            PiperVoice = source.PiperVoice,
-            EspeakNgPath = source.EspeakNgPath,
-
-            AudioResponseMode = source.AudioResponseMode,
-            TtsApiKey = source.TtsApiKey,
-            TtsVoiceId = source.TtsVoiceId,
-            CustomDataDir = source.CustomDataDir,
-        };
+        // Use JSON round-trip to clone all public properties automatically.
+        // This is more maintainable than manually copying 50+ properties.
+        // [JsonIgnore] properties like ClientVersion and DataDir are skipped
+        // by the serializer, which is correct — they are computed, not stored.
+        var json = JsonSerializer.Serialize(source);
+        var clone = JsonSerializer.Deserialize<AppConfig>(json);
+        clone!.CustomDataDir = source.CustomDataDir;
+        return clone;
     }
 }

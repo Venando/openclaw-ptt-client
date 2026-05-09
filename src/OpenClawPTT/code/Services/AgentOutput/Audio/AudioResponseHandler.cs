@@ -8,6 +8,12 @@ namespace OpenClawPTT.Services;
 /// </summary>
 public sealed class AudioResponseHandler : IDisposable
 {
+    // ── TTS mode constants ─────────────────────────────────────────────
+    private const string TtsModeOff = "off";
+    private const string TtsModeSiso = "siso";
+    private const string TtsModeAlwaysOn = "always-on";
+    private const string TtsFallbackSkip = "skip";
+
     private readonly AppConfig _config;
     private readonly ITextToSpeech? _ttsProvider;
     private readonly IAudioPlayer _audioPlayer;
@@ -47,101 +53,124 @@ public sealed class AudioResponseHandler : IDisposable
 
     private async Task PlayTtsAsync(string text, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(text))
+        if (!CanPlayTts(text, out var reason))
+        {
+            if (reason != null)
+                _console.PrintWarning(reason);
+            return;
+        }
+
+        var textToSpeak = await PrepareTextForTtsAsync(text, ct);
+        if (string.IsNullOrWhiteSpace(textToSpeak))
             return;
 
-        // Validate config values
+        SynthesizeAndPlay(textToSpeak);
+    }
+
+    /// <summary>
+    /// Validates conditions for TTS playback. Returns false with an optional warning message
+    /// if playback should be skipped.
+    /// </summary>
+    private bool CanPlayTts(string text, out string? warning)
+    {
+        warning = null;
+
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        // ── Config validation ────────────────────────────────────────────
         if (_config.TtsMaxChars <= 0)
         {
-            _console.PrintWarning($"Invalid TtsMaxChars config ({_config.TtsMaxChars}) - must be greater than 0.");
-            return;
+            warning = $"Invalid TtsMaxChars config ({_config.TtsMaxChars}) - must be greater than 0.";
+            return false;
         }
         if (_config.TtsDirectMaxChars <= 0)
         {
-            _console.PrintWarning($"Invalid TtsDirectMaxChars config ({_config.TtsDirectMaxChars}) - must be greater than 0.");
-            return;
+            warning = $"Invalid TtsDirectMaxChars config ({_config.TtsDirectMaxChars}) - must be greater than 0.";
+            return false;
         }
 
-        // Check if TTS is enabled (case-insensitive)
-        if (string.Equals(_config.TtsOutputMode, "off", StringComparison.OrdinalIgnoreCase))
-            return;
+        // ── TTS mode checks ──────────────────────────────────────────────
+        if (string.Equals(_config.TtsOutputMode, TtsModeOff, StringComparison.OrdinalIgnoreCase))
+            return false;
 
-        // Check SISO mode (case-insensitive)
-        if (string.Equals(_config.TtsOutputMode, "siso", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(_config.TtsOutputMode, TtsModeSiso, StringComparison.OrdinalIgnoreCase))
         {
-            if (_pttStateMachine == null)
-                return;
-            if (_pttStateMachine.LastInputWasVoice != true)
-                return;
-            // SISO: only speak if the response is from the same agent we sent the voice message to
+            if (_pttStateMachine == null || _pttStateMachine.LastInputWasVoice != true)
+                return false;
+
+            // Only speak if the response is from the same agent we sent the voice message to
             if (!string.IsNullOrEmpty(_pttStateMachine.LastTargetAgent) &&
                 !string.Equals(_pttStateMachine.LastTargetAgent, AgentRegistry.ActiveAgentName, StringComparison.OrdinalIgnoreCase))
-                return;
+                return false;
         }
 
-        // Suppress TTS during session history replay
+        // ── Suppress TTS during session history replay ───────────────────
         if (_pttStateMachine?.DuringReplay == true)
-            return;
+            return false;
 
+        // ── TTS provider available? ──────────────────────────────────────
         if (_ttsProvider == null)
         {
-            _console.PrintWarning("TTS not configured - set TtsProvider in settings to enable audio responses.");
-            return;
+            warning = "TTS not configured - set TtsProvider in settings to enable audio responses.";
+            return false;
         }
 
-        // Determine if we need summarization
-        var needsProcessing = TtsContentFilter.HasSpecialFormatting(text) ||
-                              text.Length > _config.TtsDirectMaxChars;
+        return true;
+    }
 
-        string textToSpeak;
+    /// <summary>
+    /// Prepares text for TTS: sanitizes, optionally summarizes via LLM, and truncates if needed.
+    /// </summary>
+    private async Task<string> PrepareTextForTtsAsync(string text, CancellationToken ct)
+    {
+        bool needsProcessing = TtsContentFilter.HasSpecialFormatting(text) ||
+                               text.Length > _config.TtsDirectMaxChars;
 
         if (needsProcessing && _config.TtsUseDirectLlmSummary && _summarizer != null)
         {
-            // Logging (model name + timing) is done inside TtsSummarizer
             try
             {
-                textToSpeak = await _summarizer.SummarizeForTtsAsync(text, _config, ct);
+                // Summarization timing and logging happens inside TtsSummarizer
+                return await _summarizer.SummarizeForTtsAsync(text, _config, ct);
             }
             catch (Exception ex)
             {
                 _console.PrintWarning($"TTS summarization failed: {ex.Message}. Falling back to truncation.");
-                textToSpeak = TtsContentFilter.SanitizeForTts(text);
-                textToSpeak = TtsContentFilter.Truncate(textToSpeak, _config.TtsMaxChars);
+                return TtsContentFilter.Truncate(
+                    TtsContentFilter.SanitizeForTts(text), _config.TtsMaxChars);
             }
         }
-        else if (needsProcessing)
-        {
-            // No Direct LLM available
-            textToSpeak = TtsContentFilter.SanitizeForTts(text);
 
-            if (textToSpeak.Length > _config.TtsMaxChars)
+        // No summarization available — sanitize and optionally truncate
+        var sanitized = TtsContentFilter.SanitizeForTts(text);
+
+        if (sanitized.Length > _config.TtsMaxChars)
+        {
+            if (string.Equals(_config.TtsTooLongFallback, TtsFallbackSkip, StringComparison.OrdinalIgnoreCase))
             {
-                if (string.Equals(_config.TtsTooLongFallback, "skip", StringComparison.OrdinalIgnoreCase))
-                {
-                    _console.PrintWarning($"Response ({textToSpeak.Length} chars) exceeds TtsMaxChars ({_config.TtsMaxChars}) — skipping TTS.");
-                    return;
-                }
-                else
-                {
-                    textToSpeak = TtsContentFilter.Truncate(textToSpeak, _config.TtsMaxChars);
-                }
+                _console.PrintWarning(
+                    $"Response ({sanitized.Length} chars) exceeds TtsMaxChars ({_config.TtsMaxChars}) — skipping TTS.");
+                return string.Empty;
             }
-        }
-        else
-        {
-            // Short text, speak directly
-            textToSpeak = TtsContentFilter.SanitizeForTts(text);
+
+            sanitized = TtsContentFilter.Truncate(sanitized, _config.TtsMaxChars);
         }
 
-        if (string.IsNullOrWhiteSpace(textToSpeak))
-            return;
+        return sanitized;
+    }
 
-        // Synthesize and play via background job runner
-        var truncated = textToSpeak.Length > 80 ? textToSpeak[..80] + "..." : textToSpeak;
+    /// <summary>
+    /// Synthesizes text to speech and plays the audio via a background job.
+    /// </summary>
+    private void SynthesizeAndPlay(string textToSpeak)
+    {
+        var preview = textToSpeak.Length > 80 ? textToSpeak[..80] + "..." : textToSpeak;
         _jobRunner.RunAndForget(async () =>
         {
-            var freshCt = CancellationToken.None;
-            var audioBytes = await _ttsProvider.SynthesizeAsync(textToSpeak, _config.TtsVoice, null, freshCt);
+            var audioBytes = await _ttsProvider!.SynthesizeAsync(
+                textToSpeak, _config.TtsVoice, null, CancellationToken.None);
+
             if (audioBytes != null && audioBytes.Length > 0)
             {
                 _audioPlayer.Play(audioBytes);
@@ -150,7 +179,7 @@ public sealed class AudioResponseHandler : IDisposable
             {
                 _console.PrintWarning("TTS synthesis returned null/empty audio.");
             }
-        }, $"tts-synthesis-{truncated}");
+        }, $"tts-synthesis-{preview}");
     }
 
     /// <summary>
