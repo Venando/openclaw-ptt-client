@@ -163,10 +163,14 @@ public static class MarkdownToSpectreConverter
     /// </summary>
     private sealed class MarkdownTable
     {
-        public int ColumnCount { get; set; }
+        public int ColumnCount { get; }
         public List<TableAlignment> Alignments { get; } = new();
-        public List<List<string>> Rows { get; } = new();
         public List<List<string>> FormattedRows { get; } = new();
+
+        public MarkdownTable(int columnCount)
+        {
+            ColumnCount = columnCount;
+        }
     }
 
     /// <summary>
@@ -189,7 +193,6 @@ public static class MarkdownToSpectreConverter
     /// </summary>
     private static string[] ParseRowCells(string line)
     {
-        // Remove leading and trailing whitespace+pipe, then split on '|'
         string trimmed = line.Trim();
         if (trimmed.StartsWith('|')) trimmed = trimmed.Substring(1);
         if (trimmed.EndsWith('|')) trimmed = trimmed.Substring(0, trimmed.Length - 1);
@@ -208,88 +211,98 @@ public static class MarkdownToSpectreConverter
     }
 
     /// <summary>
-    /// Pads a cell's formatted content to the target display width.
-    /// Accounts for East Asian full-width characters when determining padding.
-    /// </summary>
-    private static string PadCell(string formattedCell, int targetDisplayWidth)
-    {
-        int currentWidth = GetCellDisplayWidth(formattedCell);
-        int padding = targetDisplayWidth - currentWidth;
-        if (padding <= 0) return formattedCell;
-
-        return formattedCell + new string(' ', padding);
-    }
-
-    /// <summary>
     /// Renders a markdown table starting at <paramref name="startIndex"/>.
     /// Returns the index of the last processed line.
     /// </summary>
     private static int RenderTable(string[] lines, int startIndex, StringBuilder result, int availableWidth)
     {
-        // Collect all table lines
+        var tableLines = CollectTableLines(lines, startIndex);
+
+        if (tableLines.Count < 2)
+        {
+            result.MyAppendLine(ConvertInline(lines[startIndex]));
+            return startIndex;
+        }
+
+        var table = ParseTable(tableLines);
+        int[] colWidths = CalculateColumnWidths(table);
+        colWidths = ShrinkColumnWidths(colWidths, availableWidth);
+
+        result.MyAppendLine(RenderBorder(colWidths, '╭', '┬', '╮'));
+        result.MyAppendLine(RenderContentRow(table.FormattedRows[0], colWidths, table.Alignments, isHeader: true));
+        result.MyAppendLine(RenderBorder(colWidths, '├', '┼', '┤'));
+
+        for (int r = 1; r < table.FormattedRows.Count; r++)
+            result.MyAppendLine(RenderContentRow(table.FormattedRows[r], colWidths, table.Alignments, isHeader: false));
+
+        result.MyAppendLine(RenderBorder(colWidths, '╰', '┴', '╯'));
+
+        return startIndex + tableLines.Count - 1;
+    }
+
+    /// <summary>
+    /// Collects consecutive table rows (header + separator + body).
+    /// </summary>
+    private static List<string> CollectTableLines(string[] lines, int startIndex)
+    {
         var tableLines = new List<string>();
         int i = startIndex;
-
         while (i < lines.Length && TableRowPattern.IsMatch(lines[i]))
         {
             tableLines.Add(lines[i]);
             i++;
         }
+        return tableLines;
+    }
 
-        if (tableLines.Count < 2)
-        {
-            // Not enough lines for a valid table (needs header + separator)
-            result.MyAppendLine(ConvertInline(lines[startIndex]));
-            return startIndex;
-        }
-
-        // Parse table
-        var table = new MarkdownTable();
-
-        // Separator is line 1 (index 1)
-        string separatorLine = tableLines[1];
-        string[] separatorCells = ParseRowCells(separatorLine);
-
-        // Parse header (line 0) and body rows (line 2+)
+    /// <summary>
+    /// Parses collected table lines into a <see cref="MarkdownTable"/>.
+    /// </summary>
+    private static MarkdownTable ParseTable(List<string> tableLines)
+    {
+        string[] separatorCells = ParseRowCells(tableLines[1]);
         string[] headerCells = ParseRowCells(tableLines[0]);
-        table.ColumnCount = Math.Max(headerCells.Length, separatorCells.Length);
+        int columnCount = Math.Max(headerCells.Length, separatorCells.Length);
 
-        // Parse alignments from separator
-        for (int c = 0; c < table.ColumnCount; c++)
+        var table = new MarkdownTable(columnCount);
+
+        for (int c = 0; c < columnCount; c++)
         {
             string sepCell = c < separatorCells.Length ? separatorCells[c].Trim() : "---";
             table.Alignments.Add(ParseAlignment(sepCell));
         }
 
-        // Parse and format header
+        // Parse and format header (line 0)
         var headerFormatted = new List<string>();
-        for (int c = 0; c < table.ColumnCount; c++)
+        for (int c = 0; c < columnCount; c++)
         {
             string raw = c < headerCells.Length ? headerCells[c].Trim() : "";
             headerFormatted.Add(ConvertInline(raw));
         }
-        table.Rows.Add(headerCells.Select(c => c.Trim()).ToList());
         table.FormattedRows.Add(headerFormatted);
 
-        // Parse and format body rows
+        // Parse and format body rows (line 2+)
         for (int r = 2; r < tableLines.Count; r++)
         {
             string[] cells = ParseRowCells(tableLines[r]);
-            var rowCells = new List<string>();
             var rowFormatted = new List<string>();
-            for (int c = 0; c < table.ColumnCount; c++)
+            for (int c = 0; c < columnCount; c++)
             {
                 string raw = c < cells.Length ? cells[c].Trim() : "";
-                rowCells.Add(raw);
                 rowFormatted.Add(ConvertInline(raw));
             }
-            table.Rows.Add(rowCells);
             table.FormattedRows.Add(rowFormatted);
         }
 
-        // Calculate column widths
-        int[] colWidths = new int[table.ColumnCount];
+        return table;
+    }
 
+    /// <summary>
+    /// Calculates per-column display widths from formatted table rows.
+    /// </summary>
+    private static int[] CalculateColumnWidths(MarkdownTable table)
+    {
+        int[] colWidths = new int[table.ColumnCount];
         for (int c = 0; c < table.ColumnCount; c++)
         {
             int maxWidth = 0;
@@ -301,104 +314,67 @@ public static class MarkdownToSpectreConverter
                     if (w > maxWidth) maxWidth = w;
                 }
             }
-            colWidths[c] = Math.Max(maxWidth, 1); // Minimum width of 1
+            colWidths[c] = Math.Max(maxWidth, 1);
         }
+        return colWidths;
+    }
 
-        // ── Check available width and shrink columns if needed ──
-        // Table total = borders (1 left + 1 right) + padding (1 per side per col)
-        // + separator (colCount - 1) internal separators
-        // Visual: ┌─┬─┐ = 3 chars overhead + 2 per column padding + separator spacing
-        // Simplified: totalWidth = 1 (left border) + sum(colWidths + 2) + (colCount - 1)
-        // Actually: ┌──┬──┐ = border + padding(1 each side) + separator between columns
-        // Let's be precise:
-        // ┌─<pad>──<pad>┬─<pad>──<pad>┐
-        // = 2 for outermost borders (┌ ┐) but represented as │ │ in body rows
-        // Actually our rendering uses the same approach:
-        //   │  cell1  │  cell2  │
-        // That's: │ (1) + space(1) + content + space(1) + │ (1) + space(1) + content + space(1) + │ (1)
-        // = 1 (left border) + colWidths sum + 2*colCount (space padding) + colCount (separators between columns)
-        // Wait, let me think again.
+    /// <summary>
+    /// Shrinks column widths to fit <paramref name="availableWidth"/> if needed.
+    /// Table row overhead: left border(1) + 2*padding per column + separators + right border(1)
+    /// = 3*colCount + 1
+    /// Three-pass shrink: rightmost → minimum 3px, all → minimum 1px, then proportional.
+    /// </summary>
+    private static int[] ShrinkColumnWidths(int[] colWidths, int availableWidth)
+    {
+        int totalWidth = ComputeTableTotalWidth(colWidths);
 
-        // Rendering format:
-        // │  content  │  content  │
-        // border(1) space(1) content(w) space(1) separator(1) space(1) content(w) space(1) border(1)
-        // = 1 + 1 + w + 1 + (colCount - 1 separators: each is 1+1+1 = ` │ `) + 1
-        // Total overhead = 2 (outer borders) + 2*colCount (padding) + colCount - 1 (separators)
-        // = 3*colCount + 1
-        // Hmm, let me just compute it directly.
+        if (totalWidth <= availableWidth || availableWidth <= 10)
+            return colWidths;
 
-        int totalTableWidth = 1; // Left border │
-        for (int c = 0; c < table.ColumnCount; c++)
+        int[] result = (int[])colWidths.Clone();
+        int excess = totalWidth - availableWidth;
+
+        // Pass 1: shrink rightmost columns to minimum 3
+        for (int c = result.Length - 1; c >= 0 && excess > 0; c--)
         {
-            totalTableWidth += colWidths[c] + 2; // padding on both sides
-            if (c < table.ColumnCount - 1)
-                totalTableWidth += 1; // separator │
+            int shrink = Math.Min(excess, Math.Max(0, result[c] - 3));
+            result[c] -= shrink;
+            excess -= shrink;
         }
-        totalTableWidth += 1; // Right border │
 
-        // If the table exceeds available width, shrink columns proportionally
-        if (totalTableWidth > availableWidth && availableWidth > 10)
+        // Pass 2: shrink all columns to minimum 1
+        for (int c = 0; c < result.Length && excess > 0; c++)
         {
-            int excess = totalTableWidth - availableWidth;
-            int totalContentWidth = colWidths.Sum();
-
-            if (totalContentWidth > 0)
-            {
-                // First pass: shrink from rightmost, keeping minimum width of 3
-                for (int c = colWidths.Length - 1; c >= 0 && excess > 0; c--)
-                {
-                    int shrink = Math.Min(excess, Math.Max(0, colWidths[c] - 3));
-                    colWidths[c] -= shrink;
-                    excess -= shrink;
-                }
-            }
-
-            // Second pass: if still over, shrink all columns down to minimum 1
-            if (excess > 0)
-            {
-                for (int c = 0; c < colWidths.Length && excess > 0; c++)
-                {
-                    int shrink = Math.Min(excess, Math.Max(0, colWidths[c] - 1));
-                    colWidths[c] -= shrink;
-                    excess -= shrink;
-                }
-            }
-
-            // If somehow still over (shouldn't happen with min 1 per col),
-            // just set narrow columns. This is a last resort.
-            if (excess > 0)
-            {
-                for (int c = 0; c < colWidths.Length; c++)
-                    colWidths[c] = Math.Max(1, colWidths[c] - (excess / colWidths.Length) - 1);
-            }
+            int shrink = Math.Min(excess, Math.Max(0, result[c] - 1));
+            result[c] -= shrink;
+            excess -= shrink;
         }
 
-        // ── Render the table ──
-
-        // Top border: ╭────┬────╮
-        result.MyAppendLine(RenderBorder(colWidths, '╭', '┬', '╮'));
-
-        // Header row: │ bold content │
-        var headerFormattedRow = table.FormattedRows[0];
-        result.MyAppendLine(RenderContentRow(headerFormattedRow, colWidths, table.Alignments, isHeader: true));
-
-        // Separator: ├────┼────┤
-        result.MyAppendLine(RenderBorder(colWidths, '├', '┼', '┤'));
-
-        // Body rows
-        bool hasBodyRows = table.FormattedRows.Count > 1;
-        if (hasBodyRows)
+        // Pass 3: last resort proportional shrink
+        if (excess > 0)
         {
-            for (int r = 1; r < table.FormattedRows.Count; r++)
-            {
-                result.MyAppendLine(RenderContentRow(table.FormattedRows[r], colWidths, table.Alignments, isHeader: false));
-            }
+            for (int c = 0; c < result.Length; c++)
+                result[c] = Math.Max(1, result[c] - (excess / result.Length) - 1);
         }
 
-        // Bottom border: ╰────┴────╯
-        result.MyAppendLine(RenderBorder(colWidths, '╰', '┴', '╯'));
+        return result;
+    }
 
-        return i - 1; // Return the index of the last processed line
+    /// <summary>
+    /// Computes the total rendered width of a table given column widths.
+    /// </summary>
+    private static int ComputeTableTotalWidth(int[] colWidths)
+    {
+        int total = 1; // Left border
+        for (int c = 0; c < colWidths.Length; c++)
+        {
+            total += colWidths[c] + 2; // content + padding both sides
+            if (c < colWidths.Length - 1)
+                total += 1; // column separator
+        }
+        total += 1; // Right border
+        return total;
     }
 
     /// <summary>
@@ -412,7 +388,7 @@ public static class MarkdownToSpectreConverter
 
         for (int c = 0; c < colWidths.Length; c++)
         {
-            sb.Append('─', colWidths[c] + 2); // content width + padding on both sides
+            sb.Append('─', colWidths[c] + 2);
             if (c < colWidths.Length - 1)
                 sb.Append(join);
         }
@@ -438,8 +414,7 @@ public static class MarkdownToSpectreConverter
         if (width <= maxWidth)
             return formattedCell;
 
-        // Need to truncate. Walk characters until we reach maxWidth - 1 (for ellipsis).
-        int targetWidth = Math.Max(1, maxWidth - 1); // 1 char for "…" if possible
+        int targetWidth = Math.Max(1, maxWidth - 1);
         var truncated = new StringBuilder();
         int currentWidth = 0;
 
@@ -465,22 +440,15 @@ public static class MarkdownToSpectreConverter
         {
             string cellContent = c < formattedCells.Count ? formattedCells[c] : "";
             int cellDisplayWidth = GetCellDisplayWidth(cellContent);
+
+            string displayContent = cellDisplayWidth > colWidths[c]
+                ? TruncateCellToWidth(cellContent, colWidths[c])
+                : cellContent;
+
+            cellDisplayWidth = GetCellDisplayWidth(displayContent);
+            string styledContent = isHeader ? $"[bold]{displayContent}[/]" : displayContent;
             int padding = colWidths[c] - cellDisplayWidth;
 
-            // Truncate if cell content exceeds column width
-            string displayContent;
-            if (cellDisplayWidth > colWidths[c])
-            {
-                displayContent = TruncateCellToWidth(cellContent, colWidths[c]);
-                cellDisplayWidth = GetCellDisplayWidth(displayContent);
-                padding = colWidths[c] - cellDisplayWidth;
-            }
-            else
-            {
-                displayContent = cellContent;
-            }
-
-            // Apply alignment
             sb.Append(' '); // Left padding (always 1)
 
             if (padding > 0)
@@ -488,27 +456,25 @@ public static class MarkdownToSpectreConverter
                 if (c < alignments.Count && alignments[c] == TableAlignment.Right)
                 {
                     sb.Append(' ', padding);
-                    sb.Append(isHeader ? $"[bold]{displayContent}[/]" : displayContent);
+                    sb.Append(styledContent);
                 }
                 else if (c < alignments.Count && alignments[c] == TableAlignment.Center)
                 {
                     int leftPad = padding / 2;
                     int rightPad = padding - leftPad;
                     sb.Append(' ', leftPad);
-                    sb.Append(isHeader ? $"[bold]{displayContent}[/]" : displayContent);
+                    sb.Append(styledContent);
                     sb.Append(' ', rightPad);
                 }
                 else
                 {
-                    // Left-aligned (default)
-                    sb.Append(isHeader ? $"[bold]{displayContent}[/]" : displayContent);
+                    sb.Append(styledContent);
                     sb.Append(' ', padding);
                 }
             }
             else
             {
-                // Cell content fits exactly (or overflows minimally)
-                sb.Append(isHeader ? $"[bold]{displayContent}[/]" : displayContent);
+                sb.Append(styledContent);
             }
 
             sb.Append(' '); // Right padding (always 1)
@@ -534,12 +500,8 @@ public static class MarkdownToSpectreConverter
 
     private static string ConvertInline(string text)
     {
-        // Step 0: Escape square brackets that are NOT part of markdown link
-        //         syntax so Spectre treats them as literals.
         text = EscapeBracketsExceptLinks(text);
 
-        // Step 1: Protect inline code (backtick) content so no other pattern
-        //         touches it. Code placeholders are safe from all regexes.
         var codePlaceholders = new Dictionary<int, string>();
         int codeIdx = 0;
         text = InlineCode.Replace(text, m =>
@@ -550,14 +512,9 @@ public static class MarkdownToSpectreConverter
             return CodePlaceholderPrefix + idx + CodePlaceholderSuffix;
         });
 
-        // Step 2: Convert markdown links [label](url) to Spectre link markup.
         text = ConvertLinksWithFormatting(text);
-
-        // Step 3: Apply formatting patterns (bold, italic, etc.) to the
-        //         remaining text.
         text = ApplyInlineFormatting(text);
 
-        // Step 4: Restore inline code as [bold gray89 on darkblue]content[/].
         for (int i = 0; i < codeIdx; i++)
         {
             text = text.Replace(
@@ -586,18 +543,9 @@ public static class MarkdownToSpectreConverter
     // Bracket escaping helpers
     // ────────────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Escapes all '[' and ']' as '[[' and ']]' so Spectre.Console treats
-    /// them as literal characters.
-    /// </summary>
     private static string EscapeBrackets(string text)
         => text.Replace("[", "[[").Replace("]", "]]");
 
-    /// <summary>
-    /// Escapes brackets that are NOT part of a Markdown link pattern
-    /// <c>[label](url)</c>, so they render as literals in Spectre.Console
-    /// while still allowing the Link regex to fire afterwards.
-    /// </summary>
     private static string EscapeBracketsExceptLinks(string text)
     {
         var placeholders = new List<string>();
@@ -617,10 +565,6 @@ public static class MarkdownToSpectreConverter
         return protected_;
     }
 
-    /// <summary>
-    /// Converts markdown links <c>[label](url)</c> to Spectre link markup,
-    /// applying formatting patterns (bold, italic, etc.) to the label first.
-    /// </summary>
     private static string ConvertLinksWithFormatting(string text)
     {
         return Link.Replace(text, m =>
