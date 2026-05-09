@@ -1,6 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using Spectre.Console;
+using OpenClawPTT;
 
 /// <summary>
 /// Converts a Markdown string (.md) into an equivalent Spectre.Console markup string.
@@ -16,10 +20,20 @@ using System.Text.RegularExpressions;
 ///   Links           [label](url)
 ///   Blockquotes     > text
 ///   Thematic break  --- or *** or ___ (on its own line)
-///
-/// Unsupported (passed through as plain escaped text):
-///   Tables, task lists, footnotes, HTML blocks, images.
+///   Tables          | a | b |
+///                   |---|---|
+///                   | 1 | 2 |
 /// </remarks>
+/// <summary>
+/// Per-column alignment for markdown tables.
+/// </summary>
+internal enum TableAlignment
+{
+    Left,
+    Center,
+    Right,
+}
+
 public static class MarkdownToSpectreConverter
 {
     // ── Inline patterns (applied in order — order matters) ──────────────────
@@ -44,6 +58,10 @@ public static class MarkdownToSpectreConverter
     private static readonly Regex HrPattern = new(@"^(\*{3,}|-{3,}|_{3,})\s*$", RegexOptions.Compiled);
     // Fenced code block delimiter: ``` optionally followed by a language name.
     private static readonly Regex FencePattern = new(@"^```", RegexOptions.Compiled);
+    // Table delimiter line: |---|---| pattern
+    private static readonly Regex TableSeparatorPattern = new(@"^\|[-:\s|]+\|$", RegexOptions.Compiled);
+    // Table row: | cells |
+    private static readonly Regex TableRowPattern = new(@"^\|.+\|$", RegexOptions.Compiled);
 
     // ── Placeholder tokens for inline code protection ───────────────────────
     // These are unlikely to appear in real markdown input.
@@ -51,11 +69,13 @@ public static class MarkdownToSpectreConverter
     private const string CodePlaceholderSuffix = "\x00";
 
     /// <summary>
-    /// Converts <paramref name="markdown"/> to a Spectre.Console markup string.
+    /// Converts <paramref name="markdown"/> to a Spectre.Console markup string
+    /// with an available width for table layout (to avoid overflowing the console).
     /// </summary>
-    public static string Convert(string markdown)
+    public static string Convert(string markdown, int availableWidth = int.MaxValue)
     {
         if (markdown is null) throw new ArgumentNullException(nameof(markdown));
+        if (availableWidth <= 0) availableWidth = int.MaxValue;
 
         var lines = markdown.Replace("\r\n", "\n").Split('\n');
         var result = new StringBuilder();
@@ -77,20 +97,19 @@ public static class MarkdownToSpectreConverter
                 else
                     result.MyAppendLine("[dim]──────────────────────────────────────[/]");
 
-                // Don't emit the fence delimiter itself.
-                // if (i < lines.Length - 1)
-                //     result.MyAppendLine();
-
                 continue;
             }
 
             if (inFencedBlock)
             {
-                // Emit code lines verbatim (but escape brackets so Spectre
-                // doesn't try to interpret them as markup tags).
-
                 result.MyAppendLine($"[default on gray15]{EscapeBrackets(line)}[/]");
+                continue;
+            }
 
+            // ── Table ────────────────────────────────────────────────────────
+            if (TableRowPattern.IsMatch(line) && i + 1 < lines.Length && TableSeparatorPattern.IsMatch(lines[i + 1]))
+            {
+                i = RenderTable(lines, i, result, availableWidth);
                 continue;
             }
 
@@ -135,6 +154,336 @@ public static class MarkdownToSpectreConverter
         return result.ToString().TrimEnd();
     }
 
+    // ────────────────────────────────────────────────────────────────────────
+    // Table rendering
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Represents a single parsed markdown table.
+    /// </summary>
+    private sealed class MarkdownTable
+    {
+        public int ColumnCount { get; }
+        public List<TableAlignment> Alignments { get; } = new();
+        public List<List<string>> FormattedRows { get; } = new();
+
+        public MarkdownTable(int columnCount)
+        {
+            ColumnCount = columnCount;
+        }
+    }
+
+    /// <summary>
+    /// Parses the separator line to determine per-column alignment.
+    /// </summary>
+    private static TableAlignment ParseAlignment(string cellText)
+    {
+        string trimmed = cellText.Trim();
+        bool left = trimmed.StartsWith(':');
+        bool right = trimmed.EndsWith(':');
+
+        if (left && right) return TableAlignment.Center;
+        if (right) return TableAlignment.Right;
+        return TableAlignment.Left;
+    }
+
+    /// <summary>
+    /// Parses a table row (header or body) into individual cell values.
+    /// Strips leading/trailing pipe and splits on internal pipes.
+    /// </summary>
+    private static string[] ParseRowCells(string line)
+    {
+        string trimmed = line.Trim();
+        if (trimmed.StartsWith('|')) trimmed = trimmed.Substring(1);
+        if (trimmed.EndsWith('|')) trimmed = trimmed.Substring(0, trimmed.Length - 1);
+
+        return trimmed.Split('|');
+    }
+
+    /// <summary>
+    /// Gets the display width of cell content with Spectre markup stripped.
+    /// Uses CharacterWidth for accurate East Asian character width measurement.
+    /// </summary>
+    private static int GetCellDisplayWidth(string formattedCell)
+    {
+        string plain = Markup.Remove(formattedCell);
+        return CharacterWidth.GetDisplayWidth(plain);
+    }
+
+    /// <summary>
+    /// Renders a markdown table starting at <paramref name="startIndex"/>.
+    /// Returns the index of the last processed line.
+    /// </summary>
+    private static int RenderTable(string[] lines, int startIndex, StringBuilder result, int availableWidth)
+    {
+        var tableLines = CollectTableLines(lines, startIndex);
+
+        if (tableLines.Count < 2)
+        {
+            result.MyAppendLine(ConvertInline(lines[startIndex]));
+            return startIndex;
+        }
+
+        var table = ParseTable(tableLines);
+        int[] colWidths = CalculateColumnWidths(table);
+        colWidths = ShrinkColumnWidths(colWidths, availableWidth);
+
+        result.MyAppendLine(RenderBorder(colWidths, '╭', '┬', '╮'));
+        result.MyAppendLine(RenderContentRow(table.FormattedRows[0], colWidths, table.Alignments, isHeader: true));
+        result.MyAppendLine(RenderBorder(colWidths, '├', '┼', '┤'));
+
+        for (int r = 1; r < table.FormattedRows.Count; r++)
+            result.MyAppendLine(RenderContentRow(table.FormattedRows[r], colWidths, table.Alignments, isHeader: false));
+
+        result.MyAppendLine(RenderBorder(colWidths, '╰', '┴', '╯'));
+
+        return startIndex + tableLines.Count - 1;
+    }
+
+    /// <summary>
+    /// Collects consecutive table rows (header + separator + body).
+    /// </summary>
+    private static List<string> CollectTableLines(string[] lines, int startIndex)
+    {
+        var tableLines = new List<string>();
+        int i = startIndex;
+        while (i < lines.Length && TableRowPattern.IsMatch(lines[i]))
+        {
+            tableLines.Add(lines[i]);
+            i++;
+        }
+        return tableLines;
+    }
+
+    /// <summary>
+    /// Parses collected table lines into a <see cref="MarkdownTable"/>.
+    /// </summary>
+    private static MarkdownTable ParseTable(List<string> tableLines)
+    {
+        string[] separatorCells = ParseRowCells(tableLines[1]);
+        string[] headerCells = ParseRowCells(tableLines[0]);
+        int columnCount = Math.Max(headerCells.Length, separatorCells.Length);
+
+        var table = new MarkdownTable(columnCount);
+
+        for (int c = 0; c < columnCount; c++)
+        {
+            string sepCell = c < separatorCells.Length ? separatorCells[c].Trim() : "---";
+            table.Alignments.Add(ParseAlignment(sepCell));
+        }
+
+        // Parse and format header (line 0)
+        var headerFormatted = new List<string>();
+        for (int c = 0; c < columnCount; c++)
+        {
+            string raw = c < headerCells.Length ? headerCells[c].Trim() : "";
+            headerFormatted.Add(ConvertInline(raw));
+        }
+        table.FormattedRows.Add(headerFormatted);
+
+        // Parse and format body rows (line 2+)
+        for (int r = 2; r < tableLines.Count; r++)
+        {
+            string[] cells = ParseRowCells(tableLines[r]);
+            var rowFormatted = new List<string>();
+            for (int c = 0; c < columnCount; c++)
+            {
+                string raw = c < cells.Length ? cells[c].Trim() : "";
+                rowFormatted.Add(ConvertInline(raw));
+            }
+            table.FormattedRows.Add(rowFormatted);
+        }
+
+        return table;
+    }
+
+    /// <summary>
+    /// Calculates per-column display widths from formatted table rows.
+    /// </summary>
+    private static int[] CalculateColumnWidths(MarkdownTable table)
+    {
+        int[] colWidths = new int[table.ColumnCount];
+        for (int c = 0; c < table.ColumnCount; c++)
+        {
+            int maxWidth = 0;
+            foreach (var row in table.FormattedRows)
+            {
+                if (c < row.Count)
+                {
+                    int w = GetCellDisplayWidth(row[c]);
+                    if (w > maxWidth) maxWidth = w;
+                }
+            }
+            colWidths[c] = Math.Max(maxWidth, 1);
+        }
+        return colWidths;
+    }
+
+    /// <summary>
+    /// Shrinks column widths to fit <paramref name="availableWidth"/> if needed.
+    /// Table row overhead: left border(1) + 2*padding per column + separators + right border(1)
+    /// = 3*colCount + 1
+    /// Three-pass shrink: rightmost → minimum 3px, all → minimum 1px, then proportional.
+    /// </summary>
+    private static int[] ShrinkColumnWidths(int[] colWidths, int availableWidth)
+    {
+        int totalWidth = ComputeTableTotalWidth(colWidths);
+
+        if (totalWidth <= availableWidth || availableWidth <= 10)
+            return colWidths;
+
+        int[] result = (int[])colWidths.Clone();
+        int excess = totalWidth - availableWidth;
+
+        // Pass 1: shrink rightmost columns to minimum 3
+        for (int c = result.Length - 1; c >= 0 && excess > 0; c--)
+        {
+            int shrink = Math.Min(excess, Math.Max(0, result[c] - 3));
+            result[c] -= shrink;
+            excess -= shrink;
+        }
+
+        // Pass 2: shrink all columns to minimum 1
+        for (int c = 0; c < result.Length && excess > 0; c++)
+        {
+            int shrink = Math.Min(excess, Math.Max(0, result[c] - 1));
+            result[c] -= shrink;
+            excess -= shrink;
+        }
+
+        // Pass 3: last resort proportional shrink
+        if (excess > 0)
+        {
+            for (int c = 0; c < result.Length; c++)
+                result[c] = Math.Max(1, result[c] - (excess / result.Length) - 1);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Computes the total rendered width of a table given column widths.
+    /// </summary>
+    private static int ComputeTableTotalWidth(int[] colWidths)
+    {
+        int total = 1; // Left border
+        for (int c = 0; c < colWidths.Length; c++)
+        {
+            total += colWidths[c] + 2; // content + padding both sides
+            if (c < colWidths.Length - 1)
+                total += 1; // column separator
+        }
+        total += 1; // Right border
+        return total;
+    }
+
+    /// <summary>
+    /// Renders a horizontal border row for the table.
+    /// </summary>
+    private static string RenderBorder(int[] colWidths, char left, char join, char right)
+    {
+        var sb = new StringBuilder();
+        sb.Append("[blue]");
+        sb.Append(left);
+
+        for (int c = 0; c < colWidths.Length; c++)
+        {
+            sb.Append('─', colWidths[c] + 2);
+            if (c < colWidths.Length - 1)
+                sb.Append(join);
+        }
+
+        sb.Append(right);
+        sb.Append("[/]");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Truncates <paramref name="formattedCell"/> (Spectre markup) so its
+    /// visible display width does not exceed <paramref name="maxWidth"/>.
+    /// Appends "…" if truncation occurs.
+    /// </summary>
+    private static string TruncateCellToWidth(string formattedCell, int maxWidth)
+    {
+        if (string.IsNullOrEmpty(formattedCell) || maxWidth <= 0)
+            return "";
+
+        string plain = Markup.Remove(formattedCell);
+        int width = CharacterWidth.GetDisplayWidth(plain);
+
+        if (width <= maxWidth)
+            return formattedCell;
+
+        int targetWidth = Math.Max(1, maxWidth - 1);
+        var truncated = new StringBuilder();
+        int currentWidth = 0;
+
+        foreach (char c in plain)
+        {
+            int charWidth = CharacterWidth.GetDisplayWidth(c);
+            if (currentWidth + charWidth > targetWidth)
+                break;
+            truncated.Append(c);
+            currentWidth += charWidth;
+        }
+
+        truncated.Append('…');
+        return truncated.ToString();
+    }
+
+    private static string RenderContentRow(List<string> formattedCells, int[] colWidths, List<TableAlignment> alignments, bool isHeader)
+    {
+        var sb = new StringBuilder();
+        sb.Append("[blue]│[/]");
+
+        for (int c = 0; c < colWidths.Length; c++)
+        {
+            string cellContent = c < formattedCells.Count ? formattedCells[c] : "";
+            int cellDisplayWidth = GetCellDisplayWidth(cellContent);
+
+            string displayContent = cellDisplayWidth > colWidths[c]
+                ? TruncateCellToWidth(cellContent, colWidths[c])
+                : cellContent;
+
+            cellDisplayWidth = GetCellDisplayWidth(displayContent);
+            string styledContent = isHeader ? $"[bold]{displayContent}[/]" : displayContent;
+            int padding = colWidths[c] - cellDisplayWidth;
+
+            sb.Append(' '); // Left padding (always 1)
+
+            if (padding > 0)
+            {
+                if (c < alignments.Count && alignments[c] == TableAlignment.Right)
+                {
+                    sb.Append(' ', padding);
+                    sb.Append(styledContent);
+                }
+                else if (c < alignments.Count && alignments[c] == TableAlignment.Center)
+                {
+                    int leftPad = padding / 2;
+                    int rightPad = padding - leftPad;
+                    sb.Append(' ', leftPad);
+                    sb.Append(styledContent);
+                    sb.Append(' ', rightPad);
+                }
+                else
+                {
+                    sb.Append(styledContent);
+                    sb.Append(' ', padding);
+                }
+            }
+            else
+            {
+                sb.Append(styledContent);
+            }
+
+            sb.Append(' '); // Right padding (always 1)
+            sb.Append("[blue]│[/]");
+        }
+
+        return sb.ToString();
+    }
+
     private static StringBuilder MyAppendLine(this StringBuilder stringBuilder)
     {
         return stringBuilder.Append('\n');
@@ -151,13 +500,9 @@ public static class MarkdownToSpectreConverter
 
     private static string ConvertInline(string text)
     {
-        // Step 0: Escape square brackets that are NOT part of markdown link
-        //         syntax so Spectre treats them as literals.
         text = EscapeBracketsExceptLinks(text);
 
-        // Step 1: Protect inline code (backtick) content so no other pattern
-        //         touches it. Code placeholders are safe from all regexes.
-        var codePlaceholders = new System.Collections.Generic.Dictionary<int, string>();
+        var codePlaceholders = new Dictionary<int, string>();
         int codeIdx = 0;
         text = InlineCode.Replace(text, m =>
         {
@@ -167,28 +512,9 @@ public static class MarkdownToSpectreConverter
             return CodePlaceholderPrefix + idx + CodePlaceholderSuffix;
         });
 
-        // Step 2: Convert markdown links [label](url) to Spectre link markup.
-        //         This must happen BEFORE applying formatting patterns so
-        //         that labels containing **bold** are captured correctly
-        //         (the Link regex needs the original `[]` brackets, not
-        //         already-converted Spectre tags which contain `]` breaks).
-        //         For each link, formatting is applied to the label text
-        //         first, then merged into the link tag.
         text = ConvertLinksWithFormatting(text);
+        text = ApplyInlineFormatting(text);
 
-        // Step 3: Apply formatting patterns (bold, italic, etc.) to the
-        //         remaining text. These won't match link placeholders because
-        //         links have already been converted to Spectre markup.
-        text = BoldItalicStars.Replace(text, "[bold italic]$1[/]");
-        text = BoldStars.Replace(text, "[bold]$1[/]");
-        text = BoldUnderscores.Replace(text, "[bold]$1[/]");
-        text = ItalicStars.Replace(text, "[italic]$1[/]");
-        text = ItalicUnderscores.Replace(text, "[italic]$1[/]");
-        text = Strikethrough.Replace(text, "[strikethrough]$1[/]");
-
-        // Step 4: Restore inline code as [bold gray89 on darkblue]content[/].
-        //         This must be the final step so that Spectre tags from
-        //         code restoration don't interfere with anything else.
         for (int i = 0; i < codeIdx; i++)
         {
             text = text.Replace(
@@ -199,27 +525,30 @@ public static class MarkdownToSpectreConverter
         return text;
     }
 
+    /// <summary>
+    /// Applies bold, italic, bold-italic, and strikethrough formatting patterns.
+    /// </summary>
+    private static string ApplyInlineFormatting(string text)
+    {
+        text = BoldItalicStars.Replace(text, "[bold italic]$1[/]");
+        text = BoldStars.Replace(text, "[bold]$1[/]");
+        text = BoldUnderscores.Replace(text, "[bold]$1[/]");
+        text = ItalicStars.Replace(text, "[italic]$1[/]");
+        text = ItalicUnderscores.Replace(text, "[italic]$1[/]");
+        text = Strikethrough.Replace(text, "[strikethrough]$1[/]");
+        return text;
+    }
+
     // ────────────────────────────────────────────────────────────────────────
     // Bracket escaping helpers
     // ────────────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Escapes all '[' and ']' as '[[' and ']]' so Spectre.Console treats
-    /// them as literal characters.
-    /// </summary>
     private static string EscapeBrackets(string text)
         => text.Replace("[", "[[").Replace("]", "]]");
 
-    /// <summary>
-    /// Escapes brackets that are NOT part of a Markdown link pattern
-    /// <c>[label](url)</c>, so they render as literals in Spectre.Console
-    /// while still allowing the Link regex to fire afterwards.
-    /// </summary>
     private static string EscapeBracketsExceptLinks(string text)
     {
-        // Replace the Markdown link temporarily with a placeholder so we can
-        // escape everything else without touching the link syntax.
-        var placeholders = new System.Collections.Generic.List<string>();
+        var placeholders = new List<string>();
 
         string protected_ = Link.Replace(text, m =>
         {
@@ -228,28 +557,14 @@ public static class MarkdownToSpectreConverter
             return $"\x00LINK{idx}\x00";
         });
 
-        // Now escape all remaining brackets.
         protected_ = protected_.Replace("[", "[[").Replace("]", "]]");
 
-        // Restore the placeholders.
         for (int i = 0; i < placeholders.Count; i++)
             protected_ = protected_.Replace($"\x00LINK{i}\x00", placeholders[i]);
 
         return protected_;
     }
 
-    /// <summary>
-    /// Converts markdown links <c>[label](url)</c> to Spectre link markup,
-    /// applying formatting patterns (bold, italic, etc.) to the label first.
-    /// </summary>
-    /// <remarks>
-    /// This runs <em>before</em> the generic formatting pass on the surrounding
-    /// text so that link labels containing <c>**bold**</c> are correctly captured
-    /// by the Link regex (which requires unaltered <c>[]</c> brackets).
-    /// If the label contains formatting, the outermost style is merged into
-    /// the link tag: <c>[**bold link**](http://x.com)</c> →
-    /// <c>[bold link=http://x.com]bold link[/]</c>.
-    /// </remarks>
     private static string ConvertLinksWithFormatting(string text)
     {
         return Link.Replace(text, m =>
@@ -257,20 +572,8 @@ public static class MarkdownToSpectreConverter
             string label = m.Groups[1].Value;
             string url = m.Groups[2].Value;
 
-            // First, escape brackets inside the label text that are not
-            // part of inline patterns — but the label's brackets were already
-            // escaped by EscapeBracketsExceptLinks. The label may contain
-            // patterns like **bold** which we need to process.
-            string formattedLabel = label;
-            formattedLabel = BoldItalicStars.Replace(formattedLabel, "[bold italic]$1[/]");
-            formattedLabel = BoldStars.Replace(formattedLabel, "[bold]$1[/]");
-            formattedLabel = BoldUnderscores.Replace(formattedLabel, "[bold]$1[/]");
-            formattedLabel = ItalicStars.Replace(formattedLabel, "[italic]$1[/]");
-            formattedLabel = ItalicUnderscores.Replace(formattedLabel, "[italic]$1[/]");
-            formattedLabel = Strikethrough.Replace(formattedLabel, "[strikethrough]$1[/]");
+            string formattedLabel = ApplyInlineFormatting(label);
 
-            // Check if the formatted label has an outermost Spectre tag
-            // like [bold]bold link[/]. If so, merge the style into the link tag.
             var outerTagMatch = Regex.Match(
                 formattedLabel, @"^\[([a-z0-9 ]+)\](.+)\[/\]$", RegexOptions.Singleline);
 

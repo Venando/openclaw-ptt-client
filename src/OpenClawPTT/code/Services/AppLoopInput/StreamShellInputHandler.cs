@@ -83,6 +83,8 @@ public sealed class StreamShellInputHandler : IDisposable
             (args, named) => { _host.Clear(); return Task.CompletedTask; }));
 
         // Diagnostics commands
+        _host.AddCommand(new Command("history", "[[N]] Load N session history entries",
+            (args, named) => _agentSwitching.HandleHistory(args)));
         _host.AddCommand(new Command("errors", "[N] Show recent gateway errors",
             (args, named) => _agentSwitching.HandleErrorsCommand(args)));
         _host.AddCommand(new Command("reconnect", "Reconnect to the gateway",

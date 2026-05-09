@@ -273,6 +273,45 @@ public sealed class AgentSwitchingCommands
         }
     }
 
+    /// <summary>Handler for /history — loads and displays recent session history.</summary>
+    public async Task HandleHistory(string[] args)
+    {
+        var sessionKey = AgentRegistry.ActiveSessionKey;
+        if (sessionKey == null)
+        {
+            _host.AddMessage("[yellow]  No active session.[/]");
+            return;
+        }
+
+        int limit = _appConfig.HistoryDisplayCount;
+        if (args.Length > 0 && int.TryParse(args[0], out var requested))
+            limit = Math.Clamp(requested, 1, 200);
+
+        var history = await _gatewayService.FetchSessionHistoryAsync(sessionKey, limit);
+        if (history == null || history.Count == 0)
+        {
+            _host.AddMessage("[yellow]  No history entries found.[/]");
+            return;
+        }
+
+        _pttStateMachine.DuringReplay = true;
+        try
+        {
+            _host.AddMessage($"  [grey]── history ({history.Count} entries) ──[/]");
+            foreach (var entry in history)
+            {
+                if (entry.Role.Equals("user", StringComparison.OrdinalIgnoreCase))
+                    _console.PrintUserMessage(entry.Content);
+                else
+                    _gatewayService.DisplayHistoryEntry(entry);
+            }
+        }
+        finally
+        {
+            _pttStateMachine.DuringReplay = false;
+        }
+    }
+
     /// <summary>Handler for /errors — display recent error log entries with rich details.</summary>
     public Task HandleErrorsCommand(string[] args)
     {

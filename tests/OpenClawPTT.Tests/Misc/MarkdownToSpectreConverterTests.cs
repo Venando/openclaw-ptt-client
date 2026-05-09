@@ -259,15 +259,189 @@ public class MarkdownToSpectreConverterTests
         ValidateMarkup(result);
     }
 
-    // ── Unsupported constructs pass through ─────────────────────────────────
+    // ── Tables ────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void Convert_Table_PassThroughAsLiteral()
+    public void Convert_Table_BasicTable_RendersWithBoxDrawing()
     {
-        // Tables are unsupported; should appear as escaped literal text.
         var md = "| a | b |\n|---|---|\n| 1 | 2 |";
-        var result = MarkdownToSpectreConverter.Convert(md);
-        Assert.Contains("| a | b |", result);
+        var result = MarkdownToSpectreConverter.Convert(md).Replace("\r\n", "\n");
+        // Should contain box-drawing characters
+        Assert.Contains("╭", result);
+        Assert.Contains("╮", result);
+        Assert.Contains("╰", result);
+        Assert.Contains("╯", result);
+        Assert.Contains("├", result);
+        Assert.Contains("┤", result);
+        Assert.Contains("│", result);
+        // Header should be bold
+        Assert.Contains("[bold]a[/]", result);
+        Assert.Contains("[bold]b[/]", result);
+        // Cells should appear
+        Assert.Contains(" 1 ", result);
+        Assert.Contains(" 2 ", result);
+        ValidateMarkup(result);
+    }
+
+    [Fact]
+    public void Convert_Table_WithInlineFormatting_AppliesMarkupToCells()
+    {
+        var md = "| **Name** | `code` |\n|----------|--------|\n| **bold** | `inline` |";
+        var result = MarkdownToSpectreConverter.Convert(md).Replace("\r\n", "\n");
+        Assert.Contains("[bold]Name[/]", result);
+        Assert.Contains("[bold gray89 on darkblue]code[/]", result);
+        Assert.Contains("[bold]bold[/]", result);
+        Assert.Contains("[bold gray89 on darkblue]inline[/]", result);
+        Assert.Contains("╭", result);
+        Assert.Contains("│", result);
+        Assert.Contains("├", result);
+        Assert.Contains("╰", result);
+        ValidateMarkup(result);
+    }
+
+    [Fact]
+    public void Convert_Table_WithAlignment_RendersProperly()
+    {
+        // Right-aligned column
+        var md = "| Left | Center | Right |\n|:-----|:------:|------:|\n| a    |   b    |     c |";
+        var result = MarkdownToSpectreConverter.Convert(md).Replace("\r\n", "\n");
+        Assert.Contains("╭", result);
+        Assert.Contains("│", result);
+        Assert.Contains("├", result);
+        Assert.Contains("╰", result);
+        ValidateMarkup(result);
+    }
+
+    [Fact]
+    public void Convert_Table_SingleColumn_RendersCorrectly()
+    {
+        var md = "| Header |\n|--------|\n| Value  |";
+        var result = MarkdownToSpectreConverter.Convert(md).Replace("\r\n", "\n");
+        Assert.Contains("╭", result);
+        Assert.Contains("╮", result);
+        Assert.Contains("╰", result);
+        Assert.Contains("╯", result);
+        Assert.Contains("[bold]Header[/]", result);
+        Assert.Contains("Value", result);
+        ValidateMarkup(result);
+    }
+
+    [Fact]
+    public void Convert_Table_WithMultipleRows_RendersAllRows()
+    {
+        var md = "| Col1 | Col2 |\n|------|------|\n| A    | B    |\n| C    | D    |\n| E    | F    |";
+        var result = MarkdownToSpectreConverter.Convert(md).Replace("\r\n", "\n");
+        var lines = result.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        // Expected: top border, header, separator, 3 body rows, bottom border = 7 lines
+        Assert.Equal(7, lines.Length);
+        ValidateMarkup(result);
+    }
+
+    [Fact]
+    public void Convert_Table_AvailableWidth_TruncatesWhenTooWide()
+    {
+        // Create a very wide table that won't fit in 40 chars
+        var md = "| VeryLongHeader | AnotherLongColumn | ThirdWideColumn |\n|----------------|-------------------|-----------------|\n| CellOne        | CellTwo           | CellThree       |";
+        var result = MarkdownToSpectreConverter.Convert(md, availableWidth: 40).Replace("\r\n", "\n");
+        // Should still produce valid table structure, just narrower
+        Assert.Contains("╭", result);
+        Assert.Contains("│", result);
+        Assert.Contains("├", result);
+        Assert.Contains("╰", result);
+        // Total visible width of each line should be <= 40
+        // Use Markup.Remove to strip Spectre tags before measuring
+        var lines = result.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var line in lines)
+        {
+            string plain = Spectre.Console.Markup.Remove(line);
+            int visibleWidth = CharacterWidth.GetDisplayWidth(plain);
+            Assert.True(visibleWidth <= 42,
+                $"Line visible width {visibleWidth} > 42. Content: {line}");
+        }
+        ValidateMarkup(result);
+    }
+
+    [Fact]
+    public void Convert_Table_WithMarkdownLinks_FormatsCorrectly()
+    {
+        var md = "| Name | URL |\n|------|-----|\n| Example | [Click](https://example.com) |";
+        var result = MarkdownToSpectreConverter.Convert(md).Replace("\r\n", "\n");
+        Assert.Contains("[link=https://example.com]Click[/]", result);
+        Assert.Contains("╭", result);
+        Assert.Contains("│", result);
+        ValidateMarkup(result);
+    }
+
+    [Fact]
+    public void Convert_Table_EmptyCellsRenderCorrectly()
+    {
+        var md = "| A | B |\n|---|---|\n|   | X |\n| Y |   |";
+        var result = MarkdownToSpectreConverter.Convert(md).Replace("\r\n", "\n");
+        Assert.Contains("╭", result);
+        Assert.Contains("│", result);
+        Assert.Contains("├", result);
+        Assert.Contains("╰", result);
+        Assert.Contains("X", result);
+        Assert.Contains("Y", result);
+        ValidateMarkup(result);
+    }
+
+    [Fact]
+    public void Convert_Table_AllLinesHaveConsistentWidth()
+    {
+        // Table with headers shorter than content — ensures no cell
+        // steps out of the column boundaries.
+        var md = @"
+| 1 | 2 |
+|---|---|
+| Longer content A | Longer content B |
+| Even longer content X | Even longer content Y |
+| The longest content of all | Still fairly long |
+";
+        var result = MarkdownToSpectreConverter.Convert(md).Replace("\r\n", "\n");
+        var lines = result.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        
+        Assert.True(lines.Length >= 6, $"Expected at least 6 lines, got {lines.Length}");
+
+        // Measure the visible width of each line (strip markup tags)
+        var widths = lines.Select(l =>
+        {
+            string plain = Spectre.Console.Markup.Remove(l);
+            return CharacterWidth.GetDisplayWidth(plain);
+        }).ToArray();
+
+        // All lines must have identical visible width — no line exceeds the borders
+        int expectedWidth = widths[0];
+        for (int i = 1; i < widths.Length; i++)
+        {
+            Assert.Equal(expectedWidth, widths[i]);
+        }
+
+        // Also verify: top border has correct structure (strip markup first)
+        string topPlain = Spectre.Console.Markup.Remove(lines[0]);
+        Assert.Equal('╭', topPlain[0]);
+        Assert.Equal('╮', topPlain[^1]);
+        Assert.Contains("┬", topPlain);
+        // Bottom border
+        string bottomPlain = Spectre.Console.Markup.Remove(lines[^1]);
+        Assert.Equal('╰', bottomPlain[0]);
+        Assert.Equal('╯', bottomPlain[^1]);
+        // Header row
+        string headerPlain = Spectre.Console.Markup.Remove(lines[1]);
+        Assert.StartsWith("│", headerPlain);
+        Assert.EndsWith("│", headerPlain);
+        // Separator
+        string sepPlain = Spectre.Console.Markup.Remove(lines[2]);
+        Assert.Equal('├', sepPlain[0]);
+        Assert.Equal('┤', sepPlain[^1]);
+        // Body rows
+        for (int r = 3; r < lines.Length - 1; r++)
+        {
+            string bodyPlain = Spectre.Console.Markup.Remove(lines[r]);
+            Assert.StartsWith("│", bodyPlain);
+            Assert.EndsWith("│", bodyPlain);
+        }
+
         ValidateMarkup(result);
     }
 
