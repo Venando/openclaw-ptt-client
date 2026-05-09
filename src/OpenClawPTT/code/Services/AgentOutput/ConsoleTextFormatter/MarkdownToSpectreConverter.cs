@@ -229,11 +229,13 @@ public static class MarkdownToSpectreConverter
         colWidths = ShrinkColumnWidths(colWidths, availableWidth);
 
         result.MyAppendLine(RenderBorder(colWidths, '╭', '┬', '╮'));
-        result.MyAppendLine(RenderContentRow(table.FormattedRows[0], colWidths, table.Alignments, isHeader: true));
+        foreach (var line in RenderContentRowLines(table.FormattedRows[0], colWidths, table.Alignments, isHeader: true))
+            result.MyAppendLine(line);
         result.MyAppendLine(RenderBorder(colWidths, '├', '┼', '┤'));
 
         for (int r = 1; r < table.FormattedRows.Count; r++)
-            result.MyAppendLine(RenderContentRow(table.FormattedRows[r], colWidths, table.Alignments, isHeader: false));
+            foreach (var line in RenderContentRowLines(table.FormattedRows[r], colWidths, table.Alignments, isHeader: false))
+                result.MyAppendLine(line);
 
         result.MyAppendLine(RenderBorder(colWidths, '╰', '┴', '╯'));
 
@@ -399,89 +401,173 @@ public static class MarkdownToSpectreConverter
     }
 
     /// <summary>
-    /// Truncates <paramref name="formattedCell"/> (Spectre markup) so its
-    /// visible display width does not exceed <paramref name="maxWidth"/>.
-    /// Appends "…" if truncation occurs.
+    /// Extracts uniform Spectre markup from a formatted cell when the cell
+    /// has a simple structure: opening tag(s) + plain text + closing tag(s).
+    /// If the cell has mixed/complex formatting, prefix/suffix remain empty
+    /// and wrapping falls back to plain text.
     /// </summary>
-    private static string TruncateCellToWidth(string formattedCell, int maxWidth)
+    private static void ExtractUniformMarkup(string formattedCell, out string prefix, out string suffix)
     {
-        if (string.IsNullOrEmpty(formattedCell) || maxWidth <= 0)
-            return "";
+        prefix = "";
+        suffix = "";
 
-        string plain = Markup.Remove(formattedCell);
-        int width = CharacterWidth.GetDisplayWidth(plain);
+        if (string.IsNullOrEmpty(formattedCell)) return;
 
-        if (width <= maxWidth)
-            return formattedCell;
-
-        int targetWidth = Math.Max(1, maxWidth - 1);
-        var truncated = new StringBuilder();
-        int currentWidth = 0;
-
-        foreach (char c in plain)
+        // Find consecutive opening Spectre tags at the start: [tag1][tag2]...
+        int prefixEnd = 0;
+        while (prefixEnd < formattedCell.Length && formattedCell[prefixEnd] == '[')
         {
-            int charWidth = CharacterWidth.GetDisplayWidth(c);
-            if (currentWidth + charWidth > targetWidth)
-                break;
-            truncated.Append(c);
-            currentWidth += charWidth;
+            int closeIdx = formattedCell.IndexOf(']', prefixEnd + 1);
+            if (closeIdx < 0) break;
+            prefixEnd = closeIdx + 1;
         }
 
-        truncated.Append('…');
-        return truncated.ToString();
+        // Find consecutive [/] at the end
+        int suffixStart = formattedCell.Length;
+        while (suffixStart >= 3)
+        {
+            if (formattedCell[suffixStart - 1] == ']' &&
+                formattedCell[suffixStart - 3] == '[' &&
+                formattedCell[suffixStart - 2] == '/')
+                suffixStart -= 3;
+            else
+                break;
+        }
+
+        if (prefixEnd == 0 || suffixStart == formattedCell.Length)
+            return; // No uniform wrapping markup
+
+        string innerContent = formattedCell.Substring(prefixEnd, suffixStart - prefixEnd);
+        string innerPlain = Markup.Remove(innerContent);
+        string fullPlain = Markup.Remove(formattedCell);
+
+        if (innerPlain == fullPlain)
+        {
+            prefix = formattedCell.Substring(0, prefixEnd);
+            suffix = formattedCell.Substring(suffixStart);
+        }
     }
 
-    private static string RenderContentRow(List<string> formattedCells, int[] colWidths, List<TableAlignment> alignments, bool isHeader)
+    /// <summary>
+    /// Wraps formatted cell content to fit <paramref name="maxWidth"/> by
+    /// splitting into multiple display lines. Preserves uniform Spectre markup.
+    /// Returns the cell as a single-element list if it fits without wrapping.
+    /// </summary>
+    private static List<string> WrapCellContent(string formattedCell, int maxWidth)
     {
-        var sb = new StringBuilder();
-        sb.Append("[blue]│[/]");
+        if (string.IsNullOrEmpty(formattedCell) || maxWidth <= 0)
+            return new List<string> { "" };
+
+        string plain = Markup.Remove(formattedCell);
+        int totalWidth = CharacterWidth.GetDisplayWidth(plain);
+
+        if (totalWidth <= maxWidth)
+            return new List<string> { formattedCell };
+
+        // Detect uniform formatting for reapplication on each wrapped line
+        ExtractUniformMarkup(formattedCell, out string wrapPrefix, out string wrapSuffix);
+
+        var lines = new List<string>();
+        int pos = 0;
+
+        while (pos < plain.Length)
+        {
+            // Find how many characters fit on this line (simple character-wrap
+            // since word-wrap can produce inconsistent indentation in tables).
+            int lineWidth = 0;
+            int endPos = pos;
+
+            while (endPos < plain.Length)
+            {
+                int cw = CharacterWidth.GetDisplayWidth(plain[endPos]);
+                if (lineWidth + cw > maxWidth && lineWidth > 0)
+                    break;
+                lineWidth += cw;
+                endPos++;
+            }
+
+            if (endPos == pos) endPos = pos + 1; // At least one character
+
+            string segment = plain.Substring(pos, endPos - pos);
+            lines.Add(wrapPrefix + segment + wrapSuffix);
+            pos = endPos;
+        }
+
+        return lines;
+    }
+
+    /// <summary>
+    /// Renders a logical table row (header or body) into one or more physical
+    /// lines by wrapping cell content that exceeds its column width.
+    /// Returns a list of Spectre-markup strings, one per physical line.
+    /// </summary>
+    private static List<string> RenderContentRowLines(List<string> formattedCells, int[] colWidths, List<TableAlignment> alignments, bool isHeader)
+    {
+        // Wrap each cell's content to fit its column
+        var wrappedCells = new List<List<string>>();
+        int maxLines = 0;
 
         for (int c = 0; c < colWidths.Length; c++)
         {
             string cellContent = c < formattedCells.Count ? formattedCells[c] : "";
-            int cellDisplayWidth = GetCellDisplayWidth(cellContent);
+            var wrapped = WrapCellContent(cellContent, colWidths[c]);
+            wrappedCells.Add(wrapped);
+            if (wrapped.Count > maxLines) maxLines = wrapped.Count;
+        }
 
-            string displayContent = cellDisplayWidth > colWidths[c]
-                ? TruncateCellToWidth(cellContent, colWidths[c])
-                : cellContent;
+        // Ensure at least one line
+        if (maxLines == 0) maxLines = 1;
 
-            cellDisplayWidth = GetCellDisplayWidth(displayContent);
-            string styledContent = isHeader ? $"[bold]{displayContent}[/]" : displayContent;
-            int padding = colWidths[c] - cellDisplayWidth;
+        var lines = new List<string>();
 
-            sb.Append(' '); // Left padding (always 1)
+        for (int li = 0; li < maxLines; li++)
+        {
+            var sb = new StringBuilder();
+            sb.Append("[blue]│[/]");
 
-            if (padding > 0)
+            for (int c = 0; c < colWidths.Length; c++)
             {
-                if (c < alignments.Count && alignments[c] == TableAlignment.Right)
+                string cellLine = li < wrappedCells[c].Count ? wrappedCells[c][li] : "";
+                int displayWidth = GetCellDisplayWidth(cellLine);
+                string styledContent = isHeader ? $"[bold]{cellLine}[/]" : cellLine;
+                int padding = colWidths[c] - displayWidth;
+
+                sb.Append(' '); // Left padding
+
+                if (padding > 0)
                 {
-                    sb.Append(' ', padding);
-                    sb.Append(styledContent);
-                }
-                else if (c < alignments.Count && alignments[c] == TableAlignment.Center)
-                {
-                    int leftPad = padding / 2;
-                    int rightPad = padding - leftPad;
-                    sb.Append(' ', leftPad);
-                    sb.Append(styledContent);
-                    sb.Append(' ', rightPad);
+                    if (c < alignments.Count && alignments[c] == TableAlignment.Right)
+                    {
+                        sb.Append(' ', padding);
+                        sb.Append(styledContent);
+                    }
+                    else if (c < alignments.Count && alignments[c] == TableAlignment.Center)
+                    {
+                        int leftPad = padding / 2;
+                        int rightPad = padding - leftPad;
+                        sb.Append(' ', leftPad);
+                        sb.Append(styledContent);
+                        sb.Append(' ', rightPad);
+                    }
+                    else
+                    {
+                        sb.Append(styledContent);
+                        sb.Append(' ', padding);
+                    }
                 }
                 else
                 {
                     sb.Append(styledContent);
-                    sb.Append(' ', padding);
                 }
-            }
-            else
-            {
-                sb.Append(styledContent);
+
+                sb.Append(' '); // Right padding
+                sb.Append("[blue]│[/]");
             }
 
-            sb.Append(' '); // Right padding (always 1)
-            sb.Append("[blue]│[/]");
+            lines.Add(sb.ToString());
         }
 
-        return sb.ToString();
+        return lines;
     }
 
     private static StringBuilder MyAppendLine(this StringBuilder stringBuilder)

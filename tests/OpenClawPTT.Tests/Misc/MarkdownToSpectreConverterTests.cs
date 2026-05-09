@@ -338,18 +338,18 @@ public class MarkdownToSpectreConverterTests
     }
 
     [Fact]
-    public void Convert_Table_AvailableWidth_TruncatesWhenTooWide()
+    public void Convert_Table_AvailableWidth_WrapsWhenTooWide()
     {
-        // Create a very wide table that won't fit in 40 chars
+        // Wide table that won't fit in 40 chars — cells should wrap to the
+        // next line instead of truncating with "…".
         var md = "| VeryLongHeader | AnotherLongColumn | ThirdWideColumn |\n|----------------|-------------------|-----------------|\n| CellOne        | CellTwo           | CellThree       |";
         var result = MarkdownToSpectreConverter.Convert(md, availableWidth: 40).Replace("\r\n", "\n");
-        // Should still produce valid table structure, just narrower
+        // Should still produce valid table structure
         Assert.Contains("╭", result);
         Assert.Contains("│", result);
         Assert.Contains("├", result);
         Assert.Contains("╰", result);
-        // Total visible width of each line should be <= 40
-        // Use Markup.Remove to strip Spectre tags before measuring
+        // Each physical line's visible width should fit within the available space
         var lines = result.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         foreach (var line in lines)
         {
@@ -358,7 +358,42 @@ public class MarkdownToSpectreConverterTests
             Assert.True(visibleWidth <= 42,
                 $"Line visible width {visibleWidth} > 42. Content: {line}");
         }
+        // Should produce MORE physical lines than logical rows
+        // (3 data rows + 4 border lines = 7 lines without wrapping)
+        Assert.True(lines.Length > 7,
+            $"Expected >7 lines (wrapping should create more lines), got {lines.Length}");
         ValidateMarkup(result);
+    }
+
+    [Fact]
+    public void Convert_Table_WrapsLongContent_PreservesUniformFormattingAcrossLines()
+    {
+        // Realistic table like the user's status tables — long cell content
+        // should wrap to the next line when available width is tight.
+        var md = "| Phase | What Changed | Files |\n|-------|--------------|-------|\n| Interface extraction | IAudioPlayer created, AudioPlayerService : IAudioPlayer | +1 created, +1 modified |";
+        var result = MarkdownToSpectreConverter.Convert(md, availableWidth: 40).Replace("\r\n", "\n");
+        ValidateMarkup(result);
+        Assert.Contains("╭", result);
+        Assert.Contains("│", result);
+        Assert.Contains("├", result);
+        Assert.Contains("╰", result);
+        var lines = result.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        // Without wrapping: 3 data rows + 4 borders = 7 physical lines
+        // With wrapping: more than 7 (the long "What Changed" cell wraps)
+        Assert.True(lines.Length > 7,
+            $"Expected >7 lines (wrapping should produce more), got {lines.Length}");
+        // All physical lines must be within available width
+        foreach (var line in lines)
+        {
+            string plain = Spectre.Console.Markup.Remove(line);
+            int visibleWidth = CharacterWidth.GetDisplayWidth(plain);
+            Assert.True(visibleWidth <= 42,
+                $"Line width {visibleWidth} > 42. Content: {line}");
+        }
+        // Verify content is wrapped, not truncated — cell fragments from
+        // long cells appear across multiple physical lines
+        // ("AudioPlayer" gets split as "IAudioP" / "layer c" / "Player")
+        Assert.DoesNotContain("…", result);
     }
 
     [Fact]
@@ -387,7 +422,7 @@ public class MarkdownToSpectreConverterTests
     }
 
     [Fact]
-    public void Convert_Table_AllLinesHaveConsistentWidth()
+    public void Convert_Table_AllLinesHaveConsistentWidth_WithWrapping()
     {
         // Table with headers shorter than content — ensures no cell
         // steps out of the column boundaries.
