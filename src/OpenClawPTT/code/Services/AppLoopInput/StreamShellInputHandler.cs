@@ -79,6 +79,8 @@ public sealed class StreamShellInputHandler : IDisposable
         _host.AddCommand(new Command("tts-test", "Test TTS summarization pipeline with sample file", LlmTestSummaryHandler));
 
         // Diagnostics commands
+        _host.AddCommand(new Command("history", "[N] Load N session history entries",
+            (args, named) => _agentSwitching.HandleHistory(args)));
         _host.AddCommand(new Command("errors", "[N] Show recent gateway errors",
             (args, named) => _agentSwitching.HandleErrorsCommand(args)));
         _host.AddCommand(new Command("reconnect", "Reconnect to the gateway",
