@@ -263,6 +263,64 @@ public class StatusServiceTests
     }
 
     [Fact]
+    public void LeftText_ReflectsActiveSessionChange()
+    {
+        // Reset static state before this test to avoid contamination from other tests
+        AgentRegistry.SetAgents(Array.Empty<AgentInfo>());
+
+        var host = new FakeStreamShellHost();
+        var tracker = new FakeAgentStatusTracker();
+        using var service = new StatusService(host, tracker);
+
+        // Register two agents
+        var agentA = new AgentInfo
+        {
+            AgentId = "agent-a",
+            Name = "Alpha",
+            IsDefault = true,
+            SessionKey = "agent:agent-a:main"
+        };
+        var agentB = new AgentInfo
+        {
+            AgentId = "agent-b",
+            Name = "Beta",
+            IsDefault = false,
+            SessionKey = "agent:agent-b:main"
+        };
+        AgentRegistry.SetAgents(new[] { agentA, agentB });
+
+        // Seed snapshots for both
+        var snapshotA = new AgentStatusSnapshot
+        {
+            SessionKey = "agent:agent-a:main",
+            DisplayName = "Alpha",
+            Status = "running",
+            Model = "deepseek/deepseek-v4-flash"
+        };
+        var snapshotB = new AgentStatusSnapshot
+        {
+            SessionKey = "agent:agent-b:main",
+            DisplayName = "Beta",
+            Status = "running",
+            Model = "kimi/kimi-k2.6"
+        };
+        tracker.AddSnapshot(snapshotA);
+        tracker.AddSnapshot(snapshotB);
+        tracker.FireChanged();
+
+        // Default active is agent-a (IsDefault = true)
+        Assert.Contains("Alpha", host.LastSeparatorLeftText);
+
+        // Switch to agent-b
+        AgentRegistry.SetActiveSession("agent:agent-b:main");
+        Assert.Contains("Beta", host.LastSeparatorLeftText);
+
+        // Switch back to agent-a
+        AgentRegistry.SetActiveSession("agent:agent-a:main");
+        Assert.Contains("Alpha", host.LastSeparatorLeftText);
+    }
+
+    [Fact]
     public void ConcurrentStatusUpdates_WithTracker_NoCrash()
     {
         var host = new FakeStreamShellHost();
@@ -360,6 +418,49 @@ public class StatusServiceTests
 
         // After dispose, tracker events should not cause crashes
         var ex = Record.Exception(() => tracker.FireChanged());
+        Assert.Null(ex);
+    }
+
+    [Fact]
+    public void Dispose_UnsubscribesFromActiveSessionChanged()
+    {
+        var host = new FakeStreamShellHost();
+        var tracker = new FakeAgentStatusTracker();
+        var service = new StatusService(host, tracker);
+
+        // Set up agents so SetActiveSession can actually fire the event
+        var agent = new AgentInfo
+        {
+            AgentId = "agent-a",
+            Name = "Alpha",
+            IsDefault = true,
+            SessionKey = "agent:agent-a:main"
+        };
+        AgentRegistry.SetAgents(new[] { agent });
+        var snapshot = new AgentStatusSnapshot
+        {
+            SessionKey = "agent:agent-a:main",
+            DisplayName = "Alpha",
+            Status = "running",
+        };
+        tracker.AddSnapshot(snapshot);
+        tracker.FireChanged();
+
+        service.Dispose();
+
+        // Firing ActiveSessionChanged on a disposed service should not crash.
+        // Setting same session again won't fire (no change), so register a second
+        // agent and switch to it after dispose.
+        var agentB = new AgentInfo
+        {
+            AgentId = "agent-b",
+            Name = "Beta",
+            IsDefault = false,
+            SessionKey = "agent:agent-b:main"
+        };
+        AgentRegistry.SetAgents(new[] { agent, agentB });
+
+        var ex = Record.Exception(() => AgentRegistry.SetActiveSession("agent:agent-b:main"));
         Assert.Null(ex);
     }
 }

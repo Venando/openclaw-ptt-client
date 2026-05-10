@@ -35,6 +35,9 @@ public sealed class StatusService : IStatusService, IDisposable
 
         if (_agentTracker != null)
             _agentTracker.Changed += OnAgentStatusChanged;
+
+        // React to agent switching in the registry (e.g. /crew or hotkey switch)
+        AgentRegistry.ActiveSessionChanged += OnActiveSessionChanged;
     }
 
     public void SetGatewayStatus(string label, StatusColor color)
@@ -69,6 +72,15 @@ public sealed class StatusService : IStatusService, IDisposable
             _agentTracker.Changed += OnAgentStatusChanged;
             Render();
         }
+    }
+
+    /// <summary>
+    /// Called when the active agent session changes in the registry.
+    /// Triggers a re-render so the left-side agent info reflects the switched agent.
+    /// </summary>
+    private void OnActiveSessionChanged(string? _)
+    {
+        lock (_lock) { Render(); }
     }
 
     /// <summary>
@@ -258,6 +270,8 @@ public sealed class StatusService : IStatusService, IDisposable
 
     public void Dispose()
     {
+        AgentRegistry.ActiveSessionChanged -= OnActiveSessionChanged;
+
         if (_agentTracker != null)
             _agentTracker.Changed -= OnAgentStatusChanged;
     }
