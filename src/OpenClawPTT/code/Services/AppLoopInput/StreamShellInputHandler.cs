@@ -32,6 +32,7 @@ public sealed class StreamShellInputHandler : IDisposable
     private readonly IPttStateMachine _pttStateMachine;
     private readonly ITtsSummarizer? _ttsSummarizer;
     private readonly ErrorLogStore _errorLog;
+    private readonly IStatusService _statusService;
 
     public StreamShellInputHandler(
         IStreamShellHost host,
@@ -45,7 +46,8 @@ public sealed class StreamShellInputHandler : IDisposable
         IPttStateMachine pttStateMachine,
         IDirectLlmService? directLlmService = null,
         ITtsSummarizer? ttsSummarizer = null,
-        ErrorLogStore? errorLogStore = null)
+        ErrorLogStore? errorLogStore = null,
+        IStatusService? statusService = null)
     {
         _host = host;
         _textSender = textSender;
@@ -59,7 +61,8 @@ public sealed class StreamShellInputHandler : IDisposable
         _pttStateMachine = pttStateMachine;
         _ttsSummarizer = ttsSummarizer;
         _errorLog = errorLogStore ?? new ErrorLogStore(appConfig.DataDir);
-        _agentSwitching = new AgentSwitchingCommands(host, textSender, gatewayService, appConfig, console, agentSettingsPersistence, pttStateMachine, _configService, _errorLog);
+        _statusService = statusService ?? new StatusService(host);
+        _agentSwitching = new AgentSwitchingCommands(host, textSender, gatewayService, appConfig, console, agentSettingsPersistence, pttStateMachine, _configService, _errorLog, _statusService);
         _messageComposer = new TextMessageComposer(host, textSender);
     }
 
