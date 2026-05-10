@@ -33,7 +33,7 @@ public class AppRunnerStabilityTests
         public int CreateGatewayServiceCallCount { get; private set; }
 
         public IGatewayService CreateGatewayService(AppConfig cfg, ITtsSummarizer? summarizer = null,
-            IPttStateMachine? pttStateMachine = null, ITextToSpeech? ttsProvider = null)
+            IPttStateMachine? pttStateMachine = null, Task<ITextToSpeech?>? ttsProviderTask = null)
         {
             LastGatewayConfig = cfg;
             CreateGatewayServiceCallCount++;

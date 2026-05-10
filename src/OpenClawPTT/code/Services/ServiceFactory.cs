@@ -42,29 +42,23 @@ public class ServiceFactory : IServiceFactory
     }
 
     public virtual IGatewayService CreateGatewayService(AppConfig cfg, ITtsSummarizer? summarizer = null,
-        IPttStateMachine? pttStateMachine = null, ITextToSpeech? ttsProvider = null)
+        IPttStateMachine? pttStateMachine = null, Task<ITextToSpeech?>? ttsProviderTask = null)
     {
         var jobRunner = new BackgroundJobRunner(msg => _colorConsole.Log("jobrunner", msg));
         var replyCoordinator = new ReplyStreamCoordinator(cfg, _colorConsole);
         var toolHandler = new ToolDisplayHandler(cfg.RightMarginIndent, _shellHost);
         var thinkingHandler = new ThinkingDisplayHandler(cfg, _shellHost);
 
-        // Create audio handler only when a pre-initialized TTS provider is supplied.
-        // When ttsProvider is null (parallel init), the audio handler is wired later
-        // via GatewayService.SetTtsProvider() after background initialization completes.
+        // Audio handler is created asynchronously via GatewayService when the TTS
+        // provider task completes (parallel init). No synchronous audio handler is
+        // passed at construction time — GatewayService wires it on completion.
         AudioResponseHandler? audioHandler = null;
-        if (ttsProvider != null && cfg.AudioResponseMode?.ToLowerInvariant() != "text-only")
-        {
-            var audioPlayer = new AudioPlayerService(_colorConsole);
-            audioHandler = new AudioResponseHandler(
-                cfg, _colorConsole, jobRunner, audioPlayer,
-                summarizer, pttStateMachine, ttsProvider);
-        }
 
         var coordinator = new AgentOutputCoordinator(
             replyCoordinator, toolHandler, thinkingHandler, audioHandler);
 
-        return new GatewayService(cfg, _colorConsole, coordinator, summarizer, pttStateMachine);
+        return new GatewayService(cfg, _colorConsole, coordinator, summarizer, pttStateMachine,
+            ttsProviderTask: ttsProviderTask);
     }
 
     public virtual IAudioService CreateAudioService(AppConfig cfg)

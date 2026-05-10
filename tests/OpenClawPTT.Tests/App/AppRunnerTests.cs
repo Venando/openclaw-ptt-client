@@ -28,7 +28,7 @@ public class AppRunnerTests
         public Mock<IAppLoop> PttLoop { get; } = new();
 
         public IGatewayService CreateGatewayService(AppConfig cfg, ITtsSummarizer? summarizer = null,
-            IPttStateMachine? pttStateMachine = null, ITextToSpeech? ttsProvider = null) => Gateway.Object;
+            IPttStateMachine? pttStateMachine = null, Task<ITextToSpeech?>? ttsProviderTask = null) => Gateway.Object;
         public IAudioService CreateAudioService(AppConfig cfg) => Audio.Object;
         public IPttController CreatePttController(AppConfig cfg, IAudioService audioService, IHotkeyHookFactory? hotkeyHookFactory = null) => PttController.Object;
         public ITextMessageSender CreateTextMessageSender(IGatewayService gateway) => TextSender.Object;

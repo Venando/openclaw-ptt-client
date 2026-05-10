@@ -78,28 +78,19 @@ public class AppRunner : IDisposable
         using var ttsInitCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var ttsInitTask = Task.Run(() => InitializeTtsProviderAsync(_cfg, ttsInitCts.Token), ttsInitCts.Token);
 
-        // Create gateway service (fast — no longer blocks on TTS init)
+        // Create gateway service (fast — no longer blocks on TTS init).
+        // GatewayService receives the TTS provider task and wires audio asynchronously
+        // when the task completes — no temporal coupling window.
         using var gateway = _factory.CreateGatewayService(_cfg, ttsSummarizer, pttStateMachine,
-            ttsProvider: null);
+            ttsProviderTask: ttsInitTask);
 
         // Wire ErrorLogStore into GatewayService so SendTextAsync/SendRpcAsync failures are logged
         if (gateway is GatewayService gw)
             gw.SetErrorLogStore(_errorLog);
 
-        // Try to connect gateway — runs in parallel with TTS init
+        // Gateway connect runs in parallel with TTS init — the TTS task is handled
+        // by GatewayService's internal continuation.
         var connectResult = await TryConnectWithGuidanceAsync(gateway, ct);
-
-        // Wait for TTS init to complete (may already be done)
-        try
-        {
-            var ttsProvider = await ttsInitTask;
-            if (ttsProvider != null && gateway is GatewayService realGateway)
-                realGateway.SetTtsProvider(ttsProvider);
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            // App shutting down — nothing to do
-        }
 
         if (connectResult == ConnectResult.GiveUp)
             return (int)AppLoopExitCode.Error;

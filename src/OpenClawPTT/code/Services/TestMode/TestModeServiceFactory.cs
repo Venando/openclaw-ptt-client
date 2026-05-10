@@ -28,7 +28,7 @@ public sealed class TestModeServiceFactory : ServiceFactory
     /// Creates a mock gateway service that simulates connections without real network activity.
     /// </summary>
     public override IGatewayService CreateGatewayService(AppConfig cfg, ITtsSummarizer? summarizer = null,
-        IPttStateMachine? pttStateMachine = null, ITextToSpeech? ttsProvider = null)
+        IPttStateMachine? pttStateMachine = null, Task<ITextToSpeech?>? ttsProviderTask = null)
     {
         return new MockGatewayService(_scenario, _colorConsole);
     }
