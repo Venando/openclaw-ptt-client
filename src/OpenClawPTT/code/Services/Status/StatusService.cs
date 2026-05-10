@@ -135,6 +135,7 @@ public sealed class StatusService : IStatusService, IDisposable
         // Status emoji (🟢 running, ✅ done, 🔄 tool, etc.)
         _sb.Append(' ');
         _sb.Append(mainAgent.GetStatusEmoji());
+        _sb.Append(' ');
 
         // Model
         if (!string.IsNullOrEmpty(mainAgent.Model))
@@ -159,23 +160,29 @@ public sealed class StatusService : IStatusService, IDisposable
     private void AppendAgentEmojiAndName(AgentStatusSnapshot agent)
     {
         var registryAgent = AgentRegistry.Agents.FirstOrDefault(a => a.SessionKey == agent.SessionKey);
-        string emoji;
-        string name;
 
         if (registryAgent != null)
         {
-            emoji = TryGetPersistedEmoji(registryAgent.AgentId) ?? "🤖";
-            name = registryAgent.Name;
+            _sb.Append(TryGetPersistedEmoji(registryAgent.AgentId) ?? "🤖");
+            _sb.Append(' ');
+            var color = TryGetPersistedColor(registryAgent.AgentId);
+            if (!string.IsNullOrWhiteSpace(color))
+            {
+                _sb.Append($"[{color}]");
+                _sb.Append(registryAgent.Name);
+                _sb.Append($"[/]");
+            }
+            else
+            {
+                _sb.Append(registryAgent.Name);
+            }
         }
         else
         {
-            emoji = "🤖";
-            name = !string.IsNullOrEmpty(agent.DisplayName) ? agent.DisplayName : "Agent";
+            _sb.Append("🤖");
+            _sb.Append(' ');
+            _sb.Append(!string.IsNullOrEmpty(agent.DisplayName) ? agent.DisplayName : "Agent");
         }
-
-        _sb.Append(emoji);
-        _sb.Append(' ');
-        _sb.Append(name);
     }
 
     private void AppendTokenUsage(AgentStatusSnapshot agent)
@@ -261,6 +268,18 @@ public sealed class StatusService : IStatusService, IDisposable
         try
         {
             return AgentSettingsPersistenceLegacy.GetPersistedEmoji(agentId);
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    private static string? TryGetPersistedColor(string agentId)
+    {
+        try
+        {
+            return AgentSettingsPersistenceLegacy.GetPersistedColor(agentId);
         }
         catch (InvalidOperationException)
         {
