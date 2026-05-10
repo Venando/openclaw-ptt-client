@@ -113,6 +113,7 @@ public sealed class PythonEnvironment
         var resourcePrefix = "OpenClawPTT.scripts.";
         var allResources = asm.GetManifestResourceNames().ToList();
         var resourceNames = allResources.Where(r => r.StartsWith(resourcePrefix)).ToList();
+        bool allSucceeded = true;
 
         foreach (var resourceName in resourceNames)
         {
@@ -129,12 +130,15 @@ public sealed class PythonEnvironment
             catch (IOException)
             {
                 // File is locked by another process (zombie Python from a previous run).
-                // The script content is already extracted and readable — the running
-                // process can still use the locked file via Read sharing. Skip overwrite.
+                // If the file already exists, it's still readable. If it doesn't exist,
+                // track the failure so we retry on the next call.
+                allSucceeded = false;
                 continue;
             }
         }
 
-        s_extracted = true;
+        if (allSucceeded)
+            s_extracted = true;
+        // If some files failed, s_extracted stays false — next call will retry extraction.
     }
 }
