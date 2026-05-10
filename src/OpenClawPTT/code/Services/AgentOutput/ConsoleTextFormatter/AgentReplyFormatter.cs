@@ -117,15 +117,30 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                     int wsIndex = _wordWrap.FindLastWhitespace();
                     if (wsIndex > 0)
                     {
-                        // Emit everything up to and including the whitespace
+                        // Emit everything up to and including the whitespace.
+                        // The overflowing word stays in the buffer and moves to next line.
                         string beforeWs = _wordWrap.FlushChars(wsIndex + 1);
                         int beforeWsWidth = CharacterWidth.GetDisplayWidth(beforeWs);
                         _output.Write(beforeWs);
                         _wordWrap.RecordWritten(beforeWsWidth);
                     }
+                    else
+                    {
+                        // No whitespace boundary — single long word.
+                        // Emit as many characters as fit visually on the current line.
+                        if (remaining > 0)
+                        {
+                            string lineFit = _wordWrap.FlushCharsByVisualWidth(remaining);
+                            if (lineFit.Length > 0)
+                            {
+                                int fitWidth = CharacterWidth.GetDisplayWidth(lineFit);
+                                _output.Write(lineFit);
+                                _wordWrap.RecordWritten(fitWidth);
+                            }
+                        }
+                    }
 
-                    // If anything remains in the buffer (the word that overflowed),
-                    // move it to the next line
+                    // If anything remains in the buffer, move it to the next line
                     if (_wordWrap.BufferLength > 0)
                     {
                         WriteNewLine();
@@ -267,7 +282,8 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                 int wsIndex = _wordWrap.FindLastWhitespace();
                 if (wsIndex > 0)
                 {
-                    // Emit everything up to and including the whitespace
+                    // Emit everything up to and including the whitespace.
+                    // The overflowing word stays in buffer → moves to next line.
                     string beforeWs = _wordWrap.FlushChars(wsIndex + 1);
                     int beforeWsWidth = CharacterWidth.GetDisplayWidth(beforeWs);
                     _output.Write(beforeWs);
@@ -275,13 +291,10 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                     _wordWrap.RecordWritten(beforeWsWidth);
                     nonTagCharsSinceLastWhitespace = 0;
                 }
-
-                // If there's still content that doesn't fit, try to fit part of it
-                if (_wordWrap.BufferLength > 0)
+                else
                 {
-                    remaining = _wordWrap.AvailableWidth - _wordWrap.CurrentLineLength;
-
-                    // Emit whatever fits visually on the current line
+                    // No whitespace boundary — single long word/text run.
+                    // Emit whatever fits visually on the current line.
                     if (remaining > 0)
                     {
                         string remainingFit = _wordWrap.FlushCharsByVisualWidth(remaining);
@@ -294,21 +307,23 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                             nonTagCharsSinceLastWhitespace = 0;
                         }
                     }
+                }
 
-                    if (_wordWrap.BufferLength > 0)
+                // If there's still content that doesn't fit, handle remaining tags
+                // and move to the next line
+                if (_wordWrap.BufferLength > 0)
+                {
+                    string remainingBuf = _wordWrap.PeekBuffer();
+                    int tagLen = remainingBuf.Length - visibleWordWidth;
+
+                    if (tagLen > 0 && _wordWrap.CurrentLineLength <= 0)
                     {
-                        string remainingBuf = _wordWrap.PeekBuffer();
-                        int tagLen = remainingBuf.Length - visibleWordWidth;
-
-                        if (tagLen > 0 && _wordWrap.CurrentLineLength <= 0)
-                        {
-                            _output.Write(remainingBuf.Substring(0, tagLen));
-                            _wordWrap.RemoveFromBuffer(tagLen);
-                            nonTagCharsSinceLastWhitespace = 0;
-                        }
-
-                        WriteNewLine();
+                        _output.Write(remainingBuf.Substring(0, tagLen));
+                        _wordWrap.RemoveFromBuffer(tagLen);
+                        nonTagCharsSinceLastWhitespace = 0;
                     }
+
+                    WriteNewLine();
                 }
             }
         }
