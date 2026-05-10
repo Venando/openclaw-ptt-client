@@ -22,7 +22,7 @@ public sealed class ThinkingDisplayHandler
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _shellHost = shellHost;
-        _toolOutput = new ToolOutputHelper(shellHost!, _config.RightMarginIndent);
+        _toolOutput = new ToolOutputHelper(shellHost!, _config.ReservedRightMargin);
     }
 
     public void DisplayThinking(string thinking)
@@ -70,12 +70,11 @@ public sealed class ThinkingDisplayHandler
         if (!string.IsNullOrEmpty(thinking))
         {
             // Available width: min of 80 and console width minus overhead
-            int consoleWidth = 80;
-            try { consoleWidth = Console.WindowWidth; } catch { }
+            int consoleWidth = ConsoleHelper.GetWindowWidth();
 
             // Estimate prefix visual width (~5 chars for "  💭 ", variable for rest)
             int prefixWidth = TextWidth.GetVisualWidth("  💭 Thinking ");
-            int maxLineWidth = Math.Min(79, consoleWidth - prefixWidth - _config.RightMarginIndent);
+            int maxLineWidth = Math.Min(79, consoleWidth - prefixWidth - _config.ReservedRightMargin);
             if (maxLineWidth < 20) maxLineWidth = 79; // fallback
 
             var wrappedLines = TextWidth.WrapToVisualWidth(thinking, maxLineWidth);
@@ -114,7 +113,7 @@ public sealed class ThinkingDisplayHandler
         string prefix = $"  💭 Thinking: ";
         var formatter = new AgentReplyFormatter(
             prefix,
-            _config.RightMarginIndent,
+            _config.ReservedRightMargin,
             prefixAlreadyPrinted: false,
             output: capturingConsole);
 

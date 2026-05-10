@@ -79,6 +79,9 @@ public class StreamShellCapturingConsoleTests
         public System.Threading.Tasks.Task Run(System.Threading.CancellationToken cancellationToken = default) => System.Threading.Tasks.Task.CompletedTask;
         public void Clear() { Messages.Clear(); }
         public void Stop() { }
+        public void SetRightMarginIndent(int margin) { }
+        public void SetInputPrefix(string prefix) { }
+        public void SetContinuationPrefix(string prefix) { }
         public void Dispose() { }
     }
 }

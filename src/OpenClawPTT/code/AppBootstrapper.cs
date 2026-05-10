@@ -1,3 +1,4 @@
+using Spectre.Console;
 using OpenClawPTT.Services;
 
 namespace OpenClawPTT;
@@ -50,6 +51,21 @@ public sealed class AppBootstrapper : IDisposable
             var shellTask = _shellHost.Run(_cts.Token);
 
             var cfg = await _configService.LoadOrSetupAsync(_shellHost, ct: _cts.Token);
+
+            // Compute final right-edge margin once: max(config indent, 10% of console width)
+            cfg.ReservedRightMargin = Math.Max(
+                cfg.RightMarginIndent,
+                (int)(ConsoleHelper.GetWindowWidth() * 0.1));
+
+            // Apply StreamShell settings and console properties from loaded AppConfig
+            _shellHost.SetRightMarginIndent(cfg.ReservedRightMargin);
+            _console.UserMessagePrefix = cfg.UserMessagePrefix;
+            _console.ReservedRightMargin = cfg.ReservedRightMargin;
+
+            // Match input prefix visual width to user message prefix (keep StreamShell default markup)
+            int prefixWidth = Markup.Remove(cfg.UserMessagePrefix).Length;
+            _shellHost.SetInputPrefix($"[bold SkyBlue1]{new string(' ', Math.Max(0, prefixWidth - 2))}> [/]");
+            _shellHost.SetContinuationPrefix(new string(' ', prefixWidth));
 
             // Load persistent agent settings from agents.json and initialize DI
             var agentSettings = new AgentSettingsService(cfg.DataDir, _console);

@@ -38,6 +38,9 @@ public class ToolDisplayHandlerIntegrationTests
         public Task Run(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public void Clear() { Messages.Clear(); }
         public void Stop() { }
+        public void SetRightMarginIndent(int margin) { }
+        public void SetInputPrefix(string prefix) { }
+        public void SetContinuationPrefix(string prefix) { }
         public void Dispose() { }
     }
 
