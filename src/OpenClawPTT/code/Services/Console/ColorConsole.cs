@@ -31,6 +31,27 @@ public sealed class ColorConsole : IColorConsole
         _shellHost = shellHost ?? throw new ArgumentNullException(nameof(shellHost));
     }
 
+    /// <inheritdoc />
+    public void ApplyConsoleConfig(AppConfig config)
+    {
+        if (config == null) throw new ArgumentNullException(nameof(config));
+
+        // Compute final right-edge margin: max(config indent, 10% of console width)
+        ReservedRightMargin = Math.Max(
+            config.RightMarginIndent,
+            (int)(ConsoleHelper.GetWindowWidth() * 0.1));
+
+        UserMessagePrefix = config.UserMessagePrefix;
+
+        // Apply StreamShell settings
+        _shellHost.SetRightMarginIndent(ReservedRightMargin);
+
+        // Match input prefix visual width to user message prefix (keep StreamShell default markup)
+        int prefixWidth = Markup.Remove(config.UserMessagePrefix).Length;
+        _shellHost.SetInputPrefix($"[bold SkyBlue1]{new string(' ', Math.Max(0, prefixWidth - 2))}> [/]");
+        _shellHost.SetContinuationPrefix(new string(' ', prefixWidth));
+    }
+
     private AgentReplyFormatter GetOrCreateUserMessageFormatter()
     {
         if (_userMessageFormatter == null)

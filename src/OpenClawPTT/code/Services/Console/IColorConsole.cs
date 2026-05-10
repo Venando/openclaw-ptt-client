@@ -83,6 +83,11 @@ public interface IColorConsole
     
     // ── Logging ────────────────────────────────────────────────
 
+    /// <summary>Applies terminal display configuration from an AppConfig.
+    /// Computes the right-edge margin, sets up input prompt prefixes, and updates
+    /// console properties to match the loaded configuration.</summary>
+    void ApplyConsoleConfig(AppConfig config);
+
     /// <summary>Gets or sets the current log level threshold. Messages below this level are suppressed.</summary>
     LogLevel LogLevel { get; set; }
 
