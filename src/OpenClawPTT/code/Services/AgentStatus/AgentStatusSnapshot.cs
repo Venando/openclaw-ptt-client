@@ -39,32 +39,37 @@ public sealed class AgentStatusSnapshot
     /// <summary>
     /// True if the agent appears to be actively running.
     /// </summary>
-    public bool IsRunning => Status?.Equals("running", StringComparison.OrdinalIgnoreCase) == true;
+    public bool IsRunning =>
+        Status?.Equals("running", StringComparison.OrdinalIgnoreCase) == true
+        || (IsSubagent && HasActiveSubagentRun == true);
 
     /// <summary>
-    /// True if the agent has finished its current task (stop or aborted).
+    /// True if the agent has finished its current task.
     /// </summary>
-    public bool IsFinished => StopReason is "stop" or "aborted";
+    public bool IsFinished =>
+        StopReason is "stop" or "aborted"
+        || (IsSubagent && SubagentRunState == "historical");
 
     /// <summary>
-    /// Returns a short display label for the bottom panel.
+    /// Returns a status emoji based on the agent/subagent state.
     /// </summary>
-    public string GetStatusLabel()
+    public string GetStatusEmoji()
     {
+        // Subagent states
         if (IsSubagent)
         {
-            if (SubagentRunState == "historical" || IsFinished)
-                return "[grey]done[/]";
-            if (HasActiveSubagentRun == true)
-                return "[green]running[/]";
-            return "[yellow]waiting[/]";
+            if (StopReason == "toolUse") return "🛠️";
+            if (StopReason == "aborted") return "🔴";
+            if (SubagentRunState == "historical" || IsFinished) return "✅";
+            if (HasActiveSubagentRun == true || Status == "running") return "🟢";
+            return "⏳";
         }
 
-        // Main agent
-        if (Status == "done")
-            return "[grey]idle[/]";
-        if (IsFinished)
-            return "[yellow]waiting[/]";
-        return "[green]running[/]";
+        // Main agent states
+        if (StopReason == "toolUse") return "🛠️";
+        if (StopReason == "aborted") return "🔴";
+        if (Status == "running") return "🟢";
+        if (Status == "done") return "⏳";
+        return "⚪";
     }
 }
