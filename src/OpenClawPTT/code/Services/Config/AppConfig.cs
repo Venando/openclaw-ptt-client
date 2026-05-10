@@ -60,7 +60,7 @@ public sealed class AppConfig
     // Text formatting
     public int RightMarginIndent { get; set; } = 5; // Minimum right margin indent in characters
     public bool EnableWordWrap { get; set; } = true; // Enable word wrapping and margin indent
-    public string UserMessagePrefix { get; set; } = " [green] You:[/] ";
+    public string UserMessagePrefix { get; set; } = "[green] Me:[/] ";
 
     /// <summary>The right-edge margin reserved for display, computed once after loading config.
     /// Equals max(RightMarginIndent, 10% of console width).</summary>

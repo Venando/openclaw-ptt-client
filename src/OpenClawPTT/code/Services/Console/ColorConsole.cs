@@ -120,8 +120,7 @@ public sealed class ColorConsole : IColorConsole
     /// <inheritdoc />
     public void PrintUserMessage(string text)
     {
-        var prefix = "[green]  You:[/] ";
-        PrintFormatted(prefix, text);
+        PrintFormatted(UserMessagePrefix, text);
     }
 
     public void PrintFormatted(string prefix, string text)
