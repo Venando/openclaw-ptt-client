@@ -188,17 +188,6 @@ public class GatewayMessager : IDisposable, IRpcCaller
         if (snapshot != null)
         {
             _agentStatusTracker.Update(snapshot);
-
-            // If a subagent finished (stop or aborted), mark it done after a short grace
-            if (snapshot.IsSubagent && snapshot.IsFinished)
-            {
-                // Subagents with stop/aborted are done; keep them briefly then remove
-                _ = Task.Run(async () =>
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(5));
-                    _agentStatusTracker.Remove(snapshot.SessionKey);
-                });
-            }
         }
         // Also handle explicit subagent creation events that may not carry a nested session
         if (name.Contains("subagent", StringComparison.OrdinalIgnoreCase) ||

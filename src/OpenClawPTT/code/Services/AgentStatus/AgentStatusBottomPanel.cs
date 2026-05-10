@@ -36,7 +36,9 @@ public sealed class AgentStatusBottomPanel : IBottomPanel
 
         var all = _tracker.All;
         var mainAgents = all.Where(s => !s.IsSubagent).ToList();
-        var activeSubs = all.Where(s => s.IsSubagent && !s.IsFinished).ToList();
+        // Show ALL subagents (active + recently finished), filtering only those
+        // that finished more than 30 seconds ago to keep the panel informative.
+        var activeSubs = all.Where(s => s.IsSubagent && !ShouldHideSubagent(s)).ToList();
 
         // Group subagents by parent
         var subagentGroups = activeSubs
@@ -162,6 +164,21 @@ public sealed class AgentStatusBottomPanel : IBottomPanel
         temp = temp.Replace("\x01", "[").Replace("\x02", "]");
 
         return temp.Length;
+    }
+
+    private static bool ShouldHideSubagent(AgentStatusSnapshot s)
+    {
+        // Hide finished subagents only after a 30-second grace period so the
+        // user sees the ✅ completion marker before the row disappears.
+        if (!s.IsFinished)
+            return false;
+
+        var endedOrUpdated = s.EndedAt ?? s.UpdatedAt;
+        if (endedOrUpdated == null)
+            return false;
+
+        var elapsed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - endedOrUpdated.Value;
+        return elapsed > 30_000; // 30 seconds
     }
 
     // ─────────────────────────────────────────────────────────────────

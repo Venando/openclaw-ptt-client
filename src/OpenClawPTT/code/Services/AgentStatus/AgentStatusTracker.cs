@@ -14,6 +14,16 @@ public sealed class AgentStatusTracker : IAgentStatusTracker
     {
         lock (_lock)
         {
+            // Preserve ParentSessionKey from existing snapshot if new one lacks it.
+            // This prevents a subagent from "demoting" to main agent when a later
+            // payload omits the parent field.
+            if (string.IsNullOrEmpty(snapshot.ParentSessionKey)
+                && _snapshots.TryGetValue(snapshot.SessionKey, out var existing)
+                && !string.IsNullOrEmpty(existing.ParentSessionKey))
+            {
+                snapshot = snapshot with { ParentSessionKey = existing.ParentSessionKey };
+            }
+
             _snapshots[snapshot.SessionKey] = snapshot;
         }
         Changed?.Invoke();

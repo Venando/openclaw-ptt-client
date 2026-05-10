@@ -6,7 +6,7 @@ namespace OpenClawPTT.Services;
 /// Immutable snapshot of an agent or subagent's status.
 /// Stores all extractable data from gateway payloads for future use.
 /// </summary>
-public sealed class AgentStatusSnapshot
+public sealed record AgentStatusSnapshot
 {
     public string SessionKey { get; init; } = string.Empty;
     public string? ParentSessionKey { get; init; }
@@ -32,9 +32,11 @@ public sealed class AgentStatusSnapshot
     public long? UpdatedAt { get; init; }
 
     /// <summary>
-    /// True if this snapshot represents a subagent (has a parent session key).
+    /// True if this snapshot represents a subagent.
+    /// Detects via explicit parentSessionKey OR the sessionKey pattern (agent:*:subagent:*).
     /// </summary>
-    public bool IsSubagent => !string.IsNullOrEmpty(ParentSessionKey);
+    public bool IsSubagent => !string.IsNullOrEmpty(ParentSessionKey)
+        || SessionKey.Contains(":subagent:", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// True if the agent appears to be actively running.
@@ -48,7 +50,7 @@ public sealed class AgentStatusSnapshot
     /// </summary>
     public bool IsFinished =>
         StopReason is "stop" or "aborted"
-        || (IsSubagent && SubagentRunState == "historical");
+        || (IsSubagent && SubagentRunState == "historical" && HasActiveSubagentRun != true);
 
     /// <summary>
     /// Returns a status emoji based on the agent/subagent state.
