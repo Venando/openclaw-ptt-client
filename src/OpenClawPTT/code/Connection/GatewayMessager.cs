@@ -58,7 +58,7 @@ public class GatewayMessager : IDisposable, IRpcCaller
         _dispatcher.RegisterHandler<ModelFallbackEvent>(
             new ModelFallbackHandler(_console));
         _dispatcher.RegisterHandler<SideResultEvent>(
-            new SideResultHandler(_console));
+            new SideResultHandler(_console, _cfg));
         _dispatcher.RegisterHandler<GatewayEvent>(
             new GatewayEventHandler(_console));
     }
