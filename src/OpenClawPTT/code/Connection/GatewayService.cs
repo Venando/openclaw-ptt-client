@@ -247,6 +247,26 @@ public sealed class GatewayService : IGatewayService
         {
             _coordinator.Dispose();
             _gatewayClient.Dispose();
+
+            // Observe the TTS wire task to prevent unobserved task exceptions.
+            // The task catches all its own exceptions, so GetAwaiter().GetResult()
+            // is safe from re-throwing. This ensures the task is fully observed
+            // on shutdown even if the continuation is still running.
+            try
+            {
+                _ttsWireTask?.GetAwaiter().GetResult();
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected on shutdown — TTS init was cancelled
+            }
+            catch (Exception ex)
+            {
+                // Should never reach here (WireTtsOnProviderReadyAsync catches all),
+                // but defensive logging just in case.
+                _console?.LogError("gateway", $"TTS wire task threw: {ex.Message}");
+            }
+
             _disposed = true;
         }
     }
