@@ -24,8 +24,9 @@ public sealed class AgentSwitchingCommands
     private readonly IPttStateMachine _pttStateMachine;
     private readonly IConfigurationService _configService;
     private readonly ErrorLogStore _errorLog;
+    private readonly IStatusService _statusService;
 
-    public AgentSwitchingCommands(IStreamShellHost host, ITextMessageSender textSender, IGatewayService gatewayService, AppConfig appConfig, IColorConsole console, IAgentSettingsPersistence agentSettingsPersistence, IPttStateMachine pttStateMachine, IConfigurationService configService, ErrorLogStore errorLog)
+    public AgentSwitchingCommands(IStreamShellHost host, ITextMessageSender textSender, IGatewayService gatewayService, AppConfig appConfig, IColorConsole console, IAgentSettingsPersistence agentSettingsPersistence, IPttStateMachine pttStateMachine, IConfigurationService configService, ErrorLogStore errorLog, IStatusService statusService)
     {
         _host = host;
         _textSender = textSender;
@@ -36,6 +37,7 @@ public sealed class AgentSwitchingCommands
         _pttStateMachine = pttStateMachine;
         _configService = configService;
         _errorLog = errorLog;
+        _statusService = statusService;
     }
 
     /// <summary>Handler for /crew — lists available agents with all settings.</summary>
@@ -389,12 +391,14 @@ public sealed class AgentSwitchingCommands
     /// <summary>Handler for /reconnect — attempt to reconnect to the gateway.</summary>
     public async Task HandleReconnectCommand(string[] args)
     {
+        _statusService.SetGatewayStatus("Reconnecting", StatusColor.Yellow);
         _host.AddMessage("[cyan2]  Attempting to reconnect to gateway...[/]");
         try
         {
             // GatewayService.RecreateWithConfig creates a fresh internal client
             // but we need to dispose the old one. GatewayService handles this internally.
             await _gatewayService.ConnectAsync(CancellationToken.None);
+            _statusService.SetGatewayStatus("Connected", StatusColor.Green);
             _host.AddMessage("[green]  Reconnected successfully.[/]");
             // Pull session history for the now-active agent
             var sessionKey = AgentRegistry.ActiveSessionKey;
@@ -403,6 +407,7 @@ public sealed class AgentSwitchingCommands
         }
         catch (Exception ex)
         {
+            _statusService.SetGatewayStatus("Disconnected", StatusColor.Red);
             var classification = GatewayErrorClassifier.Classify(ex);
             _errorLog.Write(classification.ToLogEntry());
             _host.AddMessage($"[red]  Reconnect failed: {classification.HumanMessage}[/]");

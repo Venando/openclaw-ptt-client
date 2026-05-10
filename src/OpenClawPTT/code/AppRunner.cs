@@ -219,7 +219,8 @@ public class AppRunner : IDisposable
             pttStateMachine: pttStateMachine,
             directLlmService: directLlmService.IsConfigured ? directLlmService : null,
             ttsSummarizer: ttsSummarizer,
-            errorLogStore: _errorLog
+            errorLogStore: _errorLog,
+            statusService: _statusService
         );
         await shellCommands.RegisterAsync();
 
