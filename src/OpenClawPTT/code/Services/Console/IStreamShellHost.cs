@@ -14,4 +14,7 @@ public interface IStreamShellHost
     event Action<StreamShell.UserInputSubmittedEventArgs>? UserInputSubmitted;
     Task Run(CancellationToken cancellationToken = default);
     void Stop();
+
+    /// <summary>Sets the right margin indent (in characters) on the underlying StreamShell settings.</summary>
+    void SetRightMarginIndent(int margin);
 }

@@ -38,5 +38,7 @@ public sealed class StreamShellHost : IStreamShellHost, IDisposable
 
     public void Stop() => _host.Stop();
 
+    public void SetRightMarginIndent(int margin) => _host.Settings.WrappingRightMargin = margin;
+
     public void Dispose() => _host.Dispose();
 }

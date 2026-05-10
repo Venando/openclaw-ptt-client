@@ -51,6 +51,9 @@ public sealed class AppBootstrapper : IDisposable
 
             var cfg = await _configService.LoadOrSetupAsync(_shellHost, ct: _cts.Token);
 
+            // Apply right margin indent from AppConfig to StreamShell settings
+            _shellHost.SetRightMarginIndent(cfg.RightMarginIndent);
+
             // Load persistent agent settings from agents.json and initialize DI
             var agentSettings = new AgentSettingsService(cfg.DataDir, _console);
             agentSettings.Load();
