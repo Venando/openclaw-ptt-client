@@ -28,6 +28,9 @@ public interface IColorConsole
     /// <summary>Spectre markup prefix for user messages (e.g. " [green] You:[/] ").</summary>
     string UserMessagePrefix { get; set; }
 
+    /// <summary>Pre-computed right-edge margin in characters (max of config indent and 10% console width).</summary>
+    int ReservedRightMargin { get; set; }
+
     void PrintFormatted(string prefix, string text);
 
     /// <summary>Display user's message with pre-formatted markup.</summary>

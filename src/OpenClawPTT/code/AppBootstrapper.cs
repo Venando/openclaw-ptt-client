@@ -52,11 +52,21 @@ public sealed class AppBootstrapper : IDisposable
 
             var cfg = await _configService.LoadOrSetupAsync(_shellHost, ct: _cts.Token);
 
-            // Apply StreamShell settings from loaded AppConfig
-            _shellHost.SetRightMarginIndent(cfg.RightMarginIndent);
-            _shellHost.SetInputPrefix(" > ");
-            _shellHost.SetContinuationPrefix(new string(' ', Markup.Remove(cfg.UserMessagePrefix).Length));
+            // Compute final right-edge margin once: max(config indent, 10% of console width)
+            int consoleWidth;
+            try { consoleWidth = Console.WindowWidth > 0 ? Console.WindowWidth : 80; }
+            catch { consoleWidth = 80; }
+            cfg.ReservedRightMargin = Math.Max(cfg.RightMarginIndent, (int)(consoleWidth * 0.1));
+
+            // Apply StreamShell settings and console properties from loaded AppConfig
+            _shellHost.SetRightMarginIndent(cfg.ReservedRightMargin);
             _console.UserMessagePrefix = cfg.UserMessagePrefix;
+            _console.ReservedRightMargin = cfg.ReservedRightMargin;
+
+            // Match input prefix visual width to user message prefix (keep StreamShell default markup)
+            int prefixWidth = Markup.Remove(cfg.UserMessagePrefix).Length;
+            _shellHost.SetInputPrefix($"[bold SkyBlue1]{new string(' ', Math.Max(0, prefixWidth - 2))}> [/]");
+            _shellHost.SetContinuationPrefix(new string(' ', prefixWidth));
 
             // Load persistent agent settings from agents.json and initialize DI
             var agentSettings = new AgentSettingsService(cfg.DataDir, _console);

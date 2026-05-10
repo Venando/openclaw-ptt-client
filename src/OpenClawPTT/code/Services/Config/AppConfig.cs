@@ -62,6 +62,11 @@ public sealed class AppConfig
     public bool EnableWordWrap { get; set; } = true; // Enable word wrapping and margin indent
     public string UserMessagePrefix { get; set; } = " [green] You:[/] ";
 
+    /// <summary>The right-edge margin reserved for display, computed once after loading config.
+    /// Equals max(RightMarginIndent, 10% of console width).</summary>
+    [JsonIgnore]
+    public int ReservedRightMargin { get; set; }
+
     // Visual feedback settings
     public VisualMode VisualMode { get; set; } = VisualMode.SolidDot;
 

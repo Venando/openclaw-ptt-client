@@ -8,7 +8,7 @@ namespace OpenClawPTT;
 /// </summary>
 public sealed class AgentReplyFormatter : IAgentReplyFormatter
 {
-    private readonly int _rightMarginIndent;
+    private readonly int _reservedRightMargin;
     private readonly IFormattedOutput _output;
     private readonly TagStack _openMarkupTags = new();
 
@@ -22,16 +22,17 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     /// Convenience constructor using default right-margin indent (10).
     /// </summary>
     public AgentReplyFormatter(string prefix, bool prefixAlreadyPrinted, IFormattedOutput output)
-        : this(prefix, rightMarginIndent: 10, prefixAlreadyPrinted, output)
+        : this(prefix, reservedRightMargin: 10, prefixAlreadyPrinted, output)
     {
     }
 
     /// <summary>
     /// Constructor with explicit word-wrap parameters.
+    /// <param name="reservedRightMargin">Final right-edge margin in characters (already includes any console-width scaling).</param>
     /// </summary>
-    public AgentReplyFormatter(string prefix, int rightMarginIndent, bool prefixAlreadyPrinted, IFormattedOutput output)
+    public AgentReplyFormatter(string prefix, int reservedRightMargin, bool prefixAlreadyPrinted, IFormattedOutput output)
     {
-        _rightMarginIndent = rightMarginIndent;
+        _reservedRightMargin = reservedRightMargin;
         _output = output;
         Init(prefix, prefixAlreadyPrinted);
     }
@@ -46,23 +47,17 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     }
 
     /// <summary>
-    /// Calculates available text width: console width minus prefix width minus the right-edge margin.
-    /// The right-edge margin reserves at least <see cref="_rightMarginIndent"/> characters,
-    /// but scales up to 10% of console width on wider terminals for visual comfort.
+    /// Calculates available text width: console width minus prefix width minus the pre-computed
+    /// right-edge margin (<see cref="_reservedRightMargin"/>).
     /// Falls back to half the console width when the nominal width is unusably small.
     /// </summary>
     private int GetAvailableWidth()
     {
-        // Reserve the larger of the configured indent or 10% of console width
-        // as the minimum right-edge margin — prevents text running to the very edge.
-        int reservedRightMargin = Math.Max(_rightMarginIndent, (int)(_consoleWidth * 0.1));
-
-        // After the first line, the prefix is replaced by an equal-width spacer.
         int usedPrefixWidth = _prefixAlreadyPrinted
             ? _newlinePrefixLenght.Length
             : _prefix.Length;
 
-        int available = _consoleWidth - usedPrefixWidth - reservedRightMargin;
+        int available = _consoleWidth - usedPrefixWidth - _reservedRightMargin;
         return available > 0 ? available : _consoleWidth / 2;
     }
 

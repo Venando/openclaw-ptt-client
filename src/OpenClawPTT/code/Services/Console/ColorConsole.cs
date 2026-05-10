@@ -19,6 +19,9 @@ public sealed class ColorConsole : IColorConsole
     /// <inheritdoc />
     public string UserMessagePrefix { get; set; } = " [green] You:[/] ";
 
+    /// <inheritdoc />
+    public int ReservedRightMargin { get; set; } = 10;
+
     /// <summary>
     /// Creates a new ColorConsole instance with the specified StreamShell host.
     /// Log level defaults to Error (only errors shown). Update <see cref="LogLevel"/> at runtime.
@@ -33,7 +36,7 @@ public sealed class ColorConsole : IColorConsole
         if (_userMessageFormatter == null)
         {
             _userMessageCapturingConsole = new StreamShellCapturingConsole(_shellHost);
-            _userMessageFormatter = new AgentReplyFormatter("", 10, prefixAlreadyPrinted: false, output: _userMessageCapturingConsole);
+            _userMessageFormatter = new AgentReplyFormatter("", ReservedRightMargin, prefixAlreadyPrinted: false, output: _userMessageCapturingConsole);
         }
         return _userMessageFormatter;
     }

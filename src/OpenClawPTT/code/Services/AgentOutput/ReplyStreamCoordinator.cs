@@ -81,8 +81,7 @@ public sealed class ReplyStreamCoordinator : IDisposable
     {
         int consoleWidth;
         try { consoleWidth = Console.WindowWidth; } catch { consoleWidth = 80; }
-        int rightMargin = Math.Max(_config.RightMarginIndent, (int)(consoleWidth * 0.1));
-        int availableWidth = consoleWidth - _prefixLength - rightMargin;
+        int availableWidth = consoleWidth - _prefixLength - _config.ReservedRightMargin;
         if (availableWidth <= 0) availableWidth = consoleWidth / 2;
 
         var markdownBody = MarkdownToSpectreConverter.Convert(body, availableWidth);
@@ -134,14 +133,14 @@ public sealed class ReplyStreamCoordinator : IDisposable
             {
                 _capturingConsole = new StreamShellCapturingConsole(shellHost);
                 _formatter = new AgentReplyFormatter(
-                    _currentPrefix, _config.RightMarginIndent,
+                    _currentPrefix, _config.ReservedRightMargin,
                     prefixAlreadyPrinted: true, output: _capturingConsole);
             }
             else
             {
                 _capturingConsole = null;
                 _formatter = new AgentReplyFormatter(
-                    _currentPrefix, _config.RightMarginIndent,
+                    _currentPrefix, _config.ReservedRightMargin,
                     prefixAlreadyPrinted: true, output: null!);
             }
         }

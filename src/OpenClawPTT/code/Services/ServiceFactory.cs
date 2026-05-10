@@ -45,7 +45,7 @@ public class ServiceFactory : IServiceFactory
     {
         var jobRunner = new BackgroundJobRunner(msg => _colorConsole.Log("jobrunner", msg));
         var replyCoordinator = new ReplyStreamCoordinator(cfg, _colorConsole);
-        var toolHandler = new ToolDisplayHandler(cfg.RightMarginIndent, _shellHost);
+        var toolHandler = new ToolDisplayHandler(cfg.ReservedRightMargin, _shellHost);
         var thinkingHandler = new ThinkingDisplayHandler(cfg, _shellHost);
 
         AudioResponseHandler? audioHandler = null;
