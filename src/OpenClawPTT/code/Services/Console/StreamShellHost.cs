@@ -19,7 +19,7 @@ public sealed class StreamShellHost : IStreamShellHost, IDisposable
 
     public void AddCommand(StreamShell.Command command) => _host.AddCommand(command);
 
-    public event Action<string, StreamShell.InputType, System.Collections.Generic.IReadOnlyList<StreamShell.Attachment>>? UserInputSubmitted
+    public event Action<StreamShell.UserInputSubmittedEventArgs>? UserInputSubmitted
     {
         add => _host.UserInputSubmitted += value;
         remove => _host.UserInputSubmitted -= value;

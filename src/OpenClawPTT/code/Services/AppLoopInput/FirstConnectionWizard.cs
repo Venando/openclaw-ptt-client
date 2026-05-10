@@ -53,9 +53,10 @@ public sealed class FirstConnectionWizard
         _host.UserInputSubmitted += OnOptInInput;
     }
 
-    private void OnOptInInput(string input, InputType type, IReadOnlyList<Attachment> attachments)
+    private void OnOptInInput(StreamShell.UserInputSubmittedEventArgs e)
     {
-        if (type == InputType.Command) return;
+        if (e.InputType == StreamShell.InputType.Command) return;
+        string? input = e.TextWithoutAttachments ?? e.RawOutput;
         if (input == null) return;
 
         _host.UserInputSubmitted -= OnOptInInput;
@@ -109,9 +110,10 @@ public sealed class FirstConnectionWizard
         _host.UserInputSubmitted += OnAgentPromptInput;
     }
 
-    private void OnAgentPromptInput(string input, InputType type, IReadOnlyList<Attachment> attachments)
+    private void OnAgentPromptInput(StreamShell.UserInputSubmittedEventArgs e)
     {
-        if (type == InputType.Command) return;
+        if (e.InputType == StreamShell.InputType.Command) return;
+        string? input = e.TextWithoutAttachments ?? e.RawOutput;
         if (input == null) return;
 
         _host.UserInputSubmitted -= OnAgentPromptInput;

@@ -11,7 +11,7 @@ public sealed class FakeStreamShellHost : IStreamShellHost, IDisposable
     public readonly List<string> Messages = new();
     public readonly List<StreamShell.Command> Commands = new();
 
-    public event Action<string, StreamShell.InputType, System.Collections.Generic.IReadOnlyList<StreamShell.Attachment>>? UserInputSubmitted;
+    public event Action<StreamShell.UserInputSubmittedEventArgs>? UserInputSubmitted;
 
     public void AddMessage(string markup) => Messages.Add(markup);
 
@@ -26,6 +26,12 @@ public sealed class FakeStreamShellHost : IStreamShellHost, IDisposable
     public void Dispose() { /* no-op */ }
 
     /// <summary>Simulate user submitting plain text input.</summary>
-    public void SubmitInput(string input) =>
-        UserInputSubmitted?.Invoke(input, StreamShell.InputType.PlainText, Array.Empty<StreamShell.Attachment>());
+    public void SubmitInput(string input)
+    {
+        var args = new StreamShell.UserInputSubmittedEventArgs();
+        // Use RawOutput since TextWithoutAttachments may be computed
+        var prop = typeof(StreamShell.UserInputSubmittedEventArgs).GetProperty("RawOutput");
+        prop?.SetValue(args, input);
+        UserInputSubmitted?.Invoke(args);
+    }
 }

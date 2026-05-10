@@ -8,7 +8,7 @@ public interface IStreamShellHost
     void AddMessage(string markup);
     void AddCommand(StreamShell.Command command);
     void Clear();
-    event Action<string, StreamShell.InputType, System.Collections.Generic.IReadOnlyList<StreamShell.Attachment>>? UserInputSubmitted;
+    event Action<StreamShell.UserInputSubmittedEventArgs>? UserInputSubmitted;
     Task Run(CancellationToken cancellationToken = default);
     void Stop();
 }

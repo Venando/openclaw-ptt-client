@@ -87,11 +87,12 @@ public sealed class ConfigurationWizard
         return _tcs.Task;
     }
 
-    private void OnUserInputSubmitted(string input, StreamShell.InputType type, System.Collections.Generic.IReadOnlyList<StreamShell.Attachment> attachments)
+    private void OnUserInputSubmitted(StreamShell.UserInputSubmittedEventArgs e)
     {
         if (_host == null || _tcs == null)
             return;
 
+        string input = e.TextWithoutAttachments ?? e.RawOutput;
         var rawInput = input.Trim();
         var step = _currentStep;
 

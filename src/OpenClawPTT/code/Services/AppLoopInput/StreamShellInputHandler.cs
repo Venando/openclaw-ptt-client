@@ -153,17 +153,17 @@ public sealed class StreamShellInputHandler : IDisposable
     /// For plain text, sends it as a message (with attachment content prepended).
     /// For commands, StreamShell auto-executes via command registration — nothing to do here.
     /// </summary>
-    private void OnUserInput(string input, InputType type, IReadOnlyList<Attachment> attachments)
+    private void OnUserInput(StreamShell.UserInputSubmittedEventArgs e)
     {
         // Commands are auto-executed by StreamShell — skip
-        if (type == InputType.Command)
+        if (e.InputType == StreamShell.InputType.Command)
             return;
 
         // Mark as typed input (not voice) — clear agent so SISO won't match a different agent
         _pttStateMachine.LastInputWasVoice = false;
         _pttStateMachine.LastTargetAgent = null;
 
-        _messageComposer.TryToComposeMessage(input, attachments, out string? composedMessage);
+        _messageComposer.TryToComposeMessage(e.TextWithAttachmentsExpanded, e.Attachments, out string? composedMessage);
 
         // Use non-blocking send via fire-and-forget since StreamShell fires events synchronously.
         // Exceptions are caught and surfaced inside SendWithAttachmentsAsync.

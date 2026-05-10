@@ -58,11 +58,12 @@ public sealed class AgentConfigWizard
         return Task.CompletedTask;
     }
 
-    private void OnUserInputSubmitted(string input, InputType type, IReadOnlyList<Attachment> attachments)
+    private void OnUserInputSubmitted(StreamShell.UserInputSubmittedEventArgs e)
     {
         try
         {
-            if (type == InputType.Command) return;
+            if (e.InputType == StreamShell.InputType.Command) return;
+            string? input = e.TextWithoutAttachments ?? e.RawOutput;
             if (input == null) return;
 
             var rawInput = input.Trim();
