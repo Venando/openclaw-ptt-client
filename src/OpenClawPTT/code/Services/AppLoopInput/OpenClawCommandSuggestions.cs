@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace OpenClawPTT;
 
@@ -10,17 +9,30 @@ namespace OpenClawPTT;
 /// </summary>
 public static class OpenClawCommandSuggestions
 {
-    /// <summary>
-    /// Common config paths for the /config command (show/get/set/unset).
-    /// </summary>
+    // ── Common choice sets ─────────────────────────────────────────────────
+
+    private static readonly string[] OnOff = ["on", "off"];
+    private static readonly string[] OnOffStatus = ["on", "off", "status"];
+    private static readonly string[] OnOffFull = ["on", "off", "full"];
+    private static readonly string[] OnOffStream = ["on", "off", "stream"];
+    private static readonly string[] OnOffAskFull = ["on", "off", "ask", "full"];
+    private static readonly string[] ShowGetSetUnset =
+    [
+        "show ",
+        "get ",
+        "set ",
+        "unset ",
+    ];
+
+    private static readonly string[] ThinkingLevels =
+    [
+        "off", "minimal", "low", "medium", "high", "xhigh", "adaptive", "max"
+    ];
+
+    // ── Config paths ───────────────────────────────────────────────────────
+
     private static readonly string[] ConfigSuggestions =
     [
-        // Subcommands alone
-        "show",
-        "get",
-        "set",
-        "unset",
-
         // Agents defaults
         "show agents.defaults.model",
         "set agents.defaults.model ",
@@ -116,7 +128,50 @@ public static class OpenClawCommandSuggestions
 
     private static readonly Dictionary<string, string[]?> SuggestionsMap = new(StringComparer.OrdinalIgnoreCase)
     {
+        // ── Directives with simple toggles ─────────────────────────────────
+        ["think"] = ThinkingLevels,
+        ["thinking"] = ThinkingLevels,
+        ["t"] = ThinkingLevels,
+        ["verbose"] = OnOffFull,
+        ["v"] = OnOffFull,
+        ["trace"] = OnOff,
+        ["fast"] = OnOffStatus,
+        ["reasoning"] = OnOffStream,
+        ["reason"] = OnOffStream,
+        ["elevated"] = OnOffAskFull,
+        ["elev"] = OnOffAskFull,
+        ["send"] = OnOffStatus,
+        ["usage"] = ["off", "tokens", "full", "cost"],
+        ["session"] = ["idle", "max-age"],
+
+        // ── Discovery / status ─────────────────────────────────────────────
+        ["tools"] = ["compact", "verbose"],
+        ["context"] = ["list", "detail", "json"],
+
+        // ── Subagent / ACP ─────────────────────────────────────────────────
+        ["subagents"] = ["list", "kill", "log", "info", "send", "steer", "spawn"],
+        ["acp"] = ["spawn", "cancel", "steer", "close", "sessions", "status"],
+        ["kill"] = ["all"],
+
+        // ── Owner admin ────────────────────────────────────────────────────
         ["config"] = ConfigSuggestions,
+        ["mcp"] = ShowGetSetUnset,
+        ["plugins"] = ["list", "inspect", "show", "get", "install", "enable", "disable"],
+        ["plugin"] = ["list", "inspect", "show", "get", "install", "enable", "disable"],
+        ["debug"] = ["show", "set", "unset", "reset"],
+        ["allowlist"] = ["list", "add", "remove"],
+
+        // ── TTS / voice ────────────────────────────────────────────────────
+        ["tts"] = ["on", "off", "status", "chat", "latest", "provider", "limit", "summary", "audio", "help"],
+        ["activation"] = ["mention", "always"],
+        ["voice"] = ["status", "list", "set"],
+
+        // ── Plugin / bundled ───────────────────────────────────────────────
+        ["dreaming"] = OnOffStatus,
+        ["pair"] = ["qr", "status", "pending", "approve", "cleanup", "notify"],
+        ["phone"] = ["status", "arm", "disarm"],
+        ["codex"] = ["status", "models", "threads", "resume", "compact", "review", "diagnostics", "account", "mcp", "skills"],
+        ["vc"] = ["join", "leave", "status"],
     };
 
     /// <summary>
