@@ -286,6 +286,93 @@ public static class AgentStatusExtractor
         };
     }
 
+    // ── History message extraction ────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds a partial <see cref="AgentStatusSnapshot"/> from a chat history
+    /// message (which follows a different schema from gateway events).
+    /// Chat messages carry model, provider, stopReason, timestamp, and usage
+    /// (tokens + cost) — but NOT session-level metadata like status/phase.
+    /// The tracker&#39;s <see cref="AgentStatusTracker.Update"/> will merge this
+    /// with any existing snapshot for the session via <c>MergeSnapshots</c>.
+    /// </summary>
+    public static AgentStatusSnapshot? FromHistoryMessage(
+        JsonElement msg, string sessionKey)
+    {
+        if (msg.ValueKind != JsonValueKind.Object)
+            return null;
+
+        if (string.IsNullOrEmpty(sessionKey))
+            return null;
+
+        // ── Top-level fields ───────────────────────────────────────────
+        string? model = null;
+        string? modelProvider = null;
+        string? stopReason = null;
+        long? timestamp = null;
+
+        if (msg.TryGetProperty("model", out var mEl) && mEl.ValueKind == JsonValueKind.String)
+            model = mEl.GetString();
+
+        // Chat messages use "provider" but AgentStatusSnapshot uses ModelProvider
+        if (msg.TryGetProperty("provider", out var pEl) && pEl.ValueKind == JsonValueKind.String)
+            modelProvider = pEl.GetString();
+
+        if (msg.TryGetProperty("stopReason", out var srEl) && srEl.ValueKind == JsonValueKind.String)
+            stopReason = srEl.GetString();
+
+        if (msg.TryGetProperty("timestamp", out var tsEl) && tsEl.ValueKind == JsonValueKind.Number)
+        {
+            if (tsEl.TryGetInt64(out var tVal)) timestamp = tVal;
+        }
+
+        // ── Nested usage ────────────────────────────────────────────────
+        long? inputTokens = null;
+        long? outputTokens = null;
+        long? totalTokens = null;
+        decimal? costUsd = null;
+
+        if (msg.TryGetProperty("usage", out var usageEl) && usageEl.ValueKind == JsonValueKind.Object)
+        {
+            if (usageEl.TryGetProperty("input", out var inp) && inp.ValueKind == JsonValueKind.Number)
+            {
+                if (inp.TryGetInt64(out var v)) inputTokens = v;
+            }
+
+            if (usageEl.TryGetProperty("output", out var outp) && outp.ValueKind == JsonValueKind.Number)
+            {
+                if (outp.TryGetInt64(out var v)) outputTokens = v;
+            }
+
+            if (usageEl.TryGetProperty("totalTokens", out var tt) && tt.ValueKind == JsonValueKind.Number)
+            {
+                if (tt.TryGetInt64(out var v)) totalTokens = v;
+            }
+
+            // usage.cost.total
+            if (usageEl.TryGetProperty("cost", out var costEl) && costEl.ValueKind == JsonValueKind.Object)
+            {
+                if (costEl.TryGetProperty("total", out var ct) && ct.ValueKind == JsonValueKind.Number)
+                {
+                    if (ct.TryGetDecimal(out var d)) costUsd = d;
+                }
+            }
+        }
+
+        return new AgentStatusSnapshot
+        {
+            SessionKey = sessionKey,
+            Model = model,
+            ModelProvider = modelProvider,
+            StopReason = stopReason,
+            UpdatedAt = timestamp,
+            InputTokens = inputTokens,
+            OutputTokens = outputTokens,
+            TotalTokens = totalTokens,
+            EstimatedCostUsd = costUsd,
+        };
+    }
+
     // ── Private JSON helpers ──────────────────────────────────────────────────
 
     private static string? GetString(JsonElement element, string propertyName)
