@@ -223,7 +223,12 @@ public sealed class GatewayClient : IGatewayClient
                     break;
                 }
 
-                var snapshot = AgentStatusExtractor.Extract(_console, messagesEl[i]);
+                // Chat history messages have a different schema from gateway events:
+                // they carry model, provider, token usage, and cost info but NOT
+                // session-level metadata (status, phase, etc.).
+                // Extract what we can and let the tracker merge with existing
+                // snapshots via MergeSnapshots (preserving richer prior data).
+                var snapshot = BuildSnapshotFromHistoryMessage(messagesEl[i], sessionKey);
                 if (snapshot != null)
                 {
                     _agentStatusTracker?.Update(snapshot);
@@ -261,6 +266,91 @@ public sealed class GatewayClient : IGatewayClient
     }
 
     // ─── helpers ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds a partial <see cref="AgentStatusSnapshot"/> from a chat history
+    /// message (which follows a different schema from gateway events).
+    /// Chat messages carry model, provider, stopReason, timestamp, and usage
+    /// (tokens + cost) — but NOT session-level metadata like status/phase.
+    /// The tracker&#39;s <see cref="AgentStatusTracker.Update"/> will merge this
+    /// with any existing snapshot for the session via <c>MergeSnapshots</c>.
+    /// </summary>
+    private static AgentStatusSnapshot? BuildSnapshotFromHistoryMessage(
+        JsonElement msg, string sessionKey)
+    {
+        if (msg.ValueKind != JsonValueKind.Object)
+            return null;
+
+        if (string.IsNullOrEmpty(sessionKey))
+            return null;
+
+        // ── Top-level fields ───────────────────────────────────────────
+        string? model = null;
+        string? modelProvider = null;
+        string? stopReason = null;
+        long? timestamp = null;
+
+        if (msg.TryGetProperty("model", out var mEl) && mEl.ValueKind == JsonValueKind.String)
+            model = mEl.GetString();
+
+        // Chat messages use "provider" but AgentStatusSnapshot uses ModelProvider
+        if (msg.TryGetProperty("provider", out var pEl) && pEl.ValueKind == JsonValueKind.String)
+            modelProvider = pEl.GetString();
+
+        if (msg.TryGetProperty("stopReason", out var srEl) && srEl.ValueKind == JsonValueKind.String)
+            stopReason = srEl.GetString();
+
+        if (msg.TryGetProperty("timestamp", out var tsEl) && tsEl.ValueKind == JsonValueKind.Number)
+        {
+            if (tsEl.TryGetInt64(out var tVal)) timestamp = tVal;
+        }
+
+        // ── Nested usage ────────────────────────────────────────────────
+        long? inputTokens = null;
+        long? outputTokens = null;
+        long? totalTokens = null;
+        decimal? costUsd = null;
+
+        if (msg.TryGetProperty("usage", out var usageEl) && usageEl.ValueKind == JsonValueKind.Object)
+        {
+            if (usageEl.TryGetProperty("input", out var inp) && inp.ValueKind == JsonValueKind.Number)
+            {
+                if (inp.TryGetInt64(out var v)) inputTokens = v;
+            }
+
+            if (usageEl.TryGetProperty("output", out var outp) && outp.ValueKind == JsonValueKind.Number)
+            {
+                if (outp.TryGetInt64(out var v)) outputTokens = v;
+            }
+
+            if (usageEl.TryGetProperty("totalTokens", out var tt) && tt.ValueKind == JsonValueKind.Number)
+            {
+                if (tt.TryGetInt64(out var v)) totalTokens = v;
+            }
+
+            // usage.cost.total
+            if (usageEl.TryGetProperty("cost", out var costEl) && costEl.ValueKind == JsonValueKind.Object)
+            {
+                if (costEl.TryGetProperty("total", out var ct) && ct.ValueKind == JsonValueKind.Number)
+                {
+                    if (ct.TryGetDecimal(out var d)) costUsd = d;
+                }
+            }
+        }
+
+        return new AgentStatusSnapshot
+        {
+            SessionKey = sessionKey,
+            Model = model,
+            ModelProvider = modelProvider,
+            StopReason = stopReason,
+            UpdatedAt = timestamp,
+            InputTokens = inputTokens,
+            OutputTokens = outputTokens,
+            TotalTokens = totalTokens,
+            EstimatedCostUsd = costUsd,
+        };
+    }
 
     private void ThrowIfDisposed()
     {
