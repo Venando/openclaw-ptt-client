@@ -7,7 +7,9 @@ namespace OpenClawPTT.Services;
 /// <summary>
 /// StreamShell bottom panel that displays all agents and their subagent statuses.
 /// Fixed at 5 lines high.
-/// - Lines 1-3: Active subagents (grouped by parent agent, with emoji + status).
+/// - Lines 1-3: Subagent groups — one row per main agent that has active subagents.
+///   Format: "🎩: ⏳ │ ⏳ │ 🟢" (parent emoji + colon + subagent status emojis)
+///   Each row is centered.
 /// - Line 4: All main agents centered, showing emoji, name, color, and status emoji.
 /// </summary>
 public sealed class AgentStatusBottomPanel : IBottomPanel
@@ -36,15 +38,28 @@ public sealed class AgentStatusBottomPanel : IBottomPanel
         var mainAgents = all.Where(s => !s.IsSubagent).ToList();
         var activeSubs = all.Where(s => s.IsSubagent && !s.IsFinished).ToList();
 
+        // Group subagents by parent
+        var subagentGroups = activeSubs
+            .GroupBy(s => s.ParentSessionKey ?? "")
+            .Where(g => !string.IsNullOrEmpty(g.Key))
+            .ToList();
+
         // Line 0: Tab autocomplete suggestion slot (must be empty)
         lines[0] = string.Empty;
 
-        // Lines 1-3: Active subagents (up to 3)
-        for (int i = 0; i < 3; i++)
+        // Lines 1-3: Subagent groups (one row per parent agent, up to 3)
+        int groupIdx = 0;
+        for (int line = 1; line <= 3; line++)
         {
-            lines[i + 1] = i < activeSubs.Count
-                ? BuildSubagentLine(activeSubs[i], mainAgents)
-                : string.Empty;
+            if (groupIdx < subagentGroups.Count)
+            {
+                lines[line] = BuildSubagentGroupLine(subagentGroups[groupIdx], mainAgents);
+                groupIdx++;
+            }
+            else
+            {
+                lines[line] = string.Empty;
+            }
         }
 
         // Line 4: All main agents centered
@@ -54,24 +69,33 @@ public sealed class AgentStatusBottomPanel : IBottomPanel
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // Subagent lines
+    // Subagent group line (centered)
+    // Format: "🎩: ⏳ │ ⏳ │ 🟢"
     // ─────────────────────────────────────────────────────────────────
 
-    private static string BuildSubagentLine(AgentStatusSnapshot sub, List<AgentStatusSnapshot> mainAgents)
+    private static string BuildSubagentGroupLine(IGrouping<string, AgentStatusSnapshot> group, List<AgentStatusSnapshot> mainAgents)
     {
-        var parent = mainAgents.FirstOrDefault(m => m.SessionKey == sub.ParentSessionKey);
-        var (parentEmoji, parentColor, parentName) = GetAgentDisplayInfo(parent);
-        var subName = EscapeMarkup(ShortenSubagentName(sub.DisplayName));
-        var statusEmoji = sub.GetStatusEmoji();
+        var parent = mainAgents.FirstOrDefault(m => m.SessionKey == group.Key);
+        var (parentEmoji, _, _) = GetAgentDisplayInfo(parent);
 
-        // Parent indicator: colored emoji + short name
-        var parentIndicator = $"[{parentColor}]{parentEmoji} {parentName}[/]";
+        var sb = new StringBuilder();
+        sb.Append(parentEmoji);
+        sb.Append(": ");
 
-        return $"  {parentIndicator} [grey]├─[/] {statusEmoji} {subName}";
+        var subs = group.ToList();
+        for (int i = 0; i < subs.Count; i++)
+        {
+            if (i > 0)
+                sb.Append(" │ ");
+            sb.Append(subs[i].GetStatusEmoji());
+        }
+
+        return CenterMarkup(sb.ToString());
     }
 
     // ─────────────────────────────────────────────────────────────────
     // Main agents line (centered)
+    // Format: "🎩 Maestro 🟢 │ 🦊 Anime 🟢 │ 🤖 Worker ⚪"
     // ─────────────────────────────────────────────────────────────────
 
     private static string BuildCenteredMainAgentsLine(List<AgentStatusSnapshot> mainAgents)
@@ -164,6 +188,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel
     {
         if (string.IsNullOrEmpty(displayName))
             return "Agent";
+
         // Extract the middle part from patterns like "webchat:g-agent-anime-main"
         if (displayName.Contains("-main", StringComparison.OrdinalIgnoreCase))
         {
@@ -171,22 +196,8 @@ public sealed class AgentStatusBottomPanel : IBottomPanel
             if (parts.Length >= 3)
                 return parts[^2]; // e.g. "anime" from "...-agent-anime-main"
         }
-        return displayName.Length > 16 ? displayName[..16] : displayName;
-    }
 
-    private static string ShortenSubagentName(string? displayName)
-    {
-        if (string.IsNullOrEmpty(displayName))
-            return "sub";
-        // Extract UUID tail from "webchat:g-agent-anime-subagent-df70d2df..."
-        var lastDash = displayName.LastIndexOf('-');
-        if (lastDash >= 0 && lastDash < displayName.Length - 1)
-        {
-            var tail = displayName[(lastDash + 1)..];
-            if (tail.Length >= 4)
-                return tail.Length > 8 ? tail[..8] : tail;
-        }
-        return displayName.Length > 12 ? displayName[..12] : displayName;
+        return displayName.Length > 16 ? displayName[..16] : displayName;
     }
 
     /// <summary>
