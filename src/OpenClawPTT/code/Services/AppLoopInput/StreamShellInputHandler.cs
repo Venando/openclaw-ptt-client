@@ -162,6 +162,15 @@ public sealed class StreamShellInputHandler : IDisposable
         if (e.InputType == StreamShell.InputType.Command)
             return;
 
+        // Reject plain-text messages that start with "/" — they look like commands
+        // but weren't recognized by StreamShell. Don't send them to the gateway.
+        if (e.RawOutput.StartsWith("/", StringComparison.Ordinal))
+        {
+            var commandName = e.RawOutput.Split(' ')[0];
+            _host.AddMessage($"[red]  Unknown command: {commandName}[/]");
+            return;
+        }
+
         // Mark as typed input (not voice) — clear agent so SISO won't match a different agent
         _pttStateMachine.LastInputWasVoice = false;
         _pttStateMachine.LastTargetAgent = null;
