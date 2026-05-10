@@ -39,7 +39,7 @@ public sealed class ColorConsole : IColorConsole
         // Compute final right-edge margin: max(config indent, 10% of console width)
         ReservedRightMargin = Math.Max(
             config.RightMarginIndent,
-            (int)(ConsoleHelper.GetWindowWidth() * 0.1));
+            (int)(ConsoleMetrics.GetWindowWidth() * 0.1));
 
         UserMessagePrefix = config.UserMessagePrefix;
 
@@ -120,8 +120,7 @@ public sealed class ColorConsole : IColorConsole
     /// <inheritdoc />
     public void PrintUserMessage(string text)
     {
-        var prefix = "[green]  You:[/] ";
-        PrintFormatted(prefix, text);
+        PrintFormatted(UserMessagePrefix, text);
     }
 
     public void PrintFormatted(string prefix, string text)
