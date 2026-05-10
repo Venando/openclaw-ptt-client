@@ -129,9 +129,10 @@ public sealed class StatusService : IStatusService, IDisposable
 
         _sb.Clear();
 
+        _sb.Append("───────");
+
         // Agent icon emoji + name
         AppendAgentEmojiAndName(mainAgent);
-
         // Status emoji (🟢 running, ✅ done, 🔄 tool, etc.)
         _sb.Append(' ');
         _sb.Append(mainAgent.GetStatusEmoji());
