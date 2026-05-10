@@ -34,8 +34,7 @@ public class SideResultHandler : IEventHandler<SideResultEvent>
             && errEl.ValueKind == JsonValueKind.True;
 
         // Calculate available width
-        int consoleWidth = 80;
-        try { consoleWidth = Console.WindowWidth; } catch { }
+        int consoleWidth = ConsoleMetrics.GetWindowWidth();
         int rightMargin = _config?.RightMarginIndent ?? 5;
         if (rightMargin < 1) rightMargin = 5;
 

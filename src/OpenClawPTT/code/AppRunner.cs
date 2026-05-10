@@ -67,10 +67,6 @@ public class AppRunner : IDisposable
         // Apply configured debug level to console
         _console.LogLevel = _cfg.DebugLevel;
 
-        // Set initial statuses — both show as "Starting" while services initialize
-        _statusService.SetGatewayStatus("Starting", "yellow");
-        _statusService.SetTtsStatus("Starting", "yellow");
-
         // Create shared state machine and summarizer early so they can be wired into GatewayService
         var pttStateMachine = new PttStateMachine();
         using var directLlmService = _factory.CreateDirectLlmService(_cfg);
@@ -125,24 +121,24 @@ public class AppRunner : IDisposable
 
             if (ttsService.Provider != null)
             {
-                _statusService.SetTtsStatus("Connected", "green");
+                _statusService.SetTtsStatus("Connected", StatusColor.Green);
                 _console.LogOk("tts", $"TTS connected ({ttsService.ProviderType})");
                 return ttsService.Provider;
             }
 
             // Provider is null (Edge with no key, etc.) — warn but don't error
-            _statusService.SetTtsStatus("Disconnected", "red");
+            _statusService.SetTtsStatus("Disconnected", StatusColor.Red);
             _console.Log("tts", "TTS provider is null (not configured).");
             return null;
         }
         catch (OperationCanceledException)
         {
-            _statusService.SetTtsStatus("Disconnected", "red");
+            _statusService.SetTtsStatus("Disconnected", StatusColor.Red);
             throw;
         }
         catch (Exception ex)
         {
-            _statusService.SetTtsStatus("Disconnected", "red");
+            _statusService.SetTtsStatus("Disconnected", StatusColor.Red);
             _console.LogError("tts", $"TTS initialization failed: {ex.Message}");
             return null;
         }
@@ -162,7 +158,7 @@ public class AppRunner : IDisposable
             _console.PrintInfo("Connecting to gateway...");
             await gateway.ConnectAsync(ct);
             _console.LogOk("gateway", "Gateway connected.");
-            _statusService.SetGatewayStatus("Connected", "green");
+            _statusService.SetGatewayStatus("Connected", StatusColor.Green);
             return ConnectResult.Success;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -187,17 +183,17 @@ public class AppRunner : IDisposable
                     _console.PrintInfo($"    → {action}");
             }
 
-            _statusService.SetGatewayStatus("Connecting", "yellow");
+            _statusService.SetGatewayStatus("Connecting", StatusColor.Yellow);
 
             if (classification.ShouldStopApp)
             {
-                _statusService.SetGatewayStatus("Disconnected", "red");
+                _statusService.SetGatewayStatus("Disconnected", StatusColor.Red);
                 _console.PrintError("Cannot continue without gateway connection.");
                 return ConnectResult.GiveUp;
             }
 
             // App stays alive — StreamShell keeps running, user can /reconnect
-            _statusService.SetGatewayStatus("Disconnected", "red");
+            _statusService.SetGatewayStatus("Disconnected", StatusColor.Red);
             _console.PrintInfo("StreamShell is still available. Use /reconnect to retry, or /quit to exit.");
             return ConnectResult.ContinueWithoutGateway;
         }

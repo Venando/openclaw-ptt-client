@@ -1,3 +1,5 @@
+using System;
+
 namespace OpenClawPTT.Services;
 
 /// <summary>
@@ -5,39 +7,67 @@ namespace OpenClawPTT.Services;
 /// on the right side of the StreamShell top separator.
 ///
 /// Format: "  GW:[color]● label[/]  TTS:[color]● label[/]"
+///
+/// Thread-safe: all public methods synchronize on a lock before
+/// mutating state and re-rendering.
 /// </summary>
 public sealed class StatusService : IStatusService
 {
     private readonly IStreamShellHost _shellHost;
+    private readonly object _lock = new();
+
     private string _gatewayLabel = "Starting";
-    private string _gatewayColor = "yellow";
+    private StatusColor _gatewayColor = StatusColor.Yellow;
     private string _ttsLabel = "Starting";
-    private string _ttsColor = "yellow";
+    private StatusColor _ttsColor = StatusColor.Yellow;
 
     public StatusService(IStreamShellHost shellHost)
     {
         _shellHost = shellHost ?? throw new ArgumentNullException(nameof(shellHost));
-        // Set initial separator on construction
-        Render();
+        // Don't render in constructor — first caller will set real values immediately
     }
 
-    public void SetGatewayStatus(string label, string color)
+    public void SetGatewayStatus(string label, StatusColor color)
     {
-        _gatewayLabel = label;
-        _gatewayColor = color;
-        Render();
+        lock (_lock)
+        {
+            _gatewayLabel = label;
+            _gatewayColor = color;
+            Render();
+        }
     }
 
-    public void SetTtsStatus(string label, string color)
+    public void SetTtsStatus(string label, StatusColor color)
     {
-        _ttsLabel = label;
-        _ttsColor = color;
-        Render();
+        lock (_lock)
+        {
+            _ttsLabel = label;
+            _ttsColor = color;
+            Render();
+        }
     }
 
     private void Render()
     {
-        string rightText = $"  GW:[{_gatewayColor}]● {_gatewayLabel}[/]  TTS:[{_ttsColor}]● {_ttsLabel}[/]";
-        _shellHost.SetTopSeparator(rightText: rightText, repeatedCharacter: '─');
+        try
+        {
+            string rightText = $"  GW:[{ToMarkupColor(_gatewayColor)}]● {_gatewayLabel}[/]" +
+                               $"  TTS:[{ToMarkupColor(_ttsColor)}]● {_ttsLabel}[/]";
+            _shellHost.SetTopSeparator(rightText: rightText, repeatedCharacter: '─');
+        }
+        catch (Exception ex)
+        {
+            // Rendering is best-effort — never crash the caller if shell is disposed
+            System.Diagnostics.Debug.WriteLine($"StatusService.Render failed: {ex.Message}");
+        }
     }
+
+    /// <summary>Maps <see cref="StatusColor"/> to Spectre.Console markup color names.</summary>
+    private static string ToMarkupColor(StatusColor color) => color switch
+    {
+        StatusColor.Green => "green",
+        StatusColor.Yellow => "yellow",
+        StatusColor.Red => "red",
+        _ => "yellow",
+    };
 }

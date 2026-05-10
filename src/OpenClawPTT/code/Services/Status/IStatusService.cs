@@ -7,8 +7,8 @@ namespace OpenClawPTT.Services;
 public interface IStatusService
 {
     /// <summary>Update the gateway connection status displayed on the separator bar.</summary>
-    void SetGatewayStatus(string label, string color);
+    void SetGatewayStatus(string label, StatusColor color);
 
     /// <summary>Update the TTS service status displayed on the separator bar.</summary>
-    void SetTtsStatus(string label, string color);
+    void SetTtsStatus(string label, StatusColor color);
 }
