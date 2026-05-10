@@ -240,28 +240,6 @@ public sealed record AgentStatusSnapshot
     public bool IsUsingTool =>
         StopReason?.Equals("toolUse", StringComparison.OrdinalIgnoreCase) == true;
 
-    // ── Emoji state machine ───────────────────────────────────────────────────
-    //
-    // State matrix derived from observed gateway payloads:
-    //
-    // ┌──────────────────────────────────────────────────────┬──────┐
-    // │ Condition                                            │Emoji │
-    // ├──────────────────────────────────────────────────────┼──────┤
-    // │ Any: aborted (stopReason or abortedLastRun)          │  🔴  │
-    // ├──────────────────────────────────────────────────────┼──────┤
-    // │ Any: tool executing (stopReason == toolUse)          │  🛠️  │
-    // ├──────────────────────────────────────────────────────┼──────┤
-    // │ Subagent: spawned but run not yet started            │  ⏳  │
-    // │ Subagent: active run (subagentRunState == active)    │  🟢  │
-    // │ Subagent: completed (subagentRunState == historical) │  ✅  │
-    // │ Subagent: unknown/transitional                       │  ⚪  │
-    // ├──────────────────────────────────────────────────────┼──────┤
-    // │ Main: running, LLM generating (no tool, no yield)   │  🟢  │
-    // │ Main: running, waiting for subagents (yield)         │  ⏳  │
-    // │ Main: status done, endedAt present → clean finish    │  ✅  │
-    // │ Main: status done, no endedAt → idle between runs    │  ⚪  │
-    // └──────────────────────────────────────────────────────┴──────┘
-
     /// <summary>Returns a single emoji representing the agent's current state.</summary>
     public string GetStatusEmoji()
     {
