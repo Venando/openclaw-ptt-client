@@ -92,7 +92,8 @@ public sealed class StreamShellInputHandler : IDisposable
 
         // AppConfig command to get/set any config value (named 'appconfig' to avoid
         // conflict with OpenClaw's built-in /config command).
-        _host.AddCommand(new Command("appconfig", Markup.Escape("<key> [value] Get or set app config value"), ConfigHandler));
+        var appConfigSuggestions = OpenClawCommandSuggestions.GetAppConfigSuggestions();
+        _host.AddCommand(new Command("appconfig", Markup.Escape("<key> [value] Get or set app config value"), ConfigHandler, appConfigSuggestions));
 
         // OpenClaw tool commands (for StreamShell hint support)
         foreach (var name in OpenClawCommands.Names)

@@ -179,4 +179,16 @@ public static class OpenClawCommandSuggestions
     /// </summary>
     public static string[]? Get(string commandName) =>
         SuggestionsMap.TryGetValue(commandName, out var suggestions) ? suggestions : null;
+
+    /// <summary>
+    /// Dynamically builds suggestions from all writable public properties on AppConfig.
+    /// Used for the local /appconfig command tab completion.
+    /// </summary>
+    public static string[] GetAppConfigSuggestions() =>
+        typeof(AppConfig)
+            .GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+            .Where(p => p.CanWrite && p.SetMethod?.IsPublic == true)
+            .Select(p => p.Name)
+            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 }
