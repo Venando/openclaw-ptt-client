@@ -52,8 +52,11 @@ public static class AgentRegistry
     /// <summary>Replaces the entire agent list. Resets active session if no longer valid.</summary>
     public static void SetAgents(IReadOnlyList<AgentInfo> agents)
     {
+        string? newSessionKey;
+        string? previousSessionKey;
         lock (_lock)
         {
+            previousSessionKey = _activeSessionKey;
             _agents = agents.ToList();
 
             // Validate current active session
@@ -66,7 +69,13 @@ public static class AgentRegistry
                 var defaultAgent = AgentRegistryHelpers.GetDefaultOrFirst(_agents);
                 _activeSessionKey = defaultAgent?.SessionKey;
             }
+
+            newSessionKey = _activeSessionKey;
         }
+
+        // Fire event if active session changed (e.g. null → agent after snapshot load)
+        if (previousSessionKey != newSessionKey)
+            ActiveSessionChanged?.Invoke(newSessionKey);
     }
 
     /// <summary>All available agents.</summary>
