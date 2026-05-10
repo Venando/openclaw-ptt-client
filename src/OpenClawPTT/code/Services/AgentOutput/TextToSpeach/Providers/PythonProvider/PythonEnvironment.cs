@@ -120,12 +120,6 @@ public sealed class PythonEnvironment
             string outputPath = Path.Combine(s_scriptFolder, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
 
-            // Skip extraction if the file already exists — avoids IOException when a
-            // previous Python process still holds a lock on the file (e.g. zombie process
-            // from a crashed app instance left in Task Manager).
-            if (File.Exists(outputPath))
-                continue;
-
             try
             {
                 using var stream = asm.GetManifestResourceStream(resourceName)!;
