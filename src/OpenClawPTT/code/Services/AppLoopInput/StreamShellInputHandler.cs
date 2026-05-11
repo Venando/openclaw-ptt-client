@@ -47,8 +47,7 @@ public sealed class StreamShellInputHandler : IDisposable
         IDirectLlmService? directLlmService = null,
         ITtsSummarizer? ttsSummarizer = null,
         ErrorLogStore? errorLogStore = null,
-        IStatusService? statusService = null,
-        IConversationNamingService? namingService = null)
+        IStatusService? statusService = null)
     {
         _host = host;
         _textSender = textSender;
@@ -63,7 +62,7 @@ public sealed class StreamShellInputHandler : IDisposable
         _ttsSummarizer = ttsSummarizer;
         _errorLog = errorLogStore ?? new ErrorLogStore(appConfig.DataDir);
         _statusService = statusService ?? new StatusService(host);
-        _agentSwitching = new AgentSwitchingCommands(host, textSender, gatewayService, appConfig, console, agentSettingsPersistence, pttStateMachine, _configService, _errorLog, _statusService, namingService);
+        _agentSwitching = new AgentSwitchingCommands(host, textSender, gatewayService, appConfig, console, agentSettingsPersistence, pttStateMachine, _configService, _errorLog, _statusService);
         _messageComposer = new TextMessageComposer(host, textSender);
     }
 
@@ -133,6 +132,16 @@ public sealed class StreamShellInputHandler : IDisposable
     /// <summary>Exposes session history printing for wiring with AgentHotkeyService.</summary>
     public Task PrintSessionHistory(string sessionKey) =>
         _agentSwitching.PrintSessionHistory(sessionKey);
+
+    /// <summary>
+    /// Raised whenever an OpenClaw slash command is executed.
+    /// The string argument is the command name (e.g. "reset", "new").
+    /// </summary>
+    public event Action<string>? CommandExecuted
+    {
+        add => _agentSwitching.CommandExecuted += value;
+        remove => _agentSwitching.CommandExecuted -= value;
+    }
 
     public void Dispose()
     {

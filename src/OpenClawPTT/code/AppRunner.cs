@@ -231,9 +231,9 @@ public class AppRunner : IDisposable
             directLlmService: directLlmService.IsConfigured ? directLlmService : null,
             ttsSummarizer: ttsSummarizer,
             errorLogStore: _errorLog,
-            statusService: _statusService,
-            namingService: namingService
+            statusService: _statusService
         );
+        shellCommands.CommandExecuted += namingService.OnCommandSent;
         await shellCommands.RegisterAsync();
 
         // Wire agent hotkey history printing to the canonical shared method
