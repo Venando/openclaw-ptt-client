@@ -155,22 +155,19 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
                 if (visibleAgents.Count > 0)
                 {
                     var statusLine = RenderStatusLine(visibleAgents, out var segmentWidths, out var contentWidth);
-                    var padding = ComputePadding(contentWidth);
+                    var capLine = RenderCapLine(segmentWidths);
 
-                    if (padding > 0)
-                        statusLine = new string(' ', padding) + statusLine;
-
-                    _lines[agentListPrintIndex] = statusLine;
-                    _lines[capPrintIndex] = RenderCapLine(segmentWidths, padding);
+                    _lines[agentListPrintIndex] = PadToRight(statusLine, contentWidth);
+                    _lines[capPrintIndex] = PadToRight(capLine, contentWidth);
                 }
                 else
                 {
-                    _lines[agentListPrintIndex] = PadMarkupToRight(NoAgentsInfoTextMarkup, NoAgentsInfoText.Length);
+                    _lines[agentListPrintIndex] = PadToRight(NoAgentsInfoTextMarkup, NoAgentsInfoText.Length);
                 }
             }
             catch
             {
-                _lines[agentListPrintIndex] = PadMarkupToRight(AgentStatusErrorTextMarkup, AgentStatusErrorText.Length);
+                _lines[agentListPrintIndex] = PadToRight(AgentStatusErrorTextMarkup, AgentStatusErrorText.Length);
             }
             finally
             {
@@ -338,20 +335,20 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         return Math.Max(0, padding);
     }
 
-    /// <summary>Prepends spaces so the markup string sits at the right edge, matching normal agent line alignment.</summary>
-    private string PadMarkupToRight(string markup, int visibleTextWidth)
+    /// <summary>Prepends spaces so content sits at the right edge with a 1-char margin.</summary>
+    private string PadToRight(string content, int contentWidth)
     {
-        var padding = ComputePadding(visibleTextWidth);
+        var padding = ComputePadding(contentWidth);
         return padding > 0
-            ? new string(' ', padding) + markup
-            : markup;
+            ? new string(' ', padding) + content
+            : content;
     }
 
     /// <summary>
     /// Renders the decorative cap line (╭─┬─┬─) matching agent segment widths.
-    /// Prepends padding so it aligns with the status line below.
+    /// Returns raw content without padding — caller applies PadToRight().
     /// </summary>
-    private string RenderCapLine(List<int> segmentWidths, int padding)
+    private string RenderCapLine(List<int> segmentWidths)
     {
         _capBuilder.Clear();
         _capBuilder.Append('╭');
@@ -363,7 +360,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
                 _capBuilder.Append("─┬─");
         }
 
-        return new string(' ', padding) + _capBuilder.ToString();
+        return _capBuilder.ToString();
     }
 
     // ── Registry change detection ──────────────────────────────────────────
