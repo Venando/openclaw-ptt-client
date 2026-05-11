@@ -160,12 +160,14 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
                 var delay = TimeSpan.FromTicks(Math.Min(
                     MinRestartDelay.Ticks << (_consecutiveRestarts - 1),
                     MaxRestartDelay.Ticks));
+                _console.Log("python_tts_provider", $"Waiting {delay.TotalSeconds}s before retry #{_consecutiveRestarts + 1}...");
                 await Task.Delay(delay, ct);
             }
 
             // Kill any zombie process from the previous attempt.
             if (_process != null)
             {
+                _console.Log("python_tts_provider", "Disposing zombie process...");
                 _process.Dispose();
                 _process = null;
             }
@@ -179,7 +181,9 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
             _process = new Process { StartInfo = psi, EnableRaisingEvents = true };
             _process.Exited += OnProcessExited;
 
+            _console.Log("python_tts_provider", $"Starting Python TTS process: {psi.FileName} {psi.Arguments}");
             _process.Start();
+            _console.Log("python_tts_provider", $"Process started (PID: {_process.Id}).");
 
             if (_process.HasExited)
             {
@@ -194,6 +198,7 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
             }
 
             // Wait for READY — loop until we find {"type":"ready"} or plain "READY", logging all lines
+            _console.Log("python_tts_provider", "Waiting for READY...");
             using var timeoutCts = new CancellationTokenSource(_startupTimeout);
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
@@ -202,12 +207,16 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
             while (!linked.Token.IsCancellationRequested)
             {
                 readyLine = await ReadLineAsync(_process.StandardOutput, linked.Token);
+                _console.Log("python_tts_provider", $"Read line: [{readyLine ?? "(null)"}]");
 
                 if (readyLine == null)
                     break;
 
                 if (IsReadyLine(readyLine))
+                {
+                    _console.Log("python_tts_provider", "READY detected.");
                     break;
+                }
 
                 // Detect startup errors before READY to avoid hanging on model load failures
                 if (JsonHelper.TryParseJson(readyLine ?? "", out var jsonDoc, out var msgType) &&
@@ -267,21 +276,10 @@ public sealed class PythonTtsProvider : ITextToSpeech, IAsyncDisposable
     {
         try
         {
-            // Poll HasExited to avoid blocking indefinitely if the process dies between the
-            // loop check in ReadLoopAsync and the actual read.
-            // Use Peek() instead of EndOfStream to avoid blocking in async context (CA2024)
-            while (_process is { HasExited: false })
-            {
-                if (ct.IsCancellationRequested)
-                    return null;
-                var peekResult = reader.Peek();
-                if (peekResult == -1)
-                    return null; // End of stream
-                if (peekResult != -1)
-                    return await reader.ReadLineAsync(ct);
-                await Task.Delay(500, ct);
-            }
-            return null;
+            if (_process is { HasExited: true })
+                return null;
+
+            return await reader.ReadLineAsync(ct);
         }
         catch (OperationCanceledException)
         {
