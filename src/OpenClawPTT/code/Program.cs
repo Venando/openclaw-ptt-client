@@ -31,8 +31,9 @@ internal static class Program
 
         var colorConsole = factory.CreateColorConsole();
 
-        var appConfig = new AppConfig();
-        var agentStatusPanel = new AgentStatusBottomPanel(shellHost, agentStatusTracker, colorConsole, appConfig.BottomPanelLineCount);
+        // Load saved config so BottomPanelLineCount is honoured
+        var appConfig = configService.Load() ?? new AppConfig();
+        var agentStatusPanel = new AgentStatusBottomPanel(shellHost, agentStatusTracker, appConfig.BottomPanelLineCount);
         shellHost.SetDefaultPanel(agentStatusPanel);
 
         var bootstrapper = new AppBootstrapper(configService, factory, shellHost, colorConsole, null, testModeEnabled);

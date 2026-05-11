@@ -18,12 +18,14 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
     private const int DefaultLineCount = 1;
 
     private readonly IAgentStatusTracker _tracker;
-    private readonly IColorConsole _colorConsole;
     private readonly IStreamShellHost _streamShellHost;
     private readonly StringBuilder _builder = new(256);
     private readonly string[] _lines;
     private readonly int _maxLineCount;
     private readonly object _sync = new();
+
+    // Reusable list for visible agents — avoids per-render allocation
+    private readonly List<(AgentStatusSnapshot Snapshot, AgentInfo Agent)> _visible = new();
 
     private bool _disposed;
     private int _currentLineCount = DefaultLineCount;
@@ -44,33 +46,47 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
     // Command override: shows /stop /reset /new status until tracker catches up
     private string? _commandOverride;
 
+    // Reusable dictionary for O(1) agent lookup — cleared each render
+    private readonly Dictionary<string, AgentInfo> _agentLookup = new();
+
+    // Cached console width to avoid calling ConsoleMetrics.GetWindowWidth() under lock.
+    // Safe staleness: the panel re-renders frequently enough that a stale width is acceptable.
+    private int _cachedConsoleWidth;
+
     public AgentStatusBottomPanel(
         IStreamShellHost streamShellHost,
         IAgentStatusTracker tracker,
-        IColorConsole colorConsole,
         int maxLineCount = DefaultLineCount)
     {
         _streamShellHost = streamShellHost;
         _tracker = tracker;
-        _colorConsole = colorConsole;
         _maxLineCount = Math.Max(1, maxLineCount);
         _lines = new string[_maxLineCount];
+        _cachedConsoleWidth = GetWindowWidth();
+
+        // Set version before subscribing so event handlers can safely increment it
+        _version = 1;
         _tracker.Changed += OnTrackerChanged;
         AgentRegistry.ActiveSessionChanged += OnActiveSessionChanged;
 
         _cachedActiveSessionKey = AgentRegistry.ActiveSessionKey;
         _lastRegistryCount = GetRegistryCount();
-        _version = 1; // start at 1 so IsDirty is true on first check
     }
 
     public void Dispose()
     {
-        if (_disposed)
-            return;
+        lock (_sync)
+        {
+            if (_disposed)
+                return;
 
-        _disposed = true;
-        _tracker.Changed -= OnTrackerChanged;
-        AgentRegistry.ActiveSessionChanged -= OnActiveSessionChanged;
+            _disposed = true;
+            _tracker.Changed -= OnTrackerChanged;
+            AgentRegistry.ActiveSessionChanged -= OnActiveSessionChanged;
+        }
+
+        // Clear all lines to release string references outside the lock
+        Array.Clear(_lines, 0, _lines.Length);
     }
 
     private void OnTrackerChanged()
@@ -100,6 +116,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         {
             lock (_sync)
             {
+                if (_disposed) return false;
                 CheckRegistryVersionBump();
                 return _version != _renderedVersion || _commandOverride != null;
             }
@@ -119,11 +136,19 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
     public IReadOnlyList<string> GetLines(string currentInput)
     {
+        string? bottomSepRightText = null;
+        IReadOnlyList<string> result;
+
         lock (_sync)
         {
-            CheckRegistryVersionBump();
+            if (_disposed)
+            {
+                result = Array.Empty<string>();
+                bottomSepRightText = null;
+                goto emit;
+            }
 
-            int activeLine = _maxLineCount - 1;
+            CheckRegistryVersionBump();
 
             // Detect command input — overrides stale agent status until tracker updates
             var commandDisplay = TryGetCommandDisplay(currentInput);
@@ -136,14 +161,21 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
             // Fast path: nothing changed, no command pending
             if (_version == _renderedVersion && _commandOverride == null)
-                return _lines;
+            {
+                result = new ArraySegment<string>(_lines, 0, _currentLineCount);
+                bottomSepRightText = null;
+                goto emit;
+            }
 
             // Command pending and no new tracker data yet — show command status
             if (_version == _renderedVersion && _commandOverride != null)
             {
                 _currentLineCount = DefaultLineCount;
-                _lines[activeLine] = _commandOverride;
-                return _lines;
+                _lines[0] = _commandOverride;
+                ClearStaleLines();
+                result = new ArraySegment<string>(_lines, 0, _currentLineCount);
+                bottomSepRightText = null;
+                goto emit;
             }
 
             // Dirty path: rebuild from tracker data
@@ -152,56 +184,84 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
                 _commandOverride = null; // tracker updated, clear any pending command display
                 _builder.Clear();
 
-                var snapshots = _tracker.All ?? Enumerable.Empty<AgentStatusSnapshot>();
-                var agents = AgentRegistry.Agents ?? Enumerable.Empty<AgentInfo>();
+                // Refresh cached console width before render
+                _cachedConsoleWidth = GetWindowWidth();
+
+                var snapshots = _tracker.All;
+                var agents = AgentRegistry.Agents;
                 var activeSessionKey = _cachedActiveSessionKey;
 
-                // Collect visible agents (skip active, skip hidden, skip subagents)
-                var visible = new List<(AgentStatusSnapshot Snapshot, AgentInfo Agent)>(agents.Count());
-                foreach (var snapshot in snapshots)
+                // Materialize agents once to avoid triple enumeration + enumerator boxing
+                List<AgentInfo> agentList;
+                if (agents is null)
                 {
-                    if (snapshot is null)
-                        continue;
-                    if (snapshot.IsSubagent)
-                        continue;
-                    if (snapshot.SessionKey == activeSessionKey)
-                        continue;
+                    agentList = new List<AgentInfo>(0);
+                }
+                else if (agents is List<AgentInfo> list)
+                {
+                    agentList = list;
+                }
+                else
+                {
+                    agentList = new List<AgentInfo>(agents);
+                }
 
-                    var registryAgent = agents.FirstOrDefault(a => a.SessionKey == snapshot.SessionKey);
-                    if (registryAgent is null)
-                        continue;
+                // Build dictionary for O(1) agent lookup
+                _agentLookup.Clear();
+                foreach (var agent in agentList)
+                {
+                    if (agent?.SessionKey is not null)
+                        _agentLookup[agent.SessionKey] = agent;
+                }
 
-                    var show = AgentSettingsPersistenceLegacy.GetPersistedShowInStatusPanel(registryAgent.AgentId);
-                    if (!show)
-                        continue;
+                // Collect visible agents (skip active, skip hidden, skip subagents)
+                _visible.Clear();
+                if (snapshots is not null)
+                {
+                    foreach (var snapshot in snapshots)
+                    {
+                        if (snapshot is null)
+                            continue;
+                        if (snapshot.IsSubagent)
+                            continue;
+                        if (snapshot.SessionKey == activeSessionKey)
+                            continue;
 
-                    visible.Add((snapshot, registryAgent));
+                        if (!_agentLookup.TryGetValue(snapshot.SessionKey!, out var registryAgent))
+                            continue;
+
+                        var show = AgentSettingsPersistenceLegacy.GetPersistedShowInStatusPanel(registryAgent.AgentId);
+                        if (!show)
+                            continue;
+
+                        _visible.Add((snapshot, registryAgent));
+                    }
                 }
 
                 // Sort by last activity descending (most recent first)
-                visible.Sort((a, b) =>
+                _visible.Sort((a, b) =>
                 {
                     long aTime = a.Snapshot.UpdatedAt ?? a.Snapshot.StartedAt ?? 0;
                     long bTime = b.Snapshot.UpdatedAt ?? b.Snapshot.StartedAt ?? 0;
                     return bTime.CompareTo(aTime);
                 });
 
-                // Determine if we need the decorative top cap (only when multi-line is configured)
+                // Determine if we need the decorative top cap
                 bool needsCap = _maxLineCount > DefaultLineCount;
 
                 // Build status line
                 bool first = true;
-                int count = 0;
+                int contentWidth = 0;
 
                 _builder.Append('│');
-                count += 1;
+                contentWidth += 1;
 
-                foreach (var (snapshot, registryAgent) in visible)
+                foreach (var (snapshot, registryAgent) in _visible)
                 {
                     if (!first)
                     {
                         _builder.Append(" [white bold]│[/] ");
-                        count += 3;
+                        contentWidth += 3;
                     }
 
                     first = false;
@@ -213,7 +273,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
                     _builder.Append(emoji);
                     _builder.Append(' ');
-                    count += CharacterWidth.GetDisplayWidth(emoji) + 1;
+                    contentWidth += CharacterWidth.GetDisplayWidth(emoji) + 1;
 
                     var rawName = registryAgent.Name ?? string.Empty;
                     var truncatedName = rawName.Length > MaxAgentNameLength
@@ -227,59 +287,87 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
                     _builder.Append(displayName);
                     _builder.Append("[/]");
                     _builder.Append(' ');
-                    count += displayName.Length + 1;
+                    contentWidth += displayName.Length + 1;
 
                     var statusEmoji = Markup.Escape(snapshot.GetStatusEmoji());
                     _builder.Append(statusEmoji);
-                    count += CharacterWidth.GetDisplayWidth(statusEmoji);
+                    contentWidth += CharacterWidth.GetDisplayWidth(statusEmoji);
                 }
 
                 if (!first)
                 {
-                    var width = ConsoleMetrics.GetWindowWidth();
-                    var insertAmmount = width - count - 1;
-                    for (int i = 0; i < insertAmmount; i++)
-                        _builder.Insert(0, ' ');
+                    var width = _cachedConsoleWidth;
+                    var padding = width - contentWidth - 1;
+
+                    if (padding > 0)
+                    {
+                        // Single bulk insert avoids O(n) per-char shifts of the StringBuilder buffer
+                        _builder.Insert(0, new string(' ', padding));
+                    }
 
                     if (!needsCap)
                     {
                         // Single-line mode: decoration goes via StreamShell separator
-                        _streamShellHost.SetBottomSeparator(null, "╭──────────────┬───────────────┬───────────", ' ');
+                        bottomSepRightText = "╭──────────────┬───────────────┬───────────";
                     }
                     else
                     {
                         // Multi-line mode: top cap line is drawn above the status line
-                        string topCap = new string(' ', insertAmmount) + "╭──────────────┬───────────────┬───────────";
-                        _lines[activeLine - 1] = topCap;
+                        _lines[0] = new string(' ', Math.Max(0, padding)) +
+                                    "╭──────────────┬───────────────┬───────────";
                     }
                 }
 
-                // Always write the status / "no agents" line
-                _lines[activeLine] = !first
-                    ? _builder.ToString()
-                    : "[grey]No agents connected[/]";
+                // Write the status / "no agents" line
+                // Single-line: _lines[0] = status
+                // Multi-line:  _lines[0] = cap, _lines[1] = status
+                if (needsCap && !first)
+                {
+                    _lines[1] = _builder.ToString();
+                    _currentLineCount = Math.Min(2, _maxLineCount);
+                }
+                else
+                {
+                    _lines[0] = !first
+                        ? _builder.ToString()
+                        : "[grey]No agents connected[/]";
+                    _currentLineCount = DefaultLineCount;
+                }
 
-                // Dynamic line count: if we have visible agents and multi-line was requested,
-                // use 2 lines (cap + status). Otherwise stick to 1.
-                _currentLineCount = needsCap && !first ? Math.Min(2, _maxLineCount) : DefaultLineCount;
-
-                // Clear any stale lines beyond _currentLineCount to release string references
-                for (int i = _currentLineCount; i < _maxLineCount; i++)
-                    _lines[i] = null!;
+                ClearStaleLines();
             }
             catch
             {
                 // Intentionally swallowed: render failures must not crash the StreamShell loop
                 _currentLineCount = DefaultLineCount;
-                _lines[activeLine] = "[red]Agent status error[/]";
+                _lines[0] = "[red]Agent status error[/]";
+                ClearStaleLines();
             }
             finally
             {
                 _renderedVersion = _version;
             }
 
-            return _lines;
+            result = new ArraySegment<string>(_lines, 0, _currentLineCount);
         }
+
+    emit:
+        // ── External calls (outside lock) ───────────────────────────────
+        // _streamShellHost.SetBottomSeparator may acquire its own locks;
+        // we must not hold _sync while calling it.
+        if (bottomSepRightText is not null)
+            _streamShellHost.SetBottomSeparator(null, bottomSepRightText, ' ');
+
+        return result;
+    }
+
+    /// <summary>
+    /// Releases string references in unused array slots so the GC can collect them.
+    /// </summary>
+    private void ClearStaleLines()
+    {
+        for (int i = _currentLineCount; i < _maxLineCount; i++)
+            _lines[i] = null!;
     }
 
     // ── Command detection ──────────────────────────────────────────────────
@@ -328,6 +416,18 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         {
             _lastRegistryCount = count;
             _version++;
+        }
+    }
+
+    private static int GetWindowWidth()
+    {
+        try
+        {
+            return ConsoleMetrics.GetWindowWidth();
+        }
+        catch
+        {
+            return 120; // safe fallback
         }
     }
 }
