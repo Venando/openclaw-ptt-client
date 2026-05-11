@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using OpenClawPTT.ConfigWizard;
 using OpenClawPTT.Services;
 using OpenClawPTT.Services.Diagnostics;
 using Spectre.Console;
@@ -176,6 +177,10 @@ public sealed class StreamShellInputHandler : IDisposable
     {
         // Commands are auto-executed by StreamShell — skip
         if (e.InputType == StreamShell.InputType.Command)
+            return;
+
+        // Skip if a configuration wizard is active (it handles its own input)
+        if (ModularConfigurationWizard.IsActive || ConfigurationWizard.IsActive)
             return;
 
         // Reject plain-text messages that start with "/" — they look like commands
