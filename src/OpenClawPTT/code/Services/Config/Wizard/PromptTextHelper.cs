@@ -34,7 +34,7 @@ public static class PromptTextHelper
         {
             try
             {
-                var input = (e.TextWithoutAttachments ?? e.RawOutput).Trim();
+                var input = (e.TextWithoutAttachments ?? e.RawOutput ?? "").Trim();
 
                 if (allowClear && input == "--")
                 {

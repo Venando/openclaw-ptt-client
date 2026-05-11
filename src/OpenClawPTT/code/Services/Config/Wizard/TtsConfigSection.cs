@@ -176,25 +176,20 @@ public sealed class TtsConfigSection : IConfigSectionWizard
         }
 
         // ── TTS Output Mode ──
-        var ttsMode = await PromptSelectionHelper.PromptEnumAsync<TtsOutputMode>(host,
-            "TTS output mode:", ParseTtsOutputMode(config.TtsOutputMode), allowCancel: false, ct);
-        var ttsModeStr = ttsMode.ToString().ToLowerInvariant();
-        if (ttsModeStr != config.TtsOutputMode)
+        var ttsModes = new (string Name, string Value)[]
         {
-            config.TtsOutputMode = ttsModeStr;
+            ("Always on", "always-on"),
+            ("SISO (single-in-single-out)", "siso"),
+            ("Off", "off"),
+        };
+        var ttsMode = await PromptSelectionHelper.PromptStringAsync(host,
+            "TTS output mode:", ttsModes, config.TtsOutputMode, allowCancel: false, ct);
+        if (ttsMode != config.TtsOutputMode)
+        {
+            config.TtsOutputMode = ttsMode;
             changed = true;
         }
 
         return changed;
     }
-
-    private static TtsOutputMode ParseTtsOutputMode(string value) => value.ToLowerInvariant() switch
-    {
-        "always-on" => TtsOutputMode.AlwaysOn,
-        "siso" => TtsOutputMode.Siso,
-        "off" => TtsOutputMode.Off,
-        _ => TtsOutputMode.Siso,
-    };
-
-    private enum TtsOutputMode { AlwaysOn, Siso, Off }
 }

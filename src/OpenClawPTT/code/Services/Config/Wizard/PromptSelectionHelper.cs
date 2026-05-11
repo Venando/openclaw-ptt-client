@@ -15,6 +15,7 @@ namespace OpenClawPTT.ConfigWizard;
 public static class PromptSelectionHelper
 {
     private const string BackSentinel = "__back__";
+    public const string CancelSentinel = "__cancel__";
 
     // ── Bool ─────────────────────────────────────────────────────────
 
@@ -36,8 +37,8 @@ public static class PromptSelectionHelper
             try
             {
                 var result = await host.PromptSelection(title, variants);
-                if (result is { Length: > 0 })
-                    return ((ConfigVariant)result[0]).Value == "yes";
+                if (result is { Length: > 0 } && result[0] is ConfigVariant cv)
+                    return cv.Value == "yes";
             }
             catch (OperationCanceledException)
             {
@@ -76,7 +77,7 @@ public static class PromptSelectionHelper
             try
             {
                 var result = await host.PromptSelection(title, variants);
-                if (result is { Length: > 0 } && Enum.TryParse<T>(((ConfigVariant)result[0]).Value, out var parsed))
+                if (result is { Length: > 0 } && result[0] is ConfigVariant cv && Enum.TryParse<T>(cv.Value, out var parsed))
                     return parsed;
             }
             catch (OperationCanceledException)
@@ -118,11 +119,12 @@ public static class PromptSelectionHelper
                 if (result is not { Length: > 0 })
                     continue; // cancelled — force selection
 
-                var value = ((ConfigVariant)result[0]).Value;
-                if (value == BackSentinel)
+                if (result[0] is not ConfigVariant cv)
+                    continue;
+                if (cv.Value == BackSentinel)
                     return null;
 
-                if (Enum.TryParse<T>(value, out var parsed))
+                if (Enum.TryParse<T>(cv.Value, out var parsed))
                     return parsed;
             }
             catch (OperationCanceledException)
@@ -156,8 +158,8 @@ public static class PromptSelectionHelper
             try
             {
                 var result = await host.PromptSelection(title, variants);
-                if (result is { Length: > 0 })
-                    return ((ConfigVariant)result[0]).Value;
+                if (result is { Length: > 0 } && result[0] is ConfigVariant cv)
+                    return cv.Value;
             }
             catch (OperationCanceledException)
             {
@@ -197,11 +199,12 @@ public static class PromptSelectionHelper
                 if (result is not { Length: > 0 })
                     continue; // cancelled — force selection
 
-                var value = ((ConfigVariant)result[0]).Value;
-                if (value == BackSentinel)
+                if (result[0] is not ConfigVariant cv)
+                    continue;
+                if (cv.Value == BackSentinel)
                     return null;
 
-                return value;
+                return cv.Value;
             }
             catch (OperationCanceledException)
             {

@@ -93,7 +93,7 @@ public sealed class ModularConfigurationWizard
                 // Build menu variants
                 var variants = new List<IVariant>
                 {
-                    new ConfigVariant("[red]Cancel[/]", "__cancel__")
+                    new ConfigVariant("[red]Cancel[/]", PromptSelectionHelper.CancelSentinel)
                 };
                 foreach (var section in _sections)
                 {
@@ -112,9 +112,9 @@ public sealed class ModularConfigurationWizard
                     try
                     {
                         var result = await host.PromptSelection("Select section to configure:", variants.ToArray());
-                        if (result is { Length: > 0 })
+                        if (result is { Length: > 0 } && result[0] is ConfigVariant cv)
                         {
-                            choice = ((ConfigVariant)result[0]).Value;
+                            choice = cv.Value;
                             break;
                         }
                     }
@@ -131,7 +131,7 @@ public sealed class ModularConfigurationWizard
                     }
                 }
 
-                if (choice == "__cancel__")
+                if (choice == PromptSelectionHelper.CancelSentinel)
                 {
                     host.AddMessage("[grey]  Reconfiguration cancelled.[/]");
                     break;

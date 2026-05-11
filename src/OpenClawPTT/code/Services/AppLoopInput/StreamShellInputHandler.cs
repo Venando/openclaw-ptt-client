@@ -180,7 +180,7 @@ public sealed class StreamShellInputHandler : IDisposable
             return;
 
         // Skip if a configuration wizard is active (it handles its own input)
-        if (ModularConfigurationWizard.IsActive || ConfigurationWizard.IsActive)
+        if (ModularConfigurationWizard.IsActive)
             return;
 
         // Reject plain-text messages that start with "/" — they look like commands
