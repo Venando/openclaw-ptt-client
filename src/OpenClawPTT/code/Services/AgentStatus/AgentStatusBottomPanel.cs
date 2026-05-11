@@ -55,6 +55,13 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
     // Safe staleness: the panel re-renders frequently enough that a stale width is acceptable.
     private int _cachedConsoleWidth;
 
+    // Track agents that transitioned to ReadyEmoji while not active.
+    // Cleared when the user activates that agent.
+    private readonly HashSet<string> _newlyOnlineAgents = new();
+
+    // Previous status emoji per session key, for transition detection.
+    private readonly Dictionary<string, string> _previousStatusEmojis = new();
+
     public AgentStatusBottomPanel(
         IAgentStatusTracker tracker,
         int maxLineCount = DefaultLineCount)
@@ -99,6 +106,9 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         lock (_sync)
         {
             _cachedActiveSessionKey = sessionKey;
+            // Clear notification mark for the activated agent
+            if (sessionKey is not null)
+                _newlyOnlineAgents.Remove(sessionKey);
             _version++;
         }
     }
@@ -150,6 +160,9 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
                 // Prepare: materialize agents, filter visible, sort by activity
                 var visibleAgents = PrepareVisibleAgents(snapshots, activeSessionKey);
+
+                // Detect transitions to Ready status for non-active agents
+                DetectNewlyOnlineAgents(visibleAgents, activeSessionKey, snapshots);
 
                 // Render: build the status line and cap line
                 if (visibleAgents.Count > 0)
@@ -249,6 +262,44 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         return bTime.CompareTo(aTime);
     }
 
+    // ── Newly-online detection ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Detects agents that transitioned to Ready status while not being
+    /// the active agent. Such agents get a notification mark until activated.
+    /// </summary>
+    private void DetectNewlyOnlineAgents(
+        List<(AgentStatusSnapshot Snapshot, AgentInfo Agent)> visibleAgents,
+        string? activeSessionKey,
+        IReadOnlyList<AgentStatusSnapshot>? allSnapshots)
+    {
+        // Update transition tracking for visible agents
+        foreach (var (snapshot, _) in visibleAgents)
+        {
+            var currentEmoji = snapshot.GetStatusEmoji();
+            if (_previousStatusEmojis.TryGetValue(snapshot.SessionKey, out var previousEmoji))
+            {
+                if (previousEmoji != AgentStatusSnapshot.ReadyEmoji && currentEmoji == AgentStatusSnapshot.ReadyEmoji && snapshot.SessionKey != activeSessionKey)
+                {
+                    _newlyOnlineAgents.Add(snapshot.SessionKey);
+                }
+            }
+            _previousStatusEmojis[snapshot.SessionKey] = currentEmoji;
+        }
+
+        // Clean up tracking for agents that are no longer present
+        if (allSnapshots is not null)
+        {
+            var currentKeys = new HashSet<string>(allSnapshots.Select(s => s.SessionKey));
+            var keysToRemove = _previousStatusEmojis.Keys.Where(k => !currentKeys.Contains(k)).ToList();
+            foreach (var key in keysToRemove)
+            {
+                _previousStatusEmojis.Remove(key);
+                _newlyOnlineAgents.Remove(key);
+            }
+        }
+    }
+
     // ── Rendering ──────────────────────────────────────────────────────────
 
     /// <summary>
@@ -314,6 +365,14 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         var statusEmoji = Markup.Escape(snapshot.GetStatusEmoji());
         _builder.Append(statusEmoji);
         segWidth += CharacterWidth.GetDisplayWidth(statusEmoji);
+
+        // Notification mark for agents that just came back online
+        if (_newlyOnlineAgents.Contains(snapshot.SessionKey))
+        {
+            var notificationEmoji = Markup.Escape("❗");
+            _builder.Append(notificationEmoji);
+            segWidth += CharacterWidth.GetDisplayWidth(notificationEmoji);
+        }
 
         return segWidth;
     }
