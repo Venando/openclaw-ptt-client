@@ -43,7 +43,7 @@ public static class PromptTextHelper
                     return;
                 }
 
-                if (isEmptyToDefault && input.Length == 0)
+                if (input.Length == 0 && defaultValue != null)
                 {
                     input = defaultValue;
                 }

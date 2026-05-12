@@ -81,7 +81,8 @@ public sealed class TtsConfigSection : ConfigSectionBase
         // ── Python items ──
         AddConfigItem("Python", ConfigSetupItem.ForString(
             title: "Python path",
-            fieldName: nameof(AppConfig.PythonPath)));
+            fieldName: nameof(AppConfig.PythonPath),
+            isEmptyToDefault: true));
 
         AddConfigItem("Python", ConfigSetupItem.ForString(
             title: "Coqui model name",
