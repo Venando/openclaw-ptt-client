@@ -24,7 +24,7 @@ public static class TranscriberFactory
                 config.OpenAiApiKey ?? throw new ArgumentNullException(nameof(config.OpenAiApiKey), "OpenAI API key is required for OpenAI provider"),
                 config.OpenAiModel ?? "whisper-1"),
 
-            "whisper-cpp" => CreateWhisperCpp(config, colorConsole.GetStreamShellHost()),
+            "whisper-cpp" => CreateWhisperCpp(config, colorConsole.GetStreamShellHost() ?? throw new InvalidOperationException("StreamShell host is required for whisper-cpp STT")),
 
             null or "" => new GroqTranscriberAdapter(
                 config.GroqApiKey,

@@ -86,6 +86,19 @@ public sealed class SttConfigSection : ConfigSectionBase
 
         ConfigSelectionHelper.PrintSubSection(host, "proceeding");
 
+        // Show current provider if set
+        if (!string.IsNullOrEmpty(config.SttProvider))
+        {
+            var currentModel = config.SttProvider switch
+            {
+                "groq" => config.GroqModel ?? "whisper-large-v3",
+                "openai" => config.OpenAiModel ?? "whisper-1",
+                "whisper-cpp" => config.WhisperCppModel ?? "none",
+                _ => "?"
+            };
+            host.AddMessage($"[grey]  Current: [bold]{config.SttProvider}[/] ({currentModel})[/]");
+        }
+
         // ── Provider selection ──
         string? provider = await PromptSelectionHelper.PromptStringAsync(host,
             "Choose STT provider:", ProviderOptions, cancellationToken: ct);
@@ -101,6 +114,12 @@ public sealed class SttConfigSection : ConfigSectionBase
         if (provider != config.SttProvider)
         {
             config.SttProvider = provider;
+            changed = true;
+        }
+        else if (!isInitialSetup)
+        {
+            // During reconfigure, user explicitly chose same provider — mark changed
+            // to ensure config is saved (items may have been reviewed/re-entered)
             changed = true;
         }
 

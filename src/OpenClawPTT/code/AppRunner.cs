@@ -201,6 +201,13 @@ public class AppRunner : IDisposable
     private async Task<int> RunPttLoopAsync(IGatewayService gateway, IPttStateMachine pttStateMachine, IDirectLlmService directLlmService, ITtsSummarizer ttsSummarizer, CancellationToken ct)
     {
         using var audioService = _factory.CreateAudioService(_cfg);
+
+        // Re-create transcriber when config changes (e.g. STT provider/model switched via /reconfigure)
+        void OnConfigSaved(AppConfig newCfg) => audioService.RecreateTranscriber(newCfg, _console);
+        _configService.ConfigSaved += OnConfigSaved;
+
+        try
+        {
         var textSender = _factory.CreateTextMessageSender(gateway);
 
         // Wire up conversation naming: wrap text sender and connect to status bar
@@ -254,6 +261,11 @@ public class AppRunner : IDisposable
             requireConfirmBeforeSend: _cfg.RequireConfirmBeforeSend);
 
         return (int)(await pttLoop.RunAsync(ct));
+        }
+        finally
+        {
+            _configService.ConfigSaved -= OnConfigSaved;
+        }
     }
 
     /// <summary>Access the error log store (used by StreamShell commands).</summary>

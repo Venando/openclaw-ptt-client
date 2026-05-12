@@ -59,7 +59,8 @@ public sealed class WhisperCppTranscriberAdapter : ITranscriber
             var psi = new ProcessStartInfo
             {
                 FileName = _whisperBinaryPath,
-                Arguments = $"--model \"{modelPath}\" --file \"{tempFile}\" --output-txt --no-timestamps",
+                // New whisper CLI: positional audio file, --output_dir, --output_format
+                Arguments = $"--model \"{modelPath}\" --output_dir \"{tempDir}\" --output_format txt \"{tempFile}\"",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,

@@ -124,4 +124,6 @@ public sealed class MockAudioService : IAudioService
             }
         }
     }
+
+    public void RecreateTranscriber(AppConfig config, IColorConsole console) { /* no-op for test mode */ }
 }

@@ -12,7 +12,7 @@ public sealed class AudioService : IAudioService
 {
     private readonly IColorConsole _console;
     private readonly IAudioRecorder _recorder;
-    private readonly ITranscriber _transcriber;
+    private ITranscriber _transcriber;
     private readonly IVisualFeedback _visualFeedback;
     private readonly IAgentSettingsPersistence _agentSettingsPersistence;
     
@@ -39,6 +39,7 @@ public sealed class AudioService : IAudioService
         _recorder = recorder ?? new AudioRecorder(config.SampleRate, config.Channels, config.BitsPerSample, config.MaxRecordSeconds);
         _transcriber = TranscriberFactory.Create(config, console);
         _visualFeedback = VisualFeedbackFactory.Create(config);
+        LogSttProvider(config);
         _hotkeyCombination = config.HotkeyCombination;
         _holdToTalk = config.HoldToTalk;
         _rightMarginIndent = config.RightMarginIndent;
@@ -100,6 +101,31 @@ public sealed class AudioService : IAudioService
         }
     }
     
+    /// <summary>
+    /// Re-creates the transcriber after a config change (e.g. STT provider/model switched).
+    /// Disposes the old transcriber and creates a new one from the updated config.
+    /// </summary>
+    public void RecreateTranscriber(AppConfig config, IColorConsole console)
+    {
+        var old = Interlocked.Exchange(ref _transcriber, TranscriberFactory.Create(config, console));
+        old?.Dispose();
+        LogSttProvider(config, recreated: true);
+    }
+
+    private void LogSttProvider(AppConfig config, bool recreated = false)
+    {
+        var provider = config.SttProvider ?? "groq";
+        string model = provider switch
+        {
+            "groq" => config.GroqModel ?? "whisper-large-v3-turbo",
+            "openai" => config.OpenAiModel ?? "whisper-1",
+            "whisper-cpp" => config.WhisperCppModel ?? "base",
+            _ => "?"
+        };
+        var action = recreated ? "Switched to" : "STT";
+        _console.PrintMarkup($"[grey][dim]  {action}: {provider} ({model})[/][/]");
+    }
+
     public void Dispose()
     {
         if (!_disposed)
