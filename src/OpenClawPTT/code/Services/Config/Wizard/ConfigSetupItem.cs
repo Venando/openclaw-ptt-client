@@ -151,6 +151,11 @@ public sealed class ConfigSetupItem
             BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
         if (prop == null)
             throw new ArgumentException($"AppConfig has no property '{fieldName}'");
+
+        // If the property is an enum and value is a string, parse it
+        if (prop.PropertyType.IsEnum && value is string strValue)
+            value = Enum.Parse(prop.PropertyType, strValue);
+
         prop.SetValue(config, value);
     }
 
