@@ -112,7 +112,7 @@ public sealed class AppConfig
     public string DirectLlmApiType { get; set; } = "openai-completions"; // "openai-completions" or "anthropic-messages"
 
     // Audio response settings
-    public string AudioResponseMode { get; set; } = "text-only"; // text-only, audio-only, both
+
     public string? TtsApiKey { get; set; } // Optional ElevenLabs API key
     public string? TtsVoiceId { get; set; } // Default ElevenLabs voice
 
@@ -201,7 +201,7 @@ public sealed class AppConfig
         ["DirectLlmUrl"] = "API URL for direct LLM",
         ["DirectLlmModelName"] = "Model name for direct LLM",
         ["DirectLlmApiType"] = "LLM API type: openai-completions or anthropic-messages",
-        ["AudioResponseMode"] = "Agent output: text-only, audio-only, both",
+
         ["TtsApiKey"] = "ElevenLabs TTS API key",
         ["TtsVoiceId"] = "ElevenLabs voice ID",
         ["TtsOutputMode"] = "TTS mode: always-on, siso (single-in-single-out), off",

@@ -47,7 +47,6 @@ public sealed class ConfigurationWizard
         [Step.HotkeyCombination] = new HotkeyCombinationHandler(),
         [Step.VisualFeedbackPosition] = new VisualFeedbackPositionHandler(),
         [Step.VisualFeedbackColor] = new VisualFeedbackColorHandler(),
-        [Step.AudioResponseMode] = new AudioResponseModeHandler(),
     };
 
     private static IWizardStepHandler? GetHandler(Step step)

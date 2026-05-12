@@ -12,13 +12,6 @@ public sealed class InputDisplayConfigSection : ConfigSectionBase
     public override string Name => "Input & Display";
     public override string Description => "Hotkey, display mode, and audio response settings";
 
-    private static readonly (string Name, string Value)[] AudioModeOptions =
-    {
-        ("Text only", "text-only"),
-        ("Audio only", "audio-only"),
-        ("Both text and audio", "both"),
-    };
-
     public InputDisplayConfigSection()
     {
         _configItems.AddRange(new[]
@@ -52,12 +45,6 @@ public sealed class InputDisplayConfigSection : ConfigSectionBase
                 title: "Require confirmation before sending messages?",
                 fieldName: nameof(AppConfig.RequireConfirmBeforeSend)),
         });
-
-        // Audio response mode (with Back button for reconfig)
-        _configItems.Add(ConfigSetupItem.ForSelectionWithBack(
-            title: "Audio response mode",
-            fieldName: nameof(AppConfig.AudioResponseMode),
-            options: AudioModeOptions));
     }
 
     public override async Task<ConfigSectionResult> RunAsync(

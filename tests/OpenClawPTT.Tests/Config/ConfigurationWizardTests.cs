@@ -46,7 +46,6 @@ public class ConfigurationWizardTests
         host.SubmitInput("1.0");                   // VisualFeedbackOpacity
         host.SubmitInput("#FF0000");               // VisualFeedbackColor
         host.SubmitInput("8");                     // VisualFeedbackRimThickness
-        host.SubmitInput("both");                  // AudioResponseMode
         host.SubmitInput("eleven-key");            // TtsApiKey
         host.SubmitInput("voice123");              // TtsVoiceId
 
@@ -70,7 +69,6 @@ public class ConfigurationWizardTests
         Assert.Equal(1.0, config.VisualFeedbackOpacity);
         Assert.Equal("#FF0000", config.VisualFeedbackColor);
         Assert.Equal(8, config.VisualFeedbackRimThickness);
-        Assert.Equal("both", config.AudioResponseMode);
         Assert.Equal("eleven-key", config.TtsApiKey);
         Assert.Equal("voice123", config.TtsVoiceId);
     }
@@ -130,7 +128,6 @@ public class ConfigurationWizardTests
         host.SubmitInput("#00FF00");
         // VisualFeedbackRimThickness
         host.SubmitInput("5");
-        // AudioResponseMode
         host.SubmitInput("text-only");
         // TtsApiKey
         host.SubmitInput("");
@@ -177,7 +174,6 @@ public class ConfigurationWizardTests
         host.SubmitInput("0.5");                   // VisualFeedbackOpacity
         host.SubmitInput("#00FF00");               // VisualFeedbackColor
         host.SubmitInput("5");                     // VisualFeedbackRimThickness
-        host.SubmitInput("text-only");             // AudioResponseMode
         host.SubmitInput("");                      // TtsApiKey
         host.SubmitInput("");                      // TtsVoiceId
 
