@@ -202,10 +202,16 @@ public sealed class StreamShellInputHandler : IDisposable
 
     private void RegisterDirectLlmCommand()
     {
-        // The _directLlmService is captured at construction time and won't be
-        // updated on config changes. If it's null here, the service wasn't
-        // configured at startup — don't register a dead command.
-        if (_directLlmService == null)
+        // Check the current config rather than the captured service reference.
+        // The _directLlmService may be null when Direct LLM is configured at
+        // runtime via /appconfig after startup (Scenario C).  In that case we
+        // still register /llm — LlmCommand.ExecuteAsync gracefully displays
+        // "not configured" if the service is unavailable, prompting the user
+        // to restart.  A future improvement could re-create IDirectLlmService
+        // from IServiceFactory here.
+        bool hasConfig = !string.IsNullOrWhiteSpace(_appConfig.DirectLlmUrl) &&
+                         !string.IsNullOrWhiteSpace(_appConfig.DirectLlmModelName);
+        if (!hasConfig)
             return;
         _registry.Register(new LlmCommand(_host, _console, _directLlmService, _appConfig, _statusService));
     }
