@@ -198,13 +198,20 @@ public class AppRunner : IDisposable
     {
         using var audioService = _factory.CreateAudioService(_cfg);
         var textSender = _factory.CreateTextMessageSender(gateway);
-        var inputHandler = _factory.CreateInputHandler(textSender);
+
+        // Wire up conversation naming: wrap text sender and connect to status bar
+        using var namingService = _factory.CreateConversationNamingService(
+            directLlmService.IsConfigured ? directLlmService : null);
+        namingService.ConversationNameChanged += name => _statusService.SetConversationName(name);
+        var namingTextSender = new ConversationNamingTextMessageSender(textSender, namingService);
+
+        var inputHandler = _factory.CreateInputHandler(namingTextSender);
 
         // Agent settings (loaded in AppBootstrapper, already merged into AgentRegistry)
         var pttController = new PttController();
 
         using var agentHotkeyService = new AgentHotkeyService(
-            pttController, textSender, _shellHost, _cfg,
+            pttController, namingTextSender, _shellHost, _cfg,
             _factory.GetAgentSettingsPersistence(),
             gatewayService: gateway,
             pttStateMachine: pttStateMachine,
@@ -213,7 +220,7 @@ public class AppRunner : IDisposable
         // Register StreamShell commands (/quit, /reconfigure) before PTT loop
         using var shellCommands = new StreamShellInputHandler(
             _shellHost,
-            textSender,
+            namingTextSender,
             gateway,
             _configService,
             _cfg,
@@ -226,6 +233,7 @@ public class AppRunner : IDisposable
             errorLogStore: _errorLog,
             statusService: _statusService
         );
+        shellCommands.CommandExecuted += namingService.OnCommandExecuted;
         await shellCommands.RegisterAsync();
 
         // Wire agent hotkey history printing to the canonical shared method
@@ -234,7 +242,7 @@ public class AppRunner : IDisposable
         _console.PrintHelpMenu(_cfg);
 
         using IAppLoop pttLoop = _factory.CreatePttLoop(
-            pttStateMachine, audioService, pttController, textSender, inputHandler,
+            pttStateMachine, audioService, pttController, namingTextSender, inputHandler,
             requireConfirmBeforeSend: _cfg.RequireConfirmBeforeSend);
 
         return (int)(await pttLoop.RunAsync(ct));
