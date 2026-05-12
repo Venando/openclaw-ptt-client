@@ -22,16 +22,21 @@ public abstract class ConfigSectionBase : IConfigSectionWizard
 
     /// <summary>
     /// Runs all registered <see cref="_configItems"/> in sequence.
+    /// Automatically populates <paramref name="result"/>.<see cref="ConfigSectionResult.Settings"/>
+    /// with the display value of each item after prompting.
     /// Returns true if any item reported a change.
     /// </summary>
     protected async Task<bool> RunConfigItemsAsync(
-        IStreamShellHost host, AppConfig config, bool isInitialSetup, CancellationToken ct)
+        IStreamShellHost host, AppConfig config, bool isInitialSetup, CancellationToken ct,
+        ConfigSectionResult result)
     {
         bool changed = false;
         foreach (var item in _configItems)
         {
             if (await item.RunAsync(host, config, isInitialSetup, ct))
                 changed = true;
+            result.Settings.Add(new ConfigSectionResult.SettingRecord(
+                item.Title, item.GetDisplayValue(config)));
         }
         return changed;
     }

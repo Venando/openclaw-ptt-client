@@ -130,12 +130,5 @@ public static class PromptTextHelper
             host.AddMessage($"  [grey](current: {Markup.Escape(displayDefault)}, press Enter to keep)[/]");
     }
 
-    private static string MaskSecret(string value)
-    {
-        if (string.IsNullOrEmpty(value))
-            return "(not set)";
-        if (value.Length <= 4)
-            return new string('*', value.Length);
-        return value[..4] + new string('*', Math.Min(value.Length - 4, 12));
-    }
+    private static string MaskSecret(string value) => ConfigSetupItem.MaskSecret(value);
 }

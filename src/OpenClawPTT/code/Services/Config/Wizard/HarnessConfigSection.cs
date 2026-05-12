@@ -54,7 +54,7 @@ public sealed class HarnessConfigSection : ConfigSectionBase
             config.AuthToken = Environment.GetEnvironmentVariable("OPENCLAW_GATEWAY_TOKEN");
 
         // ── Loop over generic config items ──
-        if (await RunConfigItemsAsync(host, config, isInitialSetup, ct))
+        if (await RunConfigItemsAsync(host, config, isInitialSetup, ct, result))
             changed = true;
 
         // ── TLS fingerprint (only for wss://) ──
@@ -79,9 +79,6 @@ public sealed class HarnessConfigSection : ConfigSectionBase
 
         // ── Populate settings summary ──
         result.Settings.Add(new ConfigSectionResult.SettingRecord("Harness Type", harness));
-        result.Settings.Add(new ConfigSectionResult.SettingRecord("Gateway URL", config.GatewayUrl ?? "(not set)"));
-        result.Settings.Add(new ConfigSectionResult.SettingRecord("Auth Token",
-            config.AuthToken != null ? "••••••" : "(not set)"));
 
         result.IsChanged = changed;
         return result;

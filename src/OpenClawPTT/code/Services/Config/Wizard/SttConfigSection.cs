@@ -150,7 +150,7 @@ public sealed class SttConfigSection : ConfigSectionBase
         }
 
         // ── Generic config items (Locale, etc.) ──
-        if (await RunConfigItemsAsync(host, config, isInitialSetup, ct))
+        if (await RunConfigItemsAsync(host, config, isInitialSetup, ct, result))
             changed = true;
 
         result.IsChanged = changed;

@@ -25,6 +25,9 @@ public sealed class ConfigSetupItem
     /// <summary>Optional short description shown below the prompt.</summary>
     public string? Description { get; init; }
 
+    /// <summary>True when the field value should be masked in settings display.</summary>
+    public bool IsSecret { get; init; }
+
     /// <summary>The prompt-and-apply delegate created by the factory method.</summary>
     internal Func<IStreamShellHost, AppConfig, bool, CancellationToken, Task<bool>> PromptAndApplyAsync { get; init; }
 
@@ -56,7 +59,8 @@ public sealed class ConfigSetupItem
         return new ConfigSetupItem(title, fieldName, (host, config, _, ct) =>
             PromptStringAsync(host, title, config, fieldName,
                 validator ?? (_ => true), validationHint, ct,
-                isSecret, isEmptyToDefault, allowClear));
+                isSecret, isEmptyToDefault, allowClear))
+        { IsSecret = isSecret };
     }
 
     /// <summary>Configures a Yes/No boolean field.</summary>
@@ -133,6 +137,28 @@ public sealed class ConfigSetupItem
         if (prop == null)
             throw new ArgumentException($"AppConfig has no property '{fieldName}'");
         prop.SetValue(config, value);
+    }
+
+    // ── Display helpers ────────────────────────────────────────────
+
+    /// <summary>Returns the current value of the field from config, masked if this is a secret field.</summary>
+    public string GetDisplayValue(AppConfig config)
+    {
+        var prop = typeof(AppConfig).GetProperty(FieldName,
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        var raw = prop?.GetValue(config);
+        var text = raw?.ToString() ?? "";
+        return IsSecret ? MaskSecret(text) : text;
+    }
+
+    /// <summary>Masks a secret value for display, showing first 4 chars followed by asterisks.</summary>
+    public static string MaskSecret(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return "(not set)";
+        if (value.Length <= 4)
+            return new string('*', value.Length);
+        return value[..4] + new string('*', Math.Min(value.Length - 4, 12));
     }
 
     // ── Prompt implementations ───────────────────────────────────────
