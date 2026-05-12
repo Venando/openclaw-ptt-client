@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Moq;
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Commands;
 using Xunit;
 
 namespace OpenClawPTT.Tests.Services;
@@ -12,7 +13,6 @@ public class ConversationNamingServiceTests : IDisposable
 {
     public ConversationNamingServiceTests()
     {
-        // Set up a dummy agent so AgentRegistry.ActiveSessionKey is not null
         AgentRegistry.SetAgents(new List<AgentInfo>
         {
             new AgentInfo { AgentId = "test-agent", Name = "TestAgent", SessionKey = "test-session" }
@@ -50,8 +50,6 @@ public class ConversationNamingServiceTests : IDisposable
         service.ConversationNameChanged += name => capturedName = name;
 
         service.OnMessageSent("Can you review this C# code for me?");
-
-        // Allow async generation to complete
         Thread.Sleep(200);
 
         Assert.Equal("Code Review", capturedName);
@@ -89,7 +87,6 @@ public class ConversationNamingServiceTests : IDisposable
         service.OnMessageSent("Second message");
         Thread.Sleep(200);
 
-        // Should only call LLM once
         mockLlm.Verify(x => x.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -112,7 +109,7 @@ public class ConversationNamingServiceTests : IDisposable
     }
 
     [Fact]
-    public void OnCommandSent_Reset_ClearsConversationName()
+    public void OnCommandExecuted_Reset_ClearsConversationName()
     {
         var mockLlm = new Mock<IDirectLlmService>();
         mockLlm.Setup(x => x.IsConfigured).Returns(true);
@@ -127,14 +124,16 @@ public class ConversationNamingServiceTests : IDisposable
         Thread.Sleep(200);
         Assert.Equal("Test Name", service.GetCurrentConversationName());
 
-        service.OnCommandSent("reset");
+        service.OnCommandExecuted(null, new CommandExecutedEventArgs(
+            "reset", CommandSource.OpenClaw, OpenClawPTT.Services.Commands.ShellCommandType.SessionControl,
+            Array.Empty<string>(), new Dictionary<string, string>()));
 
         Assert.Null(service.GetCurrentConversationName());
         Assert.Null(capturedName);
     }
 
     [Fact]
-    public void OnCommandSent_New_ClearsConversationName()
+    public void OnCommandExecuted_New_ClearsConversationName()
     {
         var mockLlm = new Mock<IDirectLlmService>();
         mockLlm.Setup(x => x.IsConfigured).Returns(true);
@@ -146,13 +145,15 @@ public class ConversationNamingServiceTests : IDisposable
         Thread.Sleep(200);
         Assert.Equal("Test Name", service.GetCurrentConversationName());
 
-        service.OnCommandSent("new");
+        service.OnCommandExecuted(null, new CommandExecutedEventArgs(
+            "new", CommandSource.OpenClaw, OpenClawPTT.Services.Commands.ShellCommandType.SessionControl,
+            Array.Empty<string>(), new Dictionary<string, string>()));
 
         Assert.Null(service.GetCurrentConversationName());
     }
 
     [Fact]
-    public void OnCommandSent_UnknownCommand_DoesNotClearName()
+    public void OnCommandExecuted_UnknownCommand_DoesNotClearName()
     {
         var mockLlm = new Mock<IDirectLlmService>();
         mockLlm.Setup(x => x.IsConfigured).Returns(true);
@@ -164,13 +165,15 @@ public class ConversationNamingServiceTests : IDisposable
         Thread.Sleep(200);
         Assert.Equal("Test Name", service.GetCurrentConversationName());
 
-        service.OnCommandSent("config");
+        service.OnCommandExecuted(null, new CommandExecutedEventArgs(
+            "config", CommandSource.OpenClaw, OpenClawPTT.Services.Commands.ShellCommandType.Admin,
+            Array.Empty<string>(), new Dictionary<string, string>()));
 
         Assert.Equal("Test Name", service.GetCurrentConversationName());
     }
 
     [Fact]
-    public void OnCommandSent_IsCaseInsensitive()
+    public void OnCommandExecuted_IsCaseInsensitive()
     {
         var mockLlm = new Mock<IDirectLlmService>();
         mockLlm.Setup(x => x.IsConfigured).Returns(true);
@@ -181,8 +184,32 @@ public class ConversationNamingServiceTests : IDisposable
         service.OnMessageSent("Message");
         Thread.Sleep(200);
 
-        service.OnCommandSent("RESET");
+        service.OnCommandExecuted(null, new CommandExecutedEventArgs(
+            "RESET", CommandSource.OpenClaw, OpenClawPTT.Services.Commands.ShellCommandType.SessionControl,
+            Array.Empty<string>(), new Dictionary<string, string>()));
 
         Assert.Null(service.GetCurrentConversationName());
+    }
+
+    [Fact]
+    public void OnCommandExecuted_NonSessionControlType_DoesNotClearName()
+    {
+        var mockLlm = new Mock<IDirectLlmService>();
+        mockLlm.Setup(x => x.IsConfigured).Returns(true);
+        mockLlm.Setup(x => x.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Test Name");
+
+        var service = new ConversationNamingService(mockLlm.Object);
+        service.OnMessageSent("Message");
+        Thread.Sleep(200);
+        Assert.Equal("Test Name", service.GetCurrentConversationName());
+
+        // A native "reset" command that is NOT SessionControl should not clear
+        service.OnCommandExecuted(null, new CommandExecutedEventArgs(
+            "reset", CommandSource.Native, OpenClawPTT.Services.Commands.ShellCommandType.Unknown,
+            Array.Empty<string>(), new Dictionary<string, string>()));
+
+        // Still named because type check fails
+        Assert.Equal("Test Name", service.GetCurrentConversationName());
     }
 }
