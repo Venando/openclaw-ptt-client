@@ -1,4 +1,3 @@
-using System;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -23,9 +22,10 @@ public sealed class VisualFeedbackConfigSection : ConfigSectionBase
         ("Bottom Right", "BottomRight"),
     };
 
-    // Position must run before Color, so it stays at index 0 and runs inline.
+    // Position and Color run inline before the rest (they need custom ordering).
     private const int IndexPosition = 0;
-    private const int IndexRest = 1;
+    private const int IndexColor = 1;
+    private const int IndexRest = 2;
 
     public VisualFeedbackConfigSection()
     {
@@ -33,6 +33,13 @@ public sealed class VisualFeedbackConfigSection : ConfigSectionBase
             title: "Indicator position",
             fieldName: nameof(AppConfig.VisualFeedbackPosition),
             options: PositionOptions));
+
+        _configItems.Add(ConfigSetupItem.ForString(
+            title: "Indicator color (hex, e.g. #FF0000)",
+            fieldName: nameof(AppConfig.VisualFeedbackColor),
+            validator: v => HexColorPattern.IsMatch(v),
+            validationHint: "Expected hex color like #00FF00",
+            transform: v => v.StartsWith("#") ? v : $"#{v}"));
 
         _configItems.AddRange(new[]
         {
@@ -85,24 +92,16 @@ public sealed class VisualFeedbackConfigSection : ConfigSectionBase
             return result;
         }
 
-        // ── Position (index 0, runs before Color) ──
-        if (await _configItems[IndexPosition].RunAsync(host, config, isInitialSetup, ct))
-            changed = true;
-        result.Settings.Add(new ConfigSectionResult.SettingRecord(
-            _configItems[IndexPosition].Title, _configItems[IndexPosition].GetDisplayValue(config)));
-
-        // ── Color (inline for #-prefix post-processing) ──
-        var color = await PromptTextHelper.PromptAsync(host, "Indicator color (hex, e.g. #FF0000)",
-            config.VisualFeedbackColor,
-            v => HexColorPattern.IsMatch(v), "Expected hex color like #00FF00",
-            ct);
-        if (color != null && color != config.VisualFeedbackColor)
+        // ── Position (index 0) and Color (index 1) — run inline, before auto-config items ──
+        for (int i = IndexPosition; i < IndexRest; i++)
         {
-            config.VisualFeedbackColor = color.StartsWith("#") ? color : $"#{color}";
-            changed = true;
+            if (await _configItems[i].RunAsync(host, config, isInitialSetup, ct))
+                changed = true;
+            result.Settings.Add(new ConfigSectionResult.SettingRecord(
+                _configItems[i].Title, _configItems[i].GetDisplayValue(config)));
         }
 
-        // ── VisualMode, Size, Opacity, RimThickness (indices 1..) ──
+        // ── VisualMode, Size, Opacity, RimThickness (index 2..) ──
         if (await RunConfigItemsAsync(host, config, isInitialSetup, ct, result, startIndex: IndexRest))
             changed = true;
 

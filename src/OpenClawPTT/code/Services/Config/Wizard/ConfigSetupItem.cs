@@ -46,6 +46,9 @@ public sealed class ConfigSetupItem
     // ── Factory methods ──────────────────────────────────────────────
 
     /// <summary>Configures a free-text string field.</summary>
+    /// <param name="transform">Optional post-processor applied to the submitted value before storing
+    /// (e.g. prefix normalization). Applied before the nullable-empty check, so it can alter the value
+    /// that is compared against the current config value.</param>
     public static ConfigSetupItem ForString(
         string title,
         string fieldName,
@@ -54,12 +57,13 @@ public sealed class ConfigSetupItem
         bool isSecret = false,
         bool isEmptyToDefault = false,
         bool allowClear = false,
-        string? description = null)
+        string? description = null,
+        Func<string, string>? transform = null)
     {
         return new ConfigSetupItem(title, fieldName, (host, config, _, ct) =>
             PromptStringAsync(host, title, config, fieldName,
                 validator ?? (_ => true), validationHint, ct,
-                isSecret, isEmptyToDefault, allowClear))
+                isSecret, isEmptyToDefault, allowClear, transform))
         { IsSecret = isSecret };
     }
 
@@ -177,7 +181,8 @@ public sealed class ConfigSetupItem
     private static async Task<bool> PromptStringAsync(
         IStreamShellHost host, string title, AppConfig config, string fieldName,
         Func<string, bool> validator, string? validationHint, CancellationToken ct,
-        bool isSecret, bool isEmptyToDefault, bool allowClear)
+        bool isSecret, bool isEmptyToDefault, bool allowClear,
+        Func<string, string>? transform = null)
     {
         var current = GetValue<string?>(config, fieldName) ?? "";
         var result = await PromptTextHelper.PromptAsync(host, title, current,
@@ -185,14 +190,17 @@ public sealed class ConfigSetupItem
         if (result == null)
             return false;
 
+        // Apply value transform (e.g. prefix normalization) before comparison
+        var transformed = transform != null ? transform(result) : result;
+
         // For nullable strings, convert empty to null if needed
         var prop = typeof(AppConfig).GetProperty(fieldName,
             BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
         bool isNullableString = prop?.PropertyType == typeof(string) && prop.GetCustomAttribute<System.Runtime.CompilerServices.NullableAttribute>()?.NullableFlags[0] == 2
                                 || Nullable.GetUnderlyingType(prop?.PropertyType!) != null;
 
-        object? newValue = result;
-        if (isNullableString && string.IsNullOrEmpty(result))
+        object? newValue = transformed;
+        if (isNullableString && string.IsNullOrEmpty(transformed))
             newValue = null;
 
         if (!Equals(newValue, current))
