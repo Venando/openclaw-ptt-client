@@ -1,7 +1,7 @@
 namespace OpenClawPTT.Services;
 
 /// <summary>
-/// Tracks application component status (gateway, TTS) and reflects it
+/// Tracks application component status (gateway, TTS, direct LLM) and reflects it
 /// in the StreamShell top separator.
 /// </summary>
 public interface IStatusService
@@ -11,6 +11,15 @@ public interface IStatusService
 
     /// <summary>Update the TTS service status displayed on the separator bar.</summary>
     void SetTtsStatus(string label, StatusColor color);
+
+    /// <summary>Update the direct LLM status displayed on the separator bar.</summary>
+    void SetDirectLlmStatus(string label, StatusColor color);
+
+    /// <summary>
+    /// Record the last time the direct LLM was called.
+    /// Pass null to clear the timestamp.
+    /// </summary>
+    void SetDirectLlmLastCalled(DateTime? timestamp);
 
     /// <summary>
     /// Provide an <see cref="IAgentStatusTracker"/> for rendering active agent

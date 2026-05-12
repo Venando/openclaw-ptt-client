@@ -377,18 +377,32 @@ public class StatusServiceTests
     }
 
     [Fact]
-    public void FormatTokenCount_FormatsCorrectly()
+    public void AppendTokenCount_FormatsCorrectly()
     {
         var type = typeof(StatusService);
-        var method = type.GetMethod("FormatTokenCount",
+        var method = type.GetMethod("AppendTokenCount",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
         Assert.NotNull(method);
 
-        Assert.Equal("12k", method.Invoke(null, new object[] { 12_000L }));
-        Assert.Equal("264k", method.Invoke(null, new object[] { 264_000L }));
-        Assert.Equal("1k", method.Invoke(null, new object[] { 1_000L }));
-        Assert.Equal("1.0M", method.Invoke(null, new object[] { 1_000_000L }));
-        Assert.Equal("500", method.Invoke(null, new object[] { 500L }));
+        var sb = new System.Text.StringBuilder();
+        method.Invoke(null, new object[] { sb, 12_000L });
+        Assert.Equal("12k", sb.ToString());
+
+        sb.Clear();
+        method.Invoke(null, new object[] { sb, 264_000L });
+        Assert.Equal("264k", sb.ToString());
+
+        sb.Clear();
+        method.Invoke(null, new object[] { sb, 1_000L });
+        Assert.Equal("1k", sb.ToString());
+
+        sb.Clear();
+        method.Invoke(null, new object[] { sb, 1_000_000L });
+        Assert.Equal("1.0M", sb.ToString());
+
+        sb.Clear();
+        method.Invoke(null, new object[] { sb, 500L });
+        Assert.Equal("500", sb.ToString());
     }
 
     [Fact]

@@ -5,10 +5,10 @@ using System.Text;
 namespace OpenClawPTT.Services;
 
 /// <summary>
-/// Tracks gateway, TTS, and agent status, rendering a compact status line
+/// Tracks gateway, TTS, direct LLM, and agent status, rendering a compact status line
 /// on both sides of the StreamShell top separator.
 ///
-/// Right side: "  GW:[color]● label[/]  TTS:[color]● label[/]"
+/// Right side: "  GW:[color]● label[/]  TTS:[color]● label[/]  LLM:[color]● label 5s ago[/]"
 /// Left side:  "🤖 Name 🟢 model · thinking · 5% (12k/200k)"
 ///
 /// When no <see cref="IAgentStatusTracker"/> is provided, the left side is empty.
@@ -25,6 +25,7 @@ public sealed class StatusService : IStatusService, IDisposable
     private const string GwPrefix = " GW:[";
     private const string TtsPrefix = "]● ";
     private const string TtsSuffix = "[/] TTS:[";
+    private const string LlmSuffix = "[/] LLM:[";
     private const string RightSuffix = "[/]";
     private const string ConvOpen = "[grey]\u2502[/] [" + ConversationNameMarkup + "]";
     private const string ConvClose = "[/] [grey]\u2502[/]";
@@ -40,6 +41,9 @@ public sealed class StatusService : IStatusService, IDisposable
     private StatusColor _gatewayColor = StatusColor.Yellow;
     private string _ttsLabel = "Starting";
     private StatusColor _ttsColor = StatusColor.Yellow;
+    private string _directLlmLabel = "\u2014";  // em dash — "not configured"
+    private StatusColor _directLlmColor = StatusColor.Yellow;
+    private DateTime? _directLlmLastCalled;
     private string? _conversationName;
 
     public StatusService(IStreamShellHost shellHost, IAgentStatusTracker? agentStatusTracker = null)
@@ -70,6 +74,25 @@ public sealed class StatusService : IStatusService, IDisposable
         {
             _ttsLabel = label;
             _ttsColor = color;
+            Render();
+        }
+    }
+
+    public void SetDirectLlmStatus(string label, StatusColor color)
+    {
+        lock (_lock)
+        {
+            _directLlmLabel = label;
+            _directLlmColor = color;
+            Render();
+        }
+    }
+
+    public void SetDirectLlmLastCalled(DateTime? timestamp)
+    {
+        lock (_lock)
+        {
+            _directLlmLastCalled = timestamp;
             Render();
         }
     }
@@ -129,18 +152,45 @@ public sealed class StatusService : IStatusService, IDisposable
             _sbRight.Append(ToMarkupColor(_ttsColor));
             _sbRight.Append(TtsPrefix);
             _sbRight.Append(_ttsLabel);
+            _sbRight.Append(LlmSuffix);
+            _sbRight.Append(ToMarkupColor(_directLlmColor));
+            _sbRight.Append(TtsPrefix);
+            _sbRight.Append(_directLlmLabel);
+
+            // Show last-called timestamp if available
+            if (_directLlmLastCalled.HasValue)
+            {
+                _sbRight.Append(' ');
+                _sbRight.Append(FormatElapsed(DateTime.Now - _directLlmLastCalled.Value));
+            }
+
             _sbRight.Append(RightSuffix);
 
             string rightText = _sbRight.ToString(); // one alloc per render
             string leftText = BuildLeftText();
             _shellHost.SetTopSeparator(leftText: leftText, rightText: rightText,
-                repeatedCharacter: '─', repeatedCharMarkup: RepeatedCharacterMarkup);
+                repeatedCharacter: '\u2500', repeatedCharMarkup: RepeatedCharacterMarkup);
         }
         catch (Exception ex)
         {
             // Rendering is best-effort — never crash the caller if shell is disposed
             System.Diagnostics.Debug.WriteLine($"StatusService.Render failed: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Formats an elapsed <see cref="TimeSpan"/> as a compact human-readable string
+    /// for display after the LLM status label (e.g. "5s", "2m", "1h").
+    /// </summary>
+    private static string FormatElapsed(TimeSpan elapsed)
+    {
+        if (elapsed.TotalSeconds < 60)
+            return $"{(int)elapsed.TotalSeconds}s";
+        if (elapsed.TotalMinutes < 60)
+            return $"{(int)elapsed.TotalMinutes}m";
+        if (elapsed.TotalHours < 24)
+            return $"{(int)elapsed.TotalHours}h";
+        return $"{(int)elapsed.TotalDays}d";
     }
 
     /// <summary>
