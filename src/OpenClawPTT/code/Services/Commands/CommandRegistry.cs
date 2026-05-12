@@ -61,7 +61,11 @@ public sealed class CommandRegistry
     public void Unregister(string name)
     {
         _commands.RemoveAll(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
-        try { _host.RemoveCommand(name); } catch { /* StreamShell may already have cleaned up */ }
+        try { _host.RemoveCommand(name); }
+        catch (InvalidOperationException)
+        {
+            // StreamShell may already have cleaned up (e.g., during disposal)
+        }
     }
 
     /// <summary>All registered commands.</summary>

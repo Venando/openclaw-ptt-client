@@ -202,6 +202,11 @@ public sealed class StreamShellInputHandler : IDisposable
 
     private void RegisterDirectLlmCommand()
     {
+        // The _directLlmService is captured at construction time and won't be
+        // updated on config changes. If it's null here, the service wasn't
+        // configured at startup — don't register a dead command.
+        if (_directLlmService == null)
+            return;
         _registry.Register(new LlmCommand(_host, _console, _directLlmService, _appConfig, _statusService));
     }
 
@@ -214,8 +219,9 @@ public sealed class StreamShellInputHandler : IDisposable
 
     /// <summary>
     /// Called by ReconnectCommand after a successful reconnection.
-    /// Re-registers gateway-dependent commands so they appear in the palette,
-    /// then fetches session history.
+    /// Re-registers gateway-dependent commands so they appear in the palette.
+    /// Session history is fetched by <see cref="ReconnectCommand.ExecuteAsync"/>
+    /// after this callback completes, so we don't duplicate the fetch here.
     /// </summary>
     private async Task OnGatewayReconnected()
     {
@@ -229,10 +235,7 @@ public sealed class StreamShellInputHandler : IDisposable
         RegisterGatewayCommands();
         _gatewayCommandsRegistered = true;
 
-        // Fetch fresh history now that gateway is back
-        var sessionKey = AgentRegistry.ActiveSessionKey;
-        if (sessionKey != null)
-            await _historyService.PrintSessionHistoryAsync(sessionKey);
+        await Task.CompletedTask;
     }
 
     // ── Config change handler for Direct LLM ──────────────────────────────
