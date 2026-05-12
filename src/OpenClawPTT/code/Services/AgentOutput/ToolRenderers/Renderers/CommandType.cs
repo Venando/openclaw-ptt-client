@@ -1,4 +1,4 @@
-public enum ShellCommandType
+public enum CommandType
 {
     Unknown,
     FileSystem,   // rm, cp, mv, mkdir, ls, cd, chmod, chown, find, touch
