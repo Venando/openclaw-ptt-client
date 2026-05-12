@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -271,6 +272,181 @@ public sealed class WhisperCppModelManager
         }
 
         return null;
+    }
+
+    // ── Python openai-whisper cache management ───────────────────────
+
+    /// <summary>
+    /// Returns the standard Python openai-whisper model cache directory.
+    /// Linux: ~/.cache/whisper/
+    /// macOS: ~/Library/Caches/whisper/
+    /// Windows: %USERPROFILE%\.cache\whisper\
+    /// </summary>
+    public static string GetPythonCacheDir()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            var userProfile = Environment.GetEnvironmentVariable("USERPROFILE") ?? "C:\\Users\\default";
+            return Path.Combine(userProfile, ".cache", "whisper");
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return Path.Combine(home, "Library", "Caches", "whisper");
+        }
+
+        // Linux / other Unix
+        var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return Path.Combine(homeDir, ".cache", "whisper");
+    }
+
+    /// <summary>
+    /// Checks if a Python openai-whisper model is already cached locally.
+    /// Python models use .pt (PyTorch) or .en.pt files in the Whisper cache directory.
+    /// </summary>
+    public static bool IsPythonModelCached(string modelName)
+    {
+        var cacheDir = GetPythonCacheDir();
+        if (!Directory.Exists(cacheDir))
+            return false;
+
+        // Check for the standard PyTorch model file (model_name.pt or model_name.en.pt)
+        if (File.Exists(Path.Combine(cacheDir, $"{modelName}.pt")))
+            return true;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Triggers model download for Python openai-whisper by running the whisper binary
+    /// with a tiny silent WAV file. The model is auto-downloaded by the Python process
+    /// to ~/.cache/whisper/ before transcription begins.
+    /// Reports progress via <paramref name="progressCallback"/> (indeterminate).
+    /// </summary>
+    public static async Task DownloadPythonModelAsync(
+        string binaryPath,
+        string modelName,
+        Action<string, string, long?, long?, bool>? progressCallback = null,
+        CancellationToken ct = default)
+    {
+        // If already cached, just report complete
+        if (IsPythonModelCached(modelName))
+        {
+            progressCallback?.Invoke(modelName, "Already cached", null, null, true);
+            return;
+        }
+
+        progressCallback?.Invoke(modelName, "Downloading model...", null, null, false);
+
+        // Create a tiny valid WAV file (44-byte header + minimal silence)
+        var tempDir = Path.Combine(Path.GetTempPath(), "openclaw-ptt-whisper");
+        Directory.CreateDirectory(tempDir);
+        var dummyWav = Path.Combine(tempDir, $"whisper-dl-{modelName}.wav");
+
+        try
+        {
+            // Write a minimal 16-bit mono WAV at 16kHz, 0.1 seconds of silence
+            CreateSilentWav(dummyWav, sampleRate: 16000, durationSeconds: 0.1f);
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = binaryPath,
+                Arguments = $"--model {modelName} --output_dir \"{tempDir}\" --output_format txt \"{dummyWav}\"" + (OperatingSystem.IsWindows() ? " 2>nul" : " 2>/dev/null"),
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi)
+                ?? throw new InvalidOperationException($"Failed to start whisper binary: {binaryPath}");
+
+            // Wait for the process to complete (model downloads then transcribes silence)
+            try
+            {
+                await process.WaitForExitAsync(ct).ConfigureAwait(false);
+            }
+            finally
+            {
+                try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { /* best effort */ }
+            }
+
+            if (process.ExitCode == 0 && IsPythonModelCached(modelName))
+            {
+                progressCallback?.Invoke(modelName, "Download complete", null, null, true);
+            }
+            else
+            {
+                progressCallback?.Invoke(modelName,
+                    IsPythonModelCached(modelName) ? "Download complete" : $"whisper exited with code {process.ExitCode}",
+                    null, null, IsPythonModelCached(modelName));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            try { File.Delete(dummyWav); } catch { /* best effort */ }
+            throw;
+        }
+        catch (Exception ex)
+        {
+            progressCallback?.Invoke(modelName, $"Failed: {ex.Message}", null, null, false);
+            throw;
+        }
+        finally
+        {
+            // Clean up the dummy WAV file
+            try { File.Delete(dummyWav); } catch { /* best effort */ }
+            try
+            {
+                var txtFile = Path.ChangeExtension(dummyWav, ".txt");
+                if (File.Exists(txtFile)) File.Delete(txtFile);
+            }
+            catch { /* best effort */ }
+            // Clean up the temp output directory if empty
+            try
+            {
+                var txtDir = Path.Combine(tempDir, modelName);
+                if (Directory.Exists(txtDir)) Directory.Delete(txtDir, recursive: true);
+            }
+            catch { /* best effort */ }
+        }
+    }
+
+    /// <summary>Creates a minimal valid WAV file with silent audio.</summary>
+    private static void CreateSilentWav(string path, int sampleRate, float durationSeconds)
+    {
+        var numChannels = (short)1;  // mono
+        var bitsPerSample = (short)16;
+        var bytesPerSample = bitsPerSample / 8;
+        var blockAlign = (short)(numChannels * bytesPerSample);
+        var byteRate = sampleRate * blockAlign;
+        var dataSize = (int)(sampleRate * durationSeconds * blockAlign);
+        if (dataSize < 4) dataSize = 4; // minimum data chunk
+        var fileSize = 36 + dataSize;
+
+        using var fs = new FileStream(path, FileMode.Create, FileAccess.Write);
+        using var bw = new BinaryWriter(fs);
+
+        // RIFF header
+        bw.Write(new[] { (byte)'R', (byte)'I', (byte)'F', (byte)'F' });
+        bw.Write(fileSize);
+        bw.Write(new[] { (byte)'W', (byte)'A', (byte)'V', (byte)'E' });
+
+        // fmt chunk
+        bw.Write(new[] { (byte)'f', (byte)'m', (byte)'t', (byte)' ' });
+        bw.Write(16);           // chunk size
+        bw.Write((short)1);     // PCM
+        bw.Write(numChannels);
+        bw.Write(sampleRate);
+        bw.Write(byteRate);
+        bw.Write(blockAlign);
+        bw.Write(bitsPerSample);
+
+        // data chunk (silence = all zeros)
+        bw.Write(new[] { (byte)'d', (byte)'a', (byte)'t', (byte)'a' });
+        bw.Write(dataSize);
+        bw.Write(new byte[dataSize]);
     }
 }
 

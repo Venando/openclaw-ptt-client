@@ -92,10 +92,20 @@ public sealed class WhisperConfigFlow
             changed = true;
         }
 
-        // ── Step 3: Download model if needed (C++ only — Python auto-downloads) ──
-        if (!isPython && !modelManager.IsDownloaded(modelResult))
+        // ── Step 3: Download model if needed (both Python and C++) ──
+        if (isPython)
         {
-            await DownloadModelWithProgressAsync(host, modelManager, modelResult, ct);
+            if (!WhisperCppModelManager.IsPythonModelCached(modelResult))
+            {
+                await DownloadPythonModelWithProgressAsync(host, resolvedBinaryPath, modelResult, ct);
+            }
+        }
+        else
+        {
+            if (!modelManager.IsDownloaded(modelResult))
+            {
+                await DownloadModelWithProgressAsync(host, modelManager, modelResult, ct);
+            }
         }
 
         // ── Log final config via host message ──
@@ -339,6 +349,40 @@ public sealed class WhisperConfigFlow
     }
 
     // ── Model download with progress ─────────────────────────────────
+
+    private static async Task DownloadPythonModelWithProgressAsync(
+        IStreamShellHost host, string binaryPath,
+        string modelName, CancellationToken ct)
+    {
+        var progressPanel = new DownloadProgressBottomPanel();
+        host.SetBottomPanel(progressPanel);
+
+        try
+        {
+            await WhisperCppModelManager.DownloadPythonModelAsync(
+                binaryPath,
+                modelName,
+                progressCallback: (fileName, status, downloaded, total, complete) =>
+                {
+                    progressPanel.SetProgress(fileName, status, downloaded, total, complete);
+                },
+                ct: ct);
+
+            await Task.Delay(500, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            host.AddMessage("[yellow]  Download cancelled.[/]");
+        }
+        catch (Exception ex)
+        {
+            host.AddMessage($"[red]  Download failed: {ex.Message}[/]");
+        }
+        finally
+        {
+            host.ResetBottomPanel();
+        }
+    }
 
     private static async Task DownloadModelWithProgressAsync(
         IStreamShellHost host, WhisperCppModelManager modelManager,
