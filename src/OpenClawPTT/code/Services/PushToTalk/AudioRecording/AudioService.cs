@@ -12,14 +12,15 @@ public sealed class AudioService : IAudioService
 {
     private readonly IColorConsole _console;
     private readonly IAudioRecorder _recorder;
-    private readonly ITranscriber _transcriber;
+    private ITranscriber _transcriber;
     private readonly IVisualFeedback _visualFeedback;
     private readonly IAgentSettingsPersistence _agentSettingsPersistence;
     
     private readonly string _hotkeyCombination;
     private readonly bool _holdToTalk;
     private readonly int _rightMarginIndent;
-    private bool _disposed;
+    private readonly object _transcriberLock = new();
+    private int _disposedFlag; // 0 = not disposed, 1 = disposed
     
     /// <summary>
     /// Creates an AudioService with a real AudioRecorder.
@@ -37,8 +38,9 @@ public sealed class AudioService : IAudioService
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _agentSettingsPersistence = agentSettingsPersistence ?? throw new ArgumentNullException(nameof(agentSettingsPersistence));
         _recorder = recorder ?? new AudioRecorder(config.SampleRate, config.Channels, config.BitsPerSample, config.MaxRecordSeconds);
-        _transcriber = TranscriberFactory.Create(config);
+        _transcriber = TranscriberFactory.Create(config, console);
         _visualFeedback = VisualFeedbackFactory.Create(config);
+        LogSttProvider(config);
         _hotkeyCombination = config.HotkeyCombination;
         _holdToTalk = config.HoldToTalk;
         _rightMarginIndent = config.RightMarginIndent;
@@ -48,7 +50,7 @@ public sealed class AudioService : IAudioService
     
     public void StartRecording()
     {
-        if (_disposed) throw new ObjectDisposedException(nameof(AudioService));
+        if (_disposedFlag == 1) throw new ObjectDisposedException(nameof(AudioService));
         
         _recorder.StartRecording();
         // Use per-agent hotkey if set, else fall back to global config default
@@ -62,7 +64,7 @@ public sealed class AudioService : IAudioService
     
     public void StopDiscard()
     {
-        if (_disposed) throw new ObjectDisposedException(nameof(AudioService));
+        if (_disposedFlag == 1) throw new ObjectDisposedException(nameof(AudioService));
         if (!_recorder.IsRecording) return;
 
         _recorder.StopRecording();
@@ -72,7 +74,7 @@ public sealed class AudioService : IAudioService
 
     public async Task<string?> StopAndTranscribeAsync(CancellationToken ct)
     {
-        if (_disposed) throw new ObjectDisposedException(nameof(AudioService));
+        if (_disposedFlag == 1) throw new ObjectDisposedException(nameof(AudioService));
         if (!_recorder.IsRecording) return null;
         
         var wav = _recorder.StopRecording();
@@ -87,7 +89,10 @@ public sealed class AudioService : IAudioService
 
         try
         {
-            var transcribed = await _transcriber.TranscribeAsync(wav, ct: ct);
+            // Capture transcriber under lock to prevent use-after-dispose (C3)
+            ITranscriber transcriber;
+            lock (_transcriberLock) { transcriber = _transcriber; }
+            var transcribed = await transcriber.TranscribeAsync(wav, ct: ct);
             var shellHost = _console.GetStreamShellHost();
             var prefix = $"Transcribed ({wav.Length / 1024.0:F1} KB): ";
             _console.PrintMarkup($"[green][dim]  ✓ {Markup.Escape(prefix)}[/][/] [green]{Markup.Escape(transcribed)}[/]");
@@ -100,14 +105,45 @@ public sealed class AudioService : IAudioService
         }
     }
     
+    /// <summary>
+    /// Re-creates the transcriber after a config change (e.g. STT provider/model switched).
+    /// Disposes the old transcriber and creates a new one from the updated config.
+    /// </summary>
+    public void RecreateTranscriber(AppConfig config, IColorConsole console)
+    {
+        ITranscriber old;
+        lock (_transcriberLock)
+        {
+            old = _transcriber;
+            _transcriber = TranscriberFactory.Create(config, console);
+        }
+        // Dispose OUTSIDE the lock to avoid deadlocks
+        old?.Dispose();
+        LogSttProvider(config, recreated: true);
+    }
+
+    private void LogSttProvider(AppConfig config, bool recreated = false)
+    {
+        var provider = config.SttProvider ?? "groq";
+        string model = provider switch
+        {
+            "groq" => config.GroqModel ?? "whisper-large-v3-turbo",
+            "openai" => config.OpenAiModel ?? "whisper-1",
+            "whisper-cpp" => config.WhisperCppModel ?? "base",
+            _ => "?"
+        };
+        var action = recreated ? "Switched to" : "STT";
+        _console.PrintMarkup($"[grey][dim]  {action}: {provider} ({model})[/][/]");
+    }
+
     public void Dispose()
     {
-        if (!_disposed)
+        if (Interlocked.Exchange(ref _disposedFlag, 1) != 0) return;
+        lock (_transcriberLock)
         {
             _recorder.Dispose();
             _transcriber.Dispose();
             _visualFeedback.Dispose();
-            _disposed = true;
         }
     }
 }

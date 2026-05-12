@@ -1,4 +1,6 @@
+using Moq;
 using OpenClawPTT;
+using OpenClawPTT.Services;
 using OpenClawPTT.Transcriber;
 using System;
 using Xunit;
@@ -7,10 +9,19 @@ namespace OpenClawPTT.Tests;
 
 public class TranscriberFactoryTests
 {
+    private readonly Mock<IColorConsole> _mockConsole = new();
+    private readonly Mock<IStreamShellHost> _mockShellHost = new();
+    private IColorConsole Console => _mockConsole.Object;
+
+    public TranscriberFactoryTests()
+    {
+        _mockConsole.Setup(c => c.GetStreamShellHost()).Returns(_mockShellHost.Object);
+    }
+
     #region Null API key scenarios
 
     [Fact]
-    public void Create_OpenAiProvider_NullApiKey_ThrowsArgumentNullException()
+    public void Create_OpenAiProvider_NullApiKey_ThrowsInvalidOperationException()
     {
         var cfg = new AppConfig
         {
@@ -18,25 +29,24 @@ public class TranscriberFactoryTests
             OpenAiApiKey = null
         };
 
-        var ex = Record.Exception(() => TranscriberFactory.Create(cfg));
+        var ex = Record.Exception(() => TranscriberFactory.Create(cfg, Console));
 
-        Assert.IsType<ArgumentNullException>(ex);
+        Assert.IsType<InvalidOperationException>(ex);
     }
 
     [Fact]
-    public void Create_WhisperCppProvider_NullApiKey_DoesNotThrow()
+    public void Create_WhisperCppProvider_NullModel_DoesNotThrow()
     {
-        // whisper-cpp doesn't use an API key, path/model are optional
+        // whisper-cpp doesn't use an API key, model is optional (defaults to "base")
         var cfg = new AppConfig
         {
             SttProvider = "whisper-cpp",
-            WhisperCppPath = null,
-            WhisperCppModelPath = null
+            WhisperCppModel = null
         };
 
-        var ex = Record.Exception(() => TranscriberFactory.Create(cfg));
+        var ex = Record.Exception(() => TranscriberFactory.Create(cfg, Console));
 
-        // Should not throw — whisper-cpp uses path-based config
+        // Should not throw — whisper-cpp uses model manager based config
         Assert.Null(ex);
     }
 
@@ -51,9 +61,9 @@ public class TranscriberFactoryTests
             OpenAiApiKey = apiKey
         };
 
-        var ex = Record.Exception(() => TranscriberFactory.Create(cfg));
+        var ex = Record.Exception(() => TranscriberFactory.Create(cfg, Console));
 
-        Assert.True(ex is ArgumentNullException or ArgumentException);
+        Assert.True(ex is InvalidOperationException or ArgumentException);
     }
 
     #endregion
@@ -68,7 +78,7 @@ public class TranscriberFactoryTests
             SttProvider = "unknown-provider"
         };
 
-        var ex = Record.Exception(() => TranscriberFactory.Create(cfg));
+        var ex = Record.Exception(() => TranscriberFactory.Create(cfg, Console));
 
         Assert.IsType<ArgumentException>(ex);
         Assert.Contains("Unknown STT provider", ex.Message);
@@ -89,7 +99,7 @@ public class TranscriberFactoryTests
             GroqApiKey = "gsk_testkey"
         };
 
-        var result = TranscriberFactory.Create(cfg);
+        var result = TranscriberFactory.Create(cfg, Console);
 
         Assert.IsType<GroqTranscriberAdapter>(result);
     }
@@ -101,7 +111,7 @@ public class TranscriberFactoryTests
     [Fact]
     public void Create_NullConfig_ThrowsNullReferenceException()
     {
-        var ex = Record.Exception(() => TranscriberFactory.Create(null!));
+        var ex = Record.Exception(() => TranscriberFactory.Create(null!, Console));
 
         Assert.IsType<NullReferenceException>(ex);
     }
@@ -119,22 +129,21 @@ public class TranscriberFactoryTests
             OpenAiApiKey = "sk-valid-key"
         };
 
-        var result = TranscriberFactory.Create(cfg);
+        var result = TranscriberFactory.Create(cfg, Console);
 
         Assert.IsType<OpenAiTranscriberAdapter>(result);
     }
 
     [Fact]
-    public void Create_WhisperCppProvider_ValidPath_ReturnsWhisperCppTranscriberAdapter()
+    public void Create_WhisperCppProvider_ValidModel_ReturnsWhisperCppTranscriberAdapter()
     {
         var cfg = new AppConfig
         {
             SttProvider = "whisper-cpp",
-            WhisperCppPath = "/usr/local/bin/whisper",
-            WhisperCppModelPath = "/models/ggml-base.bin"
+            WhisperCppModel = "base"
         };
 
-        var result = TranscriberFactory.Create(cfg);
+        var result = TranscriberFactory.Create(cfg, Console);
 
         Assert.IsType<WhisperCppTranscriberAdapter>(result);
     }
@@ -148,7 +157,7 @@ public class TranscriberFactoryTests
             GroqApiKey = "gsk_testkey"
         };
 
-        var result = TranscriberFactory.Create(cfg);
+        var result = TranscriberFactory.Create(cfg, Console);
 
         Assert.IsType<GroqTranscriberAdapter>(result);
     }
@@ -162,7 +171,7 @@ public class TranscriberFactoryTests
             OpenAiApiKey = "sk-valid-key"
         };
 
-        var result = TranscriberFactory.Create(cfg);
+        var result = TranscriberFactory.Create(cfg, Console);
 
         Assert.IsType<OpenAiTranscriberAdapter>(result);
     }
@@ -180,7 +189,7 @@ public class TranscriberFactoryTests
             OpenAiApiKey = "sk-valid-key"
         };
 
-        var result = TranscriberFactory.Create(cfg);
+        var result = TranscriberFactory.Create(cfg, Console);
 
         var disposable = Assert.IsAssignableFrom<IDisposable>(result);
         disposable.Dispose();
