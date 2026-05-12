@@ -1,12 +1,19 @@
 using Xunit;
 using Moq;
 using OpenClawPTT.Services;
+using OpenClawPTT;
 using OpenClawPTT.Services.StatusParts;
 
 namespace OpenClawPTT.Tests;
 
+[Collection("ConversationNaming")]
 public class StatusServiceTests
 {
+    static StatusServiceTests()
+    {
+        AgentSettingsPersistenceLegacy.Initialize(Mock.Of<IAgentSettingsPersistence>());
+    }
+
     [Fact]
     public void SetGatewayStatus_UpdatesRenderedText()
     {
