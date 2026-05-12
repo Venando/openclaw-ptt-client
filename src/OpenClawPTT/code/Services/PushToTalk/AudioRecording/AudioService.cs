@@ -19,7 +19,8 @@ public sealed class AudioService : IAudioService
     private readonly string _hotkeyCombination;
     private readonly bool _holdToTalk;
     private readonly int _rightMarginIndent;
-    private bool _disposed;
+    private readonly object _transcriberLock = new();
+    private int _disposedFlag; // 0 = not disposed, 1 = disposed
     
     /// <summary>
     /// Creates an AudioService with a real AudioRecorder.
@@ -49,7 +50,7 @@ public sealed class AudioService : IAudioService
     
     public void StartRecording()
     {
-        if (_disposed) throw new ObjectDisposedException(nameof(AudioService));
+        if (_disposedFlag == 1) throw new ObjectDisposedException(nameof(AudioService));
         
         _recorder.StartRecording();
         // Use per-agent hotkey if set, else fall back to global config default
@@ -63,7 +64,7 @@ public sealed class AudioService : IAudioService
     
     public void StopDiscard()
     {
-        if (_disposed) throw new ObjectDisposedException(nameof(AudioService));
+        if (_disposedFlag == 1) throw new ObjectDisposedException(nameof(AudioService));
         if (!_recorder.IsRecording) return;
 
         _recorder.StopRecording();
@@ -73,7 +74,7 @@ public sealed class AudioService : IAudioService
 
     public async Task<string?> StopAndTranscribeAsync(CancellationToken ct)
     {
-        if (_disposed) throw new ObjectDisposedException(nameof(AudioService));
+        if (_disposedFlag == 1) throw new ObjectDisposedException(nameof(AudioService));
         if (!_recorder.IsRecording) return null;
         
         var wav = _recorder.StopRecording();
@@ -88,7 +89,10 @@ public sealed class AudioService : IAudioService
 
         try
         {
-            var transcribed = await _transcriber.TranscribeAsync(wav, ct: ct);
+            // Capture transcriber under lock to prevent use-after-dispose (C3)
+            ITranscriber transcriber;
+            lock (_transcriberLock) { transcriber = _transcriber; }
+            var transcribed = await transcriber.TranscribeAsync(wav, ct: ct);
             var shellHost = _console.GetStreamShellHost();
             var prefix = $"Transcribed ({wav.Length / 1024.0:F1} KB): ";
             _console.PrintMarkup($"[green][dim]  ✓ {Markup.Escape(prefix)}[/][/] [green]{Markup.Escape(transcribed)}[/]");
@@ -107,7 +111,13 @@ public sealed class AudioService : IAudioService
     /// </summary>
     public void RecreateTranscriber(AppConfig config, IColorConsole console)
     {
-        var old = Interlocked.Exchange(ref _transcriber, TranscriberFactory.Create(config, console));
+        ITranscriber old;
+        lock (_transcriberLock)
+        {
+            old = _transcriber;
+            _transcriber = TranscriberFactory.Create(config, console);
+        }
+        // Dispose OUTSIDE the lock to avoid deadlocks
         old?.Dispose();
         LogSttProvider(config, recreated: true);
     }
@@ -128,12 +138,12 @@ public sealed class AudioService : IAudioService
 
     public void Dispose()
     {
-        if (!_disposed)
+        if (Interlocked.Exchange(ref _disposedFlag, 1) != 0) return;
+        lock (_transcriberLock)
         {
             _recorder.Dispose();
             _transcriber.Dispose();
             _visualFeedback.Dispose();
-            _disposed = true;
         }
     }
 }
