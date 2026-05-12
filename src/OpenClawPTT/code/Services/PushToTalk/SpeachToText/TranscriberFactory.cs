@@ -21,10 +21,10 @@ public static class TranscriberFactory
                 config.GroqRetryBackoffFactor),
 
             "openai" => new OpenAiTranscriberAdapter(
-                config.OpenAiApiKey ?? throw new ArgumentNullException(nameof(config.OpenAiApiKey), "OpenAI API key is required for OpenAI provider"),
+                config.OpenAiApiKey ?? throw new InvalidOperationException("OpenAI API key is required for OpenAI STT provider"),
                 config.OpenAiModel ?? "whisper-1"),
 
-            "whisper-cpp" => CreateWhisperCpp(config, colorConsole.GetStreamShellHost() ?? throw new InvalidOperationException("StreamShell host is required for whisper-cpp STT")),
+            "whisper-cpp" => CreateWhisperCpp(config, colorConsole.GetStreamShellHost() ?? throw new InvalidOperationException("Cannot initialize whisper-cpp STT: terminal integration unavailable.")),
 
             null or "" => new GroqTranscriberAdapter(
                 config.GroqApiKey,
