@@ -133,6 +133,9 @@ public sealed class SttConfigSection : ConfigSectionBase
             var whisperChanged = await RunWhisperCppFlowAsync(host, config, ct);
             if (whisperChanged)
                 changed = true;
+
+            // C7: Whisper model info in settings summary
+            result.Settings.Add(new ConfigSectionResult.SettingRecord("Whisper Model", config.WhisperCppModel ?? "none"));
         }
         else
         {
@@ -156,6 +159,7 @@ public sealed class SttConfigSection : ConfigSectionBase
     {
         var modelManager = new WhisperCppModelManager(host, config.CustomDataDir ?? config.DataDir);
         var currentModel = config.WhisperCppModel;
+        bool whisperChanged = false; // H8: track actual changes
 
         while (true)
         {
@@ -173,6 +177,12 @@ public sealed class SttConfigSection : ConfigSectionBase
             {
                 host.AddMessage("[yellow]  ⚠ whisper binary not found on PATH.[/]");
                 host.AddMessage("[grey]    Install whisper.cpp first: https://github.com/ggerganov/whisper.cpp[/]");
+
+                // H6: Without a binary AND no models, user can't use whisper-cpp at all
+                if (downloadedModels.Count == 0)
+                {
+                    host.AddMessage("[yellow]  No models downloaded either. Download is pointless without the whisper binary.[/]");
+                }
             }
 
             // Show downloaded models
@@ -209,8 +219,8 @@ public sealed class SttConfigSection : ConfigSectionBase
                 menuOptions.Add(($"[green]Use: {model}[/]", $"use:{model}"));
             }
 
-            // Download new model
-            if (notDownloaded.Count > 0)
+            // H6: Only show download options if binary is found or models already downloaded
+            if (notDownloaded.Count > 0 && (binaryPath != null || downloadedModels.Count > 0))
             {
                 menuOptions.Add(("", ""));
                 menuOptions.Add(("[bold cyan]── Download ──[/]", "__download_header__"));
@@ -229,6 +239,13 @@ public sealed class SttConfigSection : ConfigSectionBase
                 {
                     menuOptions.Add(($"[red]Remove: {model}[/]", $"remove:{model}"));
                 }
+            }
+
+            // H7: Add option to specify binary path
+            if (binaryPath == null)
+            {
+                menuOptions.Add(("", ""));
+                menuOptions.Add(("[bold]Specify path...[/]", "__specify_path__"));
             }
 
             // Done / Back
@@ -259,6 +276,7 @@ public sealed class SttConfigSection : ConfigSectionBase
                 {
                     config.WhisperCppModel = model;
                     currentModel = model;
+                    whisperChanged = true;
                     host.AddMessage($"[green]  Selected model: {model}[/]");
                     host.AddMessage("");
                     break; // Done after selecting
@@ -269,13 +287,9 @@ public sealed class SttConfigSection : ConfigSectionBase
             {
                 var modelName = choice.Substring(9);
                 await DownloadModelWithProgressAsync(host, modelManager, modelName, ct);
+                whisperChanged = true;
 
-                // Auto-select if no current model
-                if (string.IsNullOrEmpty(currentModel))
-                {
-                    config.WhisperCppModel = modelName;
-                    currentModel = modelName;
-                }
+                // MEDIUM: No auto-select — user must explicitly "Use:" after download
             }
             else if (choice.StartsWith("remove:"))
             {
@@ -289,6 +303,7 @@ public sealed class SttConfigSection : ConfigSectionBase
                 {
                     if (modelManager.DeleteModel(modelName))
                     {
+                        whisperChanged = true;
                         host.AddMessage($"[green]  ✓ Removed {modelName}[/]");
                         if (modelName == currentModel)
                         {
@@ -298,16 +313,25 @@ public sealed class SttConfigSection : ConfigSectionBase
                     }
                 }
             }
-            else if (choice == "__done__")
+            else if (choice == "__specify_path__")
             {
-                break;
+                // H7: Guide user to add whisper to PATH or set path in config
+                host.AddMessage("");
+                host.AddMessage("[yellow]  To use whisper.cpp STT:[/]");
+                host.AddMessage("[grey]    1. Add whisper binary to your PATH[/]");
+                host.AddMessage("[grey]    2. Or set WhisperCppBinaryPath in config[/]");
+                host.AddMessage("[grey]    Current binary search locations:[/]");
+                host.AddMessage("[grey]      - PATH directories[/]");
+                host.AddMessage("[grey]      - ~/bin/, /usr/local/bin/, /usr/bin/[/]");
+                host.AddMessage("");
+                continue; // C8: removed unreachable __done__ branch
             }
 
             // Small pause to let user read messages
             host.AddMessage("");
         }
 
-        return true;
+        return whisperChanged; // H8: return actual change status
     }
 
     /// <summary>
