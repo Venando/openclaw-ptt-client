@@ -30,15 +30,29 @@ public sealed class TtsConfigSection : ConfigSectionBase
         ("Off", "off"),
     };
 
+    private const int IndexProvider = 0;
+    private const int IndexVoice = 1;
+    private const int IndexTtsMode = 2;
+
     public TtsConfigSection()
     {
-        // Universal items (always prompted)
+        // Order matters: provider (index 0) runs first so ElevenLabs check + tagged items come next
         _configItems.AddRange(new[]
         {
+            ConfigSetupItem.ForSelectionWithBack(
+                title: "Choose TTS provider",
+                fieldName: nameof(AppConfig.TtsProvider),
+                options: TtsProviderOptions),
+
             ConfigSetupItem.ForString(
                 title: "Voice name (optional)",
                 fieldName: nameof(AppConfig.TtsVoice),
                 isEmptyToDefault: true),
+
+            ConfigSetupItem.ForSelection(
+                title: "TTS output mode",
+                fieldName: nameof(AppConfig.TtsOutputMode),
+                options: TtsModeOptions),
         });
 
         // ── OpenAI items ──
@@ -102,25 +116,16 @@ public sealed class TtsConfigSection : ConfigSectionBase
 
         ConfigSelectionHelper.PrintSubSection(host, "proceeding");
 
-        // ── Provider selection ──
-
-        string providerStr = await PromptSelectionHelper.PromptStringWithBackAsync(host,
-            "Choose TTS provider:", TtsProviderOptions, config.TtsProvider.ToString(), ct);
-        if (providerStr == null)
-        {
-            result.IsChanged = changed;
-            return result;
-        }
-
-        if (Enum.TryParse<TtsProviderType>(providerStr, out var provider) && provider != config.TtsProvider)
-        {
-            config.TtsProvider = provider;
+        // ── Provider selection (index 0, must run before ElevenLabs check) ──
+        if (await _configItems[IndexProvider].RunAsync(host, config, isInitialSetup, ct))
             changed = true;
-        }
+        result.Settings.Add(new ConfigSectionResult.SettingRecord(
+            _configItems[IndexProvider].Title, _configItems[IndexProvider].GetDisplayValue(config)));
 
-        ConfigSelectionHelper.PrintSubSection(host, providerStr);
+        ConfigSelectionHelper.PrintSubSection(host, config.TtsProvider.ToString());
 
-        if (providerStr == "ElevenLabs")
+        // ── ElevenLabs is not supported yet ──
+        if (config.TtsProvider == TtsProviderType.ElevenLabs)
         {
             host.AddMessage("[yellow]  ElevenLabs TTS is not yet supported.[/]");
             result.IsChanged = changed;
@@ -134,10 +139,11 @@ public sealed class TtsConfigSection : ConfigSectionBase
         config.PiperPath ??= "piper";
 
         // ── Run provider-specific items by tag ──
-        string[] providerTags = provider switch
+        string[] providerTags = config.TtsProvider switch
         {
-            TtsProviderType.Coqui => new[] { "Coqui", "Python" },  // Coqui falls through to Python
-            _ => new[] { providerStr },
+            TtsProviderType.Coqui => new[] { "Coqui", "Python" },
+            TtsProviderType.ElevenLabs => Array.Empty<string>(),
+            _ => new[] { config.TtsProvider.ToString() },
         };
 
         foreach (var tag in providerTags)
@@ -146,17 +152,8 @@ public sealed class TtsConfigSection : ConfigSectionBase
                 changed = true;
         }
 
-        // ── TTS Output Mode (always prompted) ──
-        var ttsMode = await PromptSelectionHelper.PromptStringAsync(host,
-            "TTS output mode:", TtsModeOptions, config.TtsOutputMode, allowCancel: false, cancellationToken: ct);
-        if (ttsMode != config.TtsOutputMode)
-        {
-            config.TtsOutputMode = ttsMode;
-            changed = true;
-        }
-
-        // ── Universal config items (voice) ──
-        if (await RunConfigItemsAsync(host, config, isInitialSetup, ct, result))
+        // ── Voice and TTS output mode (indices 1..) ──
+        if (await RunConfigItemsAsync(host, config, isInitialSetup, ct, result, startIndex: IndexVoice))
             changed = true;
 
         result.IsChanged = changed;

@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
@@ -39,18 +38,19 @@ public abstract class ConfigSectionBase : IConfigSectionWizard
     }
 
     /// <summary>
-    /// Runs all registered <see cref="_configItems"/> in sequence.
+    /// Runs all registered <see cref="_configItems"/> from <paramref name="startIndex"/> onward in sequence.
     /// Automatically populates <paramref name="result"/>.<see cref="ConfigSectionResult.Settings"/>
     /// with the display value of each item after prompting.
     /// Returns true if any item reported a change.
     /// </summary>
     protected async Task<bool> RunConfigItemsAsync(
         IStreamShellHost host, AppConfig config, bool isInitialSetup, CancellationToken ct,
-        ConfigSectionResult result)
+        ConfigSectionResult result, int startIndex = 0)
     {
         bool changed = false;
-        foreach (var item in _configItems)
+        for (int i = startIndex; i < _configItems.Count; i++)
         {
+            var item = _configItems[i];
             if (await item.RunAsync(host, config, isInitialSetup, ct))
                 changed = true;
             result.Settings.Add(new ConfigSectionResult.SettingRecord(
@@ -81,43 +81,6 @@ public abstract class ConfigSectionBase : IConfigSectionWizard
                 item.Title, item.GetDisplayValue(config)));
         }
         return changed;
-    }
-
-    /// <summary>
-    /// Finds a <see cref="ConfigSetupItem"/> by its <see cref="ConfigSetupItem.Title"/> and re-runs
-    /// just that single item. Returns true if the value changed, false if not found or unchanged.
-    /// </summary>
-    public async Task<bool> TryRerunItemAsync(
-        string title, IStreamShellHost host, AppConfig config, bool isInitialSetup, CancellationToken ct)
-    {
-        var item = FindItemByTitle(title);
-        if (item != null)
-            return await item.RunAsync(host, config, isInitialSetup, ct);
-        return false;
-    }
-
-    /// <summary>
-    /// Returns the display value for a ConfigSetupItem by title, or null if not found.
-    /// </summary>
-    public string? TryGetItemDisplayValue(string title, AppConfig config)
-    {
-        return FindItemByTitle(title)?.GetDisplayValue(config);
-    }
-
-    private ConfigSetupItem? FindItemByTitle(string title)
-    {
-        var item = _configItems.FirstOrDefault(i => i.Title == title);
-        if (item != null)
-            return item;
-
-        foreach (var kvp in _configItemsByTag)
-        {
-            item = kvp.Value.FirstOrDefault(i => i.Title == title);
-            if (item != null)
-                return item;
-        }
-
-        return null;
     }
 
     public abstract Task<ConfigSectionResult> RunAsync(

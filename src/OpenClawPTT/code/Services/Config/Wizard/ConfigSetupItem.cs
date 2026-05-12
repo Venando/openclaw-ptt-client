@@ -119,6 +119,17 @@ public sealed class ConfigSetupItem
             PromptSelectionAsync(host, title, config, fieldName, options, ct));
     }
 
+    /// <summary>Configures a field via named options with a "Back" option. Returns null (no change) on Back.</summary>
+    public static ConfigSetupItem ForSelectionWithBack(
+        string title,
+        string fieldName,
+        (string Name, string Value)[] options,
+        string? description = null)
+    {
+        return new ConfigSetupItem(title, fieldName, (host, config, _, ct) =>
+            PromptSelectionWithBackAsync(host, title, config, fieldName, options, ct));
+    }
+
     // ── Reflection helpers ───────────────────────────────────────────
 
     private static T? GetValue<T>(AppConfig config, string fieldName)
@@ -265,7 +276,7 @@ public sealed class ConfigSetupItem
         IStreamShellHost host, string title, AppConfig config, string fieldName,
         (string Name, string Value)[] options, CancellationToken ct)
     {
-        var current = GetValue<string?>(config, fieldName) ?? "";
+        var current = GetCurrentString(config, fieldName);
         var result = await PromptSelectionHelper.PromptStringAsync(host, title, options, current,
             allowCancel: false, cancellationToken: ct);
         if (result != null && result != current)
@@ -274,5 +285,30 @@ public sealed class ConfigSetupItem
             return true;
         }
         return false;
+    }
+
+    private static async Task<bool> PromptSelectionWithBackAsync(
+        IStreamShellHost host, string title, AppConfig config, string fieldName,
+        (string Name, string Value)[] options, CancellationToken ct)
+    {
+        var current = GetCurrentString(config, fieldName);
+        var result = await PromptSelectionHelper.PromptStringWithBackAsync(host, title, options, current, ct);
+        if (result != null && result != current)
+        {
+            SetValue(config, fieldName, result);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>Reads a property value as a string, regardless of whether it's a string, enum, or other type.</summary>
+    private static string GetCurrentString(AppConfig config, string fieldName)
+    {
+        var prop = typeof(AppConfig).GetProperty(fieldName,
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (prop == null)
+            return "";
+        var raw = prop.GetValue(config);
+        return raw?.ToString() ?? "";
     }
 }
