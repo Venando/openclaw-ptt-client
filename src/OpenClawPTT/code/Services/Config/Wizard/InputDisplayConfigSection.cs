@@ -7,76 +7,84 @@ using StreamShell;
 namespace OpenClawPTT.ConfigWizard;
 
 /// <summary>Configures input, display, and audio response settings.</summary>
-public sealed class InputDisplayConfigSection : IConfigSectionWizard
+public sealed class InputDisplayConfigSection : ConfigSectionBase
 {
-    public string Name => "Input & Display";
-    public string Description => "Hotkey, display mode, and audio response settings";
+    public override string Name => "Input & Display";
+    public override string Description => "Hotkey, display mode, and audio response settings";
 
-    public async Task<ConfigSectionResult> RunAsync(IStreamShellHost host, AppConfig config, bool isInitialSetup, CancellationToken ct)
+    private static readonly (string Name, string Value)[] AudioModeOptions =
+    {
+        ("Text only", "text-only"),
+        ("Audio only", "audio-only"),
+        ("Both text and audio", "both"),
+    };
+
+    public InputDisplayConfigSection()
+    {
+        _configItems.AddRange(new[]
+        {
+            ConfigSetupItem.ForString(
+                title: "PTT hotkey (e.g. Alt+= or Ctrl+Shift+Space)",
+                fieldName: nameof(AppConfig.HotkeyCombination),
+                validator: v =>
+                {
+                    try { HotkeyMapping.Parse(v); return true; }
+                    catch { return false; }
+                },
+                validationHint: "Expected format like Alt+= or Ctrl+Shift+Space"),
+
+            ConfigSetupItem.ForBool(
+                title: "Hold-to-talk mode? (Hold = hold down, Release = send)",
+                fieldName: nameof(AppConfig.HoldToTalk)),
+
+            ConfigSetupItem.ForBool(
+                title: "Show real-time reply streaming?",
+                fieldName: nameof(AppConfig.RealTimeReplyOutput)),
+
+            ConfigSetupItem.ForEnum<ReplyDisplayMode>(
+                title: "Reply display mode",
+                fieldName: nameof(AppConfig.ReplyDisplayMode)),
+
+            ConfigSetupItem.ForString(
+                title: "Your name / agent display prefix",
+                fieldName: nameof(AppConfig.AgentName),
+                validator: v => !string.IsNullOrWhiteSpace(v),
+                validationHint: "Cannot be empty",
+                allowClear: true),
+
+            ConfigSetupItem.ForString(
+                title: "Transcription context prefix",
+                fieldName: nameof(AppConfig.TranscriptionPromptPrefix),
+                isEmptyToDefault: true,
+                allowClear: true),
+
+            ConfigSetupItem.ForBool(
+                title: "Require confirmation before sending messages?",
+                fieldName: nameof(AppConfig.RequireConfirmBeforeSend)),
+        });
+    }
+
+    public override async Task<ConfigSectionResult> RunAsync(
+        IStreamShellHost host, AppConfig config, bool isInitialSetup, CancellationToken ct)
     {
         var result = new ConfigSectionResult();
         bool changed = false;
 
-        // ── Hotkey ──
-        var hotkey = await PromptTextHelper.PromptAsync(host, "PTT hotkey (e.g. Alt+= or Ctrl+Shift+Space)",
-            config.HotkeyCombination,
-            v => { try { HotkeyMapping.Parse(v); return true; } catch { return false; } },
-            "Expected format like Alt+= or Ctrl+Shift+Space",
-            ct);
-        if (hotkey != null && hotkey != config.HotkeyCombination)
-        {
-            config.HotkeyCombination = hotkey;
+        // ── Universal config items ──
+        if (await RunConfigItemsAsync(host, config, isInitialSetup, ct, result))
             changed = true;
-        }
 
-        // ── Hold to talk ──
-        bool? holdToTalk = await PromptSelectionHelper.PromptBoolAsync(host,
-            "Hold-to-talk mode? (Hold = hold down, Release = send)",
-            config.HoldToTalk, allowCancel: false, cancellationToken: ct);
-
-
-        if (holdToTalk.HasValue && holdToTalk.Value != config.HoldToTalk)
-        {
-            config.HoldToTalk = holdToTalk.Value;
-            changed = true;
-        }
-
-        // ── Real-time reply ──
-        var realTime = await PromptSelectionHelper.PromptBoolAsync(host,
-            "Show real-time reply streaming?",
-            config.RealTimeReplyOutput, allowCancel: false, cancellationToken: ct);
-        if (realTime.HasValue && realTime.Value != config.RealTimeReplyOutput)
-        {
-            config.RealTimeReplyOutput = realTime.Value;
-            changed = true;
-        }
-
-        // ── Reply display mode ──
-        var replyMode = await PromptSelectionHelper.PromptEnumAsync<ReplyDisplayMode>(host,
-            "Reply display mode:", config.ReplyDisplayMode, allowCancel: false, cancellationToken: ct);
-        if (replyMode.HasValue && replyMode.Value != config.ReplyDisplayMode)
-        {
-            config.ReplyDisplayMode = replyMode.Value;
-            changed = true;
-        }
-
-        // ── Audio response mode ──
-        var audioModes = new (string Name, string Value)[]
-        {
-            ("Text only", "text-only"),
-            ("Audio only", "audio-only"),
-            ("Both text and audio", "both"),
-        };
+        // ── Audio response mode (inline for Back button support) ──
         string audioMode;
         if (isInitialSetup)
         {
             audioMode = await PromptSelectionHelper.PromptStringAsync(host,
-                "Audio response mode:", audioModes, config.AudioResponseMode, allowCancel: false, cancellationToken: ct);
+                "Audio response mode:", AudioModeOptions, config.AudioResponseMode, allowCancel: false, cancellationToken: ct);
         }
         else
         {
             var audioResult = await PromptSelectionHelper.PromptStringWithBackAsync(host,
-                "Audio response mode:", audioModes, config.AudioResponseMode, cancellationToken: ct);
+                "Audio response mode:", AudioModeOptions, config.AudioResponseMode, cancellationToken: ct);
             if (audioResult == null)
             {
                 result.IsChanged = changed;
@@ -88,38 +96,7 @@ public sealed class InputDisplayConfigSection : IConfigSectionWizard
         {
             config.AudioResponseMode = audioMode;
             changed = true;
-        }
-
-        // ── Agent name ──
-        var agentName = await PromptTextHelper.PromptAsync(host, "Your name / agent display prefix",
-            config.AgentName,
-            v => !string.IsNullOrWhiteSpace(v), "Cannot be empty",
-            ct, allowClear: true);
-        if (agentName != null && agentName != config.AgentName)
-        {
-            config.AgentName = agentName;
-            changed = true;
-        }
-
-        // ── Transcription prefix ──
-        var prefix = await PromptTextHelper.PromptAsync(host, "Transcription context prefix",
-            config.TranscriptionPromptPrefix,
-            _ => true, null,
-            ct, isEmptyToDefault: true, allowClear: true);
-        if (prefix != null && prefix != config.TranscriptionPromptPrefix)
-        {
-            config.TranscriptionPromptPrefix = prefix;
-            changed = true;
-        }
-
-        // ── Require confirm before send ──
-        var requireConfirm = await PromptSelectionHelper.PromptBoolAsync(host,
-            "Require confirmation before sending messages?",
-            config.RequireConfirmBeforeSend, allowCancel: false, cancellationToken: ct);
-        if (requireConfirm.HasValue && requireConfirm.Value != config.RequireConfirmBeforeSend)
-        {
-            config.RequireConfirmBeforeSend = requireConfirm.Value;
-            changed = true;
+            result.Settings.Add(new ConfigSectionResult.SettingRecord("Audio response mode", audioMode));
         }
 
         result.IsChanged = changed;

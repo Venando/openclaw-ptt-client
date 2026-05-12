@@ -8,14 +8,51 @@ using StreamShell;
 namespace OpenClawPTT.ConfigWizard;
 
 /// <summary>Configures visual feedback indicator settings.</summary>
-public sealed class VisualFeedbackConfigSection : IConfigSectionWizard
+public sealed class VisualFeedbackConfigSection : ConfigSectionBase
 {
-    public string Name => "Visual Feedback";
-    public string Description => "Recording indicator appearance and position";
+    public override string Name => "Visual Feedback";
+    public override string Description => "Recording indicator appearance and position";
 
     private static readonly Regex HexColorPattern = new(@"^#?([0-9A-Fa-f]{6})$", RegexOptions.Compiled);
 
-    public async Task<ConfigSectionResult> RunAsync(IStreamShellHost host, AppConfig config, bool isInitialSetup, CancellationToken ct)
+    private static readonly (string Name, string Value)[] PositionOptions =
+    {
+        ("Top Left", "TopLeft"),
+        ("Top Right", "TopRight"),
+        ("Bottom Left", "BottomLeft"),
+        ("Bottom Right", "BottomRight"),
+    };
+
+    public VisualFeedbackConfigSection()
+    {
+        _configItems.AddRange(new[]
+        {
+            ConfigSetupItem.ForEnum<VisualMode>(
+                title: "Visual indicator style",
+                fieldName: nameof(AppConfig.VisualMode)),
+
+            ConfigSetupItem.ForInt(
+                title: "Indicator size (1–200 pixels)",
+                fieldName: nameof(AppConfig.VisualFeedbackSize),
+                min: 1,
+                max: 200),
+
+            ConfigSetupItem.ForDouble(
+                title: "Indicator opacity (0.0–1.0)",
+                fieldName: nameof(AppConfig.VisualFeedbackOpacity),
+                min: 0.0,
+                max: 1.0),
+
+            ConfigSetupItem.ForInt(
+                title: "Rim thickness (0 = off, 1–50)",
+                fieldName: nameof(AppConfig.VisualFeedbackRimThickness),
+                min: 0,
+                max: 50),
+        });
+    }
+
+    public override async Task<ConfigSectionResult> RunAsync(
+        IStreamShellHost host, AppConfig config, bool isInitialSetup, CancellationToken ct)
     {
         var result = new ConfigSectionResult();
         bool changed = false;
@@ -30,6 +67,8 @@ public sealed class VisualFeedbackConfigSection : IConfigSectionWizard
             config.VisualFeedbackEnabled = enabled.Value;
             changed = true;
         }
+        result.Settings.Add(new ConfigSectionResult.SettingRecord(
+            "Visual feedback", config.VisualFeedbackEnabled ? "enabled" : "disabled"));
 
         if (!enabled.HasValue || !enabled.Value)
         {
@@ -37,33 +76,17 @@ public sealed class VisualFeedbackConfigSection : IConfigSectionWizard
             return result;
         }
 
-        // ── Visual mode ──
-        var visualMode = await PromptSelectionHelper.PromptEnumAsync<VisualMode>(host,
-            "Visual indicator style:", config.VisualMode, allowCancel: false, cancellationToken: ct);
-        if (visualMode.HasValue && visualMode.Value != config.VisualMode)
-        {
-            config.VisualMode = visualMode.Value;
-            changed = true;
-        }
-
-        // ── Position ──
-        var positions = new (string Name, string Value)[]
-        {
-            ("Top Left", "TopLeft"),
-            ("Top Right", "TopRight"),
-            ("Bottom Left", "BottomLeft"),
-            ("Bottom Right", "BottomRight"),
-        };
+        // ── Position (inline for Back button support) ──
         string position;
         if (isInitialSetup)
         {
             position = await PromptSelectionHelper.PromptStringAsync(host,
-                "Indicator position:", positions, config.VisualFeedbackPosition, allowCancel: false, ct);
+                "Indicator position:", PositionOptions, config.VisualFeedbackPosition, allowCancel: false, ct);
         }
         else
         {
             var posResult = await PromptSelectionHelper.PromptStringWithBackAsync(host,
-                "Indicator position:", positions, config.VisualFeedbackPosition, ct);
+                "Indicator position:", PositionOptions, config.VisualFeedbackPosition, ct);
             if (posResult == null)
             {
                 result.IsChanged = changed;
@@ -77,25 +100,7 @@ public sealed class VisualFeedbackConfigSection : IConfigSectionWizard
             changed = true;
         }
 
-        // ── Size ──
-        var size = await PromptTextHelper.PromptIntAsync(host, "Indicator size (1–200 pixels)",
-            config.VisualFeedbackSize, 1, 200, ct);
-        if (size.HasValue && size.Value != config.VisualFeedbackSize)
-        {
-            config.VisualFeedbackSize = size.Value;
-            changed = true;
-        }
-
-        // ── Opacity ──
-        var opacity = await PromptTextHelper.PromptDoubleAsync(host, "Indicator opacity (0.0–1.0)",
-            config.VisualFeedbackOpacity, 0.0, 1.0, ct);
-        if (opacity.HasValue && Math.Abs(opacity.Value - config.VisualFeedbackOpacity) > 0.001)
-        {
-            config.VisualFeedbackOpacity = opacity.Value;
-            changed = true;
-        }
-
-        // ── Color ──
+        // ── Color (inline for #-prefix post-processing) ──
         var color = await PromptTextHelper.PromptAsync(host, "Indicator color (hex, e.g. #FF0000)",
             config.VisualFeedbackColor,
             v => HexColorPattern.IsMatch(v), "Expected hex color like #00FF00",
@@ -106,14 +111,9 @@ public sealed class VisualFeedbackConfigSection : IConfigSectionWizard
             changed = true;
         }
 
-        // ── Rim thickness ──
-        var rim = await PromptTextHelper.PromptIntAsync(host, "Rim thickness (0 = off, 1–50)",
-            config.VisualFeedbackRimThickness, 0, 50, ct);
-        if (rim.HasValue && rim.Value != config.VisualFeedbackRimThickness)
-        {
-            config.VisualFeedbackRimThickness = rim.Value;
+        // ── Universal config items ──
+        if (await RunConfigItemsAsync(host, config, isInitialSetup, ct, result))
             changed = true;
-        }
 
         result.IsChanged = changed;
         return result;
