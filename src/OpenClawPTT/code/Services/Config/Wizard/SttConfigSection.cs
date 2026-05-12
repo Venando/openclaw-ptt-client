@@ -1,4 +1,3 @@
-using System;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
@@ -12,15 +11,21 @@ public sealed class SttConfigSection : ConfigSectionBase
     public override string Name => "Speech-To-Text";
     public override string Description => "STT provider and transcription settings";
 
-    private static readonly (string Name, string Value)[] Providers =
+    // Provider tag constants — also used in the selection prompt as the returned Value
+    private const string TagGroq = "groq";
+    private const string TagOpenAi = "openai";
+    private const string TagWhisperCpp = "whisper-cpp";
+
+    private static readonly (string Name, string Value)[] ProviderOptions =
     {
-        ("Groq", "groq"),
-        ("OpenAI", "openai"),
-        ("Whisper.cpp (local)", "whisper-cpp"),
+        ("Groq", TagGroq),
+        ("OpenAI", TagOpenAi),
+        ("Whisper.cpp (local)", TagWhisperCpp),
     };
 
     public SttConfigSection()
     {
+        // Universal items (always prompted)
         _configItems.AddRange(new[]
         {
             ConfigSetupItem.ForString(
@@ -29,6 +34,40 @@ public sealed class SttConfigSection : ConfigSectionBase
                 validator: v => v.Length >= 2,
                 validationHint: "At least 2 characters"),
         });
+
+        // ── Groq items ──
+        AddConfigItem(TagGroq, ConfigSetupItem.ForString(
+            title: "Groq API key (starts with gsk_)",
+            fieldName: nameof(AppConfig.GroqApiKey),
+            validator: v => v.StartsWith("gsk_"),
+            validationHint: "Must start with gsk_",
+            isSecret: true));
+
+        AddConfigItem(TagGroq, ConfigSetupItem.ForString(
+            title: "Groq STT model",
+            fieldName: nameof(AppConfig.GroqModel)));
+
+        // ── OpenAI items ──
+        AddConfigItem(TagOpenAi, ConfigSetupItem.ForString(
+            title: "OpenAI API key for STT",
+            fieldName: nameof(AppConfig.OpenAiApiKey),
+            isSecret: true,
+            isEmptyToDefault: true));
+
+        AddConfigItem(TagOpenAi, ConfigSetupItem.ForString(
+            title: "OpenAI STT model",
+            fieldName: nameof(AppConfig.OpenAiModel)));
+
+        // ── Whisper.cpp items ──
+        AddConfigItem(TagWhisperCpp, ConfigSetupItem.ForString(
+            title: "Path to whisper-cpp executable",
+            fieldName: nameof(AppConfig.WhisperCppPath),
+            isEmptyToDefault: true));
+
+        AddConfigItem(TagWhisperCpp, ConfigSetupItem.ForString(
+            title: "Path to whisper-cpp model file",
+            fieldName: nameof(AppConfig.WhisperCppModelPath),
+            isEmptyToDefault: true));
     }
 
     public override async Task<ConfigSectionResult> RunAsync(
@@ -54,7 +93,7 @@ public sealed class SttConfigSection : ConfigSectionBase
 
         // ── Provider selection ──
         string? provider = await PromptSelectionHelper.PromptStringAsync(host,
-            "Choose STT provider:", Providers, cancellationToken: ct);
+            "Choose STT provider:", ProviderOptions, cancellationToken: ct);
 
         if (provider == null)
         {
@@ -70,84 +109,13 @@ public sealed class SttConfigSection : ConfigSectionBase
             changed = true;
         }
 
-        // ── Provider-specific settings ──
-        switch (provider)
-        {
-            case "groq":
-                var groqKey = await PromptTextHelper.PromptAsync(host, "Groq API key (starts with gsk_)",
-                    config.GroqApiKey,
-                    v => v.StartsWith("gsk_"), "Must start with gsk_",
-                    ct, isSecret: true);
-                if (groqKey != null && groqKey != config.GroqApiKey)
-                {
-                    config.GroqApiKey = groqKey;
-                    changed = true;
-                }
-                var groqModel = await PromptTextHelper.PromptAsync(host, "Groq STT model",
-                    config.GroqModel ?? "whisper-large-v3",
-                    _ => true, null,
-                    ct);
-                if (groqModel != null && groqModel != config.GroqModel)
-                {
-                    config.GroqModel = groqModel;
-                    changed = true;
-                }
-                break;
+        // ── Seed provider-specific defaults ──
+        config.GroqModel ??= "whisper-large-v3";
+        config.OpenAiModel ??= "whisper-1";
 
-            case "openai":
-                var openAiKey = await PromptTextHelper.PromptAsync(host, "OpenAI API key for STT",
-                    config.OpenAiApiKey ?? "",
-                    _ => true, null,
-                    ct, isSecret: true, isEmptyToDefault: true);
-                if (openAiKey != null)
-                {
-                    var newKey = string.IsNullOrWhiteSpace(openAiKey) ? null : openAiKey;
-                    if (newKey != config.OpenAiApiKey)
-                    {
-                        config.OpenAiApiKey = newKey;
-                        changed = true;
-                    }
-                }
-                var openAiModel = await PromptTextHelper.PromptAsync(host, "OpenAI STT model",
-                    config.OpenAiModel ?? "whisper-1",
-                    _ => true, null,
-                    ct);
-                if (openAiModel != null && openAiModel != config.OpenAiModel)
-                {
-                    config.OpenAiModel = openAiModel;
-                    changed = true;
-                }
-                break;
-
-            case "whisper-cpp":
-                var whisperPath = await PromptTextHelper.PromptAsync(host, "Path to whisper-cpp executable",
-                    config.WhisperCppPath ?? "",
-                    _ => true, null,
-                    ct, isEmptyToDefault: true);
-                if (whisperPath != null)
-                {
-                    var newPath = string.IsNullOrWhiteSpace(whisperPath) ? null : whisperPath;
-                    if (newPath != config.WhisperCppPath)
-                    {
-                        config.WhisperCppPath = newPath;
-                        changed = true;
-                    }
-                }
-                var whisperModel = await PromptTextHelper.PromptAsync(host, "Path to whisper-cpp model file",
-                    config.WhisperCppModelPath ?? "",
-                    _ => true, null,
-                    ct, isEmptyToDefault: true);
-                if (whisperModel != null)
-                {
-                    var newPath = string.IsNullOrWhiteSpace(whisperModel) ? null : whisperModel;
-                    if (newPath != config.WhisperCppModelPath)
-                    {
-                        config.WhisperCppModelPath = newPath;
-                        changed = true;
-                    }
-                }
-                break;
-        }
+        // ── Run provider-specific items by tag ──
+        if (await RunConfigItemsByTagAsync(provider, host, config, isInitialSetup, ct, result))
+            changed = true;
 
         // ── Generic config items (Locale, etc.) ──
         if (await RunConfigItemsAsync(host, config, isInitialSetup, ct, result))
