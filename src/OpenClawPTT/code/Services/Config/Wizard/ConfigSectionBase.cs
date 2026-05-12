@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
@@ -80,6 +81,43 @@ public abstract class ConfigSectionBase : IConfigSectionWizard
                 item.Title, item.GetDisplayValue(config)));
         }
         return changed;
+    }
+
+    /// <summary>
+    /// Finds a <see cref="ConfigSetupItem"/> by its <see cref="ConfigSetupItem.Title"/> and re-runs
+    /// just that single item. Returns true if the value changed, false if not found or unchanged.
+    /// </summary>
+    public async Task<bool> TryRerunItemAsync(
+        string title, IStreamShellHost host, AppConfig config, bool isInitialSetup, CancellationToken ct)
+    {
+        var item = FindItemByTitle(title);
+        if (item != null)
+            return await item.RunAsync(host, config, isInitialSetup, ct);
+        return false;
+    }
+
+    /// <summary>
+    /// Returns the display value for a ConfigSetupItem by title, or null if not found.
+    /// </summary>
+    public string? TryGetItemDisplayValue(string title, AppConfig config)
+    {
+        return FindItemByTitle(title)?.GetDisplayValue(config);
+    }
+
+    private ConfigSetupItem? FindItemByTitle(string title)
+    {
+        var item = _configItems.FirstOrDefault(i => i.Title == title);
+        if (item != null)
+            return item;
+
+        foreach (var kvp in _configItemsByTag)
+        {
+            item = kvp.Value.FirstOrDefault(i => i.Title == title);
+            if (item != null)
+                return item;
+        }
+
+        return null;
     }
 
     public abstract Task<ConfigSectionResult> RunAsync(
