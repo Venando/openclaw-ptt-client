@@ -7,16 +7,20 @@ using StreamShell;
 namespace OpenClawPTT.ConfigWizard;
 
 /// <summary>Configures harness selection and gateway connection settings.</summary>
-public sealed class HarnessConfigSection : IConfigSectionWizard
+public sealed class HarnessConfigSection : ConfigSectionBase
 {
-    public string Name => "Harness";
-    public string Description => "Harness type and gateway connection";
+    public override string Name => "Harness";
+    public override string Description => "Harness type and gateway connection";
 
-    private readonly ConfigSetupItem[] _configItems;
+    private static readonly (string Name, string Value)[] HarnessOptions =
+    {
+        ("OpenClaw", "openclaw"),
+        ("Nanobot (not supported)", "nanobot"),
+    };
 
     public HarnessConfigSection()
     {
-        _configItems = new ConfigSetupItem[]
+        _configItems.AddRange(new[]
         {
             ConfigSetupItem.ForString(
                 title: "Gateway URL",
@@ -29,50 +33,19 @@ public sealed class HarnessConfigSection : IConfigSectionWizard
                 fieldName: nameof(AppConfig.AuthToken),
                 isSecret: true,
                 isEmptyToDefault: false),
-        };
+        });
     }
 
-    public async Task<ConfigSectionResult> RunAsync(
+    public override async Task<ConfigSectionResult> RunAsync(
         IStreamShellHost host, AppConfig config, bool isInitialSetup, CancellationToken ct)
     {
         var result = new ConfigSectionResult();
         bool changed = false;
 
         // ── Harness type ──
-        var harnessOptions = new (string Name, string Value)[]
-        {
-            ("OpenClaw", "openclaw"),
-            ("Nanobot (not supported)", "nanobot"),
-        };
-
-        string? harness = null;
-
-        while (harness == null)
-        {
-            if (isInitialSetup)
-            {
-                harness = await PromptSelectionHelper.PromptStringAsync(host,
-                    "Choose harness:", harnessOptions, allowCancel: false, cancellationToken: ct);
-            }
-            else
-            {
-                var harnessResult = await PromptSelectionHelper.PromptStringWithBackAsync(host,
-                    "Choose harness:", harnessOptions, cancellationToken: ct);
-                if (harnessResult == null)
-                {
-                    result.IsChanged = false;
-                    return result;
-                }
-                harness = harnessResult;
-            }
-
-            // For now only OpenClaw is supported; Nanobot is a placeholder
-            if (harness == "nanobot")
-            {
-                host.AddMessage("[dim]Nanobot harness is not yet supported yet[/]");
-                harness = null;
-            }
-        }
+        var harness = await SelectHarnessAsync(host, result, isInitialSetup, ct);
+        if (harness == null)
+            return result;
 
         ConfigSelectionHelper.PrintSubSection(host, harness, "harness setup");
 
@@ -81,11 +54,8 @@ public sealed class HarnessConfigSection : IConfigSectionWizard
             config.AuthToken = Environment.GetEnvironmentVariable("OPENCLAW_GATEWAY_TOKEN");
 
         // ── Loop over generic config items ──
-        foreach (var item in _configItems)
-        {
-            if (await item.RunAsync(host, config, isInitialSetup, ct))
-                changed = true;
-        }
+        if (await RunConfigItemsAsync(host, config, isInitialSetup, ct))
+            changed = true;
 
         // ── TLS fingerprint (only for wss://) ──
         if (Uri.TryCreate(config.GatewayUrl, UriKind.Absolute, out var uri)
@@ -115,5 +85,41 @@ public sealed class HarnessConfigSection : IConfigSectionWizard
 
         result.IsChanged = changed;
         return result;
+    }
+
+    /// <summary>Prompts the user for a harness type. Returns null if the section should abort.</summary>
+    private async Task<string?> SelectHarnessAsync(
+        IStreamShellHost host, ConfigSectionResult result, bool isInitialSetup, CancellationToken ct)
+    {
+        string? harness = null;
+
+        while (harness == null)
+        {
+            if (isInitialSetup)
+            {
+                harness = await PromptSelectionHelper.PromptStringAsync(host,
+                    "Choose harness:", HarnessOptions, allowCancel: false, cancellationToken: ct);
+            }
+            else
+            {
+                var harnessResult = await PromptSelectionHelper.PromptStringWithBackAsync(host,
+                    "Choose harness:", HarnessOptions, cancellationToken: ct);
+                if (harnessResult == null)
+                {
+                    result.IsChanged = false;
+                    return null;
+                }
+                harness = harnessResult;
+            }
+
+            // For now only OpenClaw is supported; Nanobot is a placeholder
+            if (harness == "nanobot")
+            {
+                host.AddMessage("[dim]Nanobot harness is not yet supported yet[/]");
+                harness = null;
+            }
+        }
+
+        return harness;
     }
 }

@@ -7,12 +7,32 @@ using StreamShell;
 namespace OpenClawPTT.ConfigWizard;
 
 /// <summary>Configures Speech-To-Text settings.</summary>
-public sealed class SttConfigSection : IConfigSectionWizard
+public sealed class SttConfigSection : ConfigSectionBase
 {
-    public string Name => "Speech-To-Text";
-    public string Description => "STT provider and transcription settings";
+    public override string Name => "Speech-To-Text";
+    public override string Description => "STT provider and transcription settings";
 
-    public async Task<ConfigSectionResult> RunAsync(IStreamShellHost host, AppConfig config, bool isInitialSetup, CancellationToken ct)
+    private static readonly (string Name, string Value)[] Providers =
+    {
+        ("Groq", "groq"),
+        ("OpenAI", "openai"),
+        ("Whisper.cpp (local)", "whisper-cpp"),
+    };
+
+    public SttConfigSection()
+    {
+        _configItems.AddRange(new[]
+        {
+            ConfigSetupItem.ForString(
+                title: "Locale (e.g. en-US, ja-JP, ru-RU)",
+                fieldName: nameof(AppConfig.Locale),
+                validator: v => v.Length >= 2,
+                validationHint: "At least 2 characters"),
+        });
+    }
+
+    public override async Task<ConfigSectionResult> RunAsync(
+        IStreamShellHost host, AppConfig config, bool isInitialSetup, CancellationToken ct)
     {
         var result = new ConfigSectionResult();
         bool changed = false;
@@ -33,15 +53,8 @@ public sealed class SttConfigSection : IConfigSectionWizard
         ConfigSelectionHelper.PrintSubSection(host, "proceeding");
 
         // ── Provider selection ──
-        var providers = new (string Name, string Value)[]
-        {
-            ("Groq", "groq"),
-            ("OpenAI", "openai"),
-            ("Whisper.cpp (local)", "whisper-cpp"),
-        };
-
         string? provider = await PromptSelectionHelper.PromptStringAsync(host,
-            "Choose STT provider:", providers, cancellationToken: ct);
+            "Choose STT provider:", Providers, cancellationToken: ct);
 
         if (provider == null)
         {
@@ -136,16 +149,9 @@ public sealed class SttConfigSection : IConfigSectionWizard
                 break;
         }
 
-        // ── Locale ──
-        var locale = await PromptTextHelper.PromptAsync(host, "Locale (e.g. en-US, ja-JP, ru-RU)",
-            config.Locale,
-            v => v.Length >= 2, "At least 2 characters",
-            ct);
-        if (locale != null && locale != config.Locale)
-        {
-            config.Locale = locale;
+        // ── Generic config items (Locale, etc.) ──
+        if (await RunConfigItemsAsync(host, config, isInitialSetup, ct))
             changed = true;
-        }
 
         result.IsChanged = changed;
         return result;
