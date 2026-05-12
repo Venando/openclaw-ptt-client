@@ -124,6 +124,9 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
     /// </summary>
     public int LineCount => _lineCount;
 
+    /// <summary>Disables the separator between input block and bottom panel.</summary>
+    public bool ShowBottomSeparator => false;
+
     public bool IsDirty
     {
         get
