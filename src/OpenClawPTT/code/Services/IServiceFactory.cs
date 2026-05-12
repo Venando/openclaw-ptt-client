@@ -42,5 +42,5 @@ public interface IServiceFactory
 
     ITtsSummarizer CreateTtsSummarizer(IDirectLlmService? directLlm);
 
-    IConversationNamingService CreateConversationNamingService(IDirectLlmService? directLlm);
+    IConversationNamingService CreateConversationNamingService(IDirectLlmService? directLlm, AppConfig cfg);
 }

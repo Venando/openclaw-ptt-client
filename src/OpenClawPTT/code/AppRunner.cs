@@ -204,7 +204,7 @@ public class AppRunner : IDisposable
 
         // Wire up conversation naming: wrap text sender and connect to status bar
         using var namingService = _factory.CreateConversationNamingService(
-            directLlmService.IsConfigured ? directLlmService : null);
+            directLlmService.IsConfigured ? directLlmService : null, _cfg);
         namingService.ConversationNameChanged += name => _statusService.SetConversationName(name);
         var namingTextSender = new ConversationNamingTextMessageSender(textSender, namingService);
 
