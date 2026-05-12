@@ -381,9 +381,6 @@ public sealed class ConfigurationWizard
             case Step.MaxRecordSeconds:
                 _config.MaxRecordSeconds = int.Parse(rawInput);
                 break;
-            case Step.RealTimeReplyOutput:
-                _config.RealTimeReplyOutput = bool.Parse(rawInput);
-                break;
             case Step.HoldToTalk:
                 _config.HoldToTalk = bool.Parse(rawInput);
                 break;

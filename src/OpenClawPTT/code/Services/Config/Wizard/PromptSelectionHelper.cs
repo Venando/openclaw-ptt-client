@@ -38,7 +38,7 @@ public static class PromptSelectionHelper
     }
 
     private static string HighlightDefault(string name, bool isDefault) =>
-        isDefault ? $"[underline]{name}[/]" : name;
+        isDefault ? $"{name}" : name;
 
     // ── Bool ─────────────────────────────────────────────────────────
 
@@ -97,25 +97,6 @@ public static class PromptSelectionHelper
         return cv == null ? null : Enum.Parse<T>(cv.Value);
     }
 
-    /// <summary>Prompt enum selection with a "Back" option. Returns null if Back is chosen.</summary>
-    public static async Task<T?> PromptEnumWithBackAsync<T>(
-        IStreamShellHost host,
-        string title,
-        T defaultValue,
-        CancellationToken cancellationToken = default) where T : struct, Enum
-    {
-        var variants = Enum.GetValues<T>().Select(v =>
-        {
-            var name = GetEnumDisplayName(v);
-            return new ConfigVariant(HighlightDefault(name, EqualityComparer<T>.Default.Equals(v, defaultValue)), v.ToString());
-        }).ToArray<IVariant>();
-
-        var cv = await PromptWithBackLoopAsync(host, title, variants, cancellationToken);
-        if (cv == null)
-            return null;
-        return Enum.Parse<T>(cv.Value);
-    }
-
     // ── String from options ──────────────────────────────────────────
 
     /// <summary>Prompt selection from string options. If cancelled and allowCancel is false, re-prompts.</summary>
@@ -137,41 +118,8 @@ public static class PromptSelectionHelper
         return cv?.Value;
     }
 
-    /// <summary>Prompt string selection with a "Back" option. Returns null if Back is chosen.</summary>
-    public static async Task<string?> PromptStringWithBackAsync(
-        IStreamShellHost host,
-        string title,
-        (string Name, string Value)[] options,
-        string? defaultValue = null,
-        CancellationToken cancellationToken = default)
-    {
-        var variants = options.Select(o =>
-            new ConfigVariant(HighlightDefault(o.Name, o.Value == defaultValue), o.Value)
-        ).ToArray<IVariant>();
-
-        var cv = await PromptWithBackLoopAsync(host, title, variants, cancellationToken);
-        return cv?.Value;
-    }
 
     // ── Helpers ─────────────────────────────────────────────────────
-
-    private static async Task<ConfigVariant?> PromptWithBackLoopAsync(
-        IStreamShellHost host,
-        string title,
-        IVariant[] variants,
-        CancellationToken ct)
-    {
-        PromptHelper.PrintPrePromptMessage(host);
-
-        var backVariants = new IVariant[] { new ConfigVariant("[underline]Back[/]", BackSentinel) }
-            .Concat(variants).ToArray();
-
-        var result = await host.PromptSelection(title, backVariants);
-        if (result is { Length: > 0 } && result[0] is ConfigVariant cv)
-            return cv;
-            
-        return null;
-    }
 
     private static string GetEnumDisplayName<T>(T value) where T : struct, Enum
     {

@@ -8,11 +8,10 @@ using StreamShell;
 
 namespace OpenClawPTT.Services;
 
-
-public record Variant(string Name) : IVariant;
-
 public class ConfigurationService : IConfigurationService
 {
+    public record Variant(string Name) : IVariant;
+
     private readonly IConfigStorage _storage;
     private readonly ModularConfigurationWizard _wizard;
 
@@ -33,8 +32,8 @@ public class ConfigurationService : IConfigurationService
 
         if (cfg is null)
         {
-            shellHost.AddMessage("[dim]No configuration found — starting first-time setup.[/]");
-            
+            shellHost.AddMessage($"[bold cyan2]────● No configuration found — starting first-time setup.      [/]");
+
             await shellHost.PromptSelection("Continue?", [new Variant("Yes") ]);
 
             cfg = await _wizard.RunInitialSetupAsync(shellHost, ct);

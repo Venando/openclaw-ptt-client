@@ -31,15 +31,12 @@ public sealed class InputDisplayConfigSection : ConfigSectionBase
                     try { HotkeyMapping.Parse(v); return true; }
                     catch { return false; }
                 },
-                validationHint: "Expected format like Alt+= or Ctrl+Shift+Space"),
+                validationHint: "Expected format like Alt+= or Ctrl+Shift+Space",
+                isEmptyToDefault: true),
 
             ConfigSetupItem.ForBool(
                 title: "Hold-to-talk mode? (Hold = hold down, Release = send)",
                 fieldName: nameof(AppConfig.HoldToTalk)),
-
-            ConfigSetupItem.ForBool(
-                title: "Show real-time reply streaming?",
-                fieldName: nameof(AppConfig.RealTimeReplyOutput)),
 
             ConfigSetupItem.ForEnum<ReplyDisplayMode>(
                 title: "Reply display mode",

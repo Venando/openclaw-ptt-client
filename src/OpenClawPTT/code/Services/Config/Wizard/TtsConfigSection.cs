@@ -26,7 +26,7 @@ public sealed class TtsConfigSection : ConfigSectionBase
     private static readonly (string Name, string Value)[] TtsModeOptions =
     {
         ("Always on", "always-on"),
-        ("SISO (single-in-single-out)", "siso"),
+        ("SISO (Sound-in-Sound-out)", "siso"),
         ("Off", "off"),
     };
 
@@ -59,8 +59,7 @@ public sealed class TtsConfigSection : ConfigSectionBase
         AddConfigItem("OpenAI", ConfigSetupItem.ForString(
             title: "OpenAI API key for TTS",
             fieldName: nameof(AppConfig.TtsOpenAiApiKey),
-            isSecret: true,
-            isEmptyToDefault: true));
+            isSecret: true));
 
         // ── Edge items ──
         AddConfigItem("Edge", ConfigSetupItem.ForString(

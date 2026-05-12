@@ -300,7 +300,7 @@ public sealed class ConfigSetupItem
         (string Name, string Value)[] options, CancellationToken ct)
     {
         var current = GetCurrentString(config, fieldName);
-        var result = await PromptSelectionHelper.PromptStringWithBackAsync(host, title, options, current, ct);
+        var result = await PromptSelectionHelper.PromptStringAsync(host, title, options, current, cancellationToken: ct);
         if (result != null && result != current)
         {
             SetValue(config, fieldName, result);

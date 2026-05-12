@@ -94,22 +94,16 @@ public sealed class HarnessConfigSection : ConfigSectionBase
 
         while (harness == null)
         {
-            if (isInitialSetup)
+            var harnessResult = await PromptSelectionHelper.PromptStringAsync(host,
+                "Choose harness:", HarnessOptions, cancellationToken: ct);
+
+            if (harnessResult == null)
             {
-                harness = await PromptSelectionHelper.PromptStringAsync(host,
-                    "Choose harness:", HarnessOptions, allowCancel: false, cancellationToken: ct);
+                result.IsChanged = false;
+                return null;
             }
-            else
-            {
-                var harnessResult = await PromptSelectionHelper.PromptStringWithBackAsync(host,
-                    "Choose harness:", HarnessOptions, cancellationToken: ct);
-                if (harnessResult == null)
-                {
-                    result.IsChanged = false;
-                    return null;
-                }
-                harness = harnessResult;
-            }
+            
+            harness = harnessResult;
 
             // For now only OpenClaw is supported; Nanobot is a placeholder
             if (harness == "nanobot")

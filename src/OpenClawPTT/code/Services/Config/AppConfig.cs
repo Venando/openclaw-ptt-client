@@ -29,7 +29,7 @@ public sealed class AppConfig
     /// <summary>Controls diagnostic log output verbosity. Default = Error (only errors shown).</summary>
     public LogLevel DebugLevel { get; set; } = LogLevel.Error;
     public string GroqApiKey { get; set; } = "";
-    public bool RealTimeReplyOutput { get; set; } = true;
+    public bool RealTimeReplyOutput => ReplyDisplayMode is ReplyDisplayMode.Delta or ReplyDisplayMode.Both;
     public ReplyDisplayMode ReplyDisplayMode { get; set; } = ReplyDisplayMode.Both;
 
     // STT Provider configuration
@@ -50,7 +50,7 @@ public sealed class AppConfig
     public bool RequireConfirmBeforeSend { get; set; } = false;
 
 
-    public string TranscriptionPromptPrefix { get; set; } = "[It's a raw speech-to-text transcription]: ";
+    public string TranscriptionPromptPrefix { get; set; } = "";
     // AudioWrapPrompt and IsAudioEnabled removed — no longer needed
     public int GroqRetryCount { get; set; } = 0;
     public int GroqRetryDelayMs { get; set; } = 1000;
