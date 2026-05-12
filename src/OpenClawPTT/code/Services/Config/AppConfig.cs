@@ -134,6 +134,10 @@ public sealed class AppConfig
     public string TtsTooLongFallback { get; set; } = "truncate"; // "truncate" or "skip"
     public bool TtsUseDirectLlmSummary { get; set; } = true;
 
+    // Conversation naming prompt (Direct LLM)
+    public string ConversationNamingPrompt { get; set; } =
+        "Give a very short 2-4 word descriptive name for a conversation that starts with this message. Return ONLY the name, no quotes, no explanation, no punctuation at the end.\n\nMessage: {message}";
+
     [JsonIgnore]
     public string ClientVersion => "1.0.0";
 
@@ -228,5 +232,6 @@ public sealed class AppConfig
         ["TtsTooLongFallback"] = "Action when TTS exceeds limit: truncate or skip",
         ["TtsUseDirectLlmSummary"] = "Use direct LLM summary instead of TTS summarizer pipeline",
         ["CustomDataDir"] = "Override for config data directory path",
+        ["ConversationNamingPrompt"] = "Prompt template for generating conversation names via Direct LLM. Use {message} as placeholder for the user's first message.",
     };
 }

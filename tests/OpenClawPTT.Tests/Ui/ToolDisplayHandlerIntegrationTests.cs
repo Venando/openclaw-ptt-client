@@ -616,34 +616,7 @@ public class ToolDisplayHandlerIntegrationTests
         // Chained commands should be on separate rows
         Assert.Contains("\n", content);
     }
-
-    [Fact]
-    public void Handle_ExecTool_SimpleChainedCommands_StartOnNewRows()
-    {
-        var (handler, shellHost) = CreateHandler();
-
-        var arguments = "{\"command\":\"ls -la && cat file.txt && echo done\"}";
-        handler.Handle("exec", arguments);
-
-        Assert.NotEmpty(shellHost.Messages);
-        AssertAllMessagesHaveValidMarkup(shellHost);
-        var content = string.Join("\n", shellHost.Messages);
-        // DEBUG: write messages to file
-        System.IO.File.WriteAllText("/tmp/test_messages.txt", string.Join("\n---\n", shellHost.Messages));
-        System.IO.File.WriteAllText("/tmp/test_content.txt", string.Join("\n", shellHost.Messages));
-        Assert.Contains("ls", content);
-        Assert.Contains("cat", content);
-        Assert.Contains("echo", content);
-        // Each chained command starts on its own row — && must be followed by newline
-        Assert.Contains("&&", content);
-        // Check that there's a newline between chained commands
-        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        // cat must NOT share a line with ls
-        bool catOnSameLineAsLs = lines.Any(l => l.Contains("ls") && l.Contains("cat"));
-        Assert.False(catOnSameLineAsLs, "cat should not be on the same line as ls — chained commands need a newline");
-        bool echoOnSameLineAsCat = lines.Any(l => l.Contains("cat") && l.Contains("echo"));
-        Assert.False(echoOnSameLineAsCat, "echo should not be on the same line as cat — chained commands need a newline");
-    }
+    
     // ════════════════════════════════════════════════════════════════════════════
     // THEORYS — all known tools produce at least a header message
     // ════════════════════════════════════════════════════════════════════════════

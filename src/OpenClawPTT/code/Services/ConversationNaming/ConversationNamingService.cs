@@ -11,6 +11,9 @@ public sealed class ConversationNamingService : IConversationNamingService, IDis
 {
     private readonly IDirectLlmService? _directLlm;
     private readonly IColorConsole? _console;
+    private readonly AppConfig _appConfig;
+
+    private const int MaxMessageLength = 500;
 
     private readonly ConcurrentDictionary<string, string> _conversationNames = new();
     private readonly HashSet<string> _pendingSessions = new();
@@ -18,9 +21,10 @@ public sealed class ConversationNamingService : IConversationNamingService, IDis
     private string? _currentSessionKey;
     private bool _disposed;
 
-    public ConversationNamingService(IDirectLlmService? directLlm, IColorConsole? console = null)
+    public ConversationNamingService(IDirectLlmService? directLlm, AppConfig appConfig, IColorConsole? console = null)
     {
         _directLlm = directLlm;
+        _appConfig = appConfig;
         _console = console;
         _currentSessionKey = AgentRegistry.ActiveSessionKey;
         AgentRegistry.ActiveSessionChanged += OnActiveSessionChanged;
@@ -120,14 +124,19 @@ public sealed class ConversationNamingService : IConversationNamingService, IDis
         }
     }
 
-    private static string BuildNamingPrompt(string messageText)
+    private string BuildNamingPrompt(string messageText)
     {
-        const int maxMessageLength = 500;
-        var truncated = messageText.Length > maxMessageLength
-            ? messageText[..maxMessageLength] + "..."
+        var truncated = messageText.Length > MaxMessageLength
+            ? messageText[..MaxMessageLength] + "..."
             : messageText;
 
-        return $"Give a very short 2-4 word descriptive name for a conversation that starts with this message. Return ONLY the name, no quotes, no explanation, no punctuation at the end.\n\nMessage: {truncated}";
+        var template = _appConfig.ConversationNamingPrompt;
+        if (string.IsNullOrWhiteSpace(template))
+        {
+            template = "Give a very short 2-4 word descriptive name for a conversation that starts with this message. Return ONLY the name, no quotes, no explanation, no punctuation at the end.\n\nMessage: {message}";
+        }
+
+        return template.Replace("{message}", truncated);
     }
 
     private static string SanitizeName(string name)

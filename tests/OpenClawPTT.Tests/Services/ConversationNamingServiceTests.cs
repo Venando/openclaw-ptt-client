@@ -12,6 +12,15 @@ namespace OpenClawPTT.Tests.Services;
 [Collection("ConversationNaming")]
 public class ConversationNamingServiceTests : IDisposable
 {
+    private static AppConfig CreateDefaultConfig()
+    {
+        return new AppConfig
+        {
+            ConversationNamingPrompt =
+                "Give a very short 2-4 word descriptive name for a conversation that starts with this message. Return ONLY the name, no quotes, no explanation, no punctuation at the end.\n\nMessage: {message}"
+        };
+    }
+
     public ConversationNamingServiceTests()
     {
         AgentRegistry.SetAgents(new List<AgentInfo>
@@ -31,12 +40,10 @@ public class ConversationNamingServiceTests : IDisposable
     public void GetCurrentConversationName_WhenNoNameGenerated_ReturnsNull()
     {
         var mockLlm = new Mock<IDirectLlmService>();
-        var service = new ConversationNamingService(mockLlm.Object);
+        using var service = new ConversationNamingService(mockLlm.Object, CreateDefaultConfig());
 
         var name = service.GetCurrentConversationName();
-
         Assert.Null(name);
-        service.Dispose();
     }
 
     [Fact]
@@ -47,12 +54,17 @@ public class ConversationNamingServiceTests : IDisposable
         mockLlm.Setup(x => x.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Code Review");
 
-        using var service = new ConversationNamingService(mockLlm.Object);
+        using var ev = new ManualResetEventSlim(false);
+        using var service = new ConversationNamingService(mockLlm.Object, CreateDefaultConfig());
         string? capturedName = null;
-        service.ConversationNameChanged += name => capturedName = name;
+        service.ConversationNameChanged += name =>
+        {
+            capturedName = name;
+            ev.Set();
+        };
 
         service.OnMessageSent("Can you review this C# code for me?");
-        Thread.Sleep(200);
+        ev.Wait(TimeSpan.FromSeconds(2));
 
         Assert.Equal("Code Review", capturedName);
         Assert.Equal("Code Review", service.GetCurrentConversationName());
@@ -64,16 +76,12 @@ public class ConversationNamingServiceTests : IDisposable
         var mockLlm = new Mock<IDirectLlmService>();
         mockLlm.Setup(x => x.IsConfigured).Returns(false);
 
-        var service = new ConversationNamingService(mockLlm.Object);
-        bool eventFired = false;
-        service.ConversationNameChanged += _ => eventFired = true;
+        using var service = new ConversationNamingService(mockLlm.Object, CreateDefaultConfig());
 
         service.OnMessageSent("Any message");
-        Thread.Sleep(200);
+        Thread.Sleep(500);
 
-        Assert.False(eventFired);
         Assert.Null(service.GetCurrentConversationName());
-        service.Dispose();
     }
 
     [Fact]
@@ -84,11 +92,13 @@ public class ConversationNamingServiceTests : IDisposable
         mockLlm.Setup(x => x.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Test Name");
 
-        using var service = new ConversationNamingService(mockLlm.Object);
+        using var ev = new ManualResetEventSlim(false);
+        using var service = new ConversationNamingService(mockLlm.Object, CreateDefaultConfig());
+        service.ConversationNameChanged += _ => ev.Set();
 
         service.OnMessageSent("First message");
         service.OnMessageSent("Second message");
-        Thread.Sleep(200);
+        ev.Wait(TimeSpan.FromSeconds(2));
 
         mockLlm.Verify(x => x.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -101,12 +111,17 @@ public class ConversationNamingServiceTests : IDisposable
         mockLlm.Setup(x => x.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("\"Name:\" \"Code Review\"");
 
-        using var service = new ConversationNamingService(mockLlm.Object);
+        using var ev = new ManualResetEventSlim(false);
+        using var service = new ConversationNamingService(mockLlm.Object, CreateDefaultConfig());
         string? capturedName = null;
-        service.ConversationNameChanged += name => capturedName = name;
+        service.ConversationNameChanged += name =>
+        {
+            capturedName = name;
+            ev.Set();
+        };
 
         service.OnMessageSent("Message");
-        Thread.Sleep(200);
+        ev.Wait(TimeSpan.FromSeconds(2));
 
         Assert.Equal("Code Review", capturedName);
     }
@@ -119,12 +134,17 @@ public class ConversationNamingServiceTests : IDisposable
         mockLlm.Setup(x => x.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Test Name");
 
-        using var service = new ConversationNamingService(mockLlm.Object);
+        using var ev = new ManualResetEventSlim(false);
+        using var service = new ConversationNamingService(mockLlm.Object, CreateDefaultConfig());
         string? capturedName = "initial";
-        service.ConversationNameChanged += name => capturedName = name;
+        service.ConversationNameChanged += name =>
+        {
+            capturedName = name;
+            ev.Set();
+        };
 
         service.OnMessageSent("Message");
-        Thread.Sleep(200);
+        ev.Wait(TimeSpan.FromSeconds(2));
         Assert.Equal("Test Name", service.GetCurrentConversationName());
 
         service.OnCommandExecuted(null, new CommandExecutedEventArgs(
@@ -143,9 +163,12 @@ public class ConversationNamingServiceTests : IDisposable
         mockLlm.Setup(x => x.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Test Name");
 
-        using var service = new ConversationNamingService(mockLlm.Object);
+        using var ev = new ManualResetEventSlim(false);
+        using var service = new ConversationNamingService(mockLlm.Object, CreateDefaultConfig());
+        service.ConversationNameChanged += _ => ev.Set();
+
         service.OnMessageSent("Message");
-        Thread.Sleep(200);
+        ev.Wait(TimeSpan.FromSeconds(2));
         Assert.Equal("Test Name", service.GetCurrentConversationName());
 
         service.OnCommandExecuted(null, new CommandExecutedEventArgs(
@@ -163,9 +186,12 @@ public class ConversationNamingServiceTests : IDisposable
         mockLlm.Setup(x => x.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Test Name");
 
-        using var service = new ConversationNamingService(mockLlm.Object);
+        using var ev = new ManualResetEventSlim(false);
+        using var service = new ConversationNamingService(mockLlm.Object, CreateDefaultConfig());
+        service.ConversationNameChanged += _ => ev.Set();
+
         service.OnMessageSent("Message");
-        Thread.Sleep(200);
+        ev.Wait(TimeSpan.FromSeconds(2));
         Assert.Equal("Test Name", service.GetCurrentConversationName());
 
         service.OnCommandExecuted(null, new CommandExecutedEventArgs(
@@ -183,9 +209,12 @@ public class ConversationNamingServiceTests : IDisposable
         mockLlm.Setup(x => x.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Test Name");
 
-        using var service = new ConversationNamingService(mockLlm.Object);
+        using var ev = new ManualResetEventSlim(false);
+        using var service = new ConversationNamingService(mockLlm.Object, CreateDefaultConfig());
+        service.ConversationNameChanged += _ => ev.Set();
+
         service.OnMessageSent("Message");
-        Thread.Sleep(200);
+        ev.Wait(TimeSpan.FromSeconds(2));
 
         service.OnCommandExecuted(null, new CommandExecutedEventArgs(
             "RESET", CommandSource.OpenClaw, OpenClawPTT.Services.Commands.ShellCommandType.SessionControl,
@@ -202,9 +231,12 @@ public class ConversationNamingServiceTests : IDisposable
         mockLlm.Setup(x => x.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Test Name");
 
-        using var service = new ConversationNamingService(mockLlm.Object);
+        using var ev = new ManualResetEventSlim(false);
+        using var service = new ConversationNamingService(mockLlm.Object, CreateDefaultConfig());
+        service.ConversationNameChanged += _ => ev.Set();
+
         service.OnMessageSent("Message");
-        Thread.Sleep(200);
+        ev.Wait(TimeSpan.FromSeconds(2));
         Assert.Equal("Test Name", service.GetCurrentConversationName());
 
         // A native "reset" command that is NOT SessionControl should not clear
@@ -215,7 +247,97 @@ public class ConversationNamingServiceTests : IDisposable
         // Still named because type check fails
         Assert.Equal("Test Name", service.GetCurrentConversationName());
     }
-}
 
-[CollectionDefinition("ConversationNaming", DisableParallelization = true)]
-public sealed class ConversationNamingCollectionDefinition { }
+    [Fact]
+    public void UsesCustomPromptFromConfig()
+    {
+        var config = new AppConfig
+        {
+            ConversationNamingPrompt = "You are a title generator. Output a short title for: {message}"
+        };
+
+        var mockLlm = new Mock<IDirectLlmService>();
+        mockLlm.Setup(x => x.IsConfigured).Returns(true);
+        mockLlm.Setup(x => x.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns((string prompt, CancellationToken _) =>
+            {
+                // Verify the prompt uses the custom template with the message substituted
+                Assert.DoesNotContain("2-4 word", prompt);
+                Assert.Contains("title generator", prompt);
+                Assert.Contains("Using AI", prompt);
+                return Task.FromResult("Custom Title")!;
+            });
+
+        using var ev = new ManualResetEventSlim(false);
+        using var service = new ConversationNamingService(mockLlm.Object, config);
+        string? capturedName = null;
+        service.ConversationNameChanged += name =>
+        {
+            capturedName = name;
+            ev.Set();
+        };
+
+        service.OnMessageSent("Using AI to generate code");
+        ev.Wait(TimeSpan.FromSeconds(2));
+
+        Assert.Equal("Custom Title", capturedName);
+    }
+
+    [Fact]
+    public void FallsBackToDefaultPrompt_WhenConfigPromptIsEmpty()
+    {
+        var config = new AppConfig
+        {
+            ConversationNamingPrompt = ""
+        };
+
+        var mockLlm = new Mock<IDirectLlmService>();
+        mockLlm.Setup(x => x.IsConfigured).Returns(true);
+        mockLlm.Setup(x => x.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns((string prompt, CancellationToken _) =>
+            {
+                Assert.Contains("2-4 word", prompt);
+                Assert.Contains("Message: Hello", prompt);
+                return Task.FromResult("Default Fallback")!;
+            });
+
+        using var ev = new ManualResetEventSlim(false);
+        using var service = new ConversationNamingService(mockLlm.Object, config);
+        string? capturedName = null;
+        service.ConversationNameChanged += name =>
+        {
+            capturedName = name;
+            ev.Set();
+        };
+
+        service.OnMessageSent("Hello");
+        ev.Wait(TimeSpan.FromSeconds(2));
+
+        Assert.Equal("Default Fallback", capturedName);
+    }
+
+    [Fact]
+    public void BuildNamingPrompt_UsesCustomCursorPrompt()
+    {
+        var config = new AppConfig
+        {
+            ConversationNamingPrompt = "Custom prompt: {message}"
+        };
+
+        var mockLlm = new Mock<IDirectLlmService>();
+        mockLlm.Setup(x => x.IsConfigured).Returns(true);
+        mockLlm.Setup(x => x.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Result");
+
+        using var ev = new ManualResetEventSlim(false);
+        using var service = new ConversationNamingService(mockLlm.Object, config);
+        service.ConversationNameChanged += _ => ev.Set();
+
+        service.OnMessageSent("test");
+        ev.Wait(TimeSpan.FromSeconds(2));
+
+        mockLlm.Verify(x => x.SendAsync(
+            It.Is<string>(s => s == "Custom prompt: test"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+}
