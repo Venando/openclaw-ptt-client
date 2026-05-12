@@ -27,12 +27,14 @@ public sealed class HarnessConfigSection : ConfigSectionBase
                 fieldName: nameof(AppConfig.GatewayUrl),
                 validator: v => Uri.TryCreate(v, UriKind.Absolute, out var uri)
                     && (uri.Scheme == "ws" || uri.Scheme == "wss"),
-                validationHint: "Expected ws:// or wss:// URL"),
+                validationHint: "Expected ws:// or wss:// URL",
+                isEmptyToDefault: true),
             ConfigSetupItem.ForString(
                 title: "Auth token (OPENCLAW_GATEWAY_TOKEN env)",
                 fieldName: nameof(AppConfig.AuthToken),
                 isSecret: true,
-                isEmptyToDefault: false),
+                isEmptyToDefault: false,
+                validator: (value) => !string.IsNullOrWhiteSpace(value)),
         });
     }
 
