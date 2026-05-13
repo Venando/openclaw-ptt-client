@@ -13,6 +13,8 @@ public sealed class AudioService : IAudioService
     private readonly IColorConsole _console;
     private IAudioRecorder _recorder;
     private ITranscriber _transcriber;
+    /// <inheritdoc />
+    public Action<TranscriptionPhase, string?>? TranscriptionStatusCallback { get; set; }
     private readonly IVisualFeedback _visualFeedback;
     private readonly IAgentSettingsPersistence _agentSettingsPersistence;
     
@@ -104,6 +106,8 @@ public sealed class AudioService : IAudioService
             return null;
         }
 
+        TranscriptionStatusCallback?.Invoke(TranscriptionPhase.Started, null);
+
         try
         {
             // Capture transcriber under lock to prevent use-after-dispose (C3)
@@ -118,16 +122,19 @@ public sealed class AudioService : IAudioService
             var shellHost = _console.GetStreamShellHost();
             var prefix = $"Transcribed ({wav.Length / 1024.0:F1} KB): ";
             _console.PrintMarkup($"[green][dim]  ✓ {Markup.Escape(prefix)}[/][/] [green]{Markup.Escape(transcribed)}[/]");
+            TranscriptionStatusCallback?.Invoke(TranscriptionPhase.Succeeded, transcribed);
             return transcribed;
         }
         catch (OperationCanceledException)
         {
             _console.PrintWarning($"  Transcription timed out ({_transcriptionTimeoutSeconds}s)");
+            TranscriptionStatusCallback?.Invoke(TranscriptionPhase.TimedOut, "Transcription timed out");
             return null;
         }
         catch (Exception ex)
         {
             _console.PrintError($"Transcription failed ({wav.Length / 1024.0:F1} KB): {ex.Message}");
+            TranscriptionStatusCallback?.Invoke(TranscriptionPhase.Failed, ex.Message);
             return null;
         }
     }

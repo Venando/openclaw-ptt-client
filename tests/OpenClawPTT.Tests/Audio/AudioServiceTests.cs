@@ -88,6 +88,8 @@ sealed class FakeAudioService : IAudioService
     private bool _recording;
     private bool _disposed;
 
+    public Action<TranscriptionPhase, string?>? TranscriptionStatusCallback { get; set; }
+
     public bool IsRecording => _recording;
 
     public FakeAudioService(ITranscriber transcriber, IVisualFeedback visual)
