@@ -9,9 +9,11 @@ public interface IConfigurationService
 {
     /// <summary>
     /// Raised whenever the configuration is successfully saved.
-    /// Subscribers can use this to react to config changes (e.g. re-probe LLM endpoint).
+    /// Carries <see cref="ConfigChangedEventArgs"/> with the new config and
+    /// the set of property names that actually changed.
+    /// Subscribers should check <c>e.IsChanged(...)</c> before acting.
     /// </summary>
-    event Action<AppConfig>? ConfigSaved;
+    event Action<ConfigChangedEventArgs>? ConfigSaved;
 
     Task<AppConfig> LoadOrSetupAsync(IStreamShellHost shellHost, bool forceReconfigure = false, CancellationToken ct = default);
     Task<AppConfig> ReconfigureAsync(IStreamShellHost shellHost, AppConfig existing, CancellationToken ct);

@@ -254,19 +254,17 @@ public sealed class StreamShellInputHandler : IDisposable
     /// Updates <c>_appConfig</c> so that <c>RegisterDirectLlmCommand</c>
     /// reads the current values, not the stale startup ones.
     /// </summary>
-    private void OnConfigSaved(AppConfig newCfg)
+    private void OnConfigSaved(ConfigChangedEventArgs e)
     {
         // Keep _appConfig in sync — RegisterDirectLlmCommand() reads it.
-        _appConfig = newCfg;
+        _appConfig = e.NewConfig;
 
-        var llmUrl = newCfg.DirectLlmUrl;
-        var llmModel = newCfg.DirectLlmModelName;
-
-        bool urlChanged = !string.Equals(_lastKnownLlmUrl, llmUrl, StringComparison.OrdinalIgnoreCase);
-        bool modelChanged = !string.Equals(_lastKnownLlmModel, llmModel, StringComparison.OrdinalIgnoreCase);
-
-        if (!urlChanged && !modelChanged)
+        bool llmChanged = e.AnyChanged(nameof(AppConfig.DirectLlmUrl), nameof(AppConfig.DirectLlmModelName));
+        if (!llmChanged)
             return;
+
+        var llmUrl = e.NewConfig.DirectLlmUrl;
+        var llmModel = e.NewConfig.DirectLlmModelName;
 
         _lastKnownLlmUrl = llmUrl;
         _lastKnownLlmModel = llmModel;

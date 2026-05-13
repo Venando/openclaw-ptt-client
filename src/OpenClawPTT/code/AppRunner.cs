@@ -315,16 +315,33 @@ public class AppRunner : IDisposable
         // AudioService constructor creates a transcriber synchronously — mark STT as ready
         _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Green);
 
-        // Re-create transcriber and recorder when config changes
-        // (e.g. STT provider/model switched or SampleRate changed via /reconfigure)
-        void OnConfigSaved(AppConfig newCfg)
+        // Re-create transcriber and recorder when STT/audio config changes
+        void OnConfigSaved(ConfigChangedEventArgs e)
         {
+            // Only react if an STT or audio-recording property actually changed
+            var sttProps = new[]
+            {
+                nameof(AppConfig.SttProvider),
+                nameof(AppConfig.GroqModel),
+                nameof(AppConfig.GroqApiKey),
+                nameof(AppConfig.OpenAiApiKey),
+                nameof(AppConfig.OpenAiModel),
+                nameof(AppConfig.WhisperCppModel),
+                nameof(AppConfig.WhisperCppBinaryPath),
+                nameof(AppConfig.SampleRate),
+                nameof(AppConfig.Channels),
+                nameof(AppConfig.BitsPerSample),
+                nameof(AppConfig.MaxRecordSeconds),
+            };
+            if (!e.AnyChanged(sttProps))
+                return;
+
             _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Yellow);
             try
             {
                 // Recorder first (so new params are in place before transcriber is recreated)
-                audioService.RecreateRecorder(newCfg, _console);
-                audioService.RecreateTranscriber(newCfg, _console);
+                audioService.RecreateRecorder(e.NewConfig, _console);
+                audioService.RecreateTranscriber(e.NewConfig, _console);
                 _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Green);
             }
             catch (Exception ex)

@@ -1,6 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using OpenClawPTT.ConfigWizard;
 using Spectre.Console;
 using System.Threading.Tasks;
@@ -14,9 +18,16 @@ public class ConfigurationService : IConfigurationService
 
     private readonly IConfigStorage _storage;
     private readonly ModularConfigurationWizard _wizard;
+    private readonly object _saveLock = new();
+
+    // Cached property info for diff computation (immutable per AppConfig type)
+    private static readonly PropertyInfo[] AppConfigProperties = typeof(AppConfig)
+        .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+        .Where(p => p.CanRead && p.GetMethod?.IsPublic == true && !p.IsDefined(typeof(JsonIgnoreAttribute)))
+        .ToArray();
 
     /// <inheritdoc />
-    public event Action<AppConfig>? ConfigSaved;
+    public event Action<ConfigChangedEventArgs>? ConfigSaved;
 
     public ConfigurationService()
         : this(new FileConfigStorage())
@@ -40,8 +51,7 @@ public class ConfigurationService : IConfigurationService
             await shellHost.PromptSelection("Continue?", [new Variant("Yes") ]);
 
             cfg = await _wizard.RunInitialSetupAsync(shellHost, ct);
-            _storage.Save(cfg);
-            ConfigSaved?.Invoke(cfg);
+            PersistAndNotifyAllChanged(cfg);
             shellHost.AddMessage("[green]Configuration saved.[/]");
             return cfg;
         }
@@ -64,8 +74,7 @@ public class ConfigurationService : IConfigurationService
                 shellHost.AddMessage("[cyan2]Starting setup wizard to fix missing/invalid fields...[/]");
 
             cfg = await _wizard.RunInitialSetupAsync(shellHost, ct);
-            _storage.Save(cfg);
-            ConfigSaved?.Invoke(cfg);
+            PersistAndNotifyAllChanged(cfg);
         }
 
         return cfg;
@@ -92,11 +101,25 @@ public class ConfigurationService : IConfigurationService
             shellHost.AddMessage("[yellow]Configuration issues found after reconfiguration:[/]");
             foreach (var i in issues)
                 shellHost.AddMessage($"  [grey]\u2022 {Markup.Escape(i)}[/]");
-            shellHost.AddMessage("[grey]Run /reconfigure again to fix these issues.[/]");
+            shellHost.AddMessage("[grey](the wizard may have skipped some sections)[/]");
+
+            // Offer to re-enter the wizard to fix remaining issues
+            var retry = await PromptSelectionHelper.PromptStringAsync(
+                shellHost, "Re-enter wizard to fix issues?",
+                new (string Name, string Value)[]
+                {
+                    ("Yes, re-enter wizard", "yes"),
+                    ("No, save as-is", "no"),
+                },
+                defaultValue: "yes", allowCancel: false, cancellationToken: ct);
+
+            if (retry == "yes")
+            {
+                return await ReconfigureAsync(shellHost, newCfg, ct);
+            }
         }
 
-        _storage.Save(newCfg);
-        ConfigSaved?.Invoke(newCfg);
+        PersistAndNotify(newCfg);
         return newCfg;
     }
 
@@ -104,8 +127,70 @@ public class ConfigurationService : IConfigurationService
 
     public void Save(AppConfig cfg)
     {
-        _storage.Save(cfg);
-        ConfigSaved?.Invoke(cfg);
+        lock (_saveLock)
+        {
+            // Load the old persisted config for diff comparison
+            var oldCfg = _storage.Load();
+            var changed = ComputeChangedProperties(oldCfg, cfg);
+            _storage.Save(cfg);
+            ConfigSaved?.Invoke(new ConfigChangedEventArgs(changed, cfg));
+        }
+    }
+
+    /// <summary>
+    /// Persists the config and fires ConfigSaved with all properties marked as changed.
+    /// Used after initial setup or full wizard runs where everything may have changed.
+    /// </summary>
+    private void PersistAndNotifyAllChanged(AppConfig cfg)
+    {
+        lock (_saveLock)
+        {
+            var allChanged = new HashSet<string>(AppConfigProperties.Select(p => p.Name));
+            _storage.Save(cfg);
+            ConfigSaved?.Invoke(new ConfigChangedEventArgs(allChanged, cfg));
+        }
+    }
+
+    /// <summary>
+    /// Persists the config and fires ConfigSaved with a diff against the previously
+    /// persisted state. Used by <see cref="ReconfigureAsync"/> where only some sections change.
+    /// </summary>
+    private void PersistAndNotify(AppConfig cfg)
+    {
+        lock (_saveLock)
+        {
+            var oldCfg = _storage.Load();
+            var changed = ComputeChangedProperties(oldCfg, cfg);
+            _storage.Save(cfg);
+            ConfigSaved?.Invoke(new ConfigChangedEventArgs(changed, cfg));
+        }
+    }
+
+    /// <summary>
+    /// Computes which <see cref="AppConfig"/> properties differ between old and new.
+    /// Uses JSON serialization for robust comparison (handles enums, nulls).
+    /// Returns an empty set when both are null.
+    /// </summary>
+    internal static HashSet<string> ComputeChangedProperties(AppConfig? oldCfg, AppConfig? newCfg)
+    {
+        var changed = new HashSet<string>();
+
+        if (ReferenceEquals(oldCfg, newCfg))
+            return changed;
+
+        foreach (var prop in AppConfigProperties)
+        {
+            var oldVal = oldCfg != null ? prop.GetValue(oldCfg) : null;
+            var newVal = newCfg != null ? prop.GetValue(newCfg) : null;
+
+            var oldJson = JsonSerializer.SerializeToNode(oldVal);
+            var newJson = JsonSerializer.SerializeToNode(newVal);
+
+            if (!JsonNode.DeepEquals(oldJson, newJson))
+                changed.Add(prop.Name);
+        }
+
+        return changed;
     }
 
     public List<string> Validate(AppConfig? cfg)
