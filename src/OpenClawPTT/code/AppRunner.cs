@@ -105,10 +105,11 @@ public partial class AppRunner : IDisposable
             _statusService.SetServiceStatus(ServiceKind.Tts, success ? StatusColor.Green : StatusColor.Red);
 
         // Subscribe to gateway connection lifecycle events for the status bar.
-        // The Disconnected event fires both on initial connect failure (via ReceiveLoop detection)
-        // and on permanent reconnect failure (via GatewayReconnector -> lifecycle relay).
         gateway.Connected += () => _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Green);
+        // Disconnected: fires when the WebSocket drops (ReceiveLoop catches it).
+        // ReconnectFailed: fires only after all reconnection attempts are exhausted.
         gateway.Disconnected += () => _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Red);
+        gateway.ReconnectFailed += () => _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Red);
         gateway.Reconnecting += () => _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Yellow);
 
         // Wire ErrorLogStore into GatewayService so SendTextAsync/SendRpcAsync failures are logged
@@ -211,6 +212,25 @@ public partial class AppRunner : IDisposable
     private async Task<int> RunPttLoopAsync(IGatewayService gateway, IPttStateMachine pttStateMachine, IDirectLlmService directLlmService, ITtsSummarizer ttsSummarizer, bool gatewayConnected, CancellationToken ct)
     {
         using var audioService = _factory.CreateAudioService(_cfg);
+
+        // Wire transcription lifecycle to STT status bar
+        audioService.TranscriptionStatusCallback = (phase, _) =>
+        {
+            switch (phase)
+            {
+                case TranscriptionPhase.Started:
+                    _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Yellow);
+                    break;
+                case TranscriptionPhase.Succeeded:
+                    _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Green);
+                    break;
+                case TranscriptionPhase.Failed:
+                case TranscriptionPhase.TimedOut:
+                    _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Red);
+                    break;
+            }
+        };
+
         // AudioService constructor succeeded — but the transcriber hasn't been
         // verified yet. Set Yellow and verify on a background thread so the
         // animated transitioning state is visible during verification.
@@ -219,8 +239,12 @@ public partial class AppRunner : IDisposable
         {
             try
             {
-                await audioService.VerifyTranscriberAsync(_cfg, _console, CancellationToken.None);
+                await audioService.VerifyTranscriberAsync(_cfg, _console, ct);
                 _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Green);
+            }
+            catch (OperationCanceledException)
+            {
+                // App shutting down — verification cancelled, leave status as-is
             }
             catch (Exception ex)
             {
