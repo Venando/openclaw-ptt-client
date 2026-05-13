@@ -162,6 +162,9 @@ public sealed class CoquiUvTtsProvider : ITextToSpeech, IAsyncDisposable
             _readCts = new CancellationTokenSource();
 
             var psi = _environment.CreateProcessStartInfo();
+            // Ensure venv uses the validated Python
+            CoquiUvEnvironment.EnsureVenvPythonMatches(_environment.ProjectDir);
+
             _process = new Process { StartInfo = psi, EnableRaisingEvents = true };
             _process.Exited += OnProcessExited;
 

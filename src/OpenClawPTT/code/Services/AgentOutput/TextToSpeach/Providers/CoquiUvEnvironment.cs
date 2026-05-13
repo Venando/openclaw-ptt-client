@@ -49,6 +49,13 @@ public sealed class CoquiUvEnvironment
     /// <summary>Human-readable reason why the build is broken, for display.</summary>
     public static string? UvBuildErrorDetail { get; private set; }
 
+    /// <summary>
+    /// Path to the validated Python interpreter (e.g. C:\...\python3.11.exe).
+    /// Set by <see cref="ValidatePythonVersionAsync"/> on success.
+    /// Passed to <c>uv run --python</c> to guarantee the right interpreter.
+    /// </summary>
+    public static string? ValidatedPythonPath { get; private set; }
+
     /// <summary>Marks the uv environment as broken so retries are skipped.</summary>
     public static void MarkUvBuildBroken(string detail)
     {
@@ -61,6 +68,7 @@ public sealed class CoquiUvEnvironment
     {
         IsUvBuildBroken = false;
         UvBuildErrorDetail = null;
+        ValidatedPythonPath = null;
     }
 
     public CoquiUvEnvironment(string? dataDir, string modelName, string? modelPath, string? ttsConfigPath, string? espeakNgPath)
@@ -233,6 +241,7 @@ public sealed class CoquiUvEnvironment
                 // Found a compatible Python!
                 var pythonPath = parts[1];
                 onProgress?.Invoke($"Found compatible Python: {versionStr} at {pythonPath}");
+                ValidatedPythonPath = pythonPath;
                 return new PythonVersionResult
                 {
                     PythonPath = pythonPath,
@@ -305,6 +314,59 @@ public sealed class CoquiUvEnvironment
         }
     }
 
+    /// <summary>
+    /// Returns " --python \"<path>\"" when a validated Python is known,
+    /// otherwise empty string. Use in all <c>uv run</c> arguments.
+    /// </summary>
+    public static string GetPythonArg()
+    {
+        if (!string.IsNullOrEmpty(ValidatedPythonPath))
+            return $" --python \"{ValidatedPythonPath}\"";
+        return "";
+    }
+
+    /// <summary>
+    /// If the <c>.venv</c> exists but was created with a different Python than
+    /// the validated one, delete it so <c>uv run --python</c> recreates it correctly.
+    /// </summary>
+    public static void EnsureVenvPythonMatches(string projectDir)
+    {
+        if (string.IsNullOrEmpty(ValidatedPythonPath))
+            return;
+
+        var pyvenvCfg = Path.Combine(projectDir, ".venv", "pyvenv.cfg");
+        if (!File.Exists(pyvenvCfg))
+            return;
+
+        try
+        {
+            var lines = File.ReadAllLines(pyvenvCfg);
+            foreach (var line in lines)
+            {
+                if (line.StartsWith("home =", StringComparison.OrdinalIgnoreCase) ||
+                    line.StartsWith("home=", StringComparison.OrdinalIgnoreCase))
+                {
+                    var homePath = line[(line.IndexOf('=') + 1)..].Trim();
+                    // Normalize paths for comparison
+                    if (!string.Equals(
+                        Path.GetFullPath(homePath).TrimEnd(Path.DirectorySeparatorChar),
+                        Path.GetDirectoryName(Path.GetFullPath(ValidatedPythonPath))?.TrimEnd(Path.DirectorySeparatorChar),
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Wrong Python — delete venv so uv recreates it
+                        var venvDir = Path.Combine(projectDir, ".venv");
+                        Directory.Delete(venvDir, recursive: true);
+                    }
+                    break;
+                }
+            }
+        }
+        catch
+        {
+            // If anything goes wrong reading/deleting, don't crash — uv will handle it
+        }
+    }
+
     // ── Process creation ────────────────────────────────────────────
 
     /// <summary>
@@ -319,7 +381,7 @@ public sealed class CoquiUvEnvironment
         var psi = new ProcessStartInfo
         {
             FileName = uvPath,
-            Arguments = $"run --directory \"{_projectDir}\" python \"{Path.Combine(_projectDir, "tts_service.py")}\"",
+            Arguments = $"run{GetPythonArg()} --directory \"{_projectDir}\" python \"{Path.Combine(_projectDir, "tts_service.py")}\"",
             UseShellExecute = false,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,

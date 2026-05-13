@@ -182,6 +182,9 @@ public sealed class CoquiTtsModelManager
         var env = new CoquiUvEnvironment(dataDir, "tts_models/en/ljspeech/vits", null, null, null);
         env.EnsureProjectFiles();
 
+        // If .venv was created with a different Python, delete it so uv recreates it
+        CoquiUvEnvironment.EnsureVenvPythonMatches(projectDir);
+
         var uvPath = CoquiUvEnvironment.FindUv() ?? "uv";
         var cmd = "import json; from TTS.api import TTS; " +
                   "models = TTS().list_models(); " +
@@ -460,7 +463,7 @@ public sealed class CoquiTtsModelManager
         var psi = new ProcessStartInfo
         {
             FileName = uvPath,
-            Arguments = $"run --directory \"{_projectDir}\" python -c \"{escapedCmd}\"",
+            Arguments = $"run{CoquiUvEnvironment.GetPythonArg()} --directory \"{_projectDir}\" python -c \"{escapedCmd}\"",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -470,7 +473,6 @@ public sealed class CoquiTtsModelManager
         using var timeoutCts = new CancellationTokenSource(_downloadTimeout);
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
-        _host.AddMessage($"[grey]    Running: uv run --directory ... python -c ...[/]");
         using var process = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start uv run for Coqui TTS model download.");
 
