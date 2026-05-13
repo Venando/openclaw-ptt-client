@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace OpenClawPTT.Services;
 
+/// <summary>
+/// Configuration data service: load, save, validate, and event publishing.
+/// Pure data management — no UI or interactive logic.
+/// Interactive workflows (setup wizard, reconfiguration) are handled by
+/// <see cref="IConfigWizardOrchestrator"/>.
+/// </summary>
 public interface IConfigurationService
 {
     /// <summary>
@@ -23,8 +27,6 @@ public interface IConfigurationService
     /// </summary>
     event Action<ConfigChangedEventArgs>? ConfigSaved;
 
-    Task<AppConfig> LoadOrSetupAsync(IStreamShellHost shellHost, bool forceReconfigure = false, CancellationToken ct = default);
-    Task<AppConfig> ReconfigureAsync(IStreamShellHost shellHost, AppConfig existing, CancellationToken ct);
     AppConfig? Load();
     void Save(AppConfig cfg);
     List<string> Validate(AppConfig cfg);

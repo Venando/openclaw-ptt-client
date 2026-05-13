@@ -27,6 +27,7 @@ public sealed class StreamShellInputHandler : IDisposable
     private readonly ITextMessageSender _textSender;
     private readonly IGatewayService _gatewayService;
     private readonly IConfigurationService _configService;
+    private readonly IConfigWizardOrchestrator? _wizard;
     private readonly IDirectLlmService? _directLlmService;
     private AppConfig _appConfig;
     private readonly Action _onQuit;
@@ -66,7 +67,8 @@ public sealed class StreamShellInputHandler : IDisposable
         ITtsSummarizer? ttsSummarizer = null,
         IConversationNamingService? namingService = null,
         ErrorLogStore? errorLogStore = null,
-        IStatusService? statusService = null)
+        IStatusService? statusService = null,
+        IConfigWizardOrchestrator? wizard = null)
     {
         _host = host;
         _textSender = textSender;
@@ -80,6 +82,7 @@ public sealed class StreamShellInputHandler : IDisposable
         _pttStateMachine = pttStateMachine;
         _ttsSummarizer = ttsSummarizer;
         _namingService = namingService;
+        _wizard = wizard;
         _errorLog = errorLogStore ?? new ErrorLogStore(appConfig.DataDir);
         _statusService = statusService ?? new StatusService(host);
         _messageComposer = new TextMessageComposer(host, textSender);
@@ -101,7 +104,7 @@ public sealed class StreamShellInputHandler : IDisposable
     {
         // ── Always-on native commands ──────────────────────────────────────
         _registry.Register(new QuitCommand(_host, _onQuit));
-        _registry.Register(new ReconfigureCommand(_host, _configService));
+        _registry.Register(new ReconfigureCommand(_host, _wizard ?? new ConfigWizardOrchestrator(_configService), _configService));
         _registry.Register(new CrewCommand(_host, _agentSettingsPersistence, _appConfig, _historyService, _configService));
         _registry.Register(new ChatCommand(_host, _configService, _historyService, _appConfig));
         _registry.Register(new CleanCommand(_host));

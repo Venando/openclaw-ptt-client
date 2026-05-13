@@ -5,19 +5,17 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using OpenClawPTT.ConfigWizard;
-using Spectre.Console;
-using System.Threading.Tasks;
-using StreamShell;
 
 namespace OpenClawPTT.Services;
 
+/// <summary>
+/// Configuration data service: load, save, validate, and event publishing.
+/// Pure data management — no UI or interactive wizard logic.
+/// Interactive workflows are handled by <see cref="ConfigWizardOrchestrator"/>.
+/// </summary>
 public class ConfigurationService : IConfigurationService
 {
-    public record Variant(string Name) : IVariant;
-
     private readonly IConfigStorage _storage;
-    private readonly ModularConfigurationWizard _wizard;
     private readonly object _saveLock = new();
 
     // Cached property info for diff computation (immutable per AppConfig type)
@@ -39,91 +37,7 @@ public class ConfigurationService : IConfigurationService
 
     public ConfigurationService(IConfigStorage storage)
     {
-        _storage = storage;
-        _wizard = new ModularConfigurationWizard();
-    }
-
-    public async Task<AppConfig> LoadOrSetupAsync(IStreamShellHost shellHost, bool forceReconfigure = false, CancellationToken ct = default)
-    {
-        var cfg = _storage.Load();
-
-        if (cfg is null)
-        {
-            shellHost.AddMessage($"[bold cyan2]────● No configuration found — starting first-time setup.      [/]");
-
-            await shellHost.PromptSelection("Continue?", [new Variant("Yes") ]);
-
-            cfg = await _wizard.RunInitialSetupAsync(shellHost, ct);
-            PersistAndNotifyAllChanged(cfg);
-            shellHost.AddMessage("[green]Configuration saved.[/]");
-            return cfg;
-        }
-
-        var issues = Validate(cfg);
-        bool needsSetup = issues.Count > 0 || forceReconfigure;
-
-        if (issues.Count > 0)
-        {
-            shellHost.AddMessage("[cyan2]Configuration issues detected:[/]");
-            foreach (var i in issues)
-                shellHost.AddMessage($"  [grey]• {Markup.Escape(i)}[/]");
-        }
-
-        if (needsSetup)
-        {
-            if (forceReconfigure)
-                shellHost.AddMessage("[cyan2]Starting setup wizard...[/]");
-            else
-                shellHost.AddMessage("[cyan2]Starting setup wizard to fix missing/invalid fields...[/]");
-
-            cfg = await _wizard.RunInitialSetupAsync(shellHost, ct);
-            PersistAndNotifyAllChanged(cfg);
-        }
-
-        return cfg;
-    }
-
-    public async Task<AppConfig> ReconfigureAsync(IStreamShellHost shellHost, AppConfig existing, CancellationToken ct)
-    {
-        shellHost.AddMessage("[cyan2]Starting reconfiguration wizard...[/]");
-
-        AppConfig newCfg;
-        try
-        {
-            newCfg = await _wizard.RunReconfigureAsync(shellHost, existing, ct);
-        }
-        catch (OperationCanceledException)
-        {
-            return existing;
-        }
-
-        // Validate the result — the wizard may skip sections, leaving issues.
-        var issues = Validate(newCfg);
-        if (issues.Count > 0)
-        {
-            shellHost.AddMessage("[yellow]Configuration issues found after reconfiguration:[/]");
-            foreach (var i in issues)
-                shellHost.AddMessage($"  [grey]\u2022 {Markup.Escape(i)}[/]");
-            shellHost.AddMessage("[grey](the wizard may have skipped some sections)[/]");
-
-            // Offer to re-enter the wizard to fix remaining issues
-            var retry = await PromptSelectionHelper.PromptStringAsync(
-                shellHost, "Re-enter wizard to fix issues?",
-                new (string Name, string Value)[]
-                {
-                    ("Yes, re-enter wizard", "yes"),
-                    ("No, save as-is", "no"),
-                },
-                defaultValue: "yes", allowCancel: false, cancellationToken: ct);
-
-            if (retry == "yes")
-            {
-                return await ReconfigureAsync(shellHost, newCfg, ct);
-            }
-        }
-
-        PersistAndNotify(newCfg);
-        return newCfg;
+        _storage = storage ?? throw new ArgumentNullException(nameof(storage));
     }
 
     public AppConfig? Load() => _storage.Load();
@@ -133,39 +47,6 @@ public class ConfigurationService : IConfigurationService
         lock (_saveLock)
         {
             // Load the old persisted config for diff comparison
-            var oldCfg = _storage.Load();
-            var changed = ComputeChangedProperties(oldCfg, cfg);
-            _storage.Save(cfg);
-            var args = new ConfigChangedEventArgs(changed, cfg);
-            ConfigValidating?.Invoke(args);
-            ConfigSaved?.Invoke(args);
-        }
-    }
-
-    /// <summary>
-    /// Persists the config and fires ConfigSaved with all properties marked as changed.
-    /// Used after initial setup or full wizard runs where everything may have changed.
-    /// </summary>
-    private void PersistAndNotifyAllChanged(AppConfig cfg)
-    {
-        lock (_saveLock)
-        {
-            var allChanged = new HashSet<string>(AppConfigProperties.Select(p => p.Name));
-            _storage.Save(cfg);
-            var allArgs = new ConfigChangedEventArgs(allChanged, cfg);
-            ConfigValidating?.Invoke(allArgs);
-            ConfigSaved?.Invoke(allArgs);
-        }
-    }
-
-    /// <summary>
-    /// Persists the config and fires ConfigSaved with a diff against the previously
-    /// persisted state. Used by <see cref="ReconfigureAsync"/> where only some sections change.
-    /// </summary>
-    private void PersistAndNotify(AppConfig cfg)
-    {
-        lock (_saveLock)
-        {
             var oldCfg = _storage.Load();
             var changed = ComputeChangedProperties(oldCfg, cfg);
             _storage.Save(cfg);

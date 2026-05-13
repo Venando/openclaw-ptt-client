@@ -18,6 +18,7 @@ public class AppRunner : IDisposable
     private readonly IServiceFactory _factory;
     private readonly IStreamShellHost _shellHost;
     private readonly IConfigurationService _configService;
+    private readonly IConfigWizardOrchestrator? _wizard;
     private readonly IColorConsole _console;
     private readonly ErrorLogStore _errorLog;
     private readonly IStatusService _statusService;
@@ -29,12 +30,13 @@ public class AppRunner : IDisposable
     /// </summary>
     public const int MaxRestartCount = 3;
 
-    public AppRunner(AppConfig cfg, IServiceFactory factory, IStreamShellHost shellHost, IConfigurationService configService, IColorConsole console, MainAgentsPart? mainAgentsPart = null)
+    public AppRunner(AppConfig cfg, IServiceFactory factory, IStreamShellHost shellHost, IConfigurationService configService, IColorConsole console, MainAgentsPart? mainAgentsPart = null, IConfigWizardOrchestrator? wizard = null)
     {
         _cfg = cfg;
         _factory = factory;
         _shellHost = shellHost;
         _configService = configService;
+        _wizard = wizard;
         _console = console;
         _errorLog = new ErrorLogStore(cfg.DataDir);
         _statusService = new StatusService(shellHost, mainAgentsPart: mainAgentsPart);
@@ -278,7 +280,8 @@ public class AppRunner : IDisposable
             ttsSummarizer: ttsSummarizer,
             namingService: namingService,
             errorLogStore: _errorLog,
-            statusService: _statusService
+            statusService: _statusService,
+            wizard: _wizard
         );
         shellCommands.CommandExecuted += namingService.OnCommandExecuted;
 
