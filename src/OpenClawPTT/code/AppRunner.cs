@@ -14,7 +14,7 @@ using StreamShell;
 /// </summary>
 public class AppRunner : IDisposable
 {
-    private readonly AppConfig _cfg;
+    private AppConfig _cfg;
     private readonly IServiceFactory _factory;
     private readonly IStreamShellHost _shellHost;
     private readonly IConfigurationService _configService;
@@ -360,6 +360,58 @@ public class AppRunner : IDisposable
         }
         _configService.ConfigSaved += OnGatewayConfigSaved;
 
+        // Update _cfg reference and reapply display/UI config when relevant changes happen
+        void OnDisplayConfigSaved(ConfigChangedEventArgs e)
+        {
+            var displayProps = new[]
+            {
+                nameof(AppConfig.UserMessagePrefix),
+                nameof(AppConfig.RightMarginIndent),
+                nameof(AppConfig.EnableWordWrap),
+                nameof(AppConfig.DebugLevel),
+                nameof(AppConfig.ThinkingDisplayMode),
+                nameof(AppConfig.ThinkingPreviewLines),
+                nameof(AppConfig.HistoryDisplayCount),
+                nameof(AppConfig.BottomPanelLineCount),
+                nameof(AppConfig.VisualMode),
+                nameof(AppConfig.VisualFeedbackEnabled),
+                nameof(AppConfig.VisualFeedbackPosition),
+                nameof(AppConfig.VisualFeedbackSize),
+                nameof(AppConfig.VisualFeedbackOpacity),
+                nameof(AppConfig.VisualFeedbackColor),
+                nameof(AppConfig.VisualFeedbackRimThickness),
+            };
+            var positionProps = new[]
+            {
+                nameof(AppConfig.ActiveAgentPosition),
+                nameof(AppConfig.ModelPosition),
+                nameof(AppConfig.ThinkingLevelPosition),
+                nameof(AppConfig.ContextPosition),
+                nameof(AppConfig.ConversationNamePosition),
+                nameof(AppConfig.ConnectionStatusPosition),
+                nameof(AppConfig.TtsStatusPosition),
+                nameof(AppConfig.SttStatusPosition),
+                nameof(AppConfig.DirectLlmPosition),
+                nameof(AppConfig.MainAgentsPosition),
+            };
+
+            bool displayChanged = e.AnyChanged(displayProps);
+            bool positionsChanged = e.AnyChanged(positionProps);
+
+            if (!displayChanged && !positionsChanged)
+                return;
+
+            // Update the canonical config reference so downstream code is fresh
+            _cfg = e.NewConfig;
+
+            if (positionsChanged)
+                _statusService.ApplyConfigPositions(e.NewConfig);
+
+            if (displayChanged)
+                _console.ApplyConsoleConfig(e.NewConfig);
+        }
+        _configService.ConfigSaved += OnDisplayConfigSaved;
+
         // Re-create transcriber and recorder when STT/audio config changes
         void OnConfigSaved(ConfigChangedEventArgs e)
         {
@@ -420,6 +472,7 @@ public class AppRunner : IDisposable
         finally
         {
             _configService.ConfigSaved -= OnGatewayConfigSaved;
+            _configService.ConfigSaved -= OnDisplayConfigSaved;
             _configService.ConfigSaved -= OnConfigSaved;
         }
     }
