@@ -133,10 +133,41 @@ public sealed class GatewayService : IGatewayService
 
         _gatewayClient.Dispose();
         _config = newConfig;
-        // The TTS audio handler was created with the old config — recreate wire task
-        // with fresh TTS provider. The coordinator's audio handler will be replaced.
-        // For now, the new gateway client gets the latest config fields via _config.
         _gatewayClient = CreateGatewayClient();
+    }
+
+    /// <summary>
+    /// Recreates the TTS provider and audio handler with the new configuration.
+    /// Called after TTS-related properties change via /reconfigure.
+    /// Creates a fresh <see cref="TtsService"/>, extracts the provider, and wires
+    /// a new <see cref="AudioResponseHandler"/> into the output coordinator.
+    /// The old audio handler is disposed by <see cref="AgentOutputCoordinator.SetAudioHandler"/>.
+    /// </summary>
+    public Task RecreateTtsProviderAsync(AppConfig newConfig)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(GatewayService));
+
+        _config = newConfig;
+
+        using var ttsService = new TtsService(newConfig, _console);
+
+        if (ttsService.Provider != null)
+        {
+            var jobRunner = new BackgroundJobRunner(msg => _console.Log("jobrunner", msg));
+            var audioPlayer = new AudioPlayerService(_console);
+            var audioHandler = new AudioResponseHandler(
+                newConfig, _console, jobRunner, audioPlayer,
+                _summarizer, _pttStateMachine, ttsService.ReleaseProvider());
+            _coordinator.SetAudioHandler(audioHandler);
+        }
+        else
+        {
+            // Provider is null (Edge with no key, etc.) — clear audio handler,
+            // TTS will be effectively disabled until reconfigured with valid settings.
+            _coordinator.SetAudioHandler(null);
+        }
+
+        return Task.CompletedTask;
     }
 
     public async Task<List<ChatHistoryEntry>?> FetchSessionHistoryAsync(string sessionKey, int limit = 5)

@@ -206,17 +206,34 @@ public partial class AppRunner : IDisposable
     private async Task<int> RunPttLoopAsync(IGatewayService gateway, IPttStateMachine pttStateMachine, IDirectLlmService directLlmService, ITtsSummarizer ttsSummarizer, bool gatewayConnected, CancellationToken ct)
     {
         using var audioService = _factory.CreateAudioService(_cfg);
-        // AudioService constructor creates a transcriber synchronously — mark STT as ready
-        _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Green);
+        // AudioService constructor succeeded — but the transcriber hasn't been
+        // verified yet. Set Yellow and verify on a background thread so the
+        // animated transitioning state is visible during verification.
+        _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Yellow);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await audioService.VerifyTranscriberAsync(_cfg, _console, CancellationToken.None);
+                _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Green);
+            }
+            catch (Exception ex)
+            {
+                _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Red);
+                _console.LogError("stt", $"STT verification failed: {ex.Message}");
+            }
+        });
 
         // Store delegate references for config change handlers
         Action<ConfigChangedEventArgs> onGatewayConfigSaved = e => HandleGatewayConfigChanged(e, gateway);
         Action<ConfigChangedEventArgs> onDisplayConfigSaved = HandleDisplayConfigChanged;
         Action<ConfigChangedEventArgs> onConfigSaved = e => HandleSttConfigChanged(e, audioService);
+        Action<ConfigChangedEventArgs> onTtsConfigSaved = e => HandleTtsConfigChanged(e, gateway);
 
         _configService.ConfigSaved += onGatewayConfigSaved;
         _configService.ConfigSaved += onDisplayConfigSaved;
         _configService.ConfigSaved += onConfigSaved;
+        _configService.ConfigSaved += onTtsConfigSaved;
 
         try
         {
@@ -243,6 +260,7 @@ public partial class AppRunner : IDisposable
             _configService.ConfigSaved -= onGatewayConfigSaved;
             _configService.ConfigSaved -= onDisplayConfigSaved;
             _configService.ConfigSaved -= onConfigSaved;
+            _configService.ConfigSaved -= onTtsConfigSaved;
         }
     }
 

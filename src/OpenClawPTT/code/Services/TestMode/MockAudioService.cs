@@ -128,4 +128,14 @@ public sealed class MockAudioService : IAudioService
     public void RecreateTranscriber(AppConfig config, IColorConsole console) { /* no-op for test mode */ }
 
     public void RecreateRecorder(AppConfig config, IColorConsole console) { /* no-op for test mode */ }
+
+    /// <summary>
+    /// Verifies the transcriber (no-op in test mode).
+    /// </summary>
+    public Task VerifyTranscriberAsync(AppConfig config, IColorConsole console, CancellationToken ct = default)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(MockAudioService));
+        _console.PrintInfo("[TEST MODE] Transcriber verification (no-op)");
+        return Task.CompletedTask;
+    }
 }

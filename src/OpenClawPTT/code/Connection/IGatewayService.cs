@@ -35,6 +35,12 @@ public interface IGatewayService : IDisposable, IGatewayUIEvents
     Task SendTextAsync(string text, CancellationToken ct = default);
     void RecreateWithConfig(AppConfig newConfig);
 
+    /// <summary>
+    /// Recreates the TTS provider and audio handler with updated configuration.
+    /// Called when TTS-related config properties change via /reconfigure.
+    /// </summary>
+    Task RecreateTtsProviderAsync(AppConfig newConfig);
+
     /// <summary>Sends a generic RPC request to the gateway.</summary>
     Task<JsonElement> SendRpcAsync(string method, object? parameters, CancellationToken ct = default);
 

@@ -122,6 +122,8 @@ public partial class AppRunner
             nameof(AppConfig.OpenAiModel),
             nameof(AppConfig.WhisperCppModel),
             nameof(AppConfig.WhisperCppBinaryPath),
+            nameof(AppConfig.FasterWhisperModel),
+            nameof(AppConfig.Locale),
             nameof(AppConfig.SampleRate),
             nameof(AppConfig.Channels),
             nameof(AppConfig.BitsPerSample),
@@ -131,17 +133,78 @@ public partial class AppRunner
             return;
 
         _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Yellow);
-        try
+        _console.PrintInfo("STT configuration changed — reinitializing...");
+
+        // Run re-creation on a background thread so the Yellow status is
+        // visible to the animation timer before the synchronous recreation
+        // completes. Same pattern as the gateway reconfig handler.
+        _ = Task.Run(() =>
         {
-            // Recorder first (so new params are in place before transcriber is recreated)
-            audioService.RecreateRecorder(e.NewConfig, _console);
-            audioService.RecreateTranscriber(e.NewConfig, _console);
-            _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Green);
-        }
-        catch (Exception ex)
+            try
+            {
+                // Recorder first (so new params are in place before transcriber is recreated)
+                audioService.RecreateRecorder(e.NewConfig, _console);
+                audioService.RecreateTranscriber(e.NewConfig, _console);
+                _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Green);
+                _console.LogOk("stt", "STT reinitialized with new configuration.");
+            }
+            catch (Exception ex)
+            {
+                _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Red);
+                _console.PrintError($"Failed to update STT: {ex.Message}");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Handles TTS configuration changes: recreates the TTS provider and audio
+    /// handler when TTS-related properties change via /reconfigure.
+    /// </summary>
+    private void HandleTtsConfigChanged(ConfigChangedEventArgs e, IGatewayService gateway)
+    {
+        var ttsProps = new[]
         {
-            _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Red);
-            _console.PrintError($"Failed to update STT: {ex.Message}");
-        }
+            nameof(AppConfig.TtsProvider),
+            nameof(AppConfig.TtsVoice),
+            nameof(AppConfig.TtsOutputMode),
+            nameof(AppConfig.TtsOpenAiApiKey),
+            nameof(AppConfig.TtsSubscriptionKey),
+            nameof(AppConfig.TtsRegion),
+            nameof(AppConfig.CoquiModelName),
+            nameof(AppConfig.CoquiModelPath),
+            nameof(AppConfig.CoquiConfigPath),
+            nameof(AppConfig.PiperPath),
+            nameof(AppConfig.PiperModelPath),
+            nameof(AppConfig.PiperVoice),
+            nameof(AppConfig.EspeakNgPath),
+            nameof(AppConfig.PythonPath),
+            nameof(AppConfig.TtsDirectMaxChars),
+            nameof(AppConfig.TtsMaxChars),
+            nameof(AppConfig.TtsCodeBlockMode),
+            nameof(AppConfig.TtsTooLongFallback),
+            nameof(AppConfig.TtsUseDirectLlmSummary),
+        };
+        if (!e.AnyChanged(ttsProps))
+            return;
+
+        _statusService.SetServiceStatus(ServiceKind.Tts, StatusColor.Yellow);
+        _console.PrintInfo("TTS configuration changed — reinitializing...");
+
+        // Run on background thread so the Yellow status is visible to the
+        // animation timer. Same pattern as gateway and STT reconfig handlers.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await gateway.RecreateTtsProviderAsync(e.NewConfig);
+                _console.LogOk("tts", "TTS reinitialized with new configuration.");
+                _statusService.SetServiceStatus(ServiceKind.Tts, StatusColor.Green);
+            }
+            catch (Exception ex)
+            {
+                _console.LogError("tts", $"TTS reconfiguration failed: {ex.Message}");
+                _statusService.SetServiceStatus(ServiceKind.Tts, StatusColor.Red);
+            }
+        });
     }
 }
