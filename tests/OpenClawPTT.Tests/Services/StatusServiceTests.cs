@@ -15,7 +15,7 @@ public class StatusServiceTests
     }
 
     [Fact]
-    public void SetGatewayStatus_ShowsGreenDot()
+    public void SetServiceStatus_Gateway_ShowsGreenDot()
     {
         var host = new FakeStreamShellHost();
         var service = new StatusService(host);
@@ -28,7 +28,7 @@ public class StatusServiceTests
     }
 
     [Fact]
-    public void SetTtsStatus_ShowsRedDot()
+    public void SetServiceStatus_Tts_ShowsRedDot()
     {
         var host = new FakeStreamShellHost();
         var service = new StatusService(host);
@@ -567,7 +567,7 @@ public class StatusServiceTests
     }
 
     [Fact]
-    public void SetSttStatus_ShowsDotOnRightText()
+    public void SetServiceStatus_Stt_ShowsDotOnRightText()
     {
         var host = new FakeStreamShellHost();
         var service = new StatusService(host);
