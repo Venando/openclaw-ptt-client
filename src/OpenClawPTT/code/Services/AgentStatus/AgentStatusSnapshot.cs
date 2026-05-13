@@ -249,6 +249,19 @@ public sealed record AgentStatusSnapshot
     public const string UnknownSubagentEmoji = "⚪";
     public const string YieldingEmoji = "⏳";
     public const string ReadyEmoji = "🟢";
+    public const string StaleEmoji = "🔴";
+
+    /// <summary>How long (ms) a 🔄 status can go without updates before turning stale (🔴).</summary>
+    private const long StatusStaleTimeoutMs = 600_000;
+
+    /// <summary>
+    /// True when the snapshot&#39;s <see cref="UpdatedAt"/> is more than
+    /// <see cref="StatusStaleTimeoutMs"/> milliseconds in the past.
+    /// Returns false when <see cref="UpdatedAt"/> is null (unknown age).
+    /// </summary>
+    private bool IsStaleSpinner =>
+        UpdatedAt.HasValue
+        && (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - UpdatedAt.Value) > StatusStaleTimeoutMs;
 
     /// <summary>Returns a single emoji representing the agent's current state.</summary>
     public string GetStatusEmoji()
@@ -256,8 +269,8 @@ public sealed record AgentStatusSnapshot
         // Aborted — highest priority, applies to both agent types
         if (IsAborted) return AbortedEmoji;
 
-        // Tool mid-execution
-        if (IsUsingTool) return ToolExecutingEmoji;
+        // Tool mid-execution — check for stale spinner
+        if (IsUsingTool) return IsStaleSpinner ? StaleEmoji : ToolExecutingEmoji;
 
         // Subagent states
         if (IsSubagent)
@@ -266,7 +279,10 @@ public sealed record AgentStatusSnapshot
             if (IsFinished) return FinishedEmoji;
 
             // Actively running its LLM turn or waiting for its own tool.
-            if (IsSubagentActive) return ToolExecutingEmoji;
+            // Check staleness so stuck subagents show 🔴.
+            // Note: IsSubagentActive is independent of IsUsingTool, so we check
+            // staleness here too. If this becomes noisy we can separate the checks.
+            if (IsSubagentActive) return IsStaleSpinner ? StaleEmoji : ToolExecutingEmoji;
 
             // Created/announced but its own lifecycle run hasn't started yet.
             if (IsSubagentSpawning) return SpawningEmoji;
