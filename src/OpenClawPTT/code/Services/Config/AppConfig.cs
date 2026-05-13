@@ -27,6 +27,8 @@ public sealed class AppConfig
     public int Channels { get; set; } = 1;
     public int BitsPerSample { get; set; } = 16;
     public int MaxRecordSeconds { get; set; } = 120;
+    /// <summary>Timeout in seconds for STT transcription. Default 30.</summary>
+    public int TranscriptionTimeoutSeconds { get; set; } = 30;
     /// <summary>Controls diagnostic log output verbosity. Default = Error (only errors shown).</summary>
     public LogLevel DebugLevel { get; set; } = LogLevel.Error;
     public string GroqApiKey { get; set; } = "";

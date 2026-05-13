@@ -35,8 +35,9 @@ public sealed class MockTranscriber : ITranscriber
     public Exception? ThrowException { get; set; }
     public int CallCount { get; private set; }
     public byte[]? LastBytes { get; private set; }
+    public bool BlockForever { get; set; }
 
-    public void Reset() { CallCount = 0; ThrowException = null; TranscribeFunc = null; LastBytes = null; }
+    public void Reset() { CallCount = 0; ThrowException = null; TranscribeFunc = null; LastBytes = null; BlockForever = false; }
 
     public async Task<string> TranscribeAsync(byte[] wav, string fileName = "audio.wav", CancellationToken ct = default)
     {
@@ -44,6 +45,13 @@ public sealed class MockTranscriber : ITranscriber
         CallCount++;
         LastBytes = wav;
         if (ThrowException != null) throw ThrowException;
+        if (BlockForever)
+        {
+            // Block until cancelled (simulates hung API call)
+            var tcs = new TaskCompletionSource<string>();
+            using var reg = ct.Register(() => tcs.TrySetCanceled(ct));
+            return await tcs.Task;
+        }
         return await Task.FromResult(TranscribeFunc != null ? TranscribeFunc(wav) : string.Empty);
     }
 
@@ -507,12 +515,12 @@ public class AudioServiceCancellationTests : IDisposable
     private AppConfig? _config;
     private readonly Mock<IColorConsole> _mockConsole = new();
 
-    private void Setup()
+    private void Setup(AppConfig? overrideConfig = null)
     {
         _service?.Dispose();
         _recorder = new MockAudioRecorder();
         _transcriber = new MockTranscriber();
-        _config = new AppConfig
+        _config = overrideConfig ?? new AppConfig
         {
             GroqApiKey = "test-key",
         };
@@ -545,5 +553,24 @@ public class AudioServiceCancellationTests : IDisposable
 
         // Should not throw
         await _service!.VerifyTranscriberAsync(_config!, _mockConsole.Object, CancellationToken.None);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StopAndTranscribeAsync_HungTranscriber_TimesOut()
+    {
+        var config = new AppConfig
+        {
+            GroqApiKey = "test-key",
+            TranscriptionTimeoutSeconds = 1,
+        };
+        Setup(config);
+        _transcriber!.BlockForever = true;
+        _recorder!.StopRecordingResult = new byte[2048];
+
+        _service!.StartRecording();
+
+        // Timeout should be caught and return null (graceful handling, no crash)
+        var result = await _service.StopAndTranscribeAsync(CancellationToken.None);
+        Assert.Null(result);
     }
 }

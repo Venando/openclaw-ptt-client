@@ -19,6 +19,7 @@ public sealed class AudioService : IAudioService
     private readonly string _hotkeyCombination;
     private readonly bool _holdToTalk;
     private readonly int _rightMarginIndent;
+    private readonly int _transcriptionTimeoutSeconds;
     private readonly object _transcriberLock = new();
     private readonly object _recorderLock = new();
     private int _disposedFlag; // 0 = not disposed, 1 = disposed
@@ -38,6 +39,7 @@ public sealed class AudioService : IAudioService
         _hotkeyCombination = config.HotkeyCombination;
         _holdToTalk = config.HoldToTalk;
         _rightMarginIndent = config.RightMarginIndent;
+        _transcriptionTimeoutSeconds = config.TranscriptionTimeoutSeconds;
     }
     
     public bool IsRecording
@@ -107,11 +109,21 @@ public sealed class AudioService : IAudioService
             // Capture transcriber under lock to prevent use-after-dispose (C3)
             ITranscriber transcriber;
             lock (_transcriberLock) { transcriber = _transcriber; }
-            var transcribed = await transcriber.TranscribeAsync(wav, ct: ct);
+
+            // Wrap the caller's ct with a transcription timeout
+            using var timeoutCts = new CancellationTokenSource(
+                TimeSpan.FromSeconds(_transcriptionTimeoutSeconds));
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+            var transcribed = await transcriber.TranscribeAsync(wav, ct: linkedCts.Token);
             var shellHost = _console.GetStreamShellHost();
             var prefix = $"Transcribed ({wav.Length / 1024.0:F1} KB): ";
             _console.PrintMarkup($"[green][dim]  ✓ {Markup.Escape(prefix)}[/][/] [green]{Markup.Escape(transcribed)}[/]");
             return transcribed;
+        }
+        catch (OperationCanceledException)
+        {
+            _console.PrintWarning($"  Transcription timed out ({_transcriptionTimeoutSeconds}s)");
+            return null;
         }
         catch (Exception ex)
         {
