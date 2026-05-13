@@ -118,114 +118,171 @@ public sealed class CoquiUvEnvironment
     public static bool IsUvAvailable() => FindUv() != null;
 
     /// <summary>
-    /// Quick validation that <c>uv</c> can resolve a compatible Python for Coqui TTS.
-    /// Does NOT trigger full package resolution — just checks the Python version.
-    /// Returns null on success or an error message string on failure.
+    /// Result from <see cref="ValidatePythonVersionAsync"/>.
     /// </summary>
-    public static async Task<string?> ValidatePythonVersionAsync(
-        string? dataDir, CancellationToken ct = default)
+    public sealed class PythonVersionResult
+    {
+        /// <summary>Null on success; error message on failure.</summary>
+        public string? Error { get; init; }
+        /// <summary>Resolved Python path (e.g. C:\Users\...\python3.11.exe).</summary>
+        public string? PythonPath { get; init; }
+        /// <summary>Human-readable version string (e.g. "3.11.13").</summary>
+        public string? PythonVersion { get; init; }
+        /// <summary>True when the check succeeded and a compatible Python was found.</summary>
+        public bool Ok => Error == null && PythonPath != null;
+    }
+
+    /// <summary>
+    /// Validates that <c>uv</c> can find a Python in [3.9, 3.12) for Coqui TTS.
+    /// Uses <c>uv python list</c> (fast, lists only installed interpreters, no downloads).
+    /// Streams progress via <paramref name="onProgress"/> so the user isn't staring at silence.
+    /// </summary>
+    public static async Task<PythonVersionResult> ValidatePythonVersionAsync(
+        string? dataDir,
+        Action<string>? onProgress = null,
+        CancellationToken ct = default)
     {
         if (!IsUvAvailable())
-            return "uv is not installed";
+            return new PythonVersionResult { Error = "uv is not installed" };
 
         if (IsUvBuildBroken)
-            return UvBuildErrorDetail ?? "uv environment is broken";
+            return new PythonVersionResult { Error = UvBuildErrorDetail ?? "uv environment is broken" };
 
         var uvPath = FindUv()!;
 
-        // Ensure pyproject.toml exists so uv uses the requires-python constraint
-        var projectDir = Path.Combine(
-            dataDir ?? Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".openclaw-ptt"),
-            "coqui-tts-env");
-        Directory.CreateDirectory(projectDir);
-        File.WriteAllText(Path.Combine(projectDir, "pyproject.toml"), PyProjectToml, Encoding.UTF8);
+        onProgress?.Invoke("Running uv python list (checking installed interpreters)...");
 
-        // uv python find respects requires-python from pyproject.toml
+        // uv python list — fast, only lists installed interpreters, no downloads
         var psi = new ProcessStartInfo
         {
             FileName = uvPath,
-            Arguments = $"python find --directory \"{projectDir}\"",
+            Arguments = "python list --only-installed",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true,
         };
 
+        Process? process = null;
         try
         {
-            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
-            using var process = Process.Start(psi);
-            if (process == null)
-                return "Failed to start uv python find";
 
-            var stdout = await process.StandardOutput.ReadToEndAsync(linked.Token).ConfigureAwait(false);
-            var stderr = await process.StandardError.ReadToEndAsync(linked.Token).ConfigureAwait(false);
-            await process.WaitForExitAsync(linked.Token).ConfigureAwait(false);
+            process = Process.Start(psi);
+            if (process == null)
+                return new PythonVersionResult { Error = "Failed to start uv python list" };
+
+            // Read both streams concurrently — show stderr as progress
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(linked.Token);
+            var stderrTask = Task.Run(async () =>
+            {
+                var reader = process.StandardError;
+                var sb = new StringBuilder();
+                while (true)
+                {
+                    var line = await reader.ReadLineAsync(linked.Token).ConfigureAwait(false);
+                    if (line == null) break;
+                    var trimmed = line.Trim();
+                    if (!string.IsNullOrWhiteSpace(trimmed))
+                    {
+                        onProgress?.Invoke(trimmed);
+                        sb.AppendLine(trimmed);
+                    }
+                }
+                return sb.ToString();
+            }, linked.Token);
+
+            await Task.WhenAll(stdoutTask, stderrTask, process.WaitForExitAsync(linked.Token))
+                .ConfigureAwait(false);
 
             if (process.ExitCode != 0)
             {
-                // uv couldn't find a compatible Python
-                var detail = stderr.Trim();
-                if (string.IsNullOrEmpty(detail)) detail = stdout.Trim();
-                return string.IsNullOrEmpty(detail)
-                    ? $"No compatible Python found (exit={process.ExitCode}). Coqui TTS requires Python >=3.9, <3.12."
-                    : $"No compatible Python found (exit={process.ExitCode}): {detail}";
-            }
-
-            var versionLine = stdout.Trim();
-            if (string.IsNullOrEmpty(versionLine))
-                return "uv python find returned no output";
-
-            // Version check: if uv found a Python, it respects requires-python,
-            // so we're good. Parse out the version for display.
-            var versionPart = ExtractPythonVersion(versionLine);
-            if (versionPart != null)
-            {
-                if (Version.TryParse(versionPart, out var ver))
+                var stderr = stderrTask.Result.Trim();
+                return new PythonVersionResult
                 {
-                    if (ver.Major == 3 && ver.Minor >= 12)
-                        return $"Resolved Python {versionPart} is too new. Coqui TTS requires < 3.12.";
-                }
+                    Error = string.IsNullOrEmpty(stderr)
+                        ? $"No compatible Python found. Coqui TTS requires Python >=3.9, <3.12. Install Python 3.11 and restart."
+                        : $"Python check failed: {stderr}"
+                };
             }
 
-            return null; // success
+            var stdout = stdoutTask.Result.Trim();
+            if (string.IsNullOrEmpty(stdout))
+                return new PythonVersionResult
+                {
+                    Error = "No Python interpreters installed. Install Python >=3.9, <3.12 (e.g. 3.11) and restart."
+                };
+
+            // Parse uv python list output — each line is: cpython-3.11.13-linux-x86_64-gnu    /path/to/python3.11
+            var lines = stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var line in lines)
+            {
+                var parts = line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 2) continue;
+
+                var versionStr = ExtractPythonVersion(parts[0]);
+                if (versionStr == null) continue;
+
+                if (!Version.TryParse(versionStr, out var ver)) continue;
+
+                // Must be in [3.9, 3.12)
+                if (ver.Major != 3 || ver.Minor < 9 || ver.Minor >= 12)
+                    continue;
+
+                // Found a compatible Python!
+                var pythonPath = parts[1];
+                onProgress?.Invoke($"Found compatible Python: {versionStr} at {pythonPath}");
+                return new PythonVersionResult
+                {
+                    PythonPath = pythonPath,
+                    PythonVersion = versionStr
+                };
+            }
+
+            // No compatible Python found — list what IS installed for clarity
+            var installed = lines
+                .Select(l => l.Trim())
+                .Where(l => l.Length > 0)
+                .ToList();
+            var detail = installed.Count > 0
+                ? $"Installed: {string.Join(", ", installed.Select(l => l.Split([' ', '\t'])[0]))}. Need Python >=3.9, <3.12."
+                : "No Python interpreters installed. Need Python >=3.9, <3.12 (e.g. 3.11).";
+            return new PythonVersionResult { Error = detail };
         }
         catch (OperationCanceledException)
         {
-            return "Python version check timed out";
+            return new PythonVersionResult { Error = "Python version check timed out" };
         }
         catch (Exception ex)
         {
-            return $"Python version check failed: {ex.Message}";
+            return new PythonVersionResult { Error = $"Python version check failed: {ex.Message}" };
+        }
+        finally
+        {
+            // Always kill the process — don't leave orphaned uv/python processes
+            if (process != null)
+            {
+                try
+                {
+                    if (!process.HasExited)
+                        process.Kill(entireProcessTree: true);
+                }
+                catch { /* already exited */ }
+                process.Dispose();
+            }
         }
     }
 
     /// <summary>
-    /// Extracts a Python version string like "3.11.13" from a path like
-    /// "...cpython-3.11.13-linux..." or "...Python311...".
+    /// Extracts a Python version string like "3.11.13" from a key like
+    /// "cpython-3.11.13-linux-x86_64-gnu".
     /// </summary>
-    private static string? ExtractPythonVersion(string pathOrVersion)
+    private static string? ExtractPythonVersion(string text)
     {
-        // Try "cpython-X.Y.Z" pattern
-        var cpythonIdx = pathOrVersion.IndexOf("cpython-", StringComparison.Ordinal);
-        if (cpythonIdx >= 0)
-        {
-            var start = cpythonIdx + "cpython-".Length;
-            var end = start;
-            while (end < pathOrVersion.Length &&
-                   (char.IsDigit(pathOrVersion[end]) || pathOrVersion[end] == '.'))
-                end++;
-            var ver = pathOrVersion[start..end];
-            if (ver.Count(c => c == '.') >= 2)
-                return ver;
-        }
-
-        // Try "Python X.Y" or raw version string
+        // Match "cpython-X.Y.Z" or "X.Y.Z" pattern
         var match = System.Text.RegularExpressions.Regex.Match(
-            pathOrVersion, @"(\d+\.\d+(\.\d+)?)");
+            text, @"(\d+\.\d+(\.\d+)?)");
         return match.Success ? match.Groups[1].Value : null;
     }
 

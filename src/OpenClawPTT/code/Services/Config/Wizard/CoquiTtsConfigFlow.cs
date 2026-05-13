@@ -45,22 +45,25 @@ public sealed class CoquiTtsConfigFlow
         }
         else
         {
-            // Quick Python version check before triggering expensive operations
+            // Quick Python version check — uses uv python list (fast, no downloads)
             host.AddMessage("[grey]    Checking Python environment...[/]");
-            var versionError = await CoquiUvEnvironment.ValidatePythonVersionAsync(
-                dataDir, ct);
-            if (versionError != null)
+            var versionResult = await CoquiUvEnvironment.ValidatePythonVersionAsync(
+                dataDir,
+                onProgress: msg => host.AddMessage($"[grey]      {msg}[/]"),
+                ct);
+
+            if (versionResult.Ok)
             {
-                host.AddMessage($"[red]    ✗ Python environment check failed: {versionError}[/]");
-                host.AddMessage("[yellow]    Coqui TTS requires Python >=3.9 and <3.12.[/]");
-                host.AddMessage("[grey]    uv can download the right Python automatically —[/]");
-                host.AddMessage($"[grey]    add 'requires-python = \">=3.9,<3.12\"' to pyproject.toml.[/]");
-                host.AddMessage("[grey]    Current pyproject.toml should already have this constraint.[/]");
-                host.AddMessage("");
+                host.AddMessage($"[green]    ✓ Python {versionResult.PythonVersion} found at {versionResult.PythonPath}[/]");
             }
             else
             {
-                host.AddMessage("[green]    ✓ Python environment OK[/]");
+                host.AddMessage($"[red]    ✗ Python environment check failed: {versionResult.Error}[/]");
+                host.AddMessage("[yellow]    Coqui TTS requires Python >=3.9 and <3.12.[/]");
+                host.AddMessage("[grey]    uv can download the right Python automatically when running TTS.[/]");
+                host.AddMessage("[grey]    You can still select a model from the built-in list below,[/]");
+                host.AddMessage("[grey]    but TTS won't work until a compatible Python is available.[/]");
+                host.AddMessage("");
             }
         }
 
