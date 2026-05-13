@@ -129,21 +129,10 @@ public sealed class TtsConfigSection : ConfigSectionBase
         // ── Coqui TTS (uv): delegate to model download/choose flow ──
         if (config.TtsProvider == TtsProviderType.CoquiUv)
         {
-            // Check uv is installed
-            if (!CoquiUvEnvironment.IsUvAvailable())
-            {
-                host.AddMessage("");
-                host.AddMessage($"[yellow]  ⚠ uv (Python package manager) is not installed.[/]");
-                host.AddMessage($"[grey]    Install: {CoquiUvEnvironment.GetInstallInstructions()}[/]");
-                host.AddMessage($"[grey]    Then re-run this configuration.[/]");
-                host.AddMessage("");
-            }
-            else
-            {
-                var coquiFlow = new CoquiTtsConfigFlow();
-                if (await coquiFlow.RunAsync(host, config, ct))
-                    changed = true;
-            }
+            var coquiFlow = new CoquiTtsConfigFlow();
+            if (await coquiFlow.RunAsync(host, config, ct))
+                changed = true;
+
             result.Settings.Add(new ConfigSectionResult.SettingRecord(
                 "Coqui TTS Model", config.CoquiModelName ?? "none"));
         }
