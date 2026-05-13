@@ -1,39 +1,25 @@
+using System;
+
 namespace OpenClawPTT.Services.StatusParts;
 
 /// <summary>
 /// Renders the active agent's model name, e.g. "kimi-k2.6".
 /// Long provider-prefixed names are shortened for compact display.
 /// </summary>
-public sealed class ModelPart : StatusPartBase
+public sealed class ModelPart : StringStatusPartBase
 {
-    private string? _model;
-
     public ModelPart(DisplayPosition defaultPosition = DisplayPosition.TopSeparatorLeft, int order = 10)
-        : base(defaultPosition, order)
+        : base(defaultPosition, order, " · ")
     {
-    }
-
-    /// <inheritdoc />
-    public override string SeparatorBefore => " · ";
-
-    /// <summary>
-    /// Feeds a new model name. Marks dirty only when the value actually changes.
-    /// </summary>
-    public void Update(string? model)
-    {
-        if (!string.Equals(_model, model, StringComparison.Ordinal))
-        {
-            _model = model;
-            MarkDirty();
-        }
     }
 
     protected override void BuildText()
     {
-        if (string.IsNullOrEmpty(_model))
+        var model = Value;
+        if (string.IsNullOrEmpty(model))
             return;
 
-        Builder.Append(ShortenModelName(_model));
+        Builder.Append(ShortenModelName(model));
     }
 
     /// <summary>

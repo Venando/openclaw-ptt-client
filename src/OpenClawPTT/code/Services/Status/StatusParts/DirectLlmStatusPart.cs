@@ -1,40 +1,34 @@
 using System;
-using System.Text;
 
 namespace OpenClawPTT.Services.StatusParts;
 
 /// <summary>
 /// Renders the direct LLM status with last-called timestamp, e.g.
 /// "LLM:● OK 5s ago" or "LLM:● —".
+/// Extends <see cref="ServiceStatusPart"/> to reuse the color/animation
+/// infrastructure while providing a richer status label format.
 /// Caches the rendered value so it only rebuilds on actual status changes.
 /// </summary>
-public sealed class DirectLlmStatusPart : StatusPartBase
+public sealed class DirectLlmStatusPart : ServiceStatusPart
 {
-    // Pre-baked constant markup fragments
-    private const string LlmPrefix = "LLM:[";
     private const string StatusPrefix = "]● ";
     private const string RightSuffix = "[/]";
 
-    private string _label = "\u2014"; // em dash — "not configured"
-    private StatusColor _color = StatusColor.Yellow;
+    private string _statusLabel = "\u2014"; // em dash — "not configured"
     private DateTime? _lastCalled;
 
     public DirectLlmStatusPart(DisplayPosition defaultPosition = DisplayPosition.TopSeparatorRight, int order = 5)
-        : base(defaultPosition, order)
+        : base("LLM:", defaultPosition, order)
     {
     }
 
-    /// <inheritdoc />
-    public override string SeparatorBefore => " ";
-
     /// <summary>Updates the LLM status label and color. Marks dirty on actual change.</summary>
-    public void SetStatus(string label, StatusColor color)
+    public override void SetStatus(string label, StatusColor color)
     {
-        if (!string.Equals(_label, label, StringComparison.Ordinal) || _color != color)
+        if (!string.Equals(_statusLabel, label, StringComparison.Ordinal) || Color != color)
         {
-            _label = label;
-            _color = color;
-            MarkDirty();
+            _statusLabel = label;
+            SetStatus(color);
         }
     }
 
@@ -50,10 +44,13 @@ public sealed class DirectLlmStatusPart : StatusPartBase
 
     protected override void BuildText()
     {
-        Builder.Append(LlmPrefix);
-        Builder.Append(ToMarkupColor(_color));
+        // "LLM:" prefix comes from base via Label
+        Builder.Append(' ');
+        Builder.Append(Label);
+        Builder.Append('[');
+        Builder.Append(Color.ToMarkupColor());
         Builder.Append(StatusPrefix);
-        Builder.Append(_label);
+        Builder.Append(_statusLabel);
 
         // Show last-called timestamp if available
         if (_lastCalled.HasValue)
