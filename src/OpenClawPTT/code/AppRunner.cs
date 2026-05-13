@@ -315,8 +315,23 @@ public class AppRunner : IDisposable
     private async Task<int> RunPttLoopAsync(IGatewayService gateway, IPttStateMachine pttStateMachine, IDirectLlmService directLlmService, ITtsSummarizer ttsSummarizer, bool gatewayConnected, CancellationToken ct)
     {
         using var audioService = _factory.CreateAudioService(_cfg);
-        // AudioService constructor creates a transcriber synchronously — mark STT as ready
-        _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Green);
+        // AudioService constructor succeeded — but the transcriber hasn't been
+        // verified yet. Set Yellow and verify on a background thread so the
+        // animated transitioning state is visible during verification.
+        _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Yellow);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await audioService.VerifyTranscriberAsync(_cfg, _console, CancellationToken.None);
+                _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Green);
+            }
+            catch (Exception ex)
+            {
+                _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Red);
+                _console.LogError("stt", $"STT verification failed: {ex.Message}");
+            }
+        });
 
         // When gateway connection parameters change, recreate the gateway client
         // and automatically reconnect. The client is disposed and rebuilt from the
@@ -428,6 +443,8 @@ public class AppRunner : IDisposable
                 nameof(AppConfig.OpenAiModel),
                 nameof(AppConfig.WhisperCppModel),
                 nameof(AppConfig.WhisperCppBinaryPath),
+                nameof(AppConfig.FasterWhisperModel),
+                nameof(AppConfig.Locale),
                 nameof(AppConfig.SampleRate),
                 nameof(AppConfig.Channels),
                 nameof(AppConfig.BitsPerSample),
@@ -437,20 +454,80 @@ public class AppRunner : IDisposable
                 return;
 
             _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Yellow);
-            try
+            _console.PrintInfo("STT configuration changed — reinitializing...");
+
+            // Run re-creation on a background thread so the Yellow status is
+            // visible to the animation timer before the synchronous recreation
+            // completes. Same pattern as the gateway reconfig handler.
+            _ = Task.Run(() =>
             {
-                // Recorder first (so new params are in place before transcriber is recreated)
-                audioService.RecreateRecorder(e.NewConfig, _console);
-                audioService.RecreateTranscriber(e.NewConfig, _console);
-                _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Green);
-            }
-            catch (Exception ex)
-            {
-                _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Red);
-                _console.PrintError($"Failed to update STT: {ex.Message}");
-            }
+                try
+                {
+                    // Recorder first (so new params are in place before transcriber is recreated)
+                    audioService.RecreateRecorder(e.NewConfig, _console);
+                    audioService.RecreateTranscriber(e.NewConfig, _console);
+                    _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Green);
+                    _console.LogOk("stt", "STT reinitialized with new configuration.");
+                }
+                catch (Exception ex)
+                {
+                    _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Red);
+                    _console.PrintError($"Failed to update STT: {ex.Message}");
+                }
+            });
         }
         _configService.ConfigSaved += OnConfigSaved;
+
+        // Re-create TTS provider and audio handler when TTS config changes.
+        // Previously, TTS changes were silently ignored until app restart.
+        void OnTtsConfigSaved(ConfigChangedEventArgs e)
+        {
+            var ttsProps = new[]
+            {
+                nameof(AppConfig.TtsProvider),
+                nameof(AppConfig.TtsVoice),
+                nameof(AppConfig.TtsOutputMode),
+                nameof(AppConfig.TtsOpenAiApiKey),
+                nameof(AppConfig.TtsSubscriptionKey),
+                nameof(AppConfig.TtsRegion),
+                nameof(AppConfig.CoquiModelName),
+                nameof(AppConfig.CoquiModelPath),
+                nameof(AppConfig.CoquiConfigPath),
+                nameof(AppConfig.PiperPath),
+                nameof(AppConfig.PiperModelPath),
+                nameof(AppConfig.PiperVoice),
+                nameof(AppConfig.EspeakNgPath),
+                nameof(AppConfig.PythonPath),
+                nameof(AppConfig.TtsDirectMaxChars),
+                nameof(AppConfig.TtsMaxChars),
+                nameof(AppConfig.TtsCodeBlockMode),
+                nameof(AppConfig.TtsTooLongFallback),
+                nameof(AppConfig.TtsUseDirectLlmSummary),
+            };
+            if (!e.AnyChanged(ttsProps))
+                return;
+
+            _statusService.SetServiceStatus(ServiceKind.Tts, StatusColor.Yellow);
+            _console.PrintInfo("TTS configuration changed — reinitializing...");
+
+            // Run on background thread so the Yellow status is visible to the
+            // animation timer. Same pattern as gateway and STT reconfig handlers.
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await gateway.RecreateTtsProviderAsync(e.NewConfig);
+                    _console.LogOk("tts", "TTS reinitialized with new configuration.");
+                    _statusService.SetServiceStatus(ServiceKind.Tts, StatusColor.Green);
+                }
+                catch (Exception ex)
+                {
+                    _console.LogError("tts", $"TTS reconfiguration failed: {ex.Message}");
+                    _statusService.SetServiceStatus(ServiceKind.Tts, StatusColor.Red);
+                }
+            });
+        }
+        _configService.ConfigSaved += OnTtsConfigSaved;
 
         try
         {
@@ -477,6 +554,7 @@ public class AppRunner : IDisposable
             _configService.ConfigSaved -= OnGatewayConfigSaved;
             _configService.ConfigSaved -= OnDisplayConfigSaved;
             _configService.ConfigSaved -= OnConfigSaved;
+            _configService.ConfigSaved -= OnTtsConfigSaved;
         }
     }
 

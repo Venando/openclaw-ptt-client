@@ -169,6 +169,63 @@ public sealed class AudioService : IAudioService
         console.LogOk("audio", $"Recorder updated: {config.SampleRate}Hz, {config.Channels}ch");
     }
 
+    /// <summary>
+    /// Verifies the transcriber is functional by sending a minimal silence WAV
+    /// through the pipeline. Runs synchronously but returns a Task for interface
+    /// compatibility. Throws if the transcriber fails.
+    /// </summary>
+    public async Task VerifyTranscriberAsync(AppConfig config, IColorConsole console, CancellationToken ct = default)
+    {
+        // Create a minimal valid WAV with 0.25s of silence at 16kHz mono 16-bit —
+        // fast enough to not block startup, complex enough to exercise the full pipeline.
+        var silenceBytes = CreateSilenceWav(16000, 1, 16, 0.25f);
+
+        ITranscriber transcriber;
+        lock (_transcriberLock) { transcriber = _transcriber; }
+
+        // Transcribe silence — expected to return quickly (empty result for silence).
+        // If the provider is unreachable or the binary/model is broken, this throws.
+        await transcriber.TranscribeAsync(silenceBytes, "verify.wav", ct);
+        console.LogOk("stt", $"Transcriber verified ({config.SttProvider ?? "?"})");
+    }
+
+    /// <summary>
+    /// Creates a minimal valid PCM WAV file containing silence.
+    /// </summary>
+    private static byte[] CreateSilenceWav(int sampleRate, int channels, int bitsPerSample, float durationSec)
+    {
+        int byteRate = sampleRate * channels * bitsPerSample / 8;
+        int blockAlign = channels * bitsPerSample / 8;
+        int dataSize = (int)(byteRate * durationSec);
+        // Align to block boundary
+        dataSize = dataSize / blockAlign * blockAlign;
+
+        using var ms = new System.IO.MemoryStream(44 + dataSize);
+        using var bw = new System.IO.BinaryWriter(ms);
+
+        // RIFF header
+        bw.Write(System.Text.Encoding.ASCII.GetBytes("RIFF"));
+        bw.Write(36 + dataSize);  // File size - 8
+        bw.Write(System.Text.Encoding.ASCII.GetBytes("WAVE"));
+
+        // fmt chunk
+        bw.Write(System.Text.Encoding.ASCII.GetBytes("fmt "));
+        bw.Write(16);             // Chunk size (PCM)
+        bw.Write((short)1);       // Audio format (PCM)
+        bw.Write((short)channels);
+        bw.Write(sampleRate);
+        bw.Write(byteRate);
+        bw.Write((short)blockAlign);
+        bw.Write((short)bitsPerSample);
+
+        // data chunk
+        bw.Write(System.Text.Encoding.ASCII.GetBytes("data"));
+        bw.Write(dataSize);
+        bw.Write(new byte[dataSize]); // Silence
+
+        return ms.ToArray();
+    }
+
     private void LogSttProvider(AppConfig config, bool recreated = false)
     {
         // Display the effective model name — no fallback values here.
@@ -179,6 +236,7 @@ public sealed class AudioService : IAudioService
             AppConfig.ProviderGroq => config.GroqModel,
             AppConfig.ProviderOpenAi => config.OpenAiModel,
             AppConfig.ProviderWhisperCpp => config.WhisperCppModel,
+            AppConfig.ProviderFasterWhisper => config.FasterWhisperModel,
             _ => null
         };
         var providerDisplay = config.SttProvider ?? "?";

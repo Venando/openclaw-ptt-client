@@ -267,6 +267,12 @@ internal sealed class TestableGatewayService : IGatewayService
         _gatewayClient.Dispose();
     }
 
+    public Task RecreateTtsProviderAsync(AppConfig newConfig)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(TestableGatewayService));
+        return Task.CompletedTask;
+    }
+
     public void Dispose()
     {
         if (!_disposed)

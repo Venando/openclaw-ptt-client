@@ -123,6 +123,16 @@ public sealed class MockGatewayService : IGatewayService
         _console.PrintInfo("[TEST MODE] Recreating gateway service (no-op)");
     }
 
+    /// <summary>
+    /// Recreates the TTS provider (no-op in test mode).
+    /// </summary>
+    public Task RecreateTtsProviderAsync(AppConfig newConfig)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(MockGatewayService));
+        _console.PrintInfo("[TEST MODE] Recreating TTS provider (no-op)");
+        return Task.CompletedTask;
+    }
+
     public Task<JsonElement> SendRpcAsync(string method, object? parameters, CancellationToken ct = default)
     {
         // No-op in test mode — return empty JsonElement

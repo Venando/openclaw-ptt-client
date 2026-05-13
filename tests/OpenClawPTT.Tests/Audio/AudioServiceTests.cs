@@ -144,6 +144,8 @@ sealed class FakeAudioService : IAudioService
     public void RecreateTranscriber(AppConfig config, IColorConsole console) { /* no-op for tests */ }
 
     public void RecreateRecorder(AppConfig config, IColorConsole console) { /* no-op for tests */ }
+    public Task VerifyTranscriberAsync(AppConfig config, IColorConsole console, CancellationToken ct = default)
+        => Task.CompletedTask;
 }
 
 // ─── Tests using real AudioService ─────────────────────────────

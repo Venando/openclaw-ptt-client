@@ -20,4 +20,10 @@ public interface IAudioService : IDisposable
     /// recording cycle.
     /// </summary>
     void RecreateRecorder(AppConfig config, IColorConsole console);
+
+    /// <summary>
+    /// Verifies the transcriber is functional by sending a short silence WAV
+    /// through the pipeline. Throws if the transcriber fails.
+    /// </summary>
+    Task VerifyTranscriberAsync(AppConfig config, IColorConsole console, CancellationToken ct = default);
 }
