@@ -37,7 +37,7 @@ public sealed class CoquiTtsConfigFlow
 
         var modelManager = new CoquiTtsModelManager(config.CustomDataDir ?? config.DataDir, host);
         var modelResult = await SelectModelAsync(
-            host, modelManager, config.CoquiModelName, ct);
+            host, modelManager, config, config.CoquiModelName, ct);
 
         if (modelResult == null)
             return false;
@@ -66,19 +66,24 @@ public sealed class CoquiTtsConfigFlow
 
     internal static async Task<string?> SelectModelAsync(
         IStreamShellHost host, CoquiTtsModelManager modelManager,
-        string? currentModel, CancellationToken ct)
+        AppConfig config, string? currentModel, CancellationToken ct)
     {
+        // Fetch live model list from Coqui TTS (falls back to hardcoded)
+        var allModels = await CoquiTtsModelManager.GetAvailableModelsAsync(
+            host, config.CustomDataDir ?? config.DataDir, ct);
+
         var cachedModels = new HashSet<string>(
             CoquiTtsModelManager.GetCachedModels(),
             StringComparer.Ordinal);
 
         string? result = null;
+        var currentModelRef = currentModel; // captured for closure
 
         while (result == null)
         {
             ct.ThrowIfCancellationRequested();
 
-            var variants = BuildVariants(cachedModels, currentModel);
+            var variants = BuildVariants(allModels, cachedModels, currentModelRef);
             variants.Add(new ConfigVariant("", ""));
             variants.Add(new ConfigVariant("[grey]Cancel[/]", CancelSentinel));
 
@@ -114,6 +119,9 @@ public sealed class CoquiTtsConfigFlow
                         cachedModels = new HashSet<string>(
                             CoquiTtsModelManager.GetCachedModels(),
                             StringComparer.Ordinal);
+                        // Refresh live model list after removal
+                        allModels = await CoquiTtsModelManager.GetAvailableModelsAsync(
+                            host, config.CustomDataDir ?? config.DataDir, ct);
                     }
                     else
                     {
@@ -164,10 +172,10 @@ public sealed class CoquiTtsConfigFlow
     // ── Variant builder ─────────────────────────────────────────────
 
     private static List<IVariant> BuildVariants(
+        IReadOnlyList<CoquiTtsModelInfo> allModels,
         HashSet<string> cachedModels, string? currentModel)
     {
-        var allModels = CoquiTtsModelManager.AvailableModels;
-        var variants = new List<IVariant>(50);
+        var variants = new List<IVariant>(allModels.Count * 3 + 10);
 
         // ── Cached models ──
         foreach (var info in allModels)

@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
@@ -12,8 +13,8 @@ namespace OpenClawPTT.TTS.Providers;
 
 /// <summary>
 /// Manages Coqui TTS models via <c>uv</c> — listing, pre-downloading, and deleting.
-/// Coqui TTS models are HuggingFace models (e.g. <c>tts_models/en/ljspeech/vits</c>)
-/// auto-downloaded to the HuggingFace cache on first use.
+/// Models are fetched live from the <c>TTS</c> package (<c>uv run python -c "..."</c>)
+/// with a hardcoded fallback for offline scenarios.
 /// </summary>
 public sealed class CoquiTtsModelManager
 {
@@ -21,8 +22,15 @@ public sealed class CoquiTtsModelManager
     private readonly IStreamShellHost _host;
     private readonly TimeSpan _downloadTimeout = TimeSpan.FromMinutes(30);
 
-    /// <summary>Well-known Coqui TTS models available for selection.</summary>
-    public static readonly IReadOnlyList<CoquiTtsModelInfo> AvailableModels = new List<CoquiTtsModelInfo>
+    // Cached live model list (null = not fetched yet, empty = fetch failed)
+    private static IReadOnlyList<CoquiTtsModelInfo>? s_liveModels;
+    private static readonly object s_liveLock = new();
+
+    /// <summary>
+    /// Hardcoded fallback list — well-known Coqui TTS models.
+    /// Used when uv is not available or the live fetch fails.
+    /// </summary>
+    public static readonly IReadOnlyList<CoquiTtsModelInfo> FallbackModels = new List<CoquiTtsModelInfo>
     {
         new("tts_models/multilingual/mxtts/vits",       "XTTS v2 — multilingual, voice cloning, ~1.9 GB"),
         new("tts_models/en/ljspeech/vits",              "LJSpeech VITS — English single-speaker, ~300 MB"),
@@ -38,6 +46,109 @@ public sealed class CoquiTtsModelManager
         new("tts_models/uk/mai_speak/vits",             "Ukrainian VITS, ~300 MB"),
         new("tts_models/ja/kokoro/vits",                "Japanese Kokoro VITS, ~300 MB"),
     };
+
+    /// <summary>
+    /// Returns the best available model list: live from <c>TTS</c> package if uv is
+    /// available and fetch succeeds; otherwise the hardcoded fallback.
+    /// </summary>
+    public static async Task<IReadOnlyList<CoquiTtsModelInfo>> GetAvailableModelsAsync(
+        IStreamShellHost host,
+        string? dataDir = null,
+        CancellationToken ct = default)
+    {
+        // Return cached live list if we have one
+        lock (s_liveLock)
+        {
+            if (s_liveModels is { Count: > 0 })
+                return s_liveModels;
+        }
+
+        if (!CoquiUvEnvironment.IsUvAvailable())
+        {
+            host.AddMessage("[grey]    uv not found — using built-in model list.[/]");
+            return FallbackModels;
+        }
+
+        try
+        {
+            var liveList = await FetchFromUvAsync(host, dataDir, ct).ConfigureAwait(false);
+            if (liveList is { Count: > 0 })
+            {
+                lock (s_liveLock) { s_liveModels = liveList; }
+                host.AddMessage($"[green]    ✓ Found {liveList.Count} models live from Coqui TTS.[/]");
+                return liveList;
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            host.AddMessage($"[yellow]    ⚠ Live model fetch failed ({ex.Message}), using built-in list.[/]");
+        }
+
+        return FallbackModels;
+    }
+
+    /// <summary>
+    /// Fetches the full model list from the installed <c>TTS</c> package via <c>uv run python</c>.
+    /// Runs <c>TTS().list_models()</c> which queries the HuggingFace <c>coqui/TTS</c> repo.
+    /// </summary>
+    private static async Task<IReadOnlyList<CoquiTtsModelInfo>?> FetchFromUvAsync(
+        IStreamShellHost host,
+        string? dataDir,
+        CancellationToken ct)
+    {
+        var projectDir = Path.Combine(
+            dataDir ?? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".openclaw-ptt"),
+            "coqui-tts-env");
+
+        // Ensure pyproject.toml exists so uv can resolve
+        var env = new CoquiUvEnvironment(dataDir, "tts_models/en/ljspeech/vits", null, null, null);
+        env.EnsureProjectFiles();
+
+        var uvPath = CoquiUvEnvironment.FindUv() ?? "uv";
+        var cmd = "import json; from TTS.api import TTS; " +
+                  "models = TTS().list_models(); " +
+                  "print(json.dumps(models))";
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = uvPath,
+            Arguments = $"run --directory \"{projectDir}\" python -c \"{cmd}\"",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+
+        host.AddMessage("[grey]    Fetching model list from coqui/TTS on HuggingFace...[/]");
+
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+
+        using var process = Process.Start(psi)
+            ?? throw new InvalidOperationException("Failed to start uv run for model list fetch.");
+
+        var stdout = await process.StandardOutput.ReadToEndAsync(linkedCts.Token).ConfigureAwait(false);
+        await process.WaitForExitAsync(linkedCts.Token).ConfigureAwait(false);
+
+        if (process.ExitCode != 0)
+        {
+            var stderr = await process.StandardError.ReadToEndAsync();
+            throw new InvalidOperationException($"uv exit={process.ExitCode}: {stderr.Trim()}");
+        }
+
+        // Parse JSON array of model names
+        var modelNames = JsonSerializer.Deserialize<List<string>>(stdout.Trim());
+        if (modelNames == null || modelNames.Count == 0)
+            return null;
+
+        return modelNames
+            .Select(name => CoquiTtsModelInfo.FromModelName(name))
+            .OrderBy(m => m.Name)
+            .ToList();
+    }
 
     public CoquiTtsModelManager(string? dataDir, IStreamShellHost host)
     {
@@ -94,7 +205,7 @@ public sealed class CoquiTtsModelManager
     /// <summary>Lists names of locally cached Coqui TTS models (from known list).</summary>
     public static IReadOnlyList<string> GetCachedModels()
     {
-        return AvailableModels
+        return FallbackModels
             .Where(m => IsModelCached(m.Name))
             .Select(m => m.Name)
             .ToList();
@@ -266,5 +377,25 @@ public sealed class CoquiTtsModelInfo
     {
         Name = name;
         Description = description;
+    }
+
+    /// <summary>
+    /// Derives a user-friendly description from the model path segments.
+    /// E.g. "tts_models/en/ljspeech/vits" → "English · LJSpeech · VITS"
+    /// </summary>
+    public static CoquiTtsModelInfo FromModelName(string modelName)
+    {
+        var parts = modelName.Split('/');
+        if (parts.Length < 3)
+            return new CoquiTtsModelInfo(modelName, modelName);
+
+        // tts_models / <lang> / <dataset> / <architecture>
+        var lang = parts.Length > 1 ? parts[1] : "";
+        var dataset = parts.Length > 2 ? parts[2] : "";
+        var arch = parts.Length > 3 ? parts[3] : "";
+
+        var desc = string.Join(" · ", new[] { lang, dataset, arch }
+            .Where(s => !string.IsNullOrEmpty(s)));
+        return new CoquiTtsModelInfo(modelName, desc);
     }
 }
