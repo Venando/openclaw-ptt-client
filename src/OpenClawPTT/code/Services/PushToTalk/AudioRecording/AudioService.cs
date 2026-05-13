@@ -171,16 +171,19 @@ public sealed class AudioService : IAudioService
 
     private void LogSttProvider(AppConfig config, bool recreated = false)
     {
-        var provider = config.SttProvider ?? "groq";
-        string model = provider switch
-        {
-            "groq" => config.GroqModel ?? "whisper-large-v3-turbo",
-            "openai" => config.OpenAiModel ?? "whisper-1",
-            "whisper-cpp" => config.WhisperCppModel ?? "base",
-            _ => "?"
-        };
+        // Display the effective model name — no fallback values here.
+        // TranscriberFactory/the transcriber constructors own the defaults.
         var action = recreated ? "Switched to" : "STT";
-        _console.PrintMarkup($"[grey][dim]  {action}: {provider} ({model})[/][/]");
+        var model = config.SttProvider switch
+        {
+            AppConfig.ProviderGroq => config.GroqModel,
+            AppConfig.ProviderOpenAi => config.OpenAiModel,
+            AppConfig.ProviderWhisperCpp => config.WhisperCppModel,
+            _ => null
+        };
+        var providerDisplay = config.SttProvider ?? "?";
+        var modelDisplay = model ?? "default";
+        _console.PrintMarkup($"[grey][dim]  {action}: {providerDisplay} ({modelDisplay})[/][/]");
     }
 
     public void Dispose()

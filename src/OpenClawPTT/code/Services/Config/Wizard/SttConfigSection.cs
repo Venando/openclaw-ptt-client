@@ -113,7 +113,7 @@ public sealed class SttConfigSection : ConfigSectionBase
         }
 
         // ── Seed provider-specific defaults ──
-        config.GroqModel ??= "whisper-large-v3";
+        config.GroqModel ??= "whisper-large-v3-turbo";
         config.OpenAiModel ??= "whisper-1";
 
         // ── Whisper.cpp: delegate to WhisperConfigFlow ──
