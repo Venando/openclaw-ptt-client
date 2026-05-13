@@ -322,7 +322,7 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
             {
                 new AnthropicMessage { Role = "user", Content = message }
             },
-            MaxTokens = 4096,
+            MaxTokens = _config.DirectLlmMaxTokens,
             Stream = false
         };
 
