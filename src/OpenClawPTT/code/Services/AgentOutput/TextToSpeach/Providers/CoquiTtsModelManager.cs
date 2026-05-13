@@ -371,7 +371,8 @@ public sealed class CoquiTtsModelManager
     /// <summary>
     /// Extracts a summary from a build/dependency error for display.
     /// Returns the most relevant line (e.g. version mismatch) instead
-    /// of the full traceback.
+    /// of the full traceback. Also catches Python runtime errors like
+    /// TypeError which are not build errors but still actionable.
     /// </summary>
     private static string SummarizeBuildError(string errorText)
     {
@@ -383,17 +384,37 @@ public sealed class CoquiTtsModelManager
         foreach (var line in lines)
         {
             var trimmed = line.Trim();
-            if (trimmed.Contains("RuntimeError", StringComparison.Ordinal))
-                return trimmed;
+            // Python version mismatch (build-time check)
             if (trimmed.Contains("requires python", StringComparison.OrdinalIgnoreCase))
                 return trimmed;
+            // RuntimeError in setup.py / build process
+            if (trimmed.Contains("RuntimeError", StringComparison.Ordinal))
+                return trimmed;
+            // Build failures
             if (trimmed.Contains("Failed to build", StringComparison.Ordinal))
+                return trimmed;
+            // Python runtime errors (e.g. ModelManager not JSON serializable)
+            if (trimmed.Contains("TypeError", StringComparison.Ordinal))
                 return trimmed;
         }
 
         // Fallback: first non-empty line
         var first = lines.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l));
         return first?.Trim() ?? "Build failed";
+    }
+
+    /// <summary>
+    /// True when the error is an actual build/dependency error that requires
+    /// environment changes (not a transient Python runtime error like TypeError).
+    /// Only build errors set <see cref="CoquiUvEnvironment.IsUvBuildBroken"/>.
+    /// </summary>
+    private static bool IsBuildError(string errorText)
+    {
+        if (string.IsNullOrWhiteSpace(errorText)) return false;
+        return errorText.Contains("Failed to build", StringComparison.Ordinal)
+            || errorText.Contains("build_wheel", StringComparison.Ordinal)
+            || errorText.Contains("build backend", StringComparison.Ordinal)
+            || errorText.Contains("RuntimeError", StringComparison.Ordinal);
     }
 
     /// <summary>Lists names of locally cached Coqui TTS models (from known list).</summary>
@@ -504,8 +525,10 @@ public sealed class CoquiTtsModelManager
                 var errorDetail = !string.IsNullOrWhiteSpace(stderrText) ? stderrText : stdoutText;
                 var summary = SummarizeBuildError(errorDetail);
 
-                // Mark environment as broken to prevent retries
-                CoquiUvEnvironment.MarkUvBuildBroken(summary);
+                // Only mark as permanently broken for actual build/dependency errors
+                // Runtime errors (TypeError, etc.) are transient and retryable.
+                if (IsBuildError(errorDetail))
+                    CoquiUvEnvironment.MarkUvBuildBroken(summary);
 
                 _host.AddMessage($"[red]    Download failed (exit={process.ExitCode}): {EscapeSpectreMarkup(summary)}[/]");
                 progressCallback?.Invoke(modelName, $"Failed (exit={process.ExitCode})", null, null, false);

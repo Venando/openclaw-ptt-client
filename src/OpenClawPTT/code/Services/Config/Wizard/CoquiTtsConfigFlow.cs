@@ -77,7 +77,17 @@ public sealed class CoquiTtsConfigFlow
 
         bool modelChanged = modelResult != config.CoquiModelName;
 
-        // ── Phase 3: Download (with user confirmation) ──
+        // ── Phase 3: Download (with user confirmation, only when model changed) ──
+        // Don't prompt to download if nothing changed — the user didn't pick a new model.
+        if (!modelChanged)
+        {
+            if (!CoquiTtsModelManager.IsModelCached(modelResult))
+            {
+                host.AddMessage($"[yellow]  ⚠ Model '{modelResult}' is not cached — TTS won't work until downloaded.[/]");
+                host.AddMessage("[grey]    Use /reconfigure TTS to download it.[/]");
+            }
+            return false;
+        }
         var downloadSucceeded = true;
         if (!CoquiTtsModelManager.IsModelCached(modelResult))
         {
@@ -159,13 +169,16 @@ public sealed class CoquiTtsConfigFlow
             // If uv's dependency resolution itself broke (build error, not just timeout/missing),
             // there's no point in showing a model selection — the user needs to fix uv first.
             // Keep the current model and let them come back after fixing the environment.
+            //
+            // NOTE: Only real build/dependency errors block model selection.
+            // Python runtime errors (TypeError, etc.) are transient — the user should
+            // still be able to browse the fallback model list.
             var errorDetail = CoquiTtsModelManager.LastFetchErrorDetail;
-            var isUvBroken = !string.IsNullOrEmpty(errorDetail) &&
-                             (errorDetail.Contains("uv exit=", StringComparison.Ordinal) ||
-                              errorDetail.Contains("Failed to build", StringComparison.Ordinal) ||
-                              errorDetail.Contains("build backend", StringComparison.Ordinal) ||
-                              errorDetail.Contains("build_wheel", StringComparison.Ordinal));
-            if (isUvBroken)
+            var isUvBuildBroken = !string.IsNullOrEmpty(errorDetail) &&
+                (errorDetail.Contains("Failed to build", StringComparison.Ordinal) ||
+                 errorDetail.Contains("build_wheel", StringComparison.Ordinal) ||
+                 errorDetail.Contains("build backend", StringComparison.Ordinal));
+            if (isUvBuildBroken)
             {
                 host.AddMessage("[yellow]  The uv environment could not be set up (build/dependency error).[/]");
                 host.AddMessage("[grey]    Fix the issues above, then re-run /reconfigure TTS to select a model.[/]");
