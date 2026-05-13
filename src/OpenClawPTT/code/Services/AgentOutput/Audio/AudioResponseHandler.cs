@@ -21,6 +21,7 @@ public sealed class AudioResponseHandler : IDisposable
     private readonly IPttStateMachine? _pttStateMachine;
     private readonly IColorConsole _console;
     private readonly IBackgroundJobRunner _jobRunner;
+    private readonly Action<bool>? _onSynthesisStatus;
     private bool _disposed;
 
     public AudioResponseHandler(
@@ -30,7 +31,8 @@ public sealed class AudioResponseHandler : IDisposable
         IAudioPlayer audioPlayer,
         ITtsSummarizer? summarizer,
         IPttStateMachine? pttStateMachine,
-        ITextToSpeech? ttsProvider)
+        ITextToSpeech? ttsProvider,
+        Action<bool>? onSynthesisStatus = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _console = console ?? throw new ArgumentNullException(nameof(console));
@@ -39,6 +41,7 @@ public sealed class AudioResponseHandler : IDisposable
         _summarizer = summarizer;
         _pttStateMachine = pttStateMachine;
         _ttsProvider = ttsProvider;
+        _onSynthesisStatus = onSynthesisStatus;
     }
 
     /// <summary>
@@ -162,22 +165,33 @@ public sealed class AudioResponseHandler : IDisposable
 
     /// <summary>
     /// Synthesizes text to speech and plays the audio via a background job.
+    /// Reports synthesis status via <see cref="_onSynthesisStatus"/> callback.
     /// </summary>
     private void SynthesizeAndPlay(string textToSpeak)
     {
         var preview = textToSpeak.Length > 80 ? textToSpeak[..80] + "..." : textToSpeak;
         _jobRunner.RunAndForget(async () =>
         {
-            var audioBytes = await _ttsProvider!.SynthesizeAsync(
-                textToSpeak, _config.TtsVoice, null, CancellationToken.None);
+            try
+            {
+                var audioBytes = await _ttsProvider!.SynthesizeAsync(
+                    textToSpeak, _config.TtsVoice, null, CancellationToken.None);
 
-            if (audioBytes != null && audioBytes.Length > 0)
-            {
-                _audioPlayer.Play(audioBytes);
+                if (audioBytes != null && audioBytes.Length > 0)
+                {
+                    _audioPlayer.Play(audioBytes);
+                    _onSynthesisStatus?.Invoke(true);
+                }
+                else
+                {
+                    _console.PrintWarning("TTS synthesis returned null/empty audio.");
+                    _onSynthesisStatus?.Invoke(false);
+                }
             }
-            else
+            catch (Exception ex)
             {
-                _console.PrintWarning("TTS synthesis returned null/empty audio.");
+                _console.PrintWarning($"TTS synthesis failed: {ex.Message}");
+                _onSynthesisStatus?.Invoke(false);
             }
         }, $"tts-synthesis-{preview}");
     }

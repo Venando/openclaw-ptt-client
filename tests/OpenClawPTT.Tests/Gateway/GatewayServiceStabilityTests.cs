@@ -273,6 +273,8 @@ internal sealed class TestableGatewayService : IGatewayService
         return Task.CompletedTask;
     }
 
+    public Action<bool>? OnTtsSynthesisStatus { get; set; }
+
     public void Dispose()
     {
         if (!_disposed)

@@ -99,6 +99,11 @@ public partial class AppRunner : IDisposable
         using var gateway = _factory.CreateGatewayService(_cfg, ttsSummarizer, pttStateMachine,
             ttsProviderTask: ttsInitTask);
 
+        // Wire TTS synthesis runtime status to the status dot:
+        // Green on successful synthesis, Red on failure.
+        gateway.OnTtsSynthesisStatus = success =>
+            _statusService.SetServiceStatus(ServiceKind.Tts, success ? StatusColor.Green : StatusColor.Red);
+
         // Subscribe to gateway connection lifecycle events for the status bar.
         // The Disconnected event fires both on initial connect failure (via ReceiveLoop detection)
         // and on permanent reconnect failure (via GatewayReconnector -> lifecycle relay).

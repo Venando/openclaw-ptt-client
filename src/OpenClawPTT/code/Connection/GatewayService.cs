@@ -21,6 +21,7 @@ public sealed class GatewayService : IGatewayService
     private AgentOutputCoordinator _coordinator;
     private ErrorLogStore? _errorLog;
     private Task? _ttsWireTask;
+    private Action<bool>? _onTtsSynthesisStatus;
     private bool _disposed;
 
     public event Action? Connected;
@@ -63,6 +64,17 @@ public sealed class GatewayService : IGatewayService
         _errorLog = store;
     }
 
+    /// <inheritdoc />
+    public Action<bool>? OnTtsSynthesisStatus
+    {
+        set
+        {
+            _onTtsSynthesisStatus = value;
+            // Update existing audio handler if already wired
+            // New handlers will get the callback via WireTtsOnProviderReadyAsync / RecreateTtsProviderAsync
+        }
+    }
+
     /// <summary>
     /// Async continuation that wires the audio handler into the output coordinator
     /// once the TTS provider background task completes.
@@ -79,7 +91,8 @@ public sealed class GatewayService : IGatewayService
                 var audioPlayer = _audioPlayer ?? new AudioPlayerService(_console);
                 var audioHandler = new AudioResponseHandler(
                     _config, _console, jobRunner, audioPlayer,
-                    _summarizer, _pttStateMachine, ttsProvider);
+                    _summarizer, _pttStateMachine, ttsProvider,
+                    onSynthesisStatus: _onTtsSynthesisStatus);
                 _coordinator.SetAudioHandler(audioHandler);
             }
         }
@@ -157,7 +170,8 @@ public sealed class GatewayService : IGatewayService
             var audioPlayer = new AudioPlayerService(_console);
             var audioHandler = new AudioResponseHandler(
                 newConfig, _console, jobRunner, audioPlayer,
-                _summarizer, _pttStateMachine, ttsService.ReleaseProvider());
+                _summarizer, _pttStateMachine, ttsService.ReleaseProvider(),
+                onSynthesisStatus: _onTtsSynthesisStatus);
             _coordinator.SetAudioHandler(audioHandler);
         }
         else

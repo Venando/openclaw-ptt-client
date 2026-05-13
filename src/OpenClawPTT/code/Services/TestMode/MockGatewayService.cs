@@ -15,6 +15,7 @@ public sealed class MockGatewayService : IGatewayService
     private readonly string _scenario;
     private readonly IColorConsole _console;
     private readonly TestScenarioSession _session;
+    private Action<bool>? _onTtsSynthesisStatus;
     private bool _disposed;
 
 #pragma warning disable CS0067 // Events never raised — required by IGatewayService interface in mock
@@ -194,6 +195,12 @@ public sealed class MockGatewayService : IGatewayService
     /// Gets the list of mock agents for this scenario.
     /// </summary>
     public IReadOnlyList<MockAgentInfo> GetMockAgents() => _session.GetAgents();
+
+    /// <inheritdoc />
+    public Action<bool>? OnTtsSynthesisStatus
+    {
+        set => _onTtsSynthesisStatus = value;
+    }
 
     public void Dispose()
     {
