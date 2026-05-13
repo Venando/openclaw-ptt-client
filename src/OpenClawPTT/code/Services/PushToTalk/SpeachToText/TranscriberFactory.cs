@@ -11,27 +11,21 @@ public static class TranscriberFactory
 {
     public static ITranscriber Create(AppConfig config, IColorConsole colorConsole)
     {
-        return config.SttProvider?.ToLowerInvariant() switch
+        return (string.IsNullOrEmpty(config.SttProvider) ? AppConfig.ProviderGroq : config.SttProvider).ToLowerInvariant() switch
         {
-            "groq" => new GroqTranscriberAdapter(
+            AppConfig.ProviderGroq => new GroqTranscriberAdapter(
                 config.GroqApiKey,
-                config.GroqModel ?? "whisper-large-v3-turbo",
+                config.GroqModel!,  // null-safe: constructors handle null internally
                 config.GroqRetryCount,
                 config.GroqRetryDelayMs,
                 config.GroqRetryBackoffFactor),
 
-            "openai" => new OpenAiTranscriberAdapter(
+            AppConfig.ProviderOpenAi => new OpenAiTranscriberAdapter(
                 config.OpenAiApiKey ?? throw new InvalidOperationException("OpenAI API key is required for OpenAI STT provider"),
-                config.OpenAiModel ?? "whisper-1"),
+                config.OpenAiModel!),  // null-safe: constructors handle null internally
 
-            "whisper-cpp" => CreateWhisperCpp(config, colorConsole.GetStreamShellHost() ?? throw new InvalidOperationException("Cannot initialize whisper-cpp STT: terminal integration unavailable.")),
-
-            null or "" => new GroqTranscriberAdapter(
-                config.GroqApiKey,
-                config.GroqModel ?? "whisper-large-v3-turbo",
-                config.GroqRetryCount,
-                config.GroqRetryDelayMs,
-                config.GroqRetryBackoffFactor),
+            AppConfig.ProviderWhisperCpp => CreateWhisperCpp(config, colorConsole.GetStreamShellHost()
+                ?? throw new InvalidOperationException("Cannot initialize whisper-cpp STT: terminal integration unavailable.")),
 
             _ => throw new ArgumentException($"Unknown STT provider: {config.SttProvider}")
         };

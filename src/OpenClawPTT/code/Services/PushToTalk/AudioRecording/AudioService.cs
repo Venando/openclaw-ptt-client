@@ -11,7 +11,7 @@ namespace OpenClawPTT.Services;
 public sealed class AudioService : IAudioService
 {
     private readonly IColorConsole _console;
-    private readonly IAudioRecorder _recorder;
+    private IAudioRecorder _recorder;
     private ITranscriber _transcriber;
     private readonly IVisualFeedback _visualFeedback;
     private readonly IAgentSettingsPersistence _agentSettingsPersistence;
@@ -20,6 +20,7 @@ public sealed class AudioService : IAudioService
     private readonly bool _holdToTalk;
     private readonly int _rightMarginIndent;
     private readonly object _transcriberLock = new();
+    private readonly object _recorderLock = new();
     private int _disposedFlag; // 0 = not disposed, 1 = disposed
     
     /// <summary>
@@ -46,13 +47,18 @@ public sealed class AudioService : IAudioService
         _rightMarginIndent = config.RightMarginIndent;
     }
     
-    public bool IsRecording => _recorder.IsRecording;
+    public bool IsRecording
+    {
+        get { lock (_recorderLock) { return _recorder.IsRecording; } }
+    }
     
     public void StartRecording()
     {
         if (_disposedFlag == 1) throw new ObjectDisposedException(nameof(AudioService));
         
-        _recorder.StartRecording();
+        IAudioRecorder recorder;
+        lock (_recorderLock) { recorder = _recorder; }
+        recorder.StartRecording();
         // Use per-agent hotkey if set, else fall back to global config default
         var activeAgentId = AgentRegistry.ActiveAgentId;
         var effectiveHotkey = activeAgentId != null
@@ -65,9 +71,17 @@ public sealed class AudioService : IAudioService
     public void StopDiscard()
     {
         if (_disposedFlag == 1) throw new ObjectDisposedException(nameof(AudioService));
-        if (!_recorder.IsRecording) return;
 
-        _recorder.StopRecording();
+        IAudioRecorder recorder;
+        bool wasRecording;
+        lock (_recorderLock)
+        {
+            recorder = _recorder;
+            wasRecording = _recorder.IsRecording;
+        }
+        if (!wasRecording) return;
+
+        recorder.StopRecording();
         _visualFeedback.Hide();
         _console.PrintMarkup("[grey]  ─ Recording discarded ─[/]");
     }
@@ -75,9 +89,17 @@ public sealed class AudioService : IAudioService
     public async Task<string?> StopAndTranscribeAsync(CancellationToken ct)
     {
         if (_disposedFlag == 1) throw new ObjectDisposedException(nameof(AudioService));
-        if (!_recorder.IsRecording) return null;
+
+        IAudioRecorder recorder;
+        bool wasRecording;
+        lock (_recorderLock)
+        {
+            recorder = _recorder;
+            wasRecording = _recorder.IsRecording;
+        }
+        if (!wasRecording) return null;
         
-        var wav = _recorder.StopRecording();
+        var wav = recorder.StopRecording();
         _visualFeedback.Hide();
         _console.PrintInfo("■ Recording stopped");
         
@@ -122,28 +144,62 @@ public sealed class AudioService : IAudioService
         LogSttProvider(config, recreated: true);
     }
 
+    /// <summary>
+    /// Re-creates the audio recorder after a config change (e.g. SampleRate, Channels).
+    /// If a recording is in progress, logs a warning and defers — the new config
+    /// applies on the next recording cycle.
+    /// </summary>
+    public void RecreateRecorder(AppConfig config, IColorConsole console)
+    {
+        IAudioRecorder? old = null;
+        lock (_recorderLock)
+        {
+            if (_recorder.IsRecording)
+            {
+                console.Log("audio", "Recording in progress — new recorder settings will apply on next keypress.");
+                return;
+            }
+
+            old = _recorder;
+            _recorder = new AudioRecorder(
+                config.SampleRate, config.Channels,
+                config.BitsPerSample, config.MaxRecordSeconds);
+        }
+        old?.Dispose();
+        console.LogOk("audio", $"Recorder updated: {config.SampleRate}Hz, {config.Channels}ch");
+    }
+
     private void LogSttProvider(AppConfig config, bool recreated = false)
     {
-        var provider = config.SttProvider ?? "groq";
-        string model = provider switch
-        {
-            "groq" => config.GroqModel ?? "whisper-large-v3-turbo",
-            "openai" => config.OpenAiModel ?? "whisper-1",
-            "whisper-cpp" => config.WhisperCppModel ?? "base",
-            _ => "?"
-        };
+        // Display the effective model name — no fallback values here.
+        // TranscriberFactory/the transcriber constructors own the defaults.
         var action = recreated ? "Switched to" : "STT";
-        _console.PrintMarkup($"[grey][dim]  {action}: {provider} ({model})[/][/]");
+        var model = config.SttProvider switch
+        {
+            AppConfig.ProviderGroq => config.GroqModel,
+            AppConfig.ProviderOpenAi => config.OpenAiModel,
+            AppConfig.ProviderWhisperCpp => config.WhisperCppModel,
+            _ => null
+        };
+        var providerDisplay = config.SttProvider ?? "?";
+        var modelDisplay = model ?? "default";
+        _console.PrintMarkup($"[grey][dim]  {action}: {providerDisplay} ({modelDisplay})[/][/]");
     }
 
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposedFlag, 1) != 0) return;
+        IAudioRecorder? recorderToDispose;
+        lock (_recorderLock)
+        {
+            recorderToDispose = _recorder;
+            _recorder = null!;
+        }
         lock (_transcriberLock)
         {
-            _recorder.Dispose();
             _transcriber.Dispose();
             _visualFeedback.Dispose();
         }
+        recorderToDispose?.Dispose();
     }
 }

@@ -34,7 +34,10 @@ public sealed class AppConfig
     public ReplyDisplayMode ReplyDisplayMode { get; set; } = ReplyDisplayMode.Both;
 
     // STT Provider configuration
-    public string? SttProvider { get; set; } // "groq", "openai", "whisper-cpp", null = default to groq
+    public const string ProviderGroq = "groq";
+    public const string ProviderOpenAi = "openai";
+    public const string ProviderWhisperCpp = "whisper-cpp";
+    public string? SttProvider { get; set; }
     public string? OpenAiApiKey { get; set; }
     public string? OpenAiModel { get; set; }
     public string? WhisperCppModel { get; set; }
