@@ -100,10 +100,11 @@ public sealed class CoquiUvEnvironment
     {
         lock (s_scriptsLock)
         {
-            if (s_scriptsExtracted) return;
-
+            // Always write the latest pyproject.toml (may have build-dep fixes)
             var pyprojectPath = Path.Combine(_projectDir, "pyproject.toml");
             File.WriteAllText(pyprojectPath, PyProjectToml, Encoding.UTF8);
+
+            if (s_scriptsExtracted) return;
 
             var scriptPath = Path.Combine(_projectDir, "tts_service.py");
             File.WriteAllText(scriptPath, TtsServiceScript, Encoding.UTF8);
@@ -191,6 +192,11 @@ dependencies = [
 
 [tool.uv]
 # uv downloads the right Python automatically if not installed
+
+[tool.uv.extra-build-dependencies]
+# pandas 1.5.3 (dep of TTS 0.22) uses pkg_resources but doesn't declare
+# setuptools as a build dependency → uv needs this hint
+pandas = ["setuptools"]
 """;
 
     private const string TtsServiceScript = """
