@@ -37,6 +37,7 @@ public interface IDirectLlmService : IDisposable
 
 /// <summary>
 /// Implementation of direct LLM service supporting OpenAI and Anthropic APIs.
+/// Includes retry with exponential backoff for transient failures.
 /// </summary>
 public sealed class DirectLlmService : IDirectLlmService, IDisposable
 {
@@ -45,11 +46,17 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
     private readonly IDirectLlmFailureTracker _failureTracker;
     private bool _disposed;
 
-    public DirectLlmService(AppConfig config, IDirectLlmFailureTracker? failureTracker = null)
+    /// <summary>Maximum retry attempts for transient failures.</summary>
+    internal const int MaxRetries = 1;
+
+    /// <summary>Base delay in ms for exponential backoff.</summary>
+    internal const int RetryBaseDelayMs = 500;
+
+    public DirectLlmService(AppConfig config, IDirectLlmFailureTracker? failureTracker = null, HttpMessageHandler? handler = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _failureTracker = failureTracker ?? new DirectLlmFailureTracker();
-        _httpClient = new HttpClient();
+        _httpClient = handler != null ? new HttpClient(handler) : new HttpClient();
         
         // Set timeout for local LLMs (Ollama may be slower on first request)
         _httpClient.Timeout = TimeSpan.FromMinutes(5);
@@ -61,33 +68,114 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
 
     public IDirectLlmFailureTracker FailureTracker => _failureTracker;
 
+    /// <summary>
+    /// Sends a message to the configured LLM with retry on transient failures.
+    /// Records success/failure to the tracker on final outcome.
+    /// </summary>
     public async Task<string> SendAsync(string message, CancellationToken ct = default)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(DirectLlmService));
         if (!IsConfigured) throw new InvalidOperationException("Direct LLM is not configured. Set DirectLlmUrl and DirectLlmModelName in config.");
 
-        try
-        {
-            var apiType = _config.DirectLlmApiType?.ToLowerInvariant() ?? "openai-completions";
-            
-            // openai-chat is an alias for openai-completions
-            if (apiType == "openai-chat")
-                apiType = "openai-completions";
+        return await SendWithRetryAsync(message, ct);
+    }
 
-            string result = apiType switch
+    /// <summary>
+    /// Executes the send with retry logic.
+    /// Retries only on transient failures (network errors, timeouts, 5xx).
+    /// Does NOT retry on cancellation or 4xx client errors.
+    /// </summary>
+    private async Task<string> SendWithRetryAsync(string message, CancellationToken ct)
+    {
+        int attempt = 0;
+
+        while (true)
+        {
+            try
             {
-                "anthropic-messages" => await SendAnthropicAsync(message, ct),
-                _ => await SendOpenAiAsync(message, ct) // default to openai-completions
-            };
+                var apiType = NormalizeApiType(_config.DirectLlmApiType);
 
-            _failureTracker.RecordSuccess();
-            return result;
+                string result = apiType switch
+                {
+                    "anthropic-messages" => await SendAnthropicAsync(message, ct),
+                    _ => await SendOpenAiAsync(message, ct)
+                };
+
+                _failureTracker.RecordSuccess();
+                return result;
+            }
+            catch (Exception ex) when (attempt < MaxRetries && IsRetryable(ex))
+            {
+                attempt++;
+                var delay = ComputeBackoffMs(attempt);
+                await Task.Delay(delay, ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // User-requested cancellation — don't record as a failure
+                throw;
+            }
+            catch (Exception)
+            {
+                // All other failures including timeout (TaskCanceledException without
+                // user cancellation) and non-retryable errors
+                // Note: TaskCanceledException inherits from OperationCanceledException
+                // but without user cancellation it falls through to here
+                _failureTracker.RecordFailure();
+                throw;
+            }
         }
-        catch (Exception)
+    }
+
+    /// <summary>
+    /// Determines if an exception is retryable.
+    /// Retry on: HttpRequestException (network), TaskCanceledException (timeout), 5xx.
+    /// Do NOT retry on: OperationCanceledException (user cancellation).
+    /// </summary>
+    private static bool IsRetryable(Exception ex)
+    {
+        // HttpRequestException covers network errors and non-success status codes
+        if (ex is HttpRequestException httpEx)
         {
-            _failureTracker.RecordFailure();
-            throw;
+            // Check for 5xx server errors — retry those
+            if (httpEx.StatusCode.HasValue)
+            {
+                int code = (int)httpEx.StatusCode.Value;
+                return code >= 500 && code <= 599;
+            }
+            // No status code = network-level error (connection refused, DNS, etc.)
+            return true;
         }
+
+        // TaskCanceledException typically means HttpClient timeout
+        if (ex is TaskCanceledException)
+            return true;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Computes exponential backoff delay: baseDelay * 2^(attempt-1) with random jitter.
+    /// Capped at 4000ms.
+    /// </summary>
+    internal static int ComputeBackoffMs(int attempt)
+    {
+        int delay = RetryBaseDelayMs * (1 << (attempt - 1)); // 500, 1000, 2000, ...
+        delay = Math.Min(delay, 4000);
+
+        // Add jitter: ±50%
+        var rng = new Random();
+        double jitter = 1.0 + (rng.NextDouble() - 0.5); // 0.5 to 1.5
+        return (int)(delay * jitter);
+    }
+
+    private static string NormalizeApiType(string? apiType)
+    {
+        var normalized = apiType?.ToLowerInvariant() ?? "openai-completions";
+        // openai-chat is an alias for openai-completions
+        if (normalized == "openai-chat")
+            normalized = "openai-completions";
+        return normalized;
     }
 
     public async Task<bool> ProbeAsync(CancellationToken ct = default)
@@ -97,9 +185,7 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
 
         try
         {
-            var apiType = _config.DirectLlmApiType?.ToLowerInvariant() ?? "openai-completions";
-            if (apiType == "openai-chat")
-                apiType = "openai-completions";
+            var apiType = NormalizeApiType(_config.DirectLlmApiType);
 
             return apiType switch
             {
