@@ -98,9 +98,12 @@ public class AppRunner : IDisposable
         using var gateway = _factory.CreateGatewayService(_cfg, ttsSummarizer, pttStateMachine,
             ttsProviderTask: ttsInitTask);
 
-        // Subscribe to gateway connection events so the status dot updates
-        // on every successful connection (initial, manual reconnect, auto-reconnect).
+        // Subscribe to gateway connection lifecycle events for the status bar.
+        // The Disconnected event fires both on initial connect failure (via ReceiveLoop detection)
+        // and on permanent reconnect failure (via GatewayReconnector -> lifecycle relay).
         gateway.Connected += () => _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Green);
+        gateway.Disconnected += () => _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Red);
+        gateway.Reconnecting += () => _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Yellow);
 
         // Wire ErrorLogStore into GatewayService so SendTextAsync/SendRpcAsync failures are logged
         if (gateway is GatewayService gw)
@@ -165,10 +168,11 @@ public class AppRunner : IDisposable
     {
         try
         {
+            _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Yellow);
             _console.PrintInfo("Connecting to gateway...");
             await gateway.ConnectAsync(ct);
             _console.LogOk("gateway", "Gateway connected.");
-            _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Green);
+            // Status set to Green via gateway.Connected event handler (handles initial + reconnect)
             return ConnectResult.Success;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -193,7 +197,6 @@ public class AppRunner : IDisposable
                     _console.PrintInfo($"    \u2192 {action}");
             }
 
-            _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Yellow);
 
             if (classification.ShouldStopApp)
             {

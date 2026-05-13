@@ -85,4 +85,5 @@ public sealed class ServiceStatusPart : StatusPartBase
             MarkDirty();
         }
     }
+
 }
