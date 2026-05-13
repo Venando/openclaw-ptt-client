@@ -71,26 +71,45 @@ public sealed class CoquiTtsModelManager
 
         try
         {
-            var liveList = await FetchFromUvAsync(host, dataDir, ct).ConfigureAwait(false);
-            if (liveList is { Count: > 0 })
+            var setupPanel = new CoquiEnvSetupPanel();
+            host.SetBottomPanel(setupPanel);
+
+            try
             {
-                lock (s_liveLock) { s_liveModels = liveList; }
-                host.AddMessage($"[green]    ✓ Found {liveList.Count} models live from Coqui TTS.[/]");
-                return liveList;
+                var liveList = await FetchFromUvAsync(host, dataDir,
+                    progressCallback: (status, line) => setupPanel.SetStatus(status, line),
+                    ct).ConfigureAwait(false);
+
+                if (liveList is { Count: > 0 })
+                {
+                    setupPanel.SetCompleted(true, $"Found {liveList.Count} models");
+                    lock (s_liveLock) { s_liveModels = liveList; }
+                    host.AddMessage($"[green]    \u2713 Found {liveList.Count} models live from Coqui TTS.[/]");
+                    return liveList;
+                }
+
+                setupPanel.SetCompleted(false, "No models returned");
+            }
+            finally
+            {
+                // Keep the panel visible briefly so the user sees completion
+                await Task.Delay(500, CancellationToken.None);
+                host.ResetBottomPanel();
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
+            host.ResetBottomPanel();
             throw; // User cancelled — propagate
         }
         catch (OperationCanceledException)
         {
-            // uv command timed out (30s) — fall back to built-in list
+            // uv command timed out (5 min) — fall back to built-in list
             host.AddMessage("[yellow]    \u26a0 Live model fetch timed out, using built-in list.[/]");
         }
         catch (Exception ex)
         {
-            host.AddMessage($"[yellow]    ⚠ Live model fetch failed ({ex.Message}), using built-in list.[/]");
+            host.AddMessage($"[yellow]    \u26a0 Live model fetch failed ({ex.Message}), using built-in list.[/]");
         }
 
         return FallbackModels;
@@ -99,10 +118,13 @@ public sealed class CoquiTtsModelManager
     /// <summary>
     /// Fetches the full model list from the installed <c>TTS</c> package via <c>uv run python</c>.
     /// Runs <c>TTS().list_models()</c> which queries the HuggingFace <c>coqui/TTS</c> repo.
+    /// First-run dependency resolution (Python + TTS + torch + pandas + ...) can take
+    /// several minutes, so stderr is streamed via <paramref name="progressCallback"/>.
     /// </summary>
     private static async Task<IReadOnlyList<CoquiTtsModelInfo>?> FetchFromUvAsync(
         IStreamShellHost host,
         string? dataDir,
+        Action<string, string>? progressCallback,
         CancellationToken ct)
     {
         var projectDir = Path.Combine(
@@ -131,28 +153,82 @@ public sealed class CoquiTtsModelManager
         };
 
         host.AddMessage("[grey]    Fetching model list from coqui/TTS on HuggingFace...[/]");
+        progressCallback?.Invoke("Resolving packages", "uv setting up Python environment...");
 
-        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        // First-run dep resolution can take minutes (Python + TTS + torch + pandas + ...)
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
         using var process = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start uv run for model list fetch.");
 
-        var stdout = await process.StandardOutput.ReadToEndAsync(linkedCts.Token).ConfigureAwait(false);
-        await process.WaitForExitAsync(linkedCts.Token).ConfigureAwait(false);
+        var stderrLines = new List<string>();
+        var stdoutBuilder = new System.Text.StringBuilder();
 
-        if (process.ExitCode != 0)
-        {
-            var stderr = await process.StandardError.ReadToEndAsync();
-            throw new InvalidOperationException($"uv exit={process.ExitCode}: {stderr.Trim()}");
-        }
+        // Read stderr line-by-line for progress (uv outputs package downloads here)
+        var stderrTask = Task.Run(async () =>
+            {
+                var reader = process.StandardError;
+                while (true)
+                {
+                    var line = await reader.ReadLineAsync(linkedCts.Token).ConfigureAwait(false);
+                    if (line == null) break;
+                    stderrLines.Add(line);
+                    if (!string.IsNullOrWhiteSpace(line))
+                    {
+                        var trimmed = line.Trim();
+                        // Track progress: uv shows "Downloading ...", "Building ...", "Resolved ..."
+                        if (trimmed.Contains("Downloading", StringComparison.OrdinalIgnoreCase) ||
+                            trimmed.Contains("Building", StringComparison.OrdinalIgnoreCase) ||
+                            trimmed.Contains("Resolved", StringComparison.OrdinalIgnoreCase) ||
+                            trimmed.Contains("Installed", StringComparison.OrdinalIgnoreCase) ||
+                            trimmed.StartsWith("⠙") || trimmed.StartsWith("⠹") ||
+                            trimmed.StartsWith("⠸") || trimmed.StartsWith("⠼") ||
+                            trimmed.StartsWith("⠴") || trimmed.StartsWith("⠦") ||
+                            trimmed.StartsWith("⠧") || trimmed.StartsWith("⠇") ||
+                            trimmed.StartsWith("⠏") || trimmed.StartsWith("⠋"))
+                        {
+                            progressCallback?.Invoke("Resolving packages", trimmed);
+                        }
+                        else if (trimmed.Contains("error", StringComparison.OrdinalIgnoreCase) ||
+                                 trimmed.Contains("failed", StringComparison.OrdinalIgnoreCase))
+                        {
+                            progressCallback?.Invoke("Error encountered", trimmed);
+                        }
+                    }
+                }
+            }, linkedCts.Token);
 
-        // Parse JSON array of model names
-        var modelNames = JsonSerializer.Deserialize<List<string>>(stdout.Trim());
-        if (modelNames == null || modelNames.Count == 0)
-            return null;
+            // Read stdout: should contain a single JSON array line
+            var stdoutTask = Task.Run(async () =>
+            {
+                var reader = process.StandardOutput;
+                while (true)
+                {
+                    var line = await reader.ReadLineAsync(linkedCts.Token).ConfigureAwait(false);
+                    if (line == null) break;
+                    stdoutBuilder.AppendLine(line);
+                }
+            }, linkedCts.Token);
 
-        return modelNames
+            await Task.WhenAll(stdoutTask, stderrTask, process.WaitForExitAsync(linkedCts.Token))
+                .ConfigureAwait(false);
+
+            var stdoutText = stdoutBuilder.ToString();
+            var stderrText = string.Join("\n", stderrLines);
+
+            if (process.ExitCode != 0)
+            {
+                var errorDetail = !string.IsNullOrWhiteSpace(stderrText) ? stderrText : stdoutText;
+                throw new InvalidOperationException($"uv exit={process.ExitCode}: {errorDetail.Trim()}");
+            }
+
+            // Parse JSON array of model names
+            var modelNames = JsonSerializer.Deserialize<List<string>>(stdoutText.Trim());
+            if (modelNames == null || modelNames.Count == 0)
+                return null;
+
+            return modelNames
             .Select(name => CoquiTtsModelInfo.FromModelName(name))
             .OrderBy(m => m.Name)
             .ToList();
