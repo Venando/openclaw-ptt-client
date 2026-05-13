@@ -27,6 +27,12 @@ public interface IDirectLlmService : IDisposable
     Task<bool> ProbeAsync(CancellationToken ct = default);
 
     bool IsConfigured { get; }
+
+    /// <summary>
+    /// Failure tracker that records send successes/failures for status monitoring.
+    /// Returns null if not wired (e.g. mock implementations).
+    /// </summary>
+    IDirectLlmFailureTracker? FailureTracker { get; }
 }
 
 /// <summary>
@@ -36,11 +42,13 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
 {
     private readonly HttpClient _httpClient;
     private readonly AppConfig _config;
+    private readonly IDirectLlmFailureTracker _failureTracker;
     private bool _disposed;
 
-    public DirectLlmService(AppConfig config)
+    public DirectLlmService(AppConfig config, IDirectLlmFailureTracker? failureTracker = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
+        _failureTracker = failureTracker ?? new DirectLlmFailureTracker();
         _httpClient = new HttpClient();
         
         // Set timeout for local LLMs (Ollama may be slower on first request)
@@ -51,22 +59,35 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
         !string.IsNullOrWhiteSpace(_config.DirectLlmUrl) &&
         !string.IsNullOrWhiteSpace(_config.DirectLlmModelName);
 
+    public IDirectLlmFailureTracker FailureTracker => _failureTracker;
+
     public async Task<string> SendAsync(string message, CancellationToken ct = default)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(DirectLlmService));
         if (!IsConfigured) throw new InvalidOperationException("Direct LLM is not configured. Set DirectLlmUrl and DirectLlmModelName in config.");
 
-        var apiType = _config.DirectLlmApiType?.ToLowerInvariant() ?? "openai-completions";
-        
-        // openai-chat is an alias for openai-completions
-        if (apiType == "openai-chat")
-            apiType = "openai-completions";
-
-        return apiType switch
+        try
         {
-            "anthropic-messages" => await SendAnthropicAsync(message, ct),
-            _ => await SendOpenAiAsync(message, ct) // default to openai-completions
-        };
+            var apiType = _config.DirectLlmApiType?.ToLowerInvariant() ?? "openai-completions";
+            
+            // openai-chat is an alias for openai-completions
+            if (apiType == "openai-chat")
+                apiType = "openai-completions";
+
+            string result = apiType switch
+            {
+                "anthropic-messages" => await SendAnthropicAsync(message, ct),
+                _ => await SendOpenAiAsync(message, ct) // default to openai-completions
+            };
+
+            _failureTracker.RecordSuccess();
+            return result;
+        }
+        catch (Exception)
+        {
+            _failureTracker.RecordFailure();
+            throw;
+        }
     }
 
     public async Task<bool> ProbeAsync(CancellationToken ct = default)

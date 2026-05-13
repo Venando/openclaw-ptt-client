@@ -21,6 +21,12 @@ public sealed class MockDirectLlmService : IDirectLlmService
     /// </summary>
     public bool IsConfigured => true;
 
+    /// <summary>
+    /// Mock service doesn't track failures via the interface.
+    /// Returns null — consumers should handle this gracefully.
+    /// </summary>
+    public IDirectLlmFailureTracker? FailureTracker => null;
+
     public MockDirectLlmService(string scenario, IColorConsole console)
     {
         _scenario = scenario;
