@@ -14,25 +14,28 @@ namespace OpenClawPTT.TTS.Providers;
 public sealed class CoquiEnvSetupPanel : IBottomPanel
 {
     private readonly object _sync = new();
-    private readonly string[] _lines = new string[2];
+    private readonly string[] _lines = new string[3];
 
     private string _status = "Initializing...";
     private string _latestLine = "";
+    private string _errorDetail = "";
     private bool _completed;
     private bool _isDirty = true;
 
-    public int LineCount => 2;
+    public int LineCount => 3;
     public bool IsDirty { get { lock (_sync) return _isDirty; } }
     public string? CurrentSuggestion => null;
     public bool ShowBottomSeparator => false;
 
-    public void SetStatus(string status, string? latestLine = null)
+    public void SetStatus(string status, string? latestLine = null, string? errorDetail = null)
     {
         lock (_sync)
         {
             _status = status;
             if (latestLine != null)
-                _latestLine = TruncateLine(latestLine);
+                _latestLine = latestLine.Trim();
+            if (errorDetail != null)
+                _errorDetail = errorDetail.Trim();
             _isDirty = true;
         }
     }
@@ -56,7 +59,10 @@ public sealed class CoquiEnvSetupPanel : IBottomPanel
             _lines[0] = $"[bold]Coqui TTS Setup[/] — {_status}";
             _lines[1] = string.IsNullOrEmpty(_latestLine)
                 ? "[grey]Waiting for uv...[/]"
-                : $"[grey]{_latestLine}[/]";
+                : $"[grey]{EscapeMarkup(_latestLine)}[/]";
+            _lines[2] = string.IsNullOrEmpty(_errorDetail)
+                ? ""
+                : $"[yellow]{EscapeMarkup(_errorDetail)}[/]";
             _isDirty = false;
             return _lines;
         }
@@ -73,10 +79,13 @@ public sealed class CoquiEnvSetupPanel : IBottomPanel
 
     public void Dispose() { }
 
-    private static string TruncateLine(string line, int maxLen = 100)
+    /// <summary>
+    /// Escapes Spectre.Console markup characters so raw process output
+    /// won't break the rendering.
+    /// </summary>
+    private static string EscapeMarkup(string text)
     {
-        if (string.IsNullOrEmpty(line)) return "";
-        var trimmed = line.Trim();
-        return trimmed.Length <= maxLen ? trimmed : trimmed[..(maxLen - 3)] + "...";
+        if (string.IsNullOrEmpty(text)) return "";
+        return text.Replace("[", "[[").Replace("]", "]]");
     }
 }

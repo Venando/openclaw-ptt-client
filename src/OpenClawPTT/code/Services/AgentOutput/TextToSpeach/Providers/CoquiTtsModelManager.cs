@@ -77,7 +77,7 @@ public sealed class CoquiTtsModelManager
             try
             {
                 var liveList = await FetchFromUvAsync(host, dataDir,
-                    progressCallback: (status, line) => setupPanel.SetStatus(status, line),
+                    progressCallback: (status, line, error) => setupPanel.SetStatus(status, line, error),
                     ct).ConfigureAwait(false);
 
                 if (liveList is { Count: > 0 })
@@ -124,7 +124,7 @@ public sealed class CoquiTtsModelManager
     private static async Task<IReadOnlyList<CoquiTtsModelInfo>?> FetchFromUvAsync(
         IStreamShellHost host,
         string? dataDir,
-        Action<string, string>? progressCallback,
+        Action<string, string, string?>? progressCallback,
         CancellationToken ct)
     {
         var projectDir = Path.Combine(
@@ -153,7 +153,7 @@ public sealed class CoquiTtsModelManager
         };
 
         host.AddMessage("[grey]    Fetching model list from coqui/TTS on HuggingFace...[/]");
-        progressCallback?.Invoke("Resolving packages", "uv setting up Python environment...");
+        progressCallback?.Invoke("Resolving packages", "uv setting up Python environment...", null);
 
         // First-run dep resolution can take minutes (Python + TTS + torch + pandas + ...)
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
@@ -177,23 +177,33 @@ public sealed class CoquiTtsModelManager
                     if (!string.IsNullOrWhiteSpace(line))
                     {
                         var trimmed = line.Trim();
-                        // Track progress: uv shows "Downloading ...", "Building ...", "Resolved ..."
+                        // uv spinner characters indicate active work
+                        bool isSpinner = trimmed.Length > 0 && (
+                            trimmed[0] == '\u2801' || trimmed[0] == '\u2809' ||
+                            trimmed[0] == '\u2819' || trimmed[0] == '\u2838' ||
+                            trimmed[0] == '\u2834' || trimmed[0] == '\u2826' ||
+                            trimmed[0] == '\u2827' || trimmed[0] == '\u2807' ||
+                            trimmed[0] == '\u280F' || trimmed[0] == '\u280B');
+
                         if (trimmed.Contains("Downloading", StringComparison.OrdinalIgnoreCase) ||
                             trimmed.Contains("Building", StringComparison.OrdinalIgnoreCase) ||
                             trimmed.Contains("Resolved", StringComparison.OrdinalIgnoreCase) ||
                             trimmed.Contains("Installed", StringComparison.OrdinalIgnoreCase) ||
-                            trimmed.StartsWith("⠙") || trimmed.StartsWith("⠹") ||
-                            trimmed.StartsWith("⠸") || trimmed.StartsWith("⠼") ||
-                            trimmed.StartsWith("⠴") || trimmed.StartsWith("⠦") ||
-                            trimmed.StartsWith("⠧") || trimmed.StartsWith("⠇") ||
-                            trimmed.StartsWith("⠏") || trimmed.StartsWith("⠋"))
+                            isSpinner)
                         {
-                            progressCallback?.Invoke("Resolving packages", trimmed);
+                            progressCallback?.Invoke("Resolving packages", trimmed, null);
                         }
                         else if (trimmed.Contains("error", StringComparison.OrdinalIgnoreCase) ||
-                                 trimmed.Contains("failed", StringComparison.OrdinalIgnoreCase))
+                                 trimmed.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+                                 trimmed.Contains("Error", StringComparison.Ordinal) ||
+                                 trimmed.Contains("Traceback", StringComparison.Ordinal))
                         {
-                            progressCallback?.Invoke("Error encountered", trimmed);
+                            // Kill process immediately — no point waiting for timeout
+                            try { if (!process.HasExited) process.Kill(true); } catch { }
+
+                            var errorDetail = string.Join("\n", stderrLines);
+                            progressCallback?.Invoke("Error encountered", trimmed, errorDetail);
+                            // Continue reading remaining lines briefly then break
                         }
                     }
                 }
