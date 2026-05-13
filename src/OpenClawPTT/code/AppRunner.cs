@@ -121,6 +121,7 @@ public partial class AppRunner : IDisposable
         return await RunPttLoopAsync(gateway, pttStateMachine, directLlmService, ttsSummarizer, gatewayConnected, ct);
     }
 
+
     /// <summary>Result of the guided connect attempt.</summary>
     private enum ConnectResult { Success, ContinueWithoutGateway, GiveUp }
 
