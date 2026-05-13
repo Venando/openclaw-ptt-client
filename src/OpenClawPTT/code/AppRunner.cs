@@ -208,12 +208,23 @@ public class AppRunner : IDisposable
     private async Task<int> RunPttLoopAsync(IGatewayService gateway, IPttStateMachine pttStateMachine, IDirectLlmService directLlmService, ITtsSummarizer ttsSummarizer, bool gatewayConnected, CancellationToken ct)
     {
         using var audioService = _factory.CreateAudioService(_cfg);
+        // AudioService constructor creates a transcriber synchronously — mark STT as ready
+        _statusService.SetSttStatus("Connected", StatusColor.Green);
 
         // Re-create transcriber when config changes (e.g. STT provider/model switched via /reconfigure)
         void OnConfigSaved(AppConfig newCfg)
         {
-            try { audioService.RecreateTranscriber(newCfg, _console); }
-            catch (Exception ex) { _console.PrintError($"Failed to update STT: {ex.Message}"); }
+            _statusService.SetSttStatus("Reconfiguring", StatusColor.Yellow);
+            try
+            {
+                audioService.RecreateTranscriber(newCfg, _console);
+                _statusService.SetSttStatus("Connected", StatusColor.Green);
+            }
+            catch (Exception ex)
+            {
+                _statusService.SetSttStatus("Failed", StatusColor.Red);
+                _console.PrintError($"Failed to update STT: {ex.Message}");
+            }
         }
         _configService.ConfigSaved += OnConfigSaved;
 

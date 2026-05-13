@@ -15,33 +15,31 @@ public class StatusServiceTests
     }
 
     [Fact]
-    public void SetGatewayStatus_UpdatesRenderedText()
+    public void SetGatewayStatus_ShowsGreenDot()
     {
         var host = new FakeStreamShellHost();
         var service = new StatusService(host);
 
         service.SetGatewayStatus("Connected", StatusColor.Green);
 
-        Assert.Contains("GW:", host.LastSeparatorRightText);
-        Assert.Contains("Connected", host.LastSeparatorRightText);
-        Assert.Contains("green", host.LastSeparatorRightText);
+        Assert.Contains("[green]", host.LastSeparatorRightText);
+        Assert.Contains("\u25CF", host.LastSeparatorRightText); // ●
     }
 
     [Fact]
-    public void SetTtsStatus_UpdatesRenderedText()
+    public void SetTtsStatus_ShowsRedDot()
     {
         var host = new FakeStreamShellHost();
         var service = new StatusService(host);
 
         service.SetTtsStatus("Disconnected", StatusColor.Red);
 
-        Assert.Contains("TTS:", host.LastSeparatorRightText);
-        Assert.Contains("Disconnected", host.LastSeparatorRightText);
-        Assert.Contains("red", host.LastSeparatorRightText);
+        Assert.Contains("[red]", host.LastSeparatorRightText);
+        Assert.Contains("\u25CF", host.LastSeparatorRightText); // ●
     }
 
     [Fact]
-    public void MultipleUpdates_BothShown()
+    public void MultipleUpdates_DotsShown()
     {
         var host = new FakeStreamShellHost();
         var service = new StatusService(host);
@@ -49,8 +47,11 @@ public class StatusServiceTests
         service.SetGatewayStatus("Connected", StatusColor.Green);
         service.SetTtsStatus("Starting", StatusColor.Yellow);
 
-        Assert.Contains("Connected", host.LastSeparatorRightText);
-        Assert.Contains("Starting", host.LastSeparatorRightText);
+        // Should show green dot and yellow dot
+        Assert.Contains("[green]", host.LastSeparatorRightText);
+        Assert.Contains("[yellow]", host.LastSeparatorRightText);
+        // Yellow dot animates — first frame is '·'
+        Assert.Contains("\u00B7", host.LastSeparatorRightText); // ·
     }
 
     [Fact]
@@ -535,39 +536,90 @@ public class StatusServiceTests
     }
 
     [Fact]
-    public void ConnectionStatusPart_BuildsCorrectText()
+    public void ServiceStatusPart_ShowsColoredDot()
     {
-        var part = new ConnectionStatusPart();
-        part.SetGatewayStatus("Connected", StatusColor.Green);
-        part.SetTtsStatus("Starting", StatusColor.Yellow);
+        var part = new ServiceStatusPart();
+        part.SetStatus(StatusColor.Green);
 
         string text = part.GetText();
-        Assert.Contains("GW:", text);
-        Assert.Contains("Connected", text);
-        Assert.Contains("green", text);
-        Assert.Contains("TTS:", text);
-        Assert.Contains("Starting", text);
-        Assert.Contains("yellow", text);
+        Assert.Contains("[green]", text);
+        Assert.Contains("\u25CF", text); // ●
+
+        part.SetStatus(StatusColor.Red);
+        text = part.GetText();
+        Assert.Contains("[red]", text);
+        Assert.Contains("\u25CF", text); // ●
     }
 
     [Fact]
-    public void ConnectionStatusPart_IsDirtyTracking_Works()
+    public void ServiceStatusPart_IsDirtyTracking_Works()
     {
-        var part = new ConnectionStatusPart();
-        part.SetGatewayStatus("Connected", StatusColor.Green);
+        var part = new ServiceStatusPart();
+        part.SetStatus(StatusColor.Green);
+        Assert.True(part.IsDirty); // starts dirty
+
         part.GetText();
         part.MarkClean();
         Assert.False(part.IsDirty);
 
-        part.SetGatewayStatus("Connected", StatusColor.Green);
-        Assert.False(part.IsDirty);
+        part.SetStatus(StatusColor.Green);
+        Assert.False(part.IsDirty); // same color, stays clean
 
-        part.SetGatewayStatus("Disconnected", StatusColor.Red);
+        part.SetStatus(StatusColor.Red);
+        Assert.True(part.IsDirty); // color changed
+    }
+
+    [Fact]
+    public void SetSttStatus_ShowsDotOnRightText()
+    {
+        var host = new FakeStreamShellHost();
+        var service = new StatusService(host);
+
+        service.SetSttStatus("Connected", StatusColor.Green);
+
+        Assert.Contains("[green]", host.LastSeparatorRightText);
+        Assert.Contains("\u25CF", host.LastSeparatorRightText); // ●
+    }
+
+    [Fact]
+    public void ServiceStatusPart_YellowDot_AnimatesThroughFrames()
+    {
+        var part = new ServiceStatusPart();
+        part.SetStatus(StatusColor.Yellow);
+
+        // Yellow state: animation advances via AdvanceFrame() then GetText()
+        // Frame 0: '·'
+        string text1 = part.GetText();
+        Assert.Contains("\u00B7", text1); // ·
+        Assert.Contains("[yellow]", text1);
+
+        // Advance + get: frame 1 → '•'
+        part.AdvanceFrame();
+        string text2 = part.GetText();
+        Assert.Contains("\u2022", text2); // •
+
+        // Advance + get: frame 2 → '●'
+        part.AdvanceFrame();
+        string text3 = part.GetText();
+        Assert.Contains("\u25CF", text3); // ●
+
+        // Advance + get: frame 3 → '•'
+        part.AdvanceFrame();
+        string text4 = part.GetText();
+        Assert.Contains("\u2022", text4); // •
+
+        // Advance + get: wraps around to frame 0 → '·'
+        part.AdvanceFrame();
+        string text5 = part.GetText();
+        Assert.Contains("\u00B7", text5); // ·
+
+        // Yellow always stays dirty (for continued rendering)
         Assert.True(part.IsDirty);
 
-        part.MarkClean();
-        part.SetGatewayStatus("Disconnected", StatusColor.Yellow);
-        Assert.True(part.IsDirty);
+        // Switch to green — stops animation
+        part.SetStatus(StatusColor.Green);
+        string text6 = part.GetText();
+        Assert.Contains("\u25CF", text6); // ● (solid, no animation)
     }
 
     [Fact]
@@ -687,7 +739,8 @@ public class StatusServiceTests
 
         Assert.NotNull(host.LastSeparatorLeftText);
         Assert.Contains("high", host.LastSeparatorLeftText);
-        Assert.Contains("GW:", host.LastSeparatorLeftText);
+        Assert.Contains("[green]", host.LastSeparatorLeftText);
+        Assert.Contains("\u25CF", host.LastSeparatorLeftText); // ●
     }
 
     [Fact]
