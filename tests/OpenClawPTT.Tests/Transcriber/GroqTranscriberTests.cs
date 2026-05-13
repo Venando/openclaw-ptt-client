@@ -329,6 +329,18 @@ public class GroqTranscriberTests : IDisposable
     }
 
     // -------------------------------------------------------------------------
+    // Default retry count
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void AppConfig_GroqRetryCount_DefaultsTo2()
+    {
+        var config = new AppConfig();
+        // Should default to 2 so transient network errors get retried
+        Assert.Equal(2, config.GroqRetryCount);
+    }
+
+    // -------------------------------------------------------------------------
     // Dispose — verifies HttpClient is disposed
     // -------------------------------------------------------------------------
 

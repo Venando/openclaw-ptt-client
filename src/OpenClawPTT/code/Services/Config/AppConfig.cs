@@ -58,7 +58,7 @@ public sealed class AppConfig
 
     public string TranscriptionPromptPrefix { get; set; } = "";
     // AudioWrapPrompt and IsAudioEnabled removed — no longer needed
-    public int GroqRetryCount { get; set; } = 0;
+    public int GroqRetryCount { get; set; } = 2;
     public int GroqRetryDelayMs { get; set; } = 1000;
     public double GroqRetryBackoffFactor { get; set; } = 2.0;
     public double ReconnectDelaySeconds { get; set; } = 1.5;
