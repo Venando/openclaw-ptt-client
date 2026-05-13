@@ -65,6 +65,9 @@ public sealed class AppStatusBottomPanel : IBottomPanel
     private readonly Func<ServiceKind, StatusColor?> _getStatus;
     private readonly TaskCompletionSource _dismissedTcs = new();
 
+    // Cached last-rendered status colors for dirty checking
+    private StatusColor? _lastGw, _lastTts, _lastStt, _lastLlm;
+
     public AppStatusBottomPanel(AppConfig config, Func<ServiceKind, StatusColor?> getStatus)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
@@ -72,7 +75,22 @@ public sealed class AppStatusBottomPanel : IBottomPanel
     }
 
     public int LineCount => 6;
-    public bool IsDirty => true;
+    public bool IsDirty
+    {
+        get
+        {
+            var gwColor = _getStatus(ServiceKind.Gateway);
+            var ttsColor = _getStatus(ServiceKind.Tts);
+            var sttColor = _getStatus(ServiceKind.Stt);
+            var llmColor = _getStatus(ServiceKind.DirectLlm);
+
+            return gwColor != _lastGw
+                || ttsColor != _lastTts
+                || sttColor != _lastStt
+                || llmColor != _lastLlm;
+        }
+    }
+
     public string? CurrentSuggestion => null;
     public bool ShowBottomSeparator => false;
 
@@ -94,7 +112,14 @@ public sealed class AppStatusBottomPanel : IBottomPanel
         };
     }
 
-    public void ClearDirty() { /* always dirty, always fresh */ }
+    public void ClearDirty()
+    {
+        // Sync cached colors so IsDirty stays false until the next actual change
+        _lastGw = _getStatus(ServiceKind.Gateway);
+        _lastTts = _getStatus(ServiceKind.Tts);
+        _lastStt = _getStatus(ServiceKind.Stt);
+        _lastLlm = _getStatus(ServiceKind.DirectLlm);
+    }
 
     public bool TryHandleKey(ConsoleKeyInfo key)
     {
