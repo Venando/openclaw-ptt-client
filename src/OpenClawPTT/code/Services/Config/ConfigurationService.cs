@@ -27,6 +27,9 @@ public class ConfigurationService : IConfigurationService
         .ToArray();
 
     /// <inheritdoc />
+    public event Action<ConfigChangedEventArgs>? ConfigValidating;
+
+    /// <inheritdoc />
     public event Action<ConfigChangedEventArgs>? ConfigSaved;
 
     public ConfigurationService()
@@ -133,7 +136,9 @@ public class ConfigurationService : IConfigurationService
             var oldCfg = _storage.Load();
             var changed = ComputeChangedProperties(oldCfg, cfg);
             _storage.Save(cfg);
-            ConfigSaved?.Invoke(new ConfigChangedEventArgs(changed, cfg));
+            var args = new ConfigChangedEventArgs(changed, cfg);
+            ConfigValidating?.Invoke(args);
+            ConfigSaved?.Invoke(args);
         }
     }
 
@@ -147,7 +152,9 @@ public class ConfigurationService : IConfigurationService
         {
             var allChanged = new HashSet<string>(AppConfigProperties.Select(p => p.Name));
             _storage.Save(cfg);
-            ConfigSaved?.Invoke(new ConfigChangedEventArgs(allChanged, cfg));
+            var allArgs = new ConfigChangedEventArgs(allChanged, cfg);
+            ConfigValidating?.Invoke(allArgs);
+            ConfigSaved?.Invoke(allArgs);
         }
     }
 
@@ -162,7 +169,9 @@ public class ConfigurationService : IConfigurationService
             var oldCfg = _storage.Load();
             var changed = ComputeChangedProperties(oldCfg, cfg);
             _storage.Save(cfg);
-            ConfigSaved?.Invoke(new ConfigChangedEventArgs(changed, cfg));
+            var args = new ConfigChangedEventArgs(changed, cfg);
+            ConfigValidating?.Invoke(args);
+            ConfigSaved?.Invoke(args);
         }
     }
 
