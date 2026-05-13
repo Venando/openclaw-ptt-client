@@ -315,6 +315,51 @@ public class AppRunner : IDisposable
         // AudioService constructor creates a transcriber synchronously — mark STT as ready
         _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Green);
 
+        // When gateway connection parameters change, recreate the gateway client
+        // and automatically reconnect. The client is disposed and rebuilt from the
+        // new config so that the WebSocket URI and auth tokens take effect.
+        void OnGatewayConfigSaved(ConfigChangedEventArgs e)
+        {
+            var gwProps = new[]
+            {
+                nameof(AppConfig.GatewayUrl),
+                nameof(AppConfig.AuthToken),
+                nameof(AppConfig.DeviceToken),
+                nameof(AppConfig.TlsFingerprint),
+            };
+            if (!e.AnyChanged(gwProps))
+                return;
+
+            _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Yellow);
+            _console.PrintInfo("Gateway configuration changed — reconnecting...");
+            try
+            {
+                gateway.RecreateWithConfig(e.NewConfig);
+
+                // Fire-and-forget reconnect: don't block the event loop
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await gateway.ConnectAsync(CancellationToken.None);
+                        _console.LogOk("gateway", "Reconnected with new configuration.");
+                        _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Green);
+                    }
+                    catch (Exception reconnectEx)
+                    {
+                        _console.LogError("gateway", $"Failed to reconnect with new config: {reconnectEx.Message}");
+                        _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Red);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _console.LogError("gateway", $"Failed to recreate gateway client: {ex.Message}");
+                _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Red);
+            }
+        }
+        _configService.ConfigSaved += OnGatewayConfigSaved;
+
         // Re-create transcriber and recorder when STT/audio config changes
         void OnConfigSaved(ConfigChangedEventArgs e)
         {
@@ -374,6 +419,7 @@ public class AppRunner : IDisposable
         }
         finally
         {
+            _configService.ConfigSaved -= OnGatewayConfigSaved;
             _configService.ConfigSaved -= OnConfigSaved;
         }
     }
