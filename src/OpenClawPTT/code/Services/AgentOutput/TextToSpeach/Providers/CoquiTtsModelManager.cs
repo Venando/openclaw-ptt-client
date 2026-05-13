@@ -186,11 +186,10 @@ public sealed class CoquiTtsModelManager
         CoquiUvEnvironment.EnsureVenvPythonMatches(projectDir);
 
         var uvPath = CoquiUvEnvironment.FindUv() ?? "uv";
-        // Use class method (no instance) — TTS() without model_name fails in 0.22.0
-        var cmd = "import json; from TTS.api import TTS; " +
-                  "models = TTS.list_models(); " +
-                  // Defensive: wrap non-list returns (e.g. ModelManager in some versions)
-                  "if not isinstance(models, list): models = list(models) if hasattr(models,'__iter__') else []; " +
+        // TTS 0.22.0: .list_models() returns ModelManager, need .list_models().list_models()
+        // See: https://github.com/coqui-ai/TTS/issues/3508
+        var cmd = "from TTS.api import TTS; import json; " +
+                  "models = TTS().list_models().list_models(); " +
                   "print(json.dumps(models))";
 
         var psi = new ProcessStartInfo
