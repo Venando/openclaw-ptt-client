@@ -79,7 +79,15 @@ public sealed class CoquiTtsModelManager
                 return liveList;
             }
         }
-        catch (OperationCanceledException) { throw; }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw; // User cancelled — propagate
+        }
+        catch (OperationCanceledException)
+        {
+            // uv command timed out (30s) — fall back to built-in list
+            host.AddMessage("[yellow]    \u26a0 Live model fetch timed out, using built-in list.[/]");
+        }
         catch (Exception ex)
         {
             host.AddMessage($"[yellow]    ⚠ Live model fetch failed ({ex.Message}), using built-in list.[/]");
