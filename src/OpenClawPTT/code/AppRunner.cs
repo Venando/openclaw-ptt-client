@@ -98,9 +98,12 @@ public class AppRunner : IDisposable
         using var gateway = _factory.CreateGatewayService(_cfg, ttsSummarizer, pttStateMachine,
             ttsProviderTask: ttsInitTask);
 
-        // Subscribe to gateway connection events so the status dot updates
-        // on every successful connection (initial, manual reconnect, auto-reconnect).
-        gateway.Connected += () => _statusService.SetGatewayStatus("Connected", StatusColor.Green);
+        // Subscribe to gateway connection lifecycle events for the status bar.
+        // The Disconnected event fires both on initial connect failure (via ReceiveLoop detection)
+        // and on permanent reconnect failure (via GatewayReconnector -> lifecycle relay).
+        gateway.Connected += () => _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Green);
+        gateway.Disconnected += () => _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Red);
+        gateway.Reconnecting += () => _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Yellow);
 
         // Wire ErrorLogStore into GatewayService so SendTextAsync/SendRpcAsync failures are logged
         if (gateway is GatewayService gw)
@@ -131,24 +134,24 @@ public class AppRunner : IDisposable
 
             if (ttsService.Provider != null)
             {
-                _statusService.SetTtsStatus("Connected", StatusColor.Green);
+                _statusService.SetServiceStatus(ServiceKind.Tts, StatusColor.Green);
                 _console.LogOk("tts", $"TTS connected ({ttsService.ProviderType})");
                 return ttsService.ReleaseProvider();
             }
 
             // Provider is null (Edge with no key, etc.) — warn but don't error
-            _statusService.SetTtsStatus("Disconnected", StatusColor.Red);
+            _statusService.SetServiceStatus(ServiceKind.Tts, StatusColor.Red);
             _console.Log("tts", "TTS provider is null (not configured).");
             return null;
         }
         catch (OperationCanceledException)
         {
-            _statusService.SetTtsStatus("Disconnected", StatusColor.Red);
+            _statusService.SetServiceStatus(ServiceKind.Tts, StatusColor.Red);
             throw;
         }
         catch (Exception ex)
         {
-            _statusService.SetTtsStatus("Disconnected", StatusColor.Red);
+            _statusService.SetServiceStatus(ServiceKind.Tts, StatusColor.Red);
             _console.LogError("tts", $"TTS initialization failed: {ex.Message}");
             return null;
         }
@@ -165,10 +168,11 @@ public class AppRunner : IDisposable
     {
         try
         {
+            _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Yellow);
             _console.PrintInfo("Connecting to gateway...");
             await gateway.ConnectAsync(ct);
             _console.LogOk("gateway", "Gateway connected.");
-            _statusService.SetGatewayStatus("Connected", StatusColor.Green);
+            // Status set to Green via gateway.Connected event handler (handles initial + reconnect)
             return ConnectResult.Success;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -193,17 +197,16 @@ public class AppRunner : IDisposable
                     _console.PrintInfo($"    \u2192 {action}");
             }
 
-            _statusService.SetGatewayStatus("Connecting", StatusColor.Yellow);
 
             if (classification.ShouldStopApp)
             {
-                _statusService.SetGatewayStatus("Disconnected", StatusColor.Red);
+                _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Red);
                 _console.PrintError("Cannot continue without gateway connection.");
                 return ConnectResult.GiveUp;
             }
 
             // App stays alive — StreamShell keeps running, user can /reconnect
-            _statusService.SetGatewayStatus("Disconnected", StatusColor.Red);
+            _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Red);
             _console.PrintInfo("StreamShell is still available. Use /reconnect to retry, or /quit to exit.");
             return ConnectResult.ContinueWithoutGateway;
         }
@@ -310,23 +313,23 @@ public class AppRunner : IDisposable
     {
         using var audioService = _factory.CreateAudioService(_cfg);
         // AudioService constructor creates a transcriber synchronously — mark STT as ready
-        _statusService.SetSttStatus("Connected", StatusColor.Green);
+        _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Green);
 
         // Re-create transcriber and recorder when config changes
         // (e.g. STT provider/model switched or SampleRate changed via /reconfigure)
         void OnConfigSaved(AppConfig newCfg)
         {
-            _statusService.SetSttStatus("Reconfiguring", StatusColor.Yellow);
+            _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Yellow);
             try
             {
                 // Recorder first (so new params are in place before transcriber is recreated)
                 audioService.RecreateRecorder(newCfg, _console);
                 audioService.RecreateTranscriber(newCfg, _console);
-                _statusService.SetSttStatus("Connected", StatusColor.Green);
+                _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Green);
             }
             catch (Exception ex)
             {
-                _statusService.SetSttStatus("Failed", StatusColor.Red);
+                _statusService.SetServiceStatus(ServiceKind.Stt, StatusColor.Red);
                 _console.PrintError($"Failed to update STT: {ex.Message}");
             }
         }

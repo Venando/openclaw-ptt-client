@@ -21,16 +21,15 @@ namespace OpenClawPTT.Services;
 /// Thread-safe: all public methods synchronize on a lock before mutating
 /// state.  Subscribes to the tracker's <see cref="IAgentStatusTracker.Changed"/>
 /// event and triggers a re-render whenever a snapshot updates.
+/// Rendering mechanics are delegated to <see cref="StatusRenderer"/>.
 /// </summary>
 public sealed class StatusService : IStatusService, IDisposable
 {
-    private const string RepeatedCharacterMarkup = "white";
-    private const string LeftSeparator = "──────────────── ";
-
     private readonly IStreamShellHost _shellHost;
+    private readonly StatusRenderer _renderer;
+    private readonly StatusAnimationManager _animationManager;
     private IAgentStatusTracker? _agentTracker;
     private readonly object _lock = new();
-    private readonly StatusAnimationManager _animationManager;
 
     // Status parts — each is a discrete, cacheable rendering unit
     private readonly ActiveAgentPart _activeAgentPart;
@@ -50,19 +49,13 @@ public sealed class StatusService : IStatusService, IDisposable
     // All parts in a flat list for iteration; rebuilt when MainAgentsPart is set
     private IStatusPart[] _allParts;
 
-    // Reusable per-position lists to avoid allocations in Render()
-    private readonly List<IStatusPart> _topLeft = new(6);
-    private readonly List<IStatusPart> _topRight = new(6);
-    private readonly List<IStatusPart> _bottomLeft = new(6);
-    private readonly List<IStatusPart> _bottomRight = new(6);
-
-    // Reusable StringBuilders for composing final left/right strings
-    private readonly StringBuilder _sbLeft = new(256);
-    private readonly StringBuilder _sbRight = new(128);
+    // Map ServiceKind to the corresponding ServiceStatusPart
+    private readonly Dictionary<ServiceKind, ServiceStatusPart> _serviceParts;
 
     public StatusService(IStreamShellHost shellHost, IAgentStatusTracker? agentStatusTracker = null, MainAgentsPart? mainAgentsPart = null)
     {
         _shellHost = shellHost ?? throw new ArgumentNullException(nameof(shellHost));
+        _renderer = new StatusRenderer(shellHost);
         _agentTracker = agentStatusTracker;
 
         // Create parts with default positions; ApplyConfigPositions() will override
@@ -76,10 +69,18 @@ public sealed class StatusService : IStatusService, IDisposable
         _sttStatusPart = new ServiceStatusPart("STT:", order: 3);
         _llmStatusPart = new ServiceStatusPart("LLM:", order: 4);
 
+        // Build service-part lookup
+        _serviceParts = new Dictionary<ServiceKind, ServiceStatusPart>
+        {
+            [ServiceKind.Gateway] = _gatewayStatusPart,
+            [ServiceKind.Tts] = _ttsStatusPart,
+            [ServiceKind.Stt] = _sttStatusPart,
+            [ServiceKind.DirectLlm] = _llmStatusPart,
+        };
+
         // Collect all animated parts for periodic frame advancement
         _animatedParts = [_gatewayStatusPart, _ttsStatusPart, _sttStatusPart, _llmStatusPart];
 
-        // MainAgentsPart may be injected or set later via SetMainAgentsPart()
         if (mainAgentsPart != null)
             _mainAgentsPart = mainAgentsPart;
 
@@ -95,18 +96,13 @@ public sealed class StatusService : IStatusService, IDisposable
         _animationManager = new StatusAnimationManager(_animatedParts, OnAnimationTick);
     }
 
-    /// <summary>
-    /// Sets the <see cref="MainAgentsPart"/> to use for the agents list.
-    /// Must be called before the first render if not injected via constructor.
-    /// </summary>
     public void SetMainAgentsPart(MainAgentsPart part)
     {
-        lock (_lock)
+        Mutate(() =>
         {
             _mainAgentsPart = part ?? throw new ArgumentNullException(nameof(part));
             _allParts = BuildAllParts();
-            Render();
-        }
+        });
     }
 
     private IStatusPart[] BuildAllParts()
@@ -136,35 +132,16 @@ public sealed class StatusService : IStatusService, IDisposable
     /// </summary>
     public MainAgentsPart? MainAgentsPart => _mainAgentsPart;
 
-    public void SetGatewayStatus(string label, StatusColor color) =>
-        SetServiceStatus(_gatewayStatusPart, color);
-
-    public void SetTtsStatus(string label, StatusColor color) =>
-        SetServiceStatus(_ttsStatusPart, color);
-
-    public void SetSttStatus(string label, StatusColor color) =>
-        SetServiceStatus(_sttStatusPart, color);
-
-    public void SetDirectLlmStatus(string label, StatusColor color) =>
-        SetServiceStatus(_llmStatusPart, color);
-
-    private void SetServiceStatus(ServiceStatusPart part, StatusColor color)
+    /// <inheritdoc />
+    public void SetServiceStatus(ServiceKind kind, StatusColor color)
     {
-        lock (_lock)
-        {
-            part.SetStatus(color);
-            Render();
-        }
-    }
-
-    public void SetDirectLlmLastCalled(DateTime? timestamp)
-    {
-        // LLM status is now a simple dot like other services — timestamp ignored
+        if (_serviceParts.TryGetValue(kind, out var part))
+            Mutate(() => part.SetStatus(color));
     }
 
     public void SetAgentStatusTracker(IAgentStatusTracker tracker)
     {
-        lock (_lock)
+        Mutate(() =>
         {
             // Unsubscribe from previous tracker if any
             if (_agentTracker != null)
@@ -172,23 +149,18 @@ public sealed class StatusService : IStatusService, IDisposable
 
             _agentTracker = tracker;
             _agentTracker.Changed += OnAgentStatusChanged;
-            Render();
-        }
+        });
     }
 
     public void SetConversationName(string? name)
     {
-        lock (_lock)
-        {
-            _conversationNamePart.Update(name);
-            Render();
-        }
+        Mutate(() => _conversationNamePart.Update(name));
     }
 
     /// <inheritdoc />
     public void ApplyConfigPositions(AppConfig cfg)
     {
-        lock (_lock)
+        Mutate(() =>
         {
             _activeAgentPart.Position = cfg.ActiveAgentPosition;
             _modelPart.Position = cfg.ModelPosition;
@@ -201,6 +173,21 @@ public sealed class StatusService : IStatusService, IDisposable
             _llmStatusPart.Position = cfg.DirectLlmPosition;
             if (_mainAgentsPart != null)
                 _mainAgentsPart.Position = cfg.MainAgentsPosition;
+        });
+    }
+
+    // ── Lifecycle & event handling ──────────────────────────────────────
+
+    /// <summary>
+    /// Acquires the lock, executes the action, forces a re-render, and
+    /// manages the animation timer.  Nearly every public method on
+    /// StatusService follows this pattern — extracted here for DRY.
+    /// </summary>
+    private void Mutate(Action action)
+    {
+        lock (_lock)
+        {
+            action();
             Render();
         }
     }
@@ -253,20 +240,11 @@ public sealed class StatusService : IStatusService, IDisposable
             }
 
             if (anyAnimating)
-            {
                 Render();
-            }
         }
     }
 
-    /// <summary>
-    /// Ensures the animation timer is running if any service status part
-    /// is in the yellow (transitional) state; stops it otherwise.
-    /// </summary>
-    private void EnsureAnimationRunning()
-    {
-        _animationManager.EnsureRunning();
-    }
+    // ── Data refresh ────────────────────────────────────────────────────
 
     /// <summary>
     /// Reads the active agent snapshot from the tracker and feeds the
@@ -306,141 +284,17 @@ public sealed class StatusService : IStatusService, IDisposable
         return _agentTracker.Get(activeSessionKey);
     }
 
+    // ── Render ──────────────────────────────────────────────────────────
+
     /// <summary>
-    /// Builds and renders the separator bars by collecting parts per
-    /// position group, sorting them by <see cref="IStatusPart.Order"/>,
-    /// composing the text, and pushing it to the StreamShell host.
-    /// Only parts with dirty text are re-rendered; the rest use cached
-    /// values.  Parts with <see cref="DisplayPosition.None"/> are skipped.
+    /// Delegates to <see cref="StatusRenderer"/> for composition and text push,
+    /// then manages animation state.
     /// </summary>
     private void Render()
     {
-        try
-        {
-            // Collect parts into position groups
-            _topLeft.Clear();
-            _topRight.Clear();
-            _bottomLeft.Clear();
-            _bottomRight.Clear();
-
-            foreach (var part in _allParts)
-            {
-                switch (part.Position)
-                {
-                    case DisplayPosition.TopSeparatorLeft:
-                        _topLeft.Add(part);
-                        break;
-                    case DisplayPosition.TopSeparatorRight:
-                        _topRight.Add(part);
-                        break;
-                    case DisplayPosition.BottomSeparatorLeft:
-                    case DisplayPosition.AppStatusPanelLeft:
-                        _bottomLeft.Add(part);
-                        break;
-                    case DisplayPosition.BottomSeparatorRight:
-                    case DisplayPosition.AppStatusPanelRight:
-                        _bottomRight.Add(part);
-                        break;
-                    // DisplayPosition.None: skip entirely
-                }
-            }
-
-            // Sort each group by Order
-            SortByOrder(_topLeft);
-            SortByOrder(_topRight);
-            SortByOrder(_bottomLeft);
-            SortByOrder(_bottomRight);
-
-            // Build and set top separator
-            string topLeftText = BuildTopLeftText(ComposePositionText(_topLeft));
-            string topRightText = ComposePositionText(_topRight);
-            _shellHost.SetTopSeparator(leftText: topLeftText, rightText: topRightText,
-                repeatedCharacter: '─', repeatedCharMarkup: RepeatedCharacterMarkup);
-
-            // Build and set bottom separator if any parts are assigned to it
-            if (_bottomLeft.Count > 0 || _bottomRight.Count > 0)
-            {
-                string bottomLeftText = ComposePositionText(_bottomLeft);
-                string bottomRightText = ComposePositionText(_bottomRight);
-                _shellHost.SetBottomSeparator(leftText: bottomLeftText, rightText: bottomRightText,
-                    repeatedCharacter: '─', repeatedCharMarkup: RepeatedCharacterMarkup);
-            }
-
-            // Mark all clean — the rendered strings have been consumed by the shell host
-            MarkAllClean();
-
-            // Start animation timer if any part needs it
-            EnsureAnimationRunning();
-        }
-        catch (Exception ex)
-        {
-            // Rendering is best-effort — never crash the caller if shell is disposed
-            System.Diagnostics.Debug.WriteLine($"StatusService.Render failed: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Builds the top separator left-side text by prepending the separator
-    /// line prefix. When the left side is empty, returns empty string.
-    /// </summary>
-    private string BuildTopLeftText(string partsText)
-    {
-        if (string.IsNullOrEmpty(partsText))
-            return string.Empty;
-
-        _sbLeft.Clear();
-        _sbLeft.Append(LeftSeparator);
-        _sbLeft.Append(partsText);
-        _sbLeft.Append(' ');
-        return _sbLeft.ToString();
-    }
-
-    /// <summary>
-    /// Composes the text for a list of parts by concatenating their
-    /// rendered values with appropriate separators.  Uses cached text
-    /// for non-dirty parts and re-renders only dirty ones.
-    /// </summary>
-    private string ComposePositionText(List<IStatusPart> parts)
-    {
-        if (parts.Count == 0)
-            return string.Empty;
-
-        _sbRight.Clear();
-        bool first = true;
-
-        foreach (var part in parts)
-        {
-            string text = part.GetText();
-            if (string.IsNullOrEmpty(text))
-                continue;
-
-            if (!first)
-            {
-                _sbRight.Append(part.SeparatorBefore);
-            }
-
-            _sbRight.Append(text);
-            first = false;
-        }
-
-        return _sbRight.ToString();
-    }
-
-    /// <summary>Calls <see cref="IStatusPart.MarkClean"/> on every dirty part.</summary>
-    private void MarkAllClean()
-    {
-        foreach (var part in _allParts)
-        {
-            if (part.IsDirty)
-                part.MarkClean();
-        }
-    }
-
-    /// <summary>Sorts a list of parts in-place by <see cref="IStatusPart.Order"/>.</summary>
-    private static void SortByOrder(List<IStatusPart> parts)
-    {
-        if (parts.Count > 1)
-            parts.Sort((a, b) => a.Order.CompareTo(b.Order));
+        _renderer.Render(_allParts);
+        StatusRenderer.MarkAllClean(_allParts);
+        _animationManager.EnsureRunning();
     }
 
     public void Dispose()

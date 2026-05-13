@@ -1,11 +1,10 @@
-using System.Text;
+using System;
 
 namespace OpenClawPTT.Services.StatusParts;
 
 /// <summary>
 /// Renders a single service status as a label prefix with a colored dot, e.g.
 /// "GW:●" (green), "TTS:·" (yellow animating), "STT:●" (red).
-/// No status text label — just the service prefix + colored dot.
 /// When yellow, the dot animates by cycling through [·, •, ●, •] on each render.
 /// </summary>
 public sealed class ServiceStatusPart : StatusPartBase
@@ -29,6 +28,12 @@ public sealed class ServiceStatusPart : StatusPartBase
     /// <inheritdoc />
     public override string SeparatorBefore => " ";
 
+    /// <summary>The current status color.</summary>
+    private StatusColor Color => _color;
+
+    /// <summary>The label prefix (e.g. "GW:", "TTS:").</summary>
+    private string Label => _label;
+
     /// <summary>Whether this part is currently in the yellow (transitional) state.</summary>
     internal bool IsYellow => _color == StatusColor.Yellow;
 
@@ -40,29 +45,6 @@ public sealed class ServiceStatusPart : StatusPartBase
             _color = color;
             UpdateAnimationState();
             MarkDirty();
-        }
-    }
-
-    /// <summary>
-    /// Sets the status with an unused text label (interface compat).
-    /// Only the color is used; the text label is ignored.
-    /// </summary>
-    public void SetStatus(string label, StatusColor color)
-    {
-        SetStatus(color);
-    }
-
-    /// <summary>
-    /// Gets the current animation frame for a yellow dot.
-    /// Public for testing.
-    /// </summary>
-    internal char CurrentYellowChar
-    {
-        get
-        {
-            if (_color == StatusColor.Yellow)
-                return YellowFrames[_frameIndex];
-            return '\u25CF'; // ●
         }
     }
 
