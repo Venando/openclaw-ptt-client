@@ -33,6 +33,12 @@ public interface IDirectLlmService : IDisposable
     /// Returns null if not wired (e.g. mock implementations).
     /// </summary>
     IDirectLlmFailureTracker? FailureTracker { get; }
+
+    /// <summary>
+    /// Updates the service's configuration at runtime.
+    /// The service will use the new URL/model/token/api type for subsequent calls.
+    /// </summary>
+    void UpdateConfig(AppConfig config);
 }
 
 /// <summary>
@@ -42,9 +48,10 @@ public interface IDirectLlmService : IDisposable
 public sealed class DirectLlmService : IDirectLlmService, IDisposable
 {
     private readonly HttpClient _httpClient;
-    private readonly AppConfig _config;
+    private AppConfig _config;
     private readonly IDirectLlmFailureTracker _failureTracker;
     private bool _disposed;
+    private readonly object _configLock = new();
 
     /// <summary>Maximum retry attempts for transient failures.</summary>
     internal const int MaxRetries = 1;
@@ -64,11 +71,25 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
         _httpClient.Timeout = TimeSpan.FromMinutes(5);
     }
 
-    public bool IsConfigured => 
-        !string.IsNullOrWhiteSpace(_config.DirectLlmUrl) &&
-        !string.IsNullOrWhiteSpace(_config.DirectLlmModelName);
+    public bool IsConfigured
+    {
+        get
+        {
+            var cfg = GetConfig();
+            return !string.IsNullOrWhiteSpace(cfg.DirectLlmUrl) &&
+                   !string.IsNullOrWhiteSpace(cfg.DirectLlmModelName);
+        }
+    }
 
     public IDirectLlmFailureTracker FailureTracker => _failureTracker;
+
+    public void UpdateConfig(AppConfig config)
+    {
+        lock (_configLock)
+        {
+            _config = config ?? throw new ArgumentNullException(nameof(config));
+        }
+    }
 
     /// <summary>
     /// Sends a message to the configured LLM with retry on transient failures.
@@ -89,13 +110,14 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
     /// </summary>
     private async Task<string> SendWithRetryAsync(string message, CancellationToken ct)
     {
+        var cfg = GetConfig();
         int attempt = 0;
 
         while (true)
         {
             try
             {
-                var apiType = NormalizeApiType(_config.DirectLlmApiType);
+                var apiType = NormalizeApiType(cfg.DirectLlmApiType);
 
                 string result = apiType switch
                 {
@@ -171,6 +193,12 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
         return (int)(delay * jitter);
     }
 
+    /// <summary>Thread-safe read of the current config reference.</summary>
+    private AppConfig GetConfig()
+    {
+        lock (_configLock) return _config;
+    }
+
     private static string NormalizeApiType(string? apiType)
     {
         var normalized = apiType?.ToLowerInvariant() ?? "openai-completions";
@@ -187,7 +215,8 @@ public sealed class DirectLlmService : IDirectLlmService, IDisposable
 
         try
         {
-            var apiType = NormalizeApiType(_config.DirectLlmApiType);
+            var cfg = GetConfig();
+            var apiType = NormalizeApiType(cfg.DirectLlmApiType);
 
             return apiType switch
             {

@@ -27,6 +27,9 @@ public sealed class MockDirectLlmService : IDirectLlmService
     /// </summary>
     public IDirectLlmFailureTracker? FailureTracker => null;
 
+    /// <summary>No-op in test mode — mock uses scenario config, not AppConfig.</summary>
+    public void UpdateConfig(AppConfig config) { }
+
     public MockDirectLlmService(string scenario, IColorConsole console)
     {
         _scenario = scenario;
