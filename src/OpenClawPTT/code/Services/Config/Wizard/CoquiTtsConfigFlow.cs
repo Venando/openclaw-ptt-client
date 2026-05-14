@@ -217,6 +217,13 @@ public sealed class CoquiTtsConfigFlow
     {
         var (allModels, cachedModels) = await FetchModelListsAsync(host, dataDir, ct);
 
+        // Enrich cached models with their disk size
+        foreach (var model in allModels)
+        {
+            if (cachedModels.Contains(model.Name))
+                model.SizeBytes = CoquiTtsModelManager.GetModelSizeBytes(model.Name);
+        }
+
         if (allModels.Count == 0)
         {
             return await HandleNoModelsAsync(host, currentModel);
@@ -409,8 +416,11 @@ public sealed class CoquiTtsConfigFlow
 
             var isActive = info.Name == currentModel;
             var activeMarker = isActive ? " [cyan][[active]][/]" : "";
+            var sizeText = !string.IsNullOrEmpty(info.FormattedSize)
+                ? $", {info.FormattedSize}"
+                : "";
             variants.Add(new ConfigVariant(
-                $"[green]✓ {info.Name}[/] [grey]({info.Description})[/]{activeMarker}",
+                $"[green]✓ {info.Name}[/] [grey]({info.Description}{sizeText})[/]{activeMarker}",
                 $"{ActionUse}{info.Name}"));
         }
     }

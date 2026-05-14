@@ -491,6 +491,29 @@ public sealed class CoquiTtsModelManager
     }
 
     /// <summary>
+    /// Returns the total disk size (bytes) of a cached model's directory,
+    /// or <c>null</c> if the model isn't cached or the directory is empty.
+    /// </summary>
+    internal static long? GetModelSizeBytes(string modelName)
+    {
+        var modelDir = GetModelDir(modelName);
+        if (modelDir == null)
+            return null;
+
+        try
+        {
+            var total = new DirectoryInfo(modelDir)
+                .EnumerateFiles("*", SearchOption.AllDirectories)
+                .Sum(f => f.Length);
+            return total > 0 ? total : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Returns the Coqui TTS model directory path, or null if not found.
     /// Coqui stores models in <c>%LOCALAPPDATA%/tts</c> (Windows) or
     /// <c>~/.local/share/tts</c> (Linux/macOS) with <c>--</c> separators.
