@@ -1,5 +1,3 @@
-using System.Text;
-using OpenClawPTT.Formatting;
 using OpenClawPTT.Services.Commands;
 using OpenClawPTT.Services.StatusParts;
 using Spectre.Console;
@@ -8,41 +6,40 @@ using StreamShell;
 namespace OpenClawPTT.Services;
 
 /// <summary>
-/// Table-style bottom panel displaying agent status with columns for
-/// Name, Status, Model, and Context tokens.
+/// Compact bottom panel showing agents as a flat list of single-line entries.
+/// Each line: bullet + name + last-action description + relative time.
 ///
 /// Keyboard navigation:
 ///   Arrow Down on empty input → selection mode (AllowUserField = false)
-///   Arrow Up/Down        → move selection highlight among agents
-///   Enter                → switch active agent to the selected one,
-///                          exit selection mode
+///   Arrow Up/Down        → move selection highlight
+///   Enter                → switch active agent, exit selection mode
 ///   Escape / Arrow Up
 ///     at first row       → exit selection mode, deselect everything
 /// </summary>
 public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 {
     // ── Margins ───────────────────────────────────────────────────────────
-    private const int LeftMargin = 8;
+    private const int LeftMargin = 0;
     private const int BottomMargin = 1;
-    private const string LeftPad = "        "; // LeftMargin spaces
+    private const string LeftPad = "";
 
-    // ── Alignment helpers ─────────────────────────────────────────────────
-    /// <summary>Data-row prefix that replaces the header's "│ ".</summary>
-    private const string DataPrefix = "  ";
-    /// <summary>Data-row column gap that replaces the header's " │ ".</summary>
-    private const string DataGap = "   ";
+    // ── Hardcoded visual-test data ────────────────────────────────────────
+    private static readonly string[] Actions =
+    {
+        "Editing src/components/Settings.tsx",
+        "github.com/acme-web-app/pull",
+        "Updated 4 docs pages with the new CLI flags",
+        "Should the API client retry on 439, or surface the error to the caller?",
+        "n/a",
+        "reviewing PR #142 — auth refactor",
+        "Looking at build pipeline logs",
+        "Drafting release notes for v2.4",
+    };
 
-    // ── Column constants ──────────────────────────────────────────────────
-    private const int MinNameWidth    = 4;
-    private const int MinStatusWidth  = 1;
-    private const int MinModelWidth   = 3;
-    private const int MinContextWidth = 3;
-    private const int MaxColumnWidth  = 20;
-
-    private const string HeaderName    = "Name";
-    private const string HeaderStatus  = "Status";
-    private const string HeaderModel   = "Model";
-    private const string HeaderContext = "Context";
+    private static readonly string[] Times =
+    {
+        "12m", "3m", "40m", "1h", "5m", "22m", "2h", "8m",
+    };
 
     private const int MaxNameDisplayLength = 10;
 
@@ -59,16 +56,12 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
     private int _version;
     private int _renderedVersion;
 
-    /// <summary>
-    /// Line count from the last <see cref="GetLines"/> call.
-    /// Cached so <see cref="LineCount"/> always matches.
-    /// </summary>
     private int _cachedLineCount;
 
     private bool _isSelectionMode;
     private int _selectedIndex;
 
-    private readonly List<string> _otherSessionKeys = new();
+    private readonly List<string> _agentSessionKeys = new();
     private string _lastCurrentInput = string.Empty;
 
     private readonly List<string> _lines = new(16);
@@ -94,10 +87,6 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
     // ── IBottomPanel ──────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Returns the exact number of lines produced by the last
-    /// <see cref="GetLines"/> call.  Always matches.
-    /// </summary>
     public int LineCount
     {
         get { lock (_sync) return _cachedLineCount; }
@@ -130,14 +119,15 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
             _lastCurrentInput = currentInput ?? string.Empty;
             _agentsPart.RefreshVisibleAgents();
 
+            // Hide panel while user is typing
             if (_lastCurrentInput.Length > 0)
             {
                 _cachedLineCount = 1;
                 _renderedVersion = _version;
-                return new string[1] { "" };
+                return new[] { "" };
             }
 
-            // ── Gather data ───────────────────────────────────────────────
+            // ── Gather agents ─────────────────────────────────────────────
             var activeSessionKey = AgentRegistry.ActiveSessionKey;
             var activeSnapshot = activeSessionKey is not null
                 ? _tracker.Get(activeSessionKey)
@@ -145,75 +135,51 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
             var activeInfo = GetActiveAgentInfo();
 
             var visibleAgents = _agentsPart.GetVisibleAgents();
-            _otherSessionKeys.Clear();
-            foreach (var (snapshot, _) in visibleAgents)
+
+            // Build ordered list: active first, then others
+            var ordered = new List<(AgentStatusSnapshot? Snapshot, AgentInfo? Info, bool IsActive)>(visibleAgents.Count + 1);
+
+            if (activeSnapshot is not null && activeInfo is not null)
+                ordered.Add((activeSnapshot, activeInfo, true));
+
+            foreach (var (snapshot, agent) in visibleAgents)
+                ordered.Add((snapshot, agent, false));
+
+            _agentSessionKeys.Clear();
+            foreach (var (snapshot, _, _) in ordered)
             {
-                if (snapshot.SessionKey is not null)
-                    _otherSessionKeys.Add(snapshot.SessionKey);
+                if (snapshot?.SessionKey is not null)
+                    _agentSessionKeys.Add(snapshot.SessionKey);
             }
 
-            if (_selectedIndex >= _otherSessionKeys.Count)
-                _selectedIndex = Math.Max(0, _otherSessionKeys.Count - 1);
-
-            // Build cell data
-            var activeData = activeSnapshot is not null || activeInfo is not null
-                ? CellData.FromAgent(activeSnapshot, activeInfo)
-                : (CellData?)null;
-
-            var otherData = new List<(CellData Cells, bool Selected)>(visibleAgents.Count);
-            for (int i = 0; i < visibleAgents.Count; i++)
-            {
-                var (snapshot, agent) = visibleAgents[i];
-                var cells = CellData.FromAgent(snapshot, agent);
-                bool sel = _isSelectionMode && i == _selectedIndex;
-                otherData.Add((cells, sel));
-            }
-
-            // ── No agents → 0 lines ──────────────────────────────────────
-            if (activeData is null && otherData.Count == 0)
+            // No agents → 0 lines
+            if (ordered.Count == 0)
             {
                 _cachedLineCount = 0;
                 _renderedVersion = _version;
                 return Array.Empty<string>();
             }
 
-            try
+            // Clamp selection
+            if (_selectedIndex >= ordered.Count)
+                _selectedIndex = Math.Max(0, ordered.Count - 1);
+
+            // ── Render ────────────────────────────────────────────────────
+            for (int i = 0; i < ordered.Count; i++)
             {
-                // Compute column widths from all rows
-                var colW = ComputeColumnWidths(activeData, otherData);
-
-                // spacer
-                _lines.Add(string.Empty);
-
-                // Header row (only row with │)
-                _lines.Add(LeftPad + RenderHeaderRow(colW));
-
-                // Active row
-                if (activeData is not null)
-                    _lines.Add(LeftPad + RenderDataRow(activeData.Value, colW, selected: false));
-
-                // Other rows
-                foreach (var (cells, selected) in otherData)
-                    _lines.Add(LeftPad + RenderDataRow(cells, colW, selected));
-
-                // Selection hint
-                if (_isSelectionMode)
-                    _lines.Add(LeftPad + "[grey]\u2191\u2193 navigate  Enter select  Esc back[/]");
-            }
-            catch
-            {
-                _lines.Clear();
-            }
-            finally
-            {
-                _renderedVersion = _version;
+                var (snapshot, info, isActive) = ordered[i];
+                bool selected = _isSelectionMode && i == _selectedIndex;
+                _lines.Add(RenderAgentLine(snapshot, info, i, selected, isActive));
             }
 
-            // Compute line count and pad to match
-            int dataRows = (activeData is not null ? 1 : 0) + otherData.Count;
-            int hint = _isSelectionMode ? 1 : 0;
-            int total = 1 + 1 + 1 + dataRows + hint + BottomMargin;
+            // Selection hint
+            if (_isSelectionMode)
+                _lines.Add("  [grey]\u2191\u2193 navigate  Enter select  Esc back[/]");
+
+            // Line count
+            int total = ordered.Count + (_isSelectionMode ? 1 : 0) + BottomMargin;
             _cachedLineCount = total;
+            _renderedVersion = _version;
 
             return PadToLineCount(total);
         }
@@ -231,7 +197,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
             if (!_isSelectionMode)
             {
                 if (key.Key == ConsoleKey.DownArrow
-                    && _otherSessionKeys.Count > 0
+                    && _agentSessionKeys.Count > 0
                     && _lastCurrentInput.Length == 0)
                 {
                     EnterSelectionMode();
@@ -243,7 +209,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
             switch (key.Key)
             {
                 case ConsoleKey.DownArrow:
-                    if (_selectedIndex < _otherSessionKeys.Count - 1)
+                    if (_selectedIndex < _agentSessionKeys.Count - 1)
                     {
                         _selectedIndex++;
                         MarkDirty();
@@ -289,7 +255,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
         _tracker.Changed -= OnTrackerChanged;
         AgentRegistry.ActiveSessionChanged -= OnActiveSessionChanged;
-        _otherSessionKeys.Clear();
+        _agentSessionKeys.Clear();
         _lines.Clear();
     }
 
@@ -311,13 +277,13 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
     private void SelectCurrentAgent()
     {
-        if (_selectedIndex < 0 || _selectedIndex >= _otherSessionKeys.Count)
+        if (_selectedIndex < 0 || _selectedIndex >= _agentSessionKeys.Count)
         {
             ExitSelectionMode();
             return;
         }
 
-        var sessionKey = _otherSessionKeys[_selectedIndex];
+        var sessionKey = _agentSessionKeys[_selectedIndex];
         ExitSelectionMode();
 
         _ = Task.Run(async () =>
@@ -333,175 +299,45 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         });
     }
 
-    // ── Column width computation ─────────────────────────────────────────
-
-    private readonly record struct CellData(
-        string Name,
-        string Status,
-        string Model,
-        string Context
-    )
-    {
-        public static CellData FromAgent(AgentStatusSnapshot? snapshot, AgentInfo? info)
-        {
-            if (snapshot is null || info is null)
-                return new CellData("?", "—", "…", "…");
-
-            var name = info.Name ?? "?";
-            name = name.Length > MaxNameDisplayLength
-                ? Markup.Escape(name[..MaxNameDisplayLength])
-                : Markup.Escape(name);
-
-            var status = snapshot.GetStatusEmoji();
-
-            var model = !string.IsNullOrWhiteSpace(snapshot.Model)
-                ? Markup.Escape(ModelPart.ShortenModelName(snapshot.Model))
-                : "…";
-
-            var context = ContextPart.FormatContextDisplay(snapshot.ContextTokens, snapshot.TotalTokens)
-                ?? "…";
-
-            return new CellData(name, status, model, context);
-        }
-
-        public int NameWidth    => CharacterWidth.GetDisplayWidth(StripMarkup(Name));
-        public int StatusWidth  => CharacterWidth.GetDisplayWidth(StripMarkup(Status));
-        public int ModelWidth   => CharacterWidth.GetDisplayWidth(StripMarkup(Model));
-        public int ContextWidth => CharacterWidth.GetDisplayWidth(StripMarkup(Context));
-    }
-
-    private readonly record struct ColumnWidths(int Name, int Status, int Model, int Context);
-
-    private static ColumnWidths ComputeColumnWidths(
-        CellData? active,
-        List<(CellData Cells, bool Selected)> others)
-    {
-        int nw = Math.Max(MinNameWidth,    Math.Min(MaxColumnWidth, HeaderName.Length));
-        int sw = Math.Max(MinStatusWidth,  Math.Min(MaxColumnWidth, HeaderStatus.Length));
-        int mw = Math.Max(MinModelWidth,   Math.Min(MaxColumnWidth, HeaderModel.Length));
-        int cw = Math.Max(MinContextWidth, Math.Min(MaxColumnWidth, HeaderContext.Length));
-
-        void Consider(CellData c)
-        {
-            nw = Math.Max(nw, Math.Min(MaxColumnWidth, c.NameWidth));
-            sw = Math.Max(sw, Math.Min(MaxColumnWidth, c.StatusWidth));
-            mw = Math.Max(mw, Math.Min(MaxColumnWidth, c.ModelWidth));
-            cw = Math.Max(cw, Math.Min(MaxColumnWidth, c.ContextWidth));
-        }
-
-        if (active is { } a) Consider(a);
-        foreach (var (cells, _) in others)
-            Consider(cells);
-
-        return new ColumnWidths(nw, sw, mw, cw);
-    }
-
-    // ── Row rendering ────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Header row — the only row that uses │ separators.
-    /// Header text is centred in each column.
-    /// </summary>
-    private static string RenderHeaderRow(ColumnWidths w)
-    {
-        const string leftEdge = "  "; // "│ ";
-        const string midEdge = "   "; //" │ ";
-        const string rightdge = "  "; //" │";
-
-        return leftEdge
-            + CenterPadded(HeaderName,    w.Name,    bold: true) + midEdge
-            + CenterPadded(HeaderStatus,  w.Status,  bold: true) + midEdge
-            + CenterPadded(HeaderModel,   w.Model,   bold: true) + midEdge
-            + CenterPadded(HeaderContext, w.Context, bold: true) + rightdge;
-    }
-
-    /// <summary>
-    /// Data row — no │ separators.
-    /// Prefix "  " matches header "│ ", gap "   " matches header " │ ".
-    /// Cell content is centred in each column.
-    /// </summary>
-    private static string RenderDataRow(CellData cells, ColumnWidths w, bool selected)
-    {
-        var rawName    = StripMarkup(cells.Name);
-        var rawStatus  = StripMarkup(cells.Status);
-        var rawModel   = StripMarkup(cells.Model);
-        var rawContext = StripMarkup(cells.Context);
-
-        var row = DataPrefix
-            + CenterCell(rawName,    cells.Name,    w.Name)    + DataGap
-            + CenterCell(rawStatus,  cells.Status,  w.Status)  + DataGap
-            + CenterCell(rawModel,   cells.Model,   w.Model)   + DataGap
-            + CenterCell(rawContext, cells.Context, w.Context);
-
-        return selected
-            ? $"[invert]{row}[/]"
-            : row;
-    }
-
-    /// <summary>Centres header text within the column width, wrapping in bold markup.</summary>
-    private static string CenterPadded(string text, int colWidth, bool bold)
-    {
-        int pad = colWidth - text.Length;
-        int left = pad / 2;
-        int right = pad - left;
-        var padded = $"{new string(' ', left)}{(bold ? $"[bold underline]{text}[/]" : text)}{new string(' ', right)}";
-        return padded;
-    }
-
-    /// <summary>Centres a Spectre-markup value within the column width.</summary>
-    private static string CenterCell(string raw, string markup, int colWidth)
-    {
-        int currentWidth = CharacterWidth.GetDisplayWidth(raw);
-        int pad = colWidth - currentWidth;
-        int left = pad / 2;
-        int right = pad - left;
-        return new string(' ', left) + markup + new string(' ', right);
-    }
-
-    // ── Context formatting ────────────────────────────────────────────────
-
-    /// <summary>
-    /// Sets the history service for full agent-switch behaviour
-    /// (history loading).  Called by <see cref="AppRunner"/> after
-    /// bootstrapping when the service becomes available.
-    /// </summary>
+    /// <summary>Called by AppRunner to wire history service after bootstrapping.</summary>
     internal void SetHistoryService(SessionHistoryService historyService)
     {
         _historyService = historyService;
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────
+    // ── Rendering ─────────────────────────────────────────────────────────
 
-    private static string StripMarkup(string markup)
+    private static string RenderAgentLine(
+        AgentStatusSnapshot? snapshot,
+        AgentInfo? info,
+        int index,
+        bool selected,
+        bool isActive)
     {
-        if (string.IsNullOrEmpty(markup)) return string.Empty;
+        var name = FormatName(info?.Name);
+        var bullet = snapshot is not null
+            ? snapshot.GetStatusEmoji()
+            : "•";
 
-        var sb = new StringBuilder(markup.Length);
-        bool inTag = false;
-        for (int i = 0; i < markup.Length; i++)
-        {
-            char c = markup[i];
-            if (c == '[' && i + 1 < markup.Length)
-            {
-                if (markup[i + 1] == '[')
-                {
-                    sb.Append('[');
-                    i++;
-                    continue;
-                }
-                inTag = true;
-                continue;
-            }
-            if (c == ']' && inTag)
-            {
-                inTag = false;
-                continue;
-            }
-            if (!inTag)
-                sb.Append(c);
-        }
-        return sb.ToString();
+        var action = Actions[index % Actions.Length];
+        var time = Times[index % Times.Length];
+
+        var line = $"[grey]{bullet}[/] {name}  [grey]{action}[/]  [grey42]{time}[/]";
+
+        return selected
+            ? $"[invert]{line}[/]"
+            : line;
     }
+
+    private static string FormatName(string? raw)
+    {
+        var name = raw ?? "?";
+        return name.Length > MaxNameDisplayLength
+            ? Markup.Escape(name[..MaxNameDisplayLength])
+            : Markup.Escape(name);
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────
 
     private string[] PadToLineCount(int count)
     {
