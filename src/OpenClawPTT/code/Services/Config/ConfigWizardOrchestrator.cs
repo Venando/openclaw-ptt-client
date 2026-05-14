@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.ConfigWizard;
+using OpenClawPTT.Services.Themes;
 using Spectre.Console;
 using StreamShell;
 
@@ -34,11 +35,11 @@ public sealed class ConfigWizardOrchestrator : IConfigWizardOrchestrator
 
         if (cfg is null)
         {
-            shellHost.AddMessage($"[bold cyan2]────● No configuration found — starting first-time setup.      [/]");
+            shellHost.AddMessage($"[{ThemeProvider.Current.Tools.Panel.SectionHeader}]────● No configuration found — starting first-time setup.      [/]");
             await shellHost.PromptSelection("Continue?", [new Variant("Yes")]);
             cfg = await _wizard.RunInitialSetupAsync(shellHost, ct);
             _configService.Save(cfg);
-            shellHost.AddMessage("[green]Configuration saved.[/]");
+            shellHost.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]Configuration saved.[/]");
             return cfg;
         }
 
@@ -47,17 +48,17 @@ public sealed class ConfigWizardOrchestrator : IConfigWizardOrchestrator
 
         if (issues.Count > 0)
         {
-            shellHost.AddMessage("[cyan2]Configuration issues detected:[/]");
+            shellHost.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Highlight}]Configuration issues detected:[/]");
             foreach (var i in issues)
-                shellHost.AddMessage($"  [grey]• {Markup.Escape(i)}[/]");
+                shellHost.AddMessage($"  [{ThemeProvider.Current.Tools.General.Muted}]• {Markup.Escape(i)}[/]");
         }
 
         if (needsSetup)
         {
             if (forceReconfigure)
-                shellHost.AddMessage("[cyan2]Starting setup wizard...[/]");
+                shellHost.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Highlight}]Starting setup wizard...[/]");
             else
-                shellHost.AddMessage("[cyan2]Starting setup wizard to fix missing/invalid fields...[/]");
+                shellHost.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Highlight}]Starting setup wizard to fix missing/invalid fields...[/]");
 
             cfg = await _wizard.RunInitialSetupAsync(shellHost, ct);
             _configService.Save(cfg);
@@ -69,7 +70,7 @@ public sealed class ConfigWizardOrchestrator : IConfigWizardOrchestrator
     /// <inheritdoc />
     public async Task<AppConfig> ReconfigureAsync(IStreamShellHost shellHost, AppConfig existing, CancellationToken ct)
     {
-        shellHost.AddMessage("[cyan2]Starting reconfiguration wizard...[/]");
+        shellHost.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Highlight}]Starting reconfiguration wizard...[/]");
 
         AppConfig newCfg;
         try
@@ -85,10 +86,10 @@ public sealed class ConfigWizardOrchestrator : IConfigWizardOrchestrator
         var issues = _configService.Validate(newCfg);
         if (issues.Count > 0)
         {
-            shellHost.AddMessage("[yellow]Configuration issues found after reconfiguration:[/]");
+            shellHost.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Warning}]Configuration issues found after reconfiguration:[/]");
             foreach (var i in issues)
-                shellHost.AddMessage($"  [grey]\u2022 {Markup.Escape(i)}[/]");
-            shellHost.AddMessage("[grey](the wizard may have skipped some sections)[/]");
+                shellHost.AddMessage($"  [{ThemeProvider.Current.Tools.General.Muted}]\u2022 {Markup.Escape(i)}[/]");
+            shellHost.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}](the wizard may have skipped some sections)[/]");
 
             // Offer to re-enter the wizard to fix remaining issues.
             // Uses the existing PromptSelectionHelper from OpenClawPTT.ConfigWizard.

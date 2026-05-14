@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using OpenClawPTT.ConfigWizard;
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Themes;
 using Spectre.Console;
 using StreamShell;
 
@@ -35,7 +36,7 @@ public sealed class FirstConnectionWizard
         var agents = AgentRegistry.Agents;
         if (agents.Count == 0)
         {
-            _host.AddMessage("[yellow]  No agents available to configure.[/]");
+            _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Warning}]  No agents available to configure.[/]");
             return;
         }
 
@@ -44,12 +45,12 @@ public sealed class FirstConnectionWizard
         _pendingAgents = new Queue<AgentInfo>(agents);
 
         _host.AddMessage("");
-        _host.AddMessage("[yellow]  ╔══════════════════════════════════════════╗[/]");
-        _host.AddMessage("[yellow]  ║       First connection detected!         ║[/]");
-        _host.AddMessage("[yellow]  ║  No agent settings found.                ║[/]");
-        _host.AddMessage("[yellow]  ║  Configure hotkeys, emojis, and colors?  ║[/]");
-        _host.AddMessage("[yellow]  ╚══════════════════════════════════════════╝[/]");
-        _host.AddMessage("[cyan2]  Configure agents now? (y/N)[/]");
+        _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Warning}]  ╔══════════════════════════════════════════╗[/]");
+        _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Warning}]  ║       First connection detected!         ║[/]");
+        _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Warning}]  ║  No agent settings found.                ║[/]");
+        _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Warning}]  ║  Configure hotkeys, emojis, and colors?  ║[/]");
+        _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Warning}]  ╚══════════════════════════════════════════╝[/]");
+        _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Highlight}]  Configure agents now? (y/N)[/]");
 
         _host.UserInputSubmitted += OnOptInInput;
     }
@@ -71,7 +72,7 @@ public sealed class FirstConnectionWizard
         else
         {
             WizardState.Leave();
-            _host.AddMessage("[grey]  Skipped agent configuration. Use /crew config anytime.[/]");
+            _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Info}]  Skipped agent configuration. Use /crew config anytime.[/]");
             ActivateDefault();
         }
     }
@@ -82,7 +83,7 @@ public sealed class FirstConnectionWizard
         if (defaultAgent != null)
         {
             AgentRegistry.SetActiveAgent(defaultAgent.AgentId);
-            _host.AddMessage($"[cyan]  Active agent: {Markup.Escape(defaultAgent.Name)} — use /chat <name> or hotkey to switch, /crew config to edit[/]");
+            _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Highlight}]  Active agent: {Markup.Escape(defaultAgent.Name)} — use /chat <name> or hotkey to switch, /crew config to edit[/]");
             _onAgentConfigured?.Invoke(defaultAgent);
         }
     }
@@ -92,7 +93,7 @@ public sealed class FirstConnectionWizard
         if (_pendingAgents.Count == 0)
         {
             WizardState.Leave();
-            _host.AddMessage("[green]  ✓ All configured![/]");
+            _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]  ✓ All configured![/]");
             ActivateDefault();
             return;
         }
@@ -105,7 +106,7 @@ public sealed class FirstConnectionWizard
             : Markup.Escape(_currentAgent.Name);
 
         _host.AddMessage("");
-        _host.AddMessage($"[cyan2]  Agent {emoji} {nameStr} [grey]({Markup.Escape(_currentAgent.AgentId)})[/][/]");
+        _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Highlight}]  Agent {emoji} {nameStr} [{ThemeProvider.Current.Tools.General.Muted}]({Markup.Escape(_currentAgent.AgentId)})[/][/]");
         _host.AddMessage($"  Press Enter to configure this agent, or type [bold]skip[/] to skip");
 
         _host.UserInputSubmitted += OnAgentPromptInput;
@@ -123,7 +124,7 @@ public sealed class FirstConnectionWizard
 
         if (trimmed == "skip")
         {
-            _host.AddMessage($"[grey]  Skipped {Markup.Escape(_currentAgent?.Name ?? "agent")}[/]");
+            _host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]  Skipped {Markup.Escape(_currentAgent?.Name ?? "agent")}[/]");
             ProcessNextAgent();
             return;
         }

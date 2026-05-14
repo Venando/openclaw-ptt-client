@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT;
+using OpenClawPTT.Services.Themes;
 using OpenClawPTT.Transcriber;
 using OpenClawPTT.VisualFeedback;
 using Spectre.Console;
@@ -89,7 +90,7 @@ public sealed class AudioService : IAudioService
 
         recorder.StopRecording();
         _visualFeedback.Hide();
-        _console.PrintMarkup("[grey]  ─ Recording discarded ─[/]");
+        _console.PrintMarkup($"[{ThemeProvider.Current.Tools.General.Muted}]  ─ Recording discarded ─[/]");
     }
 
     public async Task<string?> StopAndTranscribeAsync(CancellationToken ct)
@@ -130,7 +131,8 @@ public sealed class AudioService : IAudioService
             var transcribed = await transcriber.TranscribeAsync(wav, ct: linkedCts.Token);
             var shellHost = _console.GetStreamShellHost();
             var prefix = $"Transcribed ({wav.Length / 1024.0:F1} KB): ";
-            _console.PrintMarkup($"[green][dim]  ✓ {Markup.Escape(prefix)}[/][/] [green]{Markup.Escape(transcribed)}[/]");
+            var tools = ThemeProvider.Current.Tools;
+            _console.PrintMarkup($"[{tools.Messages.Success}][{tools.General.TruncatedMore}]  ✓ {Markup.Escape(prefix)}[/][/] [{tools.Messages.Success}]{Markup.Escape(transcribed)}[/]");
             TranscriptionStatusCallback?.Invoke(TranscriptionPhase.Succeeded, transcribed);
             return transcribed;
         }
@@ -262,7 +264,8 @@ public sealed class AudioService : IAudioService
         };
         var providerDisplay = config.SttProvider ?? "?";
         var modelDisplay = model ?? "default";
-        _console.PrintMarkup($"[grey][dim]  {action}: {providerDisplay} ({modelDisplay})[/][/]");
+        var tools = ThemeProvider.Current.Tools;
+        _console.PrintMarkup($"[{tools.General.Muted}][{tools.General.TruncatedMore}]  {action}: {providerDisplay} ({modelDisplay})[/][/]");
     }
 
     public void Dispose()

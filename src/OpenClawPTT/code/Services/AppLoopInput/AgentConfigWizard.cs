@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using OpenClawPTT.ConfigWizard;
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Themes;
 using Spectre.Console;
 using StreamShell;
 
@@ -80,12 +81,12 @@ public sealed class AgentConfigWizard
                     a.AgentId.Equals(rawInput, StringComparison.OrdinalIgnoreCase));
                 if (matched == null)
                 {
-                    _host.AddMessage($"[red]  ✗ Agent not found: {Markup.Escape(rawInput)}[/]");
+                    _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Error}]  ✗ Agent not found: {Markup.Escape(rawInput)}[/]");
                     SendPrompt(step);
                     return;
                 }
                 _agent = matched;
-                _host.AddMessage($"[green]  ✓ {Markup.Escape(matched.Name)}[/]");
+                _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]  ✓ {Markup.Escape(matched.Name)}[/]");
                 Advance();
                 return;
             }
@@ -97,7 +98,7 @@ public sealed class AgentConfigWizard
             if (rawInput == "--")
             {
                 ApplyValue(step, null);
-                _host.AddMessage("[green]  ✓ (cleared)[/]");
+                _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]  ✓ (cleared)[/]");
                 Advance();
                 return;
             }
@@ -105,7 +106,7 @@ public sealed class AgentConfigWizard
             // Empty input keeps the current value — just advance
             if (string.IsNullOrEmpty(rawInput))
             {
-                _host.AddMessage("[green]  ✓ (kept current)[/]");
+                _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]  ✓ (kept current)[/]");
                 Advance();
                 return;
             }
@@ -113,18 +114,18 @@ public sealed class AgentConfigWizard
             // Validate
             if (!Validate(step, rawInput, out var errorHint))
             {
-                _host.AddMessage($"[red]  ✗ {errorHint}[/]");
+                _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Error}]  ✗ {errorHint}[/]");
                 SendPrompt(step);
                 return;
             }
 
             ApplyValue(step, rawInput);
-            _host.AddMessage($"[green]  ✓ {Markup.Escape(rawInput)}[/]");
+            _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]  ✓ {Markup.Escape(rawInput)}[/]");
             Advance();
         }
         catch (Exception ex)
         {
-            _host.AddMessage($"[red]  ✗ Wizard error: {Markup.Escape(ex.Message)}[/]");
+            _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Error}]  ✗ Wizard error: {Markup.Escape(ex.Message)}[/]");
         }
     }
 
@@ -135,7 +136,7 @@ public sealed class AgentConfigWizard
         if (_currentStep == Step.Done)
         {
             Unsubscribe();
-            _host.AddMessage($"[green]  ✓ Configuration complete for {Markup.Escape(_agent?.Name ?? "agent")}![/]");
+            _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]  ✓ Configuration complete for {Markup.Escape(_agent?.Name ?? "agent")}![/]");
             return;
         }
 
@@ -164,15 +165,15 @@ public sealed class AgentConfigWizard
         _isFirstPrompt = false;
 
         var (description, currentValue) = GetStepInfo(step);
-        _host.AddMessage($"[cyan2]▸ {description}[/]");
+        _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Highlight}]▸ {description}[/]");
         if (currentValue != null)
         {
             var escaped = Markup.Escape(currentValue);
-            _host.AddMessage($"  [grey](current: {escaped}, press Enter to keep)[/]");
+            _host.AddMessage($"  [{ThemeProvider.Current.Tools.General.Muted}](current: {escaped}, press Enter to keep)[/]");
         }
         else
         {
-            _host.AddMessage($"  [grey](current: none)[/]");
+            _host.AddMessage($"  [{ThemeProvider.Current.Tools.General.Muted}](current: none)[/]");
         }
     }
 

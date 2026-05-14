@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Themes;
 using OpenClawPTT.Transcriber;
 using OpenClawPTT.TTS;
 using OpenClawPTT.TTS.Providers;
@@ -55,7 +56,7 @@ public sealed class CoquiTtsConfigFlow
         // Extract them now so the TTS service can find the files.
         var extractedZips = CoquiTtsZipExtractor.ExtractModelZips(modelResult);
         if (extractedZips > 0)
-            host.AddMessage($"[green]    ✓ Extracted {extractedZips} archive(s) for {modelResult}[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]    ✓ Extracted {extractedZips} archive(s) for {modelResult}[/]");
 
         bool modelChanged = modelResult != config.CoquiModelName;
 
@@ -85,12 +86,12 @@ public sealed class CoquiTtsConfigFlow
                 // Rollback config change — model is not usable without download.
                 config.CoquiModelName = previousModel;
                 config.SttProvider = previousSttProvider;
-                host.AddMessage("[yellow]  ⚠ Model change rolled back — model not cached yet.[/]");
-                host.AddMessage("[grey]    Use /reconfigure TTS to try again and download the model.[/]");
+                host.AddMessage("[{ThemeProvider.Current.Tools.Messages.Warning}]  ⚠ Model change rolled back — model not cached yet.[/]");
+                host.AddMessage("[{ThemeProvider.Current.Tools.General.Muted}]    Use /reconfigure TTS to try again and download the model.[/]");
             }
             else
             {
-                host.AddMessage($"[green]  Model: {modelResult}[/]");
+                host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]  Model: {modelResult}[/]");
             }
         }
 
@@ -109,32 +110,32 @@ public sealed class CoquiTtsConfigFlow
         var uvAvailable = CoquiUvEnvironment.IsUvAvailable();
         if (!uvAvailable)
         {
-            host.AddMessage($"[yellow]  ⚠ uv (Python package manager) is not installed.[/]");
-            host.AddMessage($"[grey]    Install: {CoquiUvEnvironment.GetInstallInstructions()}[/]");
-            host.AddMessage("[grey]    You can still select a model from the built-in list below.[/]");
-            host.AddMessage("[grey]    But you'll need uv to actually use Coqui TTS.[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Warning}]  ⚠ uv (Python package manager) is not installed.[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]    Install: {CoquiUvEnvironment.GetInstallInstructions()}[/]");
+            host.AddMessage("[{ThemeProvider.Current.Tools.General.Muted}]    You can still select a model from the built-in list below.[/]");
+            host.AddMessage("[{ThemeProvider.Current.Tools.General.Muted}]    But you'll need uv to actually use Coqui TTS.[/]");
             host.AddMessage("");
             return;
         }
 
         // Quick Python version check — uses uv python list (fast, no downloads)
-        host.AddMessage("[grey]    Checking Python environment...[/]");
+        host.AddMessage("[{ThemeProvider.Current.Tools.General.Muted}]    Checking Python environment...[/]");
         var versionResult = await CoquiUvEnvironment.ValidatePythonVersionAsync(
             dataDir,
-            onProgress: msg => host.AddMessage($"[grey]      {msg}[/]"),
+            onProgress: msg => host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]      {msg}[/]"),
             ct);
 
         if (versionResult.Ok)
         {
-            host.AddMessage($"[green]    ✓ Python {versionResult.PythonVersion} found at {versionResult.PythonPath}[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]    ✓ Python {versionResult.PythonVersion} found at {versionResult.PythonPath}[/]");
         }
         else
         {
-            host.AddMessage($"[red]    ✗ Python environment check failed: {versionResult.Error}[/]");
-            host.AddMessage("[yellow]    Coqui TTS requires Python >=3.9 and <3.12.[/]");
-            host.AddMessage("[grey]    uv can download the right Python automatically when running TTS.[/]");
-            host.AddMessage("[grey]    You can still select a model from the built-in list below,[/]");
-            host.AddMessage("[grey]    but TTS won't work until a compatible Python is available.[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Error}]    ✗ Python environment check failed: {versionResult.Error}[/]");
+            host.AddMessage("[{ThemeProvider.Current.Tools.Messages.Warning}]    Coqui TTS requires Python >=3.9 and <3.12.[/]");
+            host.AddMessage("[{ThemeProvider.Current.Tools.General.Muted}]    uv can download the right Python automatically when running TTS.[/]");
+            host.AddMessage("[{ThemeProvider.Current.Tools.General.Muted}]    You can still select a model from the built-in list below,[/]");
+            host.AddMessage("[{ThemeProvider.Current.Tools.General.Muted}]    but TTS won't work until a compatible Python is available.[/]");
             host.AddMessage("");
         }
     }
@@ -160,9 +161,9 @@ public sealed class CoquiTtsConfigFlow
 
         var shouldDownload = await host.PromptSelection(
             promptText,
-            [new ConfigVariant("[green]Download now[/]", "download"),
-             new ConfigVariant("[yellow]Select without downloading[/]", "select"),
-             new ConfigVariant("[grey]Cancel[/]", "cancel")]);
+            [new ConfigVariant("[{ThemeProvider.Current.Tools.Messages.Success}]Download now[/]", "download"),
+             new ConfigVariant("[{ThemeProvider.Current.Tools.Messages.Warning}]Select without downloading[/]", "select"),
+             new ConfigVariant("[{ThemeProvider.Current.Tools.General.Muted}]Cancel[/]", "cancel")]);
 
         if (shouldDownload is not { Length: > 0 } || shouldDownload[0] is not ConfigVariant cv)
             return false;
@@ -174,7 +175,7 @@ public sealed class CoquiTtsConfigFlow
             case "download":
                 return await ExecuteDownloadAsync(host, modelManager, modelName, ct);
             default: // "select" or unknown
-                host.AddMessage("[grey]  Model selected without downloading. Use /reconfigure to download later.[/]");
+                host.AddMessage("[{ThemeProvider.Current.Tools.General.Muted}]  Model selected without downloading. Use /reconfigure to download later.[/]");
                 return false;
         }
     }
@@ -194,13 +195,13 @@ public sealed class CoquiTtsConfigFlow
         }
         catch (OperationCanceledException)
         {
-            host.AddMessage("[yellow]  Download cancelled — model selected but not downloaded.[/]");
+            host.AddMessage("[{ThemeProvider.Current.Tools.Messages.Warning}]  Download cancelled — model selected but not downloaded.[/]");
             return false;
         }
         catch (Exception ex)
         {
-            host.AddMessage($"[red]  Download failed: {Markup.Escape(ex.Message)}[/]");
-            host.AddMessage("[yellow]  Model selected but download failed. You can retry later.[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Error}]  Download failed: {Markup.Escape(ex.Message)}[/]");
+            host.AddMessage("[{ThemeProvider.Current.Tools.Messages.Warning}]  Model selected but download failed. You can retry later.[/]");
             return false;
         }
     }
@@ -252,7 +253,7 @@ public sealed class CoquiTtsConfigFlow
 
             var variants = BuildVariantList(allModels, cachedModels, currentModel);
             variants.Add(new ConfigDecoration(""));
-            variants.Add(new ConfigVariant("[grey]Cancel[/]", CancelSentinel));
+            variants.Add(new ConfigVariant("[{ThemeProvider.Current.Tools.General.Muted}]Cancel[/]", CancelSentinel));
 
             var selection = await host.PromptSelection(
                 "Select Coqui TTS model, download, remove, or cancel:",
@@ -283,15 +284,15 @@ public sealed class CoquiTtsConfigFlow
         IStreamShellHost host, string? currentModel)
     {
         host.AddMessage("");
-        host.AddMessage("[red]  ✗ No models available — live fetch from coqui/TTS failed.[/]");
-        host.AddMessage("[grey]    Check the errors above and fix uv/Python issues.[/]");
-        host.AddMessage("[grey]    Then re-run /reconfigure TTS to select a model.[/]");
+        host.AddMessage("[{ThemeProvider.Current.Tools.Messages.Error}]  ✗ No models available — live fetch from coqui/TTS failed.[/]");
+        host.AddMessage("[{ThemeProvider.Current.Tools.General.Muted}]    Check the errors above and fix uv/Python issues.[/]");
+        host.AddMessage("[{ThemeProvider.Current.Tools.General.Muted}]    Then re-run /reconfigure TTS to select a model.[/]");
 
         var errorDetail = CoquiTtsModelManager.LastFetchErrorDetail;
         if (CoquiUvEnvironment.IsBuildError(errorDetail))
         {
             if (!string.IsNullOrEmpty(currentModel))
-                host.AddMessage($"[grey]    Current model: {currentModel}[/]");
+                host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]    Current model: {currentModel}[/]");
             return currentModel;
         }
 
@@ -350,7 +351,7 @@ public sealed class CoquiTtsConfigFlow
     {
         var confirm = await host.PromptSelection(
             $"Remove model '{modelName}'?",
-            [new ConfigVariant("[red]Yes, remove[/]", "yes"),
+            [new ConfigVariant("[{ThemeProvider.Current.Tools.Messages.Error}]Yes, remove[/]", "yes"),
              new ConfigVariant("Cancel", "no")]);
 
         if (confirm is not { Length: > 0 } || confirm[0] is not ConfigVariant cv || cv.Value != "yes")
@@ -359,11 +360,11 @@ public sealed class CoquiTtsConfigFlow
         bool removed = CoquiTtsModelManager.DeleteModel(modelName);
         if (removed)
         {
-            host.AddMessage($"[green]  ✓ Removed {modelName}[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]  ✓ Removed {modelName}[/]");
         }
         else
         {
-            host.AddMessage($"[grey]  Could not remove {modelName} (not found or partial cache).[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]  Could not remove {modelName} (not found or partial cache).[/]");
         }
 
         return null; // re-prompt after removal
@@ -410,7 +411,7 @@ public sealed class CoquiTtsConfigFlow
         var variants = new List<IVariantEntry>(allModels.Count * 3 + 10);
 
         variants.Add(new ConfigDecoration(
-            $"[bold green]── {allModels.Count} models from Coqui TTS ──[/]"));
+            $"[bold {ThemeProvider.Current.Tools.Messages.Success}]── {allModels.Count} models from Coqui TTS ──[/]"));
 
         AddCachedModelVariants(variants, allModels, cachedModels, currentModel);
         AddDownloadableModelVariants(variants, allModels, cachedModels);
@@ -430,12 +431,12 @@ public sealed class CoquiTtsConfigFlow
                 continue;
 
             var isActive = info.Name == currentModel;
-            var activeMarker = isActive ? " [cyan][[active]][/]" : "";
+            var activeMarker = isActive ? " [{ThemeProvider.Current.Tools.Messages.Highlight}][[active]][/]" : "";
             var sizeText = !string.IsNullOrEmpty(info.FormattedSize)
-                ? $"  [grey]— {info.FormattedSize}[/]"
+                ? $"  [{ThemeProvider.Current.Tools.General.Muted}]— {info.FormattedSize}[/]"
                 : "";
             variants.Add(new ConfigVariant(
-                $"[green]✓ {info.Description}[/]{sizeText}{activeMarker}",
+                $"[{ThemeProvider.Current.Tools.Messages.Success}]✓ {info.Description}[/]{sizeText}{activeMarker}",
                 $"{ActionUse}{info.Name}"));
         }
     }
@@ -455,16 +456,16 @@ public sealed class CoquiTtsConfigFlow
         if (variants.Count > 1) // >1 because of the header
         {
             variants.Add(new ConfigDecoration(""));
-            variants.Add(new ConfigDecoration("[bold cyan]── Available for download ──[/]"));
+            variants.Add(new ConfigDecoration("[{ThemeProvider.Current.Tools.Panel.SectionHeader}]── Available for download ──[/]"));
         }
 
         foreach (var info in notCached)
         {
             var sizeText = !string.IsNullOrEmpty(info.FormattedSize)
-                ? $"  [grey]— {info.FormattedSize}[/]"
+                ? $"  [{ThemeProvider.Current.Tools.General.Muted}]— {info.FormattedSize}[/]"
                 : "";
             variants.Add(new ConfigVariant(
-                $"[grey]⬇ {info.Description}{sizeText}[/]",
+                $"[{ThemeProvider.Current.Tools.General.Muted}]⬇ {info.Description}{sizeText}[/]",
                 $"{ActionDownload}{info.Name}"));
         }
     }
@@ -478,13 +479,13 @@ public sealed class CoquiTtsConfigFlow
             return;
 
         variants.Add(new ConfigDecoration(""));
-        variants.Add(new ConfigDecoration("[bold red]── Remove ──[/]"));
+        variants.Add(new ConfigDecoration("[bold {ThemeProvider.Current.Tools.Messages.Error}]── Remove ──[/]"));
         foreach (var info in allModels)
         {
             if (!cachedModels.Contains(info.Name))
                 continue;
             variants.Add(new ConfigVariant(
-                $"[red]Remove: {info.Description}[/]",
+                $"[{ThemeProvider.Current.Tools.Messages.Error}]Remove: {info.Description}[/]",
                 $"{ActionRemove}{info.Name}"));
         }
     }

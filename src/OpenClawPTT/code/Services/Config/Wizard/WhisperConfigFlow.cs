@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
 using OpenClawPTT.Transcriber;
+using OpenClawPTT.Services.Themes;
 using StreamShell;
 
 namespace OpenClawPTT.ConfigWizard;
@@ -69,7 +70,7 @@ public sealed class WhisperConfigFlow
         if (modelResult == null)
         {
             if (changed)
-                host.AddMessage($"[green]  Binary: {binaryType.DisplayText}[/]");
+                host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]  Binary: {binaryType.DisplayText}[/]");
             return changed;
         }
 
@@ -100,10 +101,10 @@ public sealed class WhisperConfigFlow
         // ── Log final config ──
         if (changed)
         {
-            host.AddMessage($"[green]  Binary: {binaryType.DisplayText}[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]  Binary: {binaryType.DisplayText}[/]");
             if (resolvedBinary != null)
-                host.AddMessage($"[grey]  Path: {resolvedBinary.Path}[/]");
-            host.AddMessage($"[green]  Model: {modelResult}[/]");
+                host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]  Path: {resolvedBinary.Path}[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]  Model: {modelResult}[/]");
         }
 
         return changed;
@@ -138,7 +139,7 @@ public sealed class WhisperConfigFlow
                 Type = WhisperType.Python,
                 DisplayText = "Python (openai-whisper)",
                 IsAvailable = hasPython,
-                AvailabilityText = hasPython ? "[green]available[/]" : "[red]not found[/]",
+                AvailabilityText = hasPython ? $"[{ThemeProvider.Current.Tools.Messages.Success}]available[/]" : $"[{ThemeProvider.Current.Tools.Messages.Error}]not found[/]",
             },
             new()
             {
@@ -146,7 +147,7 @@ public sealed class WhisperConfigFlow
                 Type = WhisperType.Cpp,
                 DisplayText = "C++ (whisper.cpp)",
                 IsAvailable = hasCpp,
-                AvailabilityText = hasCpp ? "[green]available[/]" : "[red]not found[/]",
+                AvailabilityText = hasCpp ? $"[{ThemeProvider.Current.Tools.Messages.Success}]available[/]" : $"[{ThemeProvider.Current.Tools.Messages.Error}]not found[/]",
             },
         };
 
@@ -155,11 +156,11 @@ public sealed class WhisperConfigFlow
         {
             var name = opt.IsAvailable
                 ? $"{opt.DisplayText}  — {opt.AvailabilityText}"
-                : $"[red]{opt.DisplayText}  — {opt.AvailabilityText}[/]";
+                : $"[{ThemeProvider.Current.Tools.Messages.Error}]{opt.DisplayText}  — {opt.AvailabilityText}[/]";
             variants.Add(new ConfigVariant(name, opt.Id));
         }
         variants.Add(new ConfigVariant("", ""));
-        variants.Add(new ConfigVariant("[grey]Cancel[/]", CancelSentinel));
+        variants.Add(new ConfigVariant($"[{ThemeProvider.Current.Tools.General.Muted}]Cancel[/]", CancelSentinel));
 
         var result = await host.PromptSelection("Select whisper binary type:", variants.ToArray());
         if (result is not { Length: > 0 } || result[0] is not ConfigVariant cv)
@@ -185,13 +186,13 @@ public sealed class WhisperConfigFlow
         var typeName = type == WhisperType.Python ? "Python openai-whisper" : "C++ whisper.cpp";
 
         host.AddMessage("");
-        host.AddMessage($"[yellow]  ⚠ No {typeName} binary detected on your system.[/]");
+        host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Warning}]  ⚠ No {typeName} binary detected on your system.[/]");
         host.AddMessage("");
-        host.AddMessage($"[grey]  Install {typeName}:[/]");
+        host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]  Install {typeName}:[/]");
         host.AddMessage(type == WhisperType.Python
-            ? "[grey]    pip install openai-whisper[/]"
-            : "[grey]    Build from: https://github.com/ggerganov/whisper.cpp[/]");
-        host.AddMessage("[grey]    Add it to PATH, then re-run this configuration.[/]");
+            ? $"[{ThemeProvider.Current.Tools.General.Muted}]    pip install openai-whisper[/]"
+            : $"[{ThemeProvider.Current.Tools.General.Muted}]    Build from: https://github.com/ggerganov/whisper.cpp[/]");
+        host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]    Add it to PATH, then re-run this configuration.[/]");
         host.AddMessage("");
 
         await Task.CompletedTask;

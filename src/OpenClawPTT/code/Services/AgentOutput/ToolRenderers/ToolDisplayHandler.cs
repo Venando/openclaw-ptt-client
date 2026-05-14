@@ -110,7 +110,8 @@ public sealed class ToolDisplayHandler
         }
         catch
         {
-            _shellHost?.AddMessage($"[grey]  {Markup.Escape(arguments)}[/]");
+            var tools = ThemeProvider.Current.Tools;
+            _shellHost?.AddMessage($"[{tools.General.Muted}]  {Markup.Escape(arguments)}[/]");
         }
 
         _output.PrintLine("");

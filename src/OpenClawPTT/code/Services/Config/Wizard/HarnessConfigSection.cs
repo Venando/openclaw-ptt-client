@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Themes;
 using StreamShell;
 
 namespace OpenClawPTT.ConfigWizard;
@@ -111,7 +112,7 @@ public sealed class HarnessConfigSection : ConfigSectionBase
             // For now only OpenClaw is supported; Nanobot is a placeholder
             if (harness == "nanobot")
             {
-                host.AddMessage("[dim]Nanobot harness is not yet supported yet[/]");
+                host.AddMessage($"[{ThemeProvider.Current.Tools.Thinking.MoreStyle}]Nanobot harness is not yet supported yet[/]");
                 harness = null;
             }
         }

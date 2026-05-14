@@ -1,4 +1,5 @@
 using System.Linq;
+using OpenClawPTT.Services.Themes;
 using Spectre.Console;
 
 namespace OpenClawPTT.Services;
@@ -85,6 +86,6 @@ public sealed class ToolOutputHelper : IToolOutput
                 PrintLine(line, style);
         }
         if (hasMore)
-            PrintLine($"... ({allLines.Length - maxRows} more lines)", "grey");
+            PrintLine($"... ({allLines.Length - maxRows} more lines)", ThemeProvider.Current.Tools.General.TruncatedMore);
     }
 }

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using OpenClawPTT.Services;
 using OpenClawPTT.TTS;
 using OpenClawPTT.TTS.Providers;
+using OpenClawPTT.Services.Themes;
 using StreamShell;
 
 namespace OpenClawPTT.ConfigWizard;
@@ -115,7 +116,7 @@ public sealed class TtsConfigSection : ConfigSectionBase
             "Setup Text-To-Speech?", allowCancel: true, cancellationToken: ct);
         if (!setupTts.HasValue || !setupTts.Value)
         {
-            host.AddMessage("[grey]  Skipped TTS setup.[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Info}]  Skipped TTS setup.[/]");
             result.IsChanged = false;
             return result;
         }
@@ -133,7 +134,7 @@ public sealed class TtsConfigSection : ConfigSectionBase
         // ── ElevenLabs is not supported yet — exit early ──
         if (config.TtsProvider == TtsProviderType.ElevenLabs)
         {
-            host.AddMessage("[yellow]  ElevenLabs TTS is not yet supported.[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Warning}]  ElevenLabs TTS is not yet supported.[/]");
             result.IsChanged = changed;
             return result;
         }

@@ -1,5 +1,6 @@
 
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Themes;
 
 namespace OpenClawPTT.ConfigWizard;
 

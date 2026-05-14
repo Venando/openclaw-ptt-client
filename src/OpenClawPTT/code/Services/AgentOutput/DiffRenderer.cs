@@ -42,7 +42,8 @@ public sealed class DiffRenderer
             int shownAdded = shown.Count(d => d.Operation == DiffOperation.Add);
             int remainingRemoved = result.Removals - shownRemoved;
             int remainingAdded = result.Additions - shownAdded;
-            _output.PrintMarkup($"  [dim]... {displayLines.Count - maxRows} more changes (-{remainingRemoved} +{remainingAdded})[/]\n");
+            var tools = ThemeProvider.Current.Tools;
+            _output.PrintMarkup($"  [{tools.General.TruncatedMore}]... {displayLines.Count - maxRows} more changes (-{remainingRemoved} +{remainingAdded})[/]\n");
         }
     }
 

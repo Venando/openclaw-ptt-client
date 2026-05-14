@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Themes;
 using OpenClawPTT.Transcriber;
 using StreamShell;
 
@@ -34,10 +35,10 @@ public sealed class FasterWhisperConfigFlow
         if (!FasterWhisperEnvironment.IsUvAvailable())
         {
             host.AddMessage("");
-            host.AddMessage($"[yellow]  ⚠ uv (Python package manager) is not installed.[/]");
-            host.AddMessage($"[grey]    uv handles Python, packages, and dependencies automatically.[/]");
-            host.AddMessage($"[grey]    Install: {FasterWhisperEnvironment.GetInstallInstructions()}[/]");
-            host.AddMessage($"[grey]    Then re-run this configuration.[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Warning}]  ⚠ uv (Python package manager) is not installed.[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]    uv handles Python, packages, and dependencies automatically.[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]    Install: {FasterWhisperEnvironment.GetInstallInstructions()}[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]    Then re-run this configuration.[/]");
             host.AddMessage("");
             // Still allow continuing — user might install uv later
         }
@@ -72,10 +73,10 @@ public sealed class FasterWhisperConfigFlow
         {
             config.SttProvider = AppConfig.ProviderFasterWhisper;
             var uvStatus = FasterWhisperEnvironment.IsUvAvailable()
-                ? "[green]found[/]"
-                : "[red]not installed[/]";
-            host.AddMessage($"[green]  uv: {uvStatus}[/]");
-            host.AddMessage($"[green]  Model: {modelResult}[/]");
+                ? "[{ThemeProvider.Current.Tools.Messages.Success}]found[/]"
+                : "[{ThemeProvider.Current.Tools.Messages.Error}]not installed[/]";
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]  uv: {uvStatus}[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]  Model: {modelResult}[/]");
         }
 
         return changed;
@@ -100,7 +101,7 @@ public sealed class FasterWhisperConfigFlow
 
             var variants = BuildFasterWhisperVariants(cachedModels, currentModel);
             variants.Add(new ConfigVariant("", ""));
-            variants.Add(new ConfigVariant("[grey]Cancel[/]", CancelSentinel));
+            variants.Add(new ConfigVariant("[{ThemeProvider.Current.Tools.General.Muted}]Cancel[/]", CancelSentinel));
 
             var selection = await host.PromptSelection(
                 "Select faster-whisper model, download, remove, or cancel:",
@@ -123,7 +124,7 @@ public sealed class FasterWhisperConfigFlow
                 var modelName = choice["remove:".Length..];
                 var confirm = await host.PromptSelection(
                     $"Remove model '{modelName}'?",
-                    [new ConfigVariant("[red]Yes, remove[/]", "yes"),
+                    [new ConfigVariant("[{ThemeProvider.Current.Tools.Messages.Error}]Yes, remove[/]", "yes"),
                      new ConfigVariant("Cancel", "no")]);
 
                 if (confirm is { Length: > 0 } && confirm[0] is ConfigVariant cv2 && cv2.Value == "yes")
@@ -131,7 +132,7 @@ public sealed class FasterWhisperConfigFlow
                     bool removed = FasterWhisperModelManager.DeleteModel(modelName);
                     if (removed)
                     {
-                        host.AddMessage($"[green]  ✓ Removed {modelName}[/]");
+                        host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]  ✓ Removed {modelName}[/]");
                         // Re-snapshot
                         cachedModels = new HashSet<string>(
                             FasterWhisperModelManager.GetCachedModels(),
@@ -159,9 +160,9 @@ public sealed class FasterWhisperConfigFlow
                 continue;
 
             var isActive = info.Name == currentModel;
-            var activeMarker = isActive ? " [cyan][[active]][/]" : "";
+            var activeMarker = isActive ? " [{ThemeProvider.Current.Tools.Messages.Highlight}][[active]][/]" : "";
             variants.Add(new ConfigVariant(
-                $"[green]✓ {info.Name}[/] [grey]({info.Description})[/]{activeMarker}",
+                $"[{ThemeProvider.Current.Tools.Messages.Success}]✓ {info.Name}[/] [{ThemeProvider.Current.Tools.General.Muted}]({info.Description})[/]{activeMarker}",
                 $"use:{info.Name}"));
         }
 
@@ -175,13 +176,13 @@ public sealed class FasterWhisperConfigFlow
             if (variants.Count > 0)
             {
                 variants.Add(new ConfigVariant("", ""));
-                variants.Add(new ConfigVariant("[bold cyan]── Available for download ──[/]", "__header__"));
+                variants.Add(new ConfigVariant("[{ThemeProvider.Current.Tools.Panel.SectionHeader}]── Available for download ──[/]", "__header__"));
             }
 
             foreach (var info in notCached)
             {
                 variants.Add(new ConfigVariant(
-                    $"[grey]⬇ {info.Name} ({info.Description})[/]",
+                    $"[{ThemeProvider.Current.Tools.General.Muted}]⬇ {info.Name} ({info.Description})[/]",
                     $"download:{info.Name}"));
             }
         }
@@ -190,13 +191,13 @@ public sealed class FasterWhisperConfigFlow
         if (cachedModels.Count > 0)
         {
             variants.Add(new ConfigVariant("", ""));
-            variants.Add(new ConfigVariant("[bold red]── Remove ──[/]", "__remove_header__"));
+            variants.Add(new ConfigVariant("[bold {ThemeProvider.Current.Tools.Messages.Error}]── Remove ──[/]", "__remove_header__"));
             foreach (var info in allModels)
             {
                 if (!cachedModels.Contains(info.Name))
                     continue;
                 variants.Add(new ConfigVariant(
-                    $"[red]Remove: {info.Name}[/]",
+                    $"[{ThemeProvider.Current.Tools.Messages.Error}]Remove: {info.Name}[/]",
                     $"remove:{info.Name}"));
             }
         }

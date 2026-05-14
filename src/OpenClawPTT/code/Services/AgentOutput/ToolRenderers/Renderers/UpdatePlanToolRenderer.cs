@@ -24,7 +24,7 @@ public sealed class UpdatePlanToolRenderer : ToolRendererBase
             var explanation = explanationProp.GetString();
             if (!string.IsNullOrWhiteSpace(explanation))
             {
-                Output.PrintMarkup($"  [gray] {MarkupEscape(explanation)}[/]");
+                Output.PrintMarkup($"  [{Style.General.Muted}] {MarkupEscape(explanation)}[/]");
                 Output.PrintLine("", Style.General.Muted);
             }
         }
@@ -60,29 +60,29 @@ public sealed class UpdatePlanToolRenderer : ToolRendererBase
         Output.PrintLine("", Style.General.Muted);
 
         // Step number + status tag
-        Output.PrintMarkup($"  [gray]#{index,2}[/] ");
+        Output.PrintMarkup($"  [{Style.General.Muted}]#{index,2}[/] ");
         Output.PrintMarkup(statusTag);
 
         // Step description
-        Output.PrintMarkup($"  [white]{MarkupEscape(stepText)}[/]");
+        Output.PrintMarkup($"  [{Style.General.Value}]{MarkupEscape(stepText)}[/]");
     }
 
     private static (string icon, string label, string color) GetStatusDisplay(string status)
     {
         return status.ToLowerInvariant() switch
         {
-            "completed"    => ("\u2705", "Completed",   "green"),
-            "in_progress"  => ("\u27a1\ufe0f", "In Progress", "gold3"),
-            "pending"      => ("\u2b55", "Pending",     "grey"),
-            "skipped"      => ("\u25c7", "Skipped",     "grey42"),
-            _              => ("\u00b7", status,        "grey"),
+            "completed"    => ("\u2705", "Completed",   Style.Messages.Success),
+            "in_progress"  => ("\u27a1\ufe0f", "In Progress", Style.Messages.Warning),
+            "pending"      => ("\u2b55", "Pending",     Style.General.Muted),
+            "skipped"      => ("\u25c7", "Skipped",     Style.General.Muted),
+            _              => ("\u00b7", status,        Style.General.Muted),
         };
     }
 
     private static string FormatStatusTag(string icon, string label, string color)
     {
         var paddedLabel = label.PadRight(StatusWidth);
-        return $"[bold {color}]{icon} {paddedLabel}[/]";
+        return $"[{Style.Messages.Emphasis} {color}]{icon} {paddedLabel}[/]";
     }
 
     private static string MarkupEscape(string text)

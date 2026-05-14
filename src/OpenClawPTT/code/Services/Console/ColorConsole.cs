@@ -222,7 +222,7 @@ public sealed class ColorConsole : IColorConsole
         if (isQuotaError)
         {
             ShellMsg($"[{T.Messages.FallbackWarning}]  \u26a0 Model fallback: [{T.Messages.FallbackFrom}]{Markup.Escape(fromProvider)}/{Markup.Escape(fromModel)}[/] quota exhausted \u2192 [{T.Messages.FallbackTo}]{Markup.Escape(toProvider)}/{Markup.Escape(toModel)}[/][/]");
-            ShellMsg($"[{T.Messages.FallbackWarning}]  \u26a0 Tip: Recharge [bold]{Markup.Escape(fromProvider)}[/] API quota or switch primary model in config[/]");
+            ShellMsg($"[{T.Messages.FallbackWarning}]  \u26a0 Tip: Recharge [{T.Messages.Emphasis}]{Markup.Escape(fromProvider)}[/] API quota or switch primary model in config[/]");
         }
         else
         {

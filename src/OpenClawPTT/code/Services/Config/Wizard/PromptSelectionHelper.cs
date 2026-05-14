@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Themes;
 using StreamShell;
 
 namespace OpenClawPTT.ConfigWizard;
@@ -38,7 +39,7 @@ public static class PromptSelectionHelper
     }
 
     private static string HighlightDefault(string name, bool isDefault) =>
-        isDefault ? $"{name} [green]● active[/]" : name;
+        isDefault ? $"{name} [{ThemeProvider.Current.Tools.Messages.Success}]● active[/]" : name;
 
     // ── Bool ─────────────────────────────────────────────────────────
 

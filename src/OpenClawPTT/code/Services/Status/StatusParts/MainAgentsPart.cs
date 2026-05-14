@@ -19,7 +19,7 @@ public sealed class MainAgentsPart : StatusPartBase, IDisposable
     private static string NoAgentsTextMarkup
         => $"[{ThemeProvider.Current.Tools.StatusBar.NoAgentsText}]{NoAgentsText}[/]";
 
-    private const string ReadyEmoji = "[green]•[/]";
+    private static string ReadyEmoji => $"[{ThemeProvider.Current.Tools.Messages.Success}]•[/]";
     private const string NotificationEmoji = "❗";
 
     private readonly IAgentActivityStore _tracker;
@@ -76,7 +76,7 @@ public sealed class MainAgentsPart : StatusPartBase, IDisposable
         segWidth += CharacterWidth.GetDisplayWidth(emoji) + 1;
 
         var color = Markup.Escape(
-            AgentSettingsPersistenceLegacy.GetPersistedColor(registryAgent.AgentId) ?? "grey");
+            AgentSettingsPersistenceLegacy.GetPersistedColor(registryAgent.AgentId) ?? ThemeProvider.Current.Tools.General.Muted);
         var displayName = FormatAgentName(registryAgent.Name);
 
         target.Append('[');

@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Themes;
 using OpenClawPTT.TTS;
 using Spectre.Console;
 using StreamShell;
@@ -69,8 +70,8 @@ public sealed class ModularConfigurationWizard
                     for (int i = 0; i < ConsoleMetrics.GetWindowHeight(); i++)
                         host.AddMessage("");
 
-                    host.AddMessage($"[bold cyan2]──────────● [underline]{section.Name}[/]      [/]");
-                    host.AddMessage($"[grey]{ section.Description} [/]");
+                    host.AddMessage($"[{ThemeProvider.Current.Tools.Panel.SectionHeader}]──────────● [underline]{section.Name}[/]      [/]");
+                    host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]{ section.Description} [/]");
                     var sectionResult = await section.RunAsync(host, config, isInitialSetup: true, ct);
 
                     // Skip review if no settings to show
@@ -83,7 +84,7 @@ public sealed class ModularConfigurationWizard
                     foreach (var setting in sectionResult.Settings)
                     {
                         var escapedValue = Markup.Escape(setting.DisplayValue);
-                        host.AddMessage($"    [grey]{Markup.Escape(setting.Name)}[/] → [cyan]{escapedValue}[/]");
+                        host.AddMessage($"    [{ThemeProvider.Current.Tools.General.Muted}]{Markup.Escape(setting.Name)}[/] → [{ThemeProvider.Current.Tools.Messages.Highlight}]{escapedValue}[/]");
                     }
 
                     // ── Continue or Redo the whole section ──
@@ -104,7 +105,7 @@ public sealed class ModularConfigurationWizard
             }
 
             host.AddMessage("");
-            host.AddMessage("[green]  ✓ Setup complete![/]");
+            host.AddMessage("[{ThemeProvider.Current.Tools.Messages.Success}]  ✓ Setup complete![/]");
             return config;
         }
         finally
@@ -135,16 +136,16 @@ public sealed class ModularConfigurationWizard
                 // Build menu variants with live status from current config
                 var variants = new List<IVariant>
                 {
-                    new ConfigVariant("[red]Cancel[/]", PromptSelectionHelper.CancelSentinel)
+                    new ConfigVariant("[{ThemeProvider.Current.Tools.Messages.Error}]Cancel[/]", PromptSelectionHelper.CancelSentinel)
                 };
                 foreach (var section in _sections)
                 {
                     var status = GetSectionStatusLine(config, section.Name);
-                    variants.Add(new ConfigVariant($"{section.Name} [cyan]{Markup.Escape(status)}[/]", section.Name));
+                    variants.Add(new ConfigVariant($"{section.Name} [{ThemeProvider.Current.Tools.Messages.Highlight}]{Markup.Escape(status)}[/]", section.Name));
                 }
 
                 host.AddMessage("");
-                host.AddMessage("[bold cyan]Configuration[/] — [grey]pick a section to edit[/]");
+                host.AddMessage("[{ThemeProvider.Current.Tools.Panel.SectionHeader}]Configuration[/] — [{ThemeProvider.Current.Tools.General.Muted}]pick a section to edit[/]");
 
                 string choice;
                 const int maxAttempts = 3;
@@ -169,14 +170,14 @@ public sealed class ModularConfigurationWizard
                     attempts++;
                     if (attempts >= maxAttempts)
                     {
-                        host.AddMessage("[yellow]  Too many cancellations — exiting reconfiguration.[/]");
+                        host.AddMessage("[{ThemeProvider.Current.Tools.Messages.Warning}]  Too many cancellations — exiting reconfiguration.[/]");
                         return anyChanged ? config : existing;
                     }
                 }
 
                 if (choice == PromptSelectionHelper.CancelSentinel)
                 {
-                    host.AddMessage("[grey]  Reconfiguration cancelled.[/]");
+                    host.AddMessage("[{ThemeProvider.Current.Tools.General.Muted}]  Reconfiguration cancelled.[/]");
                     break;
                 }
 
@@ -185,16 +186,16 @@ public sealed class ModularConfigurationWizard
                     continue;
 
                 host.AddMessage("");
-                host.AddMessage($"[bold cyan]▶ {selectedSection.Name}[/]");
+                host.AddMessage($"[{ThemeProvider.Current.Tools.Panel.SectionHeader}]▶ {selectedSection.Name}[/]");
                 var sectionResult = await selectedSection.RunAsync(host, config, isInitialSetup: false, ct);
                 if (sectionResult.IsChanged)
                 {
                     anyChanged = true;
-                    host.AddMessage($"[green]  ✓ {selectedSection.Name} updated.[/]");
+                    host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]  ✓ {selectedSection.Name} updated.[/]");
                 }
                 else
                 {
-                    host.AddMessage($"[grey]  → {selectedSection.Name} unchanged.[/]");
+                    host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]  → {selectedSection.Name} unchanged.[/]");
                 }
             }
 
