@@ -58,4 +58,11 @@ public interface IGatewayService : IDisposable, IGatewayUIEvents
     /// then the assistant reply text (via <see cref="DisplayAssistantReply"/>).
     /// </summary>
     void DisplayHistoryEntry(ChatHistoryEntry entry);
+
+    /// <summary>
+    /// Sets a callback that reports TTS synthesis runtime status.
+    /// Called with <c>true</c> on success, <c>false</c> on failure.
+    /// Used by <see cref="AppRunner"/> to keep the TTS status dot accurate.
+    /// </summary>
+    Action<bool>? OnTtsSynthesisStatus { set; }
 }

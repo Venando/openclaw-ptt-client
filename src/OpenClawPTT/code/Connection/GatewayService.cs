@@ -21,6 +21,7 @@ public sealed class GatewayService : IGatewayService
     private AgentOutputCoordinator _coordinator;
     private ErrorLogStore? _errorLog;
     private Task? _ttsWireTask;
+    private Action<bool>? _onTtsSynthesisStatus;
     private bool _disposed;
 
     public event Action? Connected;
@@ -64,6 +65,17 @@ public sealed class GatewayService : IGatewayService
         _errorLog = store;
     }
 
+    /// <inheritdoc />
+    public Action<bool>? OnTtsSynthesisStatus
+    {
+        set
+        {
+            _onTtsSynthesisStatus = value;
+            // Update existing audio handler if already wired
+            // New handlers will get the callback via WireTtsOnProviderReadyAsync / RecreateTtsProviderAsync
+        }
+    }
+
     /// <summary>
     /// Async continuation that wires the audio handler into the output coordinator
     /// once the TTS provider background task completes.
@@ -80,7 +92,8 @@ public sealed class GatewayService : IGatewayService
                 var audioPlayer = _audioPlayer ?? new AudioPlayerService(_console);
                 var audioHandler = new AudioResponseHandler(
                     _config, _console, jobRunner, audioPlayer,
-                    _summarizer, _pttStateMachine, ttsProvider);
+                    _summarizer, _pttStateMachine, ttsProvider,
+                    onSynthesisStatus: _onTtsSynthesisStatus);
                 _coordinator.SetAudioHandler(audioHandler);
             }
         }
@@ -159,17 +172,18 @@ public sealed class GatewayService : IGatewayService
             var audioPlayer = new AudioPlayerService(_console);
             var audioHandler = new AudioResponseHandler(
                 newConfig, _console, jobRunner, audioPlayer,
-                _summarizer, _pttStateMachine, ttsService.ReleaseProvider());
+                _summarizer, _pttStateMachine, ttsService.ReleaseProvider(),
+                onSynthesisStatus: _onTtsSynthesisStatus);
             _coordinator.SetAudioHandler(audioHandler);
-        }
-        else
-        {
-            // Provider is null (Edge with no key, etc.) — clear audio handler,
-            // TTS will be effectively disabled until reconfigured with valid settings.
-            _coordinator.SetAudioHandler(null);
+            return Task.CompletedTask;
         }
 
-        return Task.CompletedTask;
+        // Provider is null (Edge with no key, etc.) — clear audio handler,
+        // TTS will be effectively disabled until reconfigured with valid settings.
+        _coordinator.SetAudioHandler(null);
+        throw new InvalidOperationException(
+            $"TTS provider '{ttsService.ProviderType}' requires configuration. " +
+            "Check TtsSubscriptionKey / TtsOpenAiApiKey / TtsApiKey / CoquiModelPath settings.");
     }
 
     public async Task<List<ChatHistoryEntry>?> FetchSessionHistoryAsync(string sessionKey, int limit = 5)

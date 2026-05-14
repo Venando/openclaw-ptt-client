@@ -83,10 +83,26 @@ public sealed class TtsService : ITtsService
         if (_provider == null && _providerType == TtsProviderType.Edge)
         {
             // Edge with null key — warn but don't crash (TtsService still works, TTS just silent)
+            console.PrintWarning(
+                $"TTS provider '{_providerType}' requires a subscription key. " +
+                "Set 'TtsSubscriptionKey' and 'TtsRegion' in configuration.");
         }
         else if (_provider == null)
         {
             throw new InvalidOperationException($"Failed to initialize TTS provider: {_providerType}");
+        }
+
+        if (_provider is Providers.CoquiUvTtsProvider coquiUv)
+        {
+            try
+            {
+                coquiUv.InitializeAsync(_cts.Token).GetAwaiter().GetResult();
+            }
+            catch (AggregateException ae)
+            {
+                // Unwrap AggregateException from GetAwaiter().GetResult()
+                throw ae.InnerException ?? ae;
+            }
         }
 
         if (_provider is Providers.PythonTtsProvider pythonProvider)

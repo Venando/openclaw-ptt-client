@@ -17,6 +17,7 @@ public partial class AppRunner
     {
         try
         {
+            _statusService.SetServiceStatus(ServiceKind.Tts, StatusColor.Yellow);
             _console.Log("tts", "Initializing TTS...");
             using var ttsService = _factory.CreateTtsService(cfg, _console);
             ct.ThrowIfCancellationRequested();
@@ -30,7 +31,7 @@ public partial class AppRunner
 
             // Provider is null (Edge with no key, etc.) — warn but don't error
             _statusService.SetServiceStatus(ServiceKind.Tts, StatusColor.Red);
-            _console.Log("tts", "TTS provider is null (not configured).");
+            _console.Log("tts", $"TTS provider '{ttsService.ProviderType}' not configured — TTS disabled.");
             return null;
         }
         catch (OperationCanceledException)

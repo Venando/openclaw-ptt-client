@@ -195,7 +195,7 @@ public sealed class FasterWhisperModelManager
                     if (line == null) break;
                     stdoutLines.Add(line);
                     if (!string.IsNullOrWhiteSpace(line))
-                        _host.AddMessage($"[grey]      [stdout] {line}[/]");
+                        _host.AddMessage($"[grey]      [[stdout]] {line}[/]");
                 }
             }, linkedCts.Token);
 

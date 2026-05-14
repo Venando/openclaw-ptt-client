@@ -28,7 +28,9 @@ public sealed class AudioPlayerService : IAudioPlayer, IDisposable
         
         try
         {
-            Stop(); // Stop any currently playing audio
+            // Stop current playback; never let Stop failure block new playback
+            try { Stop(); }
+            catch (Exception ex) { _console.PrintWarning($"Audio stop before play failed: {ex.Message}"); }
             
             // Try to load as WAV, otherwise treat as raw PCM
             MemoryStream ms = new MemoryStream(audioBytes);
@@ -62,7 +64,9 @@ public sealed class AudioPlayerService : IAudioPlayer, IDisposable
         
         try
         {
-            Stop();
+            // Stop current playback; never let Stop failure block new playback
+            try { Stop(); }
+            catch (Exception ex) { _console.PrintWarning($"Audio stop before play failed: {ex.Message}"); }
             
             if (!File.Exists(filePath))
             {
@@ -110,20 +114,22 @@ public sealed class AudioPlayerService : IAudioPlayer, IDisposable
     {
         if (_waveOut != null)
         {
-            _waveOut.PlaybackStopped -= OnPlaybackStopped;
+            var w = _waveOut;
+            _waveOut = null; // Null first so subsequent calls skip
+            w.PlaybackStopped -= OnPlaybackStopped;
             try
             {
-                _waveOut.Stop();
-                _waveOut.Dispose();
+                w.Stop();
+                w.Dispose();
             }
             catch (Exception ex) { _console.PrintError($"Audio cleanup failed: {ex.Message}"); }
-            _waveOut = null;
         }
 
         if (_activeStream != null)
         {
-            try { _activeStream.Dispose(); } catch { /* ignore */ }
-            _activeStream = null;
+            var s = _activeStream;
+            _activeStream = null; // Null first so subsequent calls skip
+            try { s.Dispose(); } catch { /* ignore */ }
         }
     }
     

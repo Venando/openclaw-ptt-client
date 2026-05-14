@@ -40,6 +40,48 @@ public sealed class CoquiUvEnvironment
     private static bool s_scriptsExtracted;
     private static readonly object s_scriptsLock = new();
 
+    /// <summary>
+    /// Set after the first <c>uv run</c> attempt fails with a build/dependency error.
+    /// Prevents retrying the same doomed operation (e.g. Python version mismatch).
+    /// </summary>
+    public static bool IsUvBuildBroken { get; private set; }
+
+    /// <summary>Human-readable reason why the build is broken, for display.</summary>
+    public static string? UvBuildErrorDetail { get; private set; }
+
+    /// <summary>
+    /// Path to the validated Python interpreter (e.g. C:\...\python3.11.exe).
+    /// Set by <see cref="ValidatePythonVersionAsync"/> on success.
+    /// Passed to <c>uv run --python</c> to guarantee the right interpreter.
+    /// </summary>
+    public static string? ValidatedPythonPath { get; private set; }
+
+    /// <summary>Marks the uv environment as broken so retries are skipped.</summary>
+    public static void MarkUvBuildBroken(string detail)
+    {
+        IsUvBuildBroken = true;
+        UvBuildErrorDetail = detail;
+    }
+
+    /// <summary>
+    /// Clears only the broken flag and error detail, without wiping
+    /// <see cref="ValidatedPythonPath"/>. Use when a successful <c>uv run</c>
+    /// operation proved the environment works with the currently pinned Python.
+    /// </summary>
+    public static void ClearBrokenFlagKeepPython()
+    {
+        IsUvBuildBroken = false;
+        UvBuildErrorDetail = null;
+    }
+
+    /// <summary>Resets the broken flag — call after user fixes Python/uv.</summary>
+    public static void ResetBrokenFlag()
+    {
+        IsUvBuildBroken = false;
+        UvBuildErrorDetail = null;
+        ValidatedPythonPath = null;
+    }
+
     public CoquiUvEnvironment(string? dataDir, string modelName, string? modelPath, string? ttsConfigPath, string? espeakNgPath)
     {
         _projectDir = Path.Combine(
@@ -94,6 +136,176 @@ public sealed class CoquiUvEnvironment
 
     public static bool IsUvAvailable() => FindUv() != null;
 
+    /// <summary>
+    /// Result from <see cref="ValidatePythonVersionAsync"/>.
+    /// </summary>
+    public sealed class PythonVersionResult
+    {
+        /// <summary>Null on success; error message on failure.</summary>
+        public string? Error { get; init; }
+        /// <summary>Resolved Python path (e.g. C:\Users\...\python3.11.exe).</summary>
+        public string? PythonPath { get; init; }
+        /// <summary>Human-readable version string (e.g. "3.11.13").</summary>
+        public string? PythonVersion { get; init; }
+        /// <summary>True when the check succeeded and a compatible Python was found.</summary>
+        public bool Ok => Error == null && PythonPath != null;
+    }
+
+    /// <summary>
+    /// Validates that <c>uv</c> can find a Python in [3.9, 3.12) for Coqui TTS.
+    /// Uses <c>uv python list</c> (fast, lists only installed interpreters, no downloads).
+    /// Streams progress via <paramref name="onProgress"/> so the user isn't staring at silence.
+    /// </summary>
+    public static async Task<PythonVersionResult> ValidatePythonVersionAsync(
+        string? dataDir,
+        Action<string>? onProgress = null,
+        CancellationToken ct = default)
+    {
+        if (!IsUvAvailable())
+            return new PythonVersionResult { Error = "uv is not installed" };
+
+        if (IsUvBuildBroken)
+            return new PythonVersionResult { Error = UvBuildErrorDetail ?? "uv environment is broken" };
+
+        var uvPath = FindUv()!;
+
+        onProgress?.Invoke("Running uv python list (checking installed interpreters)...");
+
+        // uv python list — fast, only lists installed interpreters, no downloads
+        var psi = new ProcessStartInfo
+        {
+            FileName = uvPath,
+            Arguments = "python list --only-installed",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+
+        Process? process = null;
+        try
+        {
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+
+            process = Process.Start(psi);
+            if (process == null)
+                return new PythonVersionResult { Error = "Failed to start uv python list" };
+
+            // Read both streams concurrently — show stderr as progress
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(linked.Token);
+            var stderrTask = Task.Run(async () =>
+            {
+                var reader = process.StandardError;
+                var sb = new StringBuilder();
+                while (true)
+                {
+                    var line = await reader.ReadLineAsync(linked.Token).ConfigureAwait(false);
+                    if (line == null) break;
+                    var trimmed = line.Trim();
+                    if (!string.IsNullOrWhiteSpace(trimmed))
+                    {
+                        onProgress?.Invoke(trimmed);
+                        sb.AppendLine(trimmed);
+                    }
+                }
+                return sb.ToString();
+            }, linked.Token);
+
+            await Task.WhenAll(stdoutTask, stderrTask, process.WaitForExitAsync(linked.Token))
+                .ConfigureAwait(false);
+
+            if (process.ExitCode != 0)
+            {
+                var stderr = stderrTask.Result.Trim();
+                return new PythonVersionResult
+                {
+                    Error = string.IsNullOrEmpty(stderr)
+                        ? $"No compatible Python found. Coqui TTS requires Python >=3.9, <3.12. Install Python 3.11 and restart."
+                        : $"Python check failed: {stderr}"
+                };
+            }
+
+            var stdout = stdoutTask.Result.Trim();
+            if (string.IsNullOrEmpty(stdout))
+                return new PythonVersionResult
+                {
+                    Error = "No Python interpreters installed. Install Python >=3.9, <3.12 (e.g. 3.11) and restart."
+                };
+
+            // Parse uv python list output — each line is: cpython-3.11.13-linux-x86_64-gnu    /path/to/python3.11
+            var lines = stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var line in lines)
+            {
+                var parts = line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 2) continue;
+
+                var versionStr = ExtractPythonVersion(parts[0]);
+                if (versionStr == null) continue;
+
+                if (!Version.TryParse(versionStr, out var ver)) continue;
+
+                // Must be in [3.9, 3.12)
+                if (ver.Major != 3 || ver.Minor < 9 || ver.Minor >= 12)
+                    continue;
+
+                // Found a compatible Python!
+                var pythonPath = parts[1];
+                onProgress?.Invoke($"Found compatible Python: {versionStr} at {pythonPath}");
+                ValidatedPythonPath = pythonPath;
+                return new PythonVersionResult
+                {
+                    PythonPath = pythonPath,
+                    PythonVersion = versionStr
+                };
+            }
+
+            // No compatible Python found — list what IS installed for clarity
+            var installed = lines
+                .Select(l => l.Trim())
+                .Where(l => l.Length > 0)
+                .ToList();
+            var detail = installed.Count > 0
+                ? $"Installed: {string.Join(", ", installed.Select(l => l.Split([' ', '\t'])[0]))}. Need Python >=3.9, <3.12."
+                : "No Python interpreters installed. Need Python >=3.9, <3.12 (e.g. 3.11).";
+            return new PythonVersionResult { Error = detail };
+        }
+        catch (OperationCanceledException)
+        {
+            return new PythonVersionResult { Error = "Python version check timed out" };
+        }
+        catch (Exception ex)
+        {
+            return new PythonVersionResult { Error = $"Python version check failed: {ex.Message}" };
+        }
+        finally
+        {
+            // Always kill the process — don't leave orphaned uv/python processes
+            if (process != null)
+            {
+                try
+                {
+                    if (!process.HasExited)
+                        process.Kill(entireProcessTree: true);
+                }
+                catch { /* already exited */ }
+                process.Dispose();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Extracts a Python version string like "3.11.13" from a key like
+    /// "cpython-3.11.13-linux-x86_64-gnu".
+    /// </summary>
+    private static string? ExtractPythonVersion(string text)
+    {
+        // Match "cpython-X.Y.Z" or "X.Y.Z" pattern
+        var match = System.Text.RegularExpressions.Regex.Match(
+            text, @"(\d+\.\d+(\.\d+)?)");
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
     // ── Project files ───────────────────────────────────────────────
 
     public void EnsureProjectFiles()
@@ -113,6 +325,59 @@ public sealed class CoquiUvEnvironment
         }
     }
 
+    /// <summary>
+    /// Returns " --python \"<path>\"" when a validated Python is known,
+    /// otherwise empty string. Use in all <c>uv run</c> arguments.
+    /// </summary>
+    public static string GetPythonArg()
+    {
+        if (!string.IsNullOrEmpty(ValidatedPythonPath))
+            return $" --python \"{ValidatedPythonPath}\"";
+        return "";
+    }
+
+    /// <summary>
+    /// If the <c>.venv</c> exists but was created with a different Python than
+    /// the validated one, delete it so <c>uv run --python</c> recreates it correctly.
+    /// </summary>
+    public static void EnsureVenvPythonMatches(string projectDir)
+    {
+        if (string.IsNullOrEmpty(ValidatedPythonPath))
+            return;
+
+        var pyvenvCfg = Path.Combine(projectDir, ".venv", "pyvenv.cfg");
+        if (!File.Exists(pyvenvCfg))
+            return;
+
+        try
+        {
+            var lines = File.ReadAllLines(pyvenvCfg);
+            foreach (var line in lines)
+            {
+                if (line.StartsWith("home =", StringComparison.OrdinalIgnoreCase) ||
+                    line.StartsWith("home=", StringComparison.OrdinalIgnoreCase))
+                {
+                    var homePath = line[(line.IndexOf('=') + 1)..].Trim();
+                    // Normalize paths for comparison
+                    if (!string.Equals(
+                        Path.GetFullPath(homePath).TrimEnd(Path.DirectorySeparatorChar),
+                        Path.GetDirectoryName(Path.GetFullPath(ValidatedPythonPath))?.TrimEnd(Path.DirectorySeparatorChar),
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Wrong Python — delete venv so uv recreates it
+                        var venvDir = Path.Combine(projectDir, ".venv");
+                        Directory.Delete(venvDir, recursive: true);
+                    }
+                    break;
+                }
+            }
+        }
+        catch
+        {
+            // If anything goes wrong reading/deleting, don't crash — uv will handle it
+        }
+    }
+
     // ── Process creation ────────────────────────────────────────────
 
     /// <summary>
@@ -127,7 +392,7 @@ public sealed class CoquiUvEnvironment
         var psi = new ProcessStartInfo
         {
             FileName = uvPath,
-            Arguments = $"run --directory \"{_projectDir}\" python \"{Path.Combine(_projectDir, "tts_service.py")}\"",
+            Arguments = $"run{GetPythonArg()} --directory \"{_projectDir}\" python \"{Path.Combine(_projectDir, "tts_service.py")}\"",
             UseShellExecute = false,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
@@ -156,13 +421,65 @@ public sealed class CoquiUvEnvironment
     public static string BuildPreDownloadCommand(string modelName)
     {
         var escaped = modelName.Replace("\\", "\\\\").Replace("\"", "\\\"");
-        return "import torch; from TTS.api import TTS; " +
+        // PyTorch >=2.6 defaults weights_only=True in torch.load, but Coqui TTS
+        // models use legacy checkpoints that need weights_only=False.
+        // Monkey-patch torch.load before importing TTS.
+        return "import torch, functools; " +
+               "torch.load = functools.partial(torch.load, weights_only=False); " +
+               "from TTS.api import TTS; " +
                $"m = TTS(model_name=\"{escaped}\", progress_bar=False, gpu=False); " +
                "del m; print('OK')";
     }
 
     /// <summary>
-    /// Builds a uv run command to list locally cached Coqui TTS models.
+    /// Returns the content for a Python helper script that lists cached model paths.
+    /// Saved to <c>list_cached.py</c> in the project dir and executed via
+    /// <c>uv run python list_cached.py</c>.
+    /// Respects HF_HOME / HUGGINGFACE_HUB_CACHE env vars for custom cache locations.
+    /// </summary>
+    /// <summary>
+    /// Returns the content for a Python helper script that lists cached model paths.
+    /// Coqui TTS stores models in <c>%LOCALAPPDATA%/tts</c> (Windows) or
+    /// <c>~/.local/share/tts</c> (Linux/macOS), using <c>--</c> as path separator
+    /// (e.g. <c>tts_models--en--blizzard2013--capacitron-t2-c150_v2</c>).
+    /// Saved to <c>list_cached.py</c> and executed via <c>uv run python list_cached.py</c>.
+    /// </summary>
+    public static string ListCachedModelPathsScript() => """
+import os, json, sys
+
+# Coqui TTS uses its own storage, NOT HuggingFace cache.
+# Windows: %LOCALAPPDATA%/tts  |  Linux/macOS: ~/.local/share/tts
+tts_home = os.environ.get('LOCALAPPDATA')
+if tts_home:
+    tts_home = os.path.join(tts_home, 'tts')
+else:
+    tts_home = os.path.expanduser('~/.local/share/tts')
+
+# Priority 2: also check old Coqui TTS dir location
+old_home = os.path.join(os.path.expanduser('~'), '.local', 'share', 'tts')
+
+seen = set()
+for root_dir in (tts_home, old_home):
+    if not os.path.isdir(root_dir):
+        continue
+    for entry in os.listdir(root_dir):
+        full = os.path.join(root_dir, entry)
+        if not os.path.isdir(full):
+            continue
+        # Coqui stores models as tts_models--<lang>--<dataset>--<model>
+        # Convert back to standard /-separated format
+        for prefix in ('tts_models--', 'vocoder_models--'):
+            if entry.startswith(prefix):
+                model_name = entry.replace('--', '/')
+                seen.add(model_name)
+                break
+
+print(f'tts_home={tts_home} found={len(seen)}', file=sys.stderr)
+print(json.dumps(sorted(seen)))
+""" + "\n";
+
+    /// <summary>
+    /// Builds a uv run command to list locally cached Coqui TTS model repos.
     /// </summary>
     public static string BuildListCachedCommand()
     {
@@ -184,7 +501,7 @@ public sealed class CoquiUvEnvironment
 [project]
 name = "openclaw-ptt-tts"
 version = "0.1.0"
-requires-python = ">=3.9"
+requires-python = ">=3.9,<3.12"
 dependencies = [
     "TTS>=0.22.0",
     "torch>=2.0.0",
@@ -194,9 +511,11 @@ dependencies = [
 # uv downloads the right Python automatically if not installed
 
 [tool.uv.extra-build-dependencies]
-# pandas 1.5.3 (dep of TTS 0.22) uses pkg_resources but doesn't declare
-# setuptools as a build dependency → uv needs this hint
-pandas = ["setuptools"]
+# pandas 1.5.3 and tts 0.22.0 (dep of TTS) use pkg_resources at build time
+# but don't declare setuptools as a build dependency. setuptools>=67.3
+# removed pkg_resources, so we pin to an older version that includes it.
+pandas = ["setuptools<67"]
+tts = ["setuptools<67"]
 """;
 
     private const string TtsServiceScript = """
@@ -232,7 +551,9 @@ def load_model():
     if not model_name and not model_path:
         raise RuntimeError("No TTS_MODEL or TTS_MODEL_PATH set")
 
-    import torch
+    import torch, functools
+    # PyTorch >=2.6 defaults weights_only=True; Coqui TTS models need False
+    torch.load = functools.partial(torch.load, weights_only=False)
     from TTS.api import TTS
 
     device = "cuda" if torch.cuda.is_available() else "cpu"

@@ -19,8 +19,14 @@ public sealed class AudioResponseHandler : IDisposable
     private readonly IAudioPlayer _audioPlayer;
     private readonly ITtsSummarizer? _summarizer;
     private readonly IPttStateMachine? _pttStateMachine;
+    // ── Retry constants ─────────────────────────────────────────────
+    private const int SynthesisMaxRetries = 1;
+    private static readonly TimeSpan SynthesisRetryDelay = TimeSpan.FromMilliseconds(500);
+
     private readonly IColorConsole _console;
     private readonly IBackgroundJobRunner _jobRunner;
+    private readonly Action<bool>? _onSynthesisStatus;
+    private readonly CancellationTokenSource _synthesisCts = new();
     private bool _disposed;
 
     public AudioResponseHandler(
@@ -30,7 +36,8 @@ public sealed class AudioResponseHandler : IDisposable
         IAudioPlayer audioPlayer,
         ITtsSummarizer? summarizer,
         IPttStateMachine? pttStateMachine,
-        ITextToSpeech? ttsProvider)
+        ITextToSpeech? ttsProvider,
+        Action<bool>? onSynthesisStatus = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _console = console ?? throw new ArgumentNullException(nameof(console));
@@ -39,6 +46,7 @@ public sealed class AudioResponseHandler : IDisposable
         _summarizer = summarizer;
         _pttStateMachine = pttStateMachine;
         _ttsProvider = ttsProvider;
+        _onSynthesisStatus = onSynthesisStatus;
     }
 
     /// <summary>
@@ -162,22 +170,58 @@ public sealed class AudioResponseHandler : IDisposable
 
     /// <summary>
     /// Synthesizes text to speech and plays the audio via a background job.
+    /// Retries once on transient failure with a short delay.
+    /// Reports synthesis status via <see cref="_onSynthesisStatus"/> callback.
     /// </summary>
     private void SynthesizeAndPlay(string textToSpeak)
     {
         var preview = textToSpeak.Length > 80 ? textToSpeak[..80] + "..." : textToSpeak;
         _jobRunner.RunAndForget(async () =>
         {
-            var audioBytes = await _ttsProvider!.SynthesizeAsync(
-                textToSpeak, _config.TtsVoice, null, CancellationToken.None);
+            byte[]? audioBytes = null;
+            Exception? lastEx = null;
+
+            for (int attempt = 0; attempt <= SynthesisMaxRetries; attempt++)
+            {
+                try
+                {
+                    audioBytes = await _ttsProvider!.SynthesizeAsync(
+                        textToSpeak, _config.TtsVoice, null, _synthesisCts.Token);
+                    lastEx = null;
+                    break; // Success — exit retry loop
+                }
+                catch (OperationCanceledException)
+                {
+                    return; // Shutdown — don't report status
+                }
+                catch (Exception ex)
+                {
+                    lastEx = ex;
+                    if (attempt < SynthesisMaxRetries)
+                    {
+                        _console.PrintWarning(
+                            $"TTS synthesis attempt {attempt + 1} failed: {ex.Message}. Retrying...");
+                        await Task.Delay(SynthesisRetryDelay, _synthesisCts.Token);
+                    }
+                }
+            }
+
+            if (lastEx != null)
+            {
+                _console.PrintWarning($"TTS synthesis failed after {SynthesisMaxRetries + 1} attempt(s): {lastEx.Message}");
+                _onSynthesisStatus?.Invoke(false);
+                return;
+            }
 
             if (audioBytes != null && audioBytes.Length > 0)
             {
                 _audioPlayer.Play(audioBytes);
+                _onSynthesisStatus?.Invoke(true);
             }
             else
             {
                 _console.PrintWarning("TTS synthesis returned null/empty audio.");
+                _onSynthesisStatus?.Invoke(false);
             }
         }, $"tts-synthesis-{preview}");
     }
@@ -199,6 +243,8 @@ public sealed class AudioResponseHandler : IDisposable
     {
         if (!_disposed)
         {
+            _synthesisCts.Cancel();
+            _synthesisCts.Dispose();
             _audioPlayer.Dispose();
             (_jobRunner as IDisposable)?.Dispose();
             _disposed = true;
