@@ -242,65 +242,36 @@ public sealed record AgentStatusSnapshot
 
     // Status emoji constants — single source of truth for all agent state visuals.
     // Use these instead of literal emoji strings everywhere.
-    public const string AbortedEmoji = "⏳";
+    public const string AbortedEmoji = "🔄";
     public const string ToolExecutingEmoji = "🔄";
     public const string FinishedEmoji = "✅";
-    public const string SpawningEmoji = "⏳";
+    public const string SpawningEmoji = "🔄";
     public const string UnknownSubagentEmoji = "⚪";
-    public const string YieldingEmoji = "⏳";
+    public const string YieldingEmoji = "🔄";
     public const string ReadyEmoji = "🟢";
-    public const string StaleEmoji = "🔴";
 
-    /// <summary>How long (ms) a 🔄 status can go without updates before turning stale (🔴).</summary>
-    private const long StatusStaleTimeoutMs = 600_000;
-
-    /// <summary>
-    /// True when the snapshot&#39;s <see cref="UpdatedAt"/> is more than
-    /// <see cref="StatusStaleTimeoutMs"/> milliseconds in the past.
-    /// Returns false when <see cref="UpdatedAt"/> is null (unknown age).
-    /// </summary>
-    private bool IsStaleSpinner =>
-        UpdatedAt.HasValue
-        && (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - UpdatedAt.Value) > StatusStaleTimeoutMs;
 
     /// <summary>Returns a single emoji representing the agent's current state.</summary>
     public string GetStatusEmoji()
     {
-        // Aborted — highest priority, applies to both agent types
         if (IsAborted) return AbortedEmoji;
 
-        // Tool mid-execution — check for stale spinner
-        if (IsUsingTool) return IsStaleSpinner ? StaleEmoji : ToolExecutingEmoji;
+        if (IsUsingTool) return ToolExecutingEmoji;
 
-        // Subagent states
         if (IsSubagent)
         {
-            // Completed run (archived).
             if (IsFinished) return FinishedEmoji;
 
-            // Actively running its LLM turn or waiting for its own tool.
-            // Check staleness so stuck subagents show 🔴.
-            // Note: IsSubagentActive is independent of IsUsingTool, so we check
-            // staleness here too. If this becomes noisy we can separate the checks.
-            if (IsSubagentActive) return IsStaleSpinner ? StaleEmoji : ToolExecutingEmoji;
+            if (IsSubagentActive) return ToolExecutingEmoji;
 
-            // Created/announced but its own lifecycle run hasn't started yet.
             if (IsSubagentSpawning) return SpawningEmoji;
 
-            // Transitional / unknown state (e.g. mid-handshake payloads).
             return UnknownSubagentEmoji;
         }
-
-        // Main agent states
-
-        // Yielded: run ended (phase == "end", status == "done") but children
-        // are still live. The main agent is not truly done — it's waiting.
         if (IsYieldingForChildren) return YieldingEmoji;
 
-        // Actively generating / ready to listen.
         if (IsRunning) return ReadyEmoji;
 
-        // Unknown / initial state.
         return ReadyEmoji;
     }
 }
