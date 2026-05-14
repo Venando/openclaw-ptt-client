@@ -259,18 +259,51 @@ def main():
     from TTS.api import TTS
     import sys as _sys
     manager = TTS().list_models()
-    registry = getattr(manager, '_models', {})
-    print(f'[diag] registry type={type(registry).__name__}, len={len(registry)}', file=_sys.stderr)
-    if registry:
-        first_keys = list(registry.keys())[:5]
-        print(f'[diag] first 5 registry keys: {first_keys}', file=_sys.stderr)
-        if first_keys:
-            first_val = registry[first_keys[0]]
-            print(f'[diag] first value keys: {list(first_val.keys()) if isinstance(first_val, dict) else type(first_val).__name__}', file=_sys.stderr)
-            print(f'[diag] first value sample: {str(first_val)[:300]}', file=_sys.stderr)
 
-    # Try multiple possible URL field names
-    URL_FIELDS = ('github_rls_url', 'hf_url', 'url', 'download_url', 'repo_url', 'checkpoint')
+    # Explore manager attributes to find where model metadata lives
+    print(f'[diag] manager type={type(manager).__name__}', file=_sys.stderr)
+    attrs = [a for a in dir(manager) if not a.startswith('__')]
+    print(f'[diag] manager public attrs: {attrs}', file=_sys.stderr)
+
+    # Check various possible sources
+    registry = getattr(manager, '_models', {})
+    print(f'[diag] _models: type={type(registry).__name__}, len={len(registry)}', file=_sys.stderr)
+
+    # Check if there's a models_dict or similar
+    for attr_name in ('models_dict', 'models', '_model_names', '_sources', '_sources_dict',
+                       'source_urls', '_urls', 'model_urls', '_hf_models', '_local_models'):
+        val = getattr(manager, attr_name, None)
+        if val is not None:
+            print(f'[diag] manager.{attr_name}: type={type(val).__name__}, len={len(val) if hasattr(val, "__len__") else "?"}', file=_sys.stderr)
+            if hasattr(val, '__len__') and len(val) > 0 and len(val) < 10:
+                print(f'[diag]   content: {val}', file=_sys.stderr)
+
+    # Try model_info_by_full_name for a sample model
+    sample = model_names[0] if model_names else None
+    if sample:
+        try:
+            info = manager.model_info_by_full_name(sample)
+            print(f'[diag] model_info_by_full_name({sample}): type={type(info).__name__}', file=_sys.stderr)
+            if isinstance(info, dict):
+                print(f'[diag]   keys={list(info.keys())}', file=_sys.stderr)
+                print(f'[diag]   sample={str(info)[:300]}', file=_sys.stderr)
+        except Exception as e:
+            print(f'[diag] model_info_by_full_name failed: {e}', file=_sys.stderr)
+
+    # Also try asking manager to download with dry_run / just get the URL
+    try:
+        # manager might have source_url or download_url method
+        for method_name in ('source_url', 'download_url', 'get_url', '_get_url',
+                            'get_download_url', 'get_model_url'):
+            method = getattr(manager, method_name, None)
+            if method and callable(method):
+                print(f'[diag] manager.{method_name}() exists', file=_sys.stderr)
+    except Exception:
+        pass
+
+    # Fall back to trying URL fields in _models
+    URL_FIELDS = ('github_rls_url', 'hf_url', 'url', 'download_url', 'repo_url', 'checkpoint',
+                  'source_url', 'model_url', 'hf_model_id')
     url_map = {}
     not_found = []
     for name in model_names:
