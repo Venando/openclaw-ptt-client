@@ -86,14 +86,17 @@ public sealed class StreamShellHost : IStreamShellHost, IDisposable
     public void SetSelectionMarkup(string markup) => _host.Settings.SelectionMarkup = markup;
     public void SetCommandSlashMarkup(string markup) => _host.Settings.CommandSlashMarkup = markup;
 
-    public void ApplyStreamShellTheme()
+    public void ApplyStreamShellTheme(int prefixWidth)
     {
         var t = ThemeProvider.Current.Tools;
         _host.Settings.CursorMarkup = t.StreamCursorMarkup;
         _host.Settings.SelectionMarkup = t.StreamSelectionMarkup;
         _host.Settings.CommandSlashMarkup = t.StreamCommandSlashMarkup;
-        _host.Settings.InputPrefix = t.StreamInputPrefix;
-        _host.Settings.ContinuationPrefix = t.StreamContinuationPrefix;
+
+        // Build input prefix: theme style + dynamic spacing to match user message width
+        int wsCount = Math.Max(0, prefixWidth - 2);
+        _host.Settings.InputPrefix = $"[{t.StreamInputPrefixStyle}]{new string(' ', wsCount)}> [/]";
+        _host.Settings.ContinuationPrefix = new string(' ', prefixWidth);
     }
     public void SetDefaultPanel(StreamShell.IBottomPanel panel) => _host.SetDefaultPanel(panel);
 

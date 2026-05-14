@@ -80,6 +80,6 @@ public sealed class FakeStreamShellHost : IStreamShellHost, IDisposable
     public void SetCursorMarkup(string markup) { }
     public void SetSelectionMarkup(string markup) { }
     public void SetCommandSlashMarkup(string markup) { }
-    public void ApplyStreamShellTheme() { }
+    public void ApplyStreamShellTheme(int prefixWidth) { }
     public Task<StreamShell.IVariant[]?> PromptSelection(string title, StreamShell.IVariantEntry[] variants, StreamShell.SelectionInfo? info = null)
         => Task.FromResult<StreamShell.IVariant[]?>(null);

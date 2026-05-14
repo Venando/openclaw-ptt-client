@@ -1,3 +1,4 @@
+using OpenClawPTT.Services.Themes;
 using Spectre.Console;
 
 namespace OpenClawPTT.Services;
@@ -43,13 +44,11 @@ public sealed class ColorConsole : IColorConsole
 
         UserMessagePrefix = config.UserMessagePrefix;
 
-        // Apply StreamShell settings
+        // Apply StreamShell settings (theme-driven cursor/selection/commandSlash/prefix)
         _shellHost.SetRightMarginIndent(ReservedRightMargin);
 
-        // Match input prefix visual width to user message prefix (keep StreamShell default markup)
         int prefixWidth = Markup.Remove(config.UserMessagePrefix).Length;
-        _shellHost.SetInputPrefix($"[bold SkyBlue1]{new string(' ', Math.Max(0, prefixWidth - 2))}> [/]");
-        _shellHost.SetContinuationPrefix(new string(' ', prefixWidth));
+        _shellHost.ApplyStreamShellTheme(prefixWidth);
     }
 
     private AgentReplyFormatter GetOrCreateUserMessageFormatter()

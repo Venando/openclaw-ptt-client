@@ -96,10 +96,10 @@ public sealed class StreamShellInputHandler : IDisposable
         // Initialize theme: ensure example file exists, then load the configured theme
         _themeService.EnsureExampleFile();
         _themeService.LoadTheme();
-        _host.ApplyStreamShellTheme();
+        _host.ApplyStreamShellTheme(ComputePrefixWidth());
 
         // Re-apply StreamShell settings on runtime theme swap
-        _themeService.ThemeChanged += (_, _) => _host.ApplyStreamShellTheme();
+        _themeService.ThemeChanged += (_, _) => _host.ApplyStreamShellTheme(ComputePrefixWidth());
 
         _lastKnownLlmUrl = appConfig.DirectLlmUrl;
         _lastKnownLlmModel = appConfig.DirectLlmModelName;
@@ -377,4 +377,10 @@ public sealed class StreamShellInputHandler : IDisposable
             }
         });
     }
+
+    /// <summary>
+    /// Computes the visual width of the user message prefix for input prompt alignment.
+    /// </summary>
+    private int ComputePrefixWidth()
+        => Markup.Remove(_appConfig.UserMessagePrefix).Length;
 }

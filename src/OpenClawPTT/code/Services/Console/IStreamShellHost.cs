@@ -56,8 +56,14 @@ public interface IStreamShellHost
     /// <summary>Sets the command slash character markup on the underlying StreamShell settings.</summary>
     void SetCommandSlashMarkup(string markup);
 
-    /// <summary>Applies all theme-driven settings (cursor, selection, command slash, prefix) from ThemeConfig.</summary>
-    void ApplyStreamShellTheme();
+    /// <summary>
+    /// Applies all theme-driven StreamShell settings from ThemeConfig.
+    /// </summary>
+    /// <param name="prefixWidth">
+    /// Visual width of the user message prefix in characters, used to align the
+    /// input prompt continuation prefix to match message display width.
+    /// </param>
+    void ApplyStreamShellTheme(int prefixWidth);
 
     /// <summary>Sets the default bottom panel (shown when no command is active).</summary>
     void SetDefaultPanel(StreamShell.IBottomPanel panel);
