@@ -1,12 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using OpenClawPTT.Services;
 
 namespace OpenClawPTT.TTS.Providers;
@@ -156,10 +150,7 @@ public sealed class CoquiTtsModelManager
             CreateNoWindow = true,
         };
 
-        var pythonInfo = CoquiUvEnvironment.ValidatedPythonPath != null
-            ? $" (Python: {CoquiUvEnvironment.ValidatedPythonPath})"
-            : "";
-        host.AddMessage($"[grey]    Fetching model list from coqui/TTS on HuggingFace{pythonInfo}...[/]");
+        host.AddMessage($"[grey]      Fetching model list from coqui/TTS on HuggingFace...[/]");
         progressCallback?.Invoke("Resolving packages", "uv setting up Python environment...", null);
 
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
@@ -289,11 +280,11 @@ public sealed class CoquiTtsModelManager
 
         if (!CoquiUvEnvironment.IsUvAvailable())
         {
-            host.AddMessage("[grey]    [[GetCachedModels]] uv not available[/]");
+            host.AddMessage("[grey]    uv not available[/]");
             return Array.Empty<string>();
         }
 
-        host.AddMessage($"[grey]    [[GetCachedModels]] Running Python cache scan via list_cached.py...[/]");
+        host.AddMessage($"[grey]    Running Python cache scan...[/]");
 
         // Write the Python script to a temp file (avoids -c escaping/syntax issues)
         var scriptPath = Path.Combine(projectDir, "list_cached.py");
@@ -318,7 +309,7 @@ public sealed class CoquiTtsModelManager
             using var process = Process.Start(psi);
             if (process == null)
             {
-                host.AddMessage("[red]    [[GetCachedModels]] Process.Start returned null[/]");
+                host.AddMessage("[red]   Failed to start python for models check[/]");
                 return Array.Empty<string>();
             }
 
@@ -326,30 +317,28 @@ public sealed class CoquiTtsModelManager
             var stderr = await process.StandardError.ReadToEndAsync(linkedCts.Token);
             await process.WaitForExitAsync(linkedCts.Token);
 
-            host.AddMessage($"[grey]    [[GetCachedModels]] exit={process.ExitCode}, stdout_len={stdout.Length}, stderr_len={stderr.Length}[/]");
-
             if (!string.IsNullOrWhiteSpace(stderr))
             {
                 foreach (var line in stderr.Split('\n'))
                 {
                     var t = line.Trim();
                     if (!string.IsNullOrEmpty(t))
-                        host.AddMessage($"[grey]    [GetCachedModels:stderr] {CoquiMarkupHelper.EscapeSpectreMarkup(t[..Math.Min(t.Length, 120)])}[/]");
+                        host.AddMessage($"[grey]    Models directory: {CoquiMarkupHelper.EscapeSpectreMarkup(t[..Math.Min(t.Length, 120)])}[/]");
                 }
             }
 
             if (process.ExitCode != 0)
             {
-                host.AddMessage($"[red]    [[GetCachedModels]] non-zero exit code, stderr excerpt: {CoquiMarkupHelper.EscapeSpectreMarkup(stderr.Trim()[..Math.Min(stderr.Trim().Length, 200)])}[/]");
+                host.AddMessage($"[red]    Failed to run model folder stderr excerpt: {CoquiMarkupHelper.EscapeSpectreMarkup(stderr.Trim()[..Math.Min(stderr.Trim().Length, 200)])}[/]");
                 return Array.Empty<string>();
             }
 
             var trimmed = stdout.Trim();
-            host.AddMessage($"[grey]    [[GetCachedModels]] stdout trimmed: '{CoquiMarkupHelper.EscapeSpectreMarkup(trimmed[..Math.Min(trimmed.Length, 500)])}'[/]");
+            //host.AddMessage($"[grey]    [[GetCachedModels]] stdout trimmed: '{CoquiMarkupHelper.EscapeSpectreMarkup(trimmed[..Math.Min(trimmed.Length, 500)])}'[/]");
 
             if (string.IsNullOrEmpty(trimmed))
             {
-                host.AddMessage("[yellow]    [[GetCachedModels]] stdout empty after trim[/]");
+                host.AddMessage("[yellow]    Nothing found[/]");
                 return Array.Empty<string>();
             }
 
@@ -359,16 +348,14 @@ public sealed class CoquiTtsModelManager
                 ? trimmed[jsonStart..(jsonEnd + 1)]
                 : trimmed;
 
-            host.AddMessage($"[grey]    [[GetCachedModels]] json: '{CoquiMarkupHelper.EscapeSpectreMarkup(jsonText[..Math.Min(jsonText.Length, 300)])}'[/]");
-
             var names = JsonSerializer.Deserialize<List<string>>(jsonText);
             if (names == null)
             {
-                host.AddMessage("[yellow]    [[GetCachedModels]] Deserialize returned null[/]");
+                host.AddMessage("[yellow]   Json deserialize error[/]");
                 return Array.Empty<string>();
             }
 
-            host.AddMessage($"[green]    [[GetCachedModels]] Found {names.Count} cached models[/]");
+            host.AddMessage($"[green]    Found {names.Count} cached models[/]");
 
             // Successful uv run proves the environment works — clear any stale
             // broken flag set by a previous TTS service startup failure.
@@ -379,7 +366,7 @@ public sealed class CoquiTtsModelManager
         }
         catch (Exception ex)
         {
-            host.AddMessage($"[red]    [[GetCachedModels]] Exception: {CoquiMarkupHelper.EscapeSpectreMarkup(ex.Message)}[/]");
+            host.AddMessage($"[red]    Get Cached models exception: {CoquiMarkupHelper.EscapeSpectreMarkup(ex.Message)}[/]");
             return Array.Empty<string>();
         }
     }
