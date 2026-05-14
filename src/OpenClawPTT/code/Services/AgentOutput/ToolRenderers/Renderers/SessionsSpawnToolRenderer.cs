@@ -14,21 +14,16 @@ public sealed class SessionsSpawnToolRenderer : ToolRendererBase
     {
         if (args.TryGetProperty("label", out var labelProp))
         {
-            PrintValue(labelProp.GetString() ?? "", ConsoleColor.Gray);
+            PrintValue(labelProp.GetString() ?? "", Style.Label);
         }
-        bool hasPrinted = PrintPropertyIfExists(args, "runtime", "runtime: ", prependComma: true);
-        hasPrinted = PrintPropertyIfExists(args, "mode", "mode: ", prependComma: hasPrinted) || hasPrinted;
-        
-        if (args.TryGetProperty("runTimeoutSeconds", out var timeoutProp))
-        {
-            PrintLabelValue("timeout: ", $"{timeoutProp.GetInt32()} seconds", prependComma: hasPrinted);
-        }
+
+        Output.PrintLine("", Style.Muted);
+
         if (args.TryGetProperty("task", out var taskProp))
         {
-            Output.PrintLine("", ConsoleColor.DarkGray);
-            const string taskPrefix = "  Task: ";
-            Output.Print(taskPrefix, ConsoleColor.DarkGray);
-            Output.PrintTruncated(taskProp.GetString() ?? "", taskPrefix, rightMarginIndent, ConsoleColor.Gray, maxRows: 15);
+            string taskPrefix = "  ";
+            Output.Print(taskPrefix, Style.Muted);
+            Output.PrintTruncated(taskProp.GetString() ?? "", taskPrefix, rightMarginIndent, Style.Label, maxRows: 15);
         }
     }
 }

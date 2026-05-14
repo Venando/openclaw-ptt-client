@@ -1,4 +1,5 @@
 using OpenClawPTT.Formatting;
+using OpenClawPTT.Services.Themes;
 using Spectre.Console;
 
 namespace OpenClawPTT.Services;
@@ -84,7 +85,7 @@ public sealed class ThinkingDisplayHandler
 
             foreach (var line in displayLines)
             {
-                _toolOutput.PrintLine(line, ConsoleColor.Gray);
+                _toolOutput.PrintLine(line, ThemeProvider.Current.Tools.Label);
             }
 
             if (hasMore)

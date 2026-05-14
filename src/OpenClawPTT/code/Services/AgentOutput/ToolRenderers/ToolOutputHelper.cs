@@ -1,5 +1,4 @@
 using System.Linq;
-using OpenClawPTT.Formatting;
 using Spectre.Console;
 
 namespace OpenClawPTT.Services;
@@ -7,11 +6,11 @@ namespace OpenClawPTT.Services;
 /// <summary>
 /// Console implementation of IToolOutput using StreamShell.
 /// Routes all output through the StreamShell host as markup.
+/// Style strings are passed directly as Spectre.Console markup styles
+/// (e.g. "grey", "bold cyan", "default on gray15").
 /// </summary>
 public sealed class ToolOutputHelper : IToolOutput
 {
-    //private readonly IStreamShellHost _shellHost;
-
     private readonly AgentReplyFormatter _agentReplayFormatter;
     private readonly StreamShellCapturingConsole _streamShellCapturingConsole;
 
@@ -26,7 +25,6 @@ public sealed class ToolOutputHelper : IToolOutput
     {
         _streamShellCapturingConsole = new StreamShellCapturingConsole(shellHost);
         _agentReplayFormatter = new AgentReplyFormatter("", reservedRightMargin, prefixAlreadyPrinted: false, output: _streamShellCapturingConsole);
-
     }
 
     public void Start(string prefix)
@@ -45,29 +43,26 @@ public sealed class ToolOutputHelper : IToolOutput
         _streamShellCapturingConsole.FlushToStreamShell(_prefix ?? "");
     }
 
-    private void WriteToShell(string text, ConsoleColor color)
+    private void WriteToShell(string text, string? style)
     {
-        var colorName = ConsoleColorMapper.ToSpectreColor(color);
-        
-        _agentReplayFormatter.ProcessMarkupDelta($"[{colorName}]{Markup.Escape(text)}[/]");
-
-        //_shellHost.AddMessage($"[{colorName}]{Markup.Escape(text)}[/]");
+        var resolvedStyle = style ?? "default";
+        _agentReplayFormatter.ProcessMarkupDelta($"[{resolvedStyle}]{Markup.Escape(text)}[/]");
     }
 
-    public void Print(string text, ConsoleColor color = ConsoleColor.White)
+    public void Print(string text, string? style = null)
     {
-        WriteToShell(text, color);
+        WriteToShell(text, style);
     }
 
-    public void PrintLine(string text, ConsoleColor color = ConsoleColor.White)
+    public void PrintLine(string text, string? style = null)
     {
         if (text.Length > 0)
         {
-            WriteToShell(text, color);
+            WriteToShell(text, style);
         }
         // Write newline after the markup tag, not inside it.
         // For empty text, skip WriteToShell entirely to avoid injecting
-        // an empty markup pair like "[white][/]" into the output.
+        // an empty markup pair like "[default][/]" into the output.
         _agentReplayFormatter.ProcessDelta("\n");
     }
 
@@ -76,7 +71,7 @@ public sealed class ToolOutputHelper : IToolOutput
         _agentReplayFormatter.ProcessMarkupDelta(markup);
     }
 
-    public void PrintTruncated(string text, string continuationPrefix, int rightMarginIndent, ConsoleColor color = ConsoleColor.White, int maxRows = 4)
+    public void PrintTruncated(string text, string continuationPrefix, int rightMarginIndent, string? style = null, int maxRows = 4)
     {
         if (string.IsNullOrEmpty(text)) return;
 
@@ -87,9 +82,9 @@ public sealed class ToolOutputHelper : IToolOutput
         foreach (var line in displayLines)
         {
             if (!string.IsNullOrWhiteSpace(line))
-                PrintLine(line, color);
+                PrintLine(line, style);
         }
         if (hasMore)
-            PrintLine($"... ({allLines.Length - maxRows} more lines)", ConsoleColor.DarkGray);
+            PrintLine($"... ({allLines.Length - maxRows} more lines)", "grey");
     }
 }

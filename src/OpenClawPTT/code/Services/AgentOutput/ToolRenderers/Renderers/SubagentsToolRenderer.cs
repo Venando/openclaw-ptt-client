@@ -17,26 +17,26 @@ public sealed class SubagentsToolRenderer : ToolRendererBase
 
         if (action == "list")
         {
-            PrintValue("list", ConsoleColor.White);
+            PrintValue("list", Style.Value);
             if (args.TryGetProperty("recentMinutes", out var rmProp) && rmProp.ValueKind == JsonValueKind.Number)
             {
-                Output.Print($", last {rmProp.GetInt32()} minutes", ConsoleColor.DarkGray);
+                Output.Print($", last {rmProp.GetInt32()} minutes", Style.Muted);
             }
         }
         else if (action == "kill")
         {
-            PrintValue("kill", ConsoleColor.White);
+            PrintValue("kill", Style.Value);
             PrintPropertyIfExists(args, "target", "target: ", prependComma: true);
         }
         else if (action == "steer")
         {
-            PrintValue("steer", ConsoleColor.White);
+            PrintValue("steer", Style.Value);
             bool hasPrinted = PrintPropertyIfExists(args, "target", "target: ", prependComma: true);
             PrintPropertyIfExists(args, "message", "message: ", prependComma: hasPrinted);
         }
         else
         {
-            PrintValue(action, ConsoleColor.White);
+            PrintValue(action, Style.Value);
         }
     }
 }

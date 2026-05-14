@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Spectre.Console;
 
 namespace OpenClawPTT.Services;
 
@@ -16,11 +15,10 @@ public sealed class EditToolRenderer : ToolRendererBase
 
     public override void Render(JsonElement args, int rightMarginIndent)
     {
-        // Schema: { "path": "...", "edits": [{ "oldText": "...", "newText": "..." }] }
         if (args.TryGetProperty("path", out var pathProp))
         {
             string displayPath = FilePathDisplayHelper.FormatDisplayPath(pathProp.GetString() ?? "");
-            Output.Print(displayPath, ConsoleColor.Gray);
+            Output.Print(displayPath, Style.Label);
         }
 
         if (args.TryGetProperty("edits", out var editsProp) && editsProp.ValueKind == JsonValueKind.Array)
@@ -32,23 +30,18 @@ public sealed class EditToolRenderer : ToolRendererBase
 
                 Output.PrintLine("");
 
-                // Compute and render diff between oldText and newText
                 var diffResult = LineDiffEngine.ComputeDiff(oldText, newText);
 
                 if (diffResult.Entries.Count == 0)
                 {
-                    // No differences — just show the content once
                     const string prefix = "  ";
                     _diffRenderer.RenderPlainText(oldText, prefix, rightMarginIndent, maxRows: 8);
                 }
                 else
                 {
-                    // Delegate to DiffRenderer for compact diff rendering (max 8 lines)
                     _diffRenderer.RenderDiff(diffResult, maxRows: 8);
                 }
             }
         }
     }
-
-
 }

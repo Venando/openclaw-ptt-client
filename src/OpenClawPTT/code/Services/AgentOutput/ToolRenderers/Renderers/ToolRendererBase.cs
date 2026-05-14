@@ -1,13 +1,17 @@
 using System.Text.Json;
+using OpenClawPTT.Services.Themes;
 
 namespace OpenClawPTT.Services;
 
 /// <summary>
 /// Base class for tool renderers providing common helper methods.
+/// All color/style values are read from <see cref="ThemeProvider.Current.Tools"/>
+/// so themes can override the appearance of any rendered element.
 /// </summary>
 public abstract class ToolRendererBase : IToolRenderer
 {
     protected readonly IToolOutput Output;
+    protected static ToolTheme Style => ThemeProvider.Current.Tools;
 
     protected ToolRendererBase(IToolOutput output)
     {
@@ -24,18 +28,18 @@ public abstract class ToolRendererBase : IToolRenderer
     {
         if (prependComma)
         {
-            Output.Print(", ", ConsoleColor.Gray);
+            Output.Print(", ", Style.Separator);
         }
-        Output.Print(label, ConsoleColor.DarkGray);
-        Output.Print(value ?? "", ConsoleColor.White);
+        Output.Print(label, Style.KvpLabel);
+        Output.Print(value ?? "", Style.KvpValue);
     }
 
     /// <summary>
-    /// Prints a value with the specified color.
+    /// Prints a value with the specified style.
     /// </summary>
-    protected void PrintValue(string? value, ConsoleColor color = ConsoleColor.Gray)
+    protected void PrintValue(string? value, string? style = null)
     {
-        Output.Print(value ?? "", color);
+        Output.Print(value ?? "", style ?? Style.Value);
     }
 
     /// <summary>
@@ -84,24 +88,25 @@ public abstract class ToolRendererBase : IToolRenderer
     /// </summary>
     protected static void RenderKvpProperties(IToolOutput output, JsonElement args)
     {
+        var s = Style;
         bool first = true;
         foreach (var prop in args.EnumerateObject())
         {
             if (first)
             {
-                output.Print(GetValueString(prop.Value), ConsoleColor.Gray);
+                output.Print(GetValueString(prop.Value), s.Value);
                 first = false;
             }
             else
             {
-                output.Print($", {prop.Name}: ", ConsoleColor.DarkGray);
-                output.Print(GetValueString(prop.Value), ConsoleColor.White);
+                output.Print($", {prop.Name}: ", s.KvpKey);
+                output.Print(GetValueString(prop.Value), s.KvpValue);
             }
         }
 
         if (first)
         {
-            output.PrintLine("\u00b7", ConsoleColor.Black);
+            output.PrintLine("\u00b7", s.MutedSeparator);
         }
     }
 
