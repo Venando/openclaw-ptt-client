@@ -21,6 +21,7 @@ public partial class AppRunner : IDisposable
     private readonly IColorConsole _console;
     private readonly ErrorLogStore _errorLog;
     private readonly IStatusService _statusService;
+    private readonly AgentStatusBottomPanel? _bottomPanel;
     private CancellationTokenSource? _cts;
 
     /// <summary>
@@ -29,7 +30,7 @@ public partial class AppRunner : IDisposable
     /// </summary>
     public const int MaxRestartCount = 3;
 
-    public AppRunner(AppConfig cfg, IServiceFactory factory, IStreamShellHost shellHost, IConfigurationService configService, IColorConsole console, MainAgentsPart? mainAgentsPart = null, IConfigWizardOrchestrator? wizard = null)
+    public AppRunner(AppConfig cfg, IServiceFactory factory, IStreamShellHost shellHost, IConfigurationService configService, IColorConsole console, MainAgentsPart? mainAgentsPart = null, IConfigWizardOrchestrator? wizard = null, AgentStatusBottomPanel? bottomPanel = null)
     {
         _cfg = cfg;
         _factory = factory;
@@ -39,6 +40,7 @@ public partial class AppRunner : IDisposable
         _console = console;
         _errorLog = new ErrorLogStore(cfg.DataDir);
         _statusService = new StatusService(shellHost, mainAgentsPart: mainAgentsPart);
+        _bottomPanel = bottomPanel;
 
         // Wire agent status tracker if the factory provides one
         if (_factory.AgentStatusTracker != null)

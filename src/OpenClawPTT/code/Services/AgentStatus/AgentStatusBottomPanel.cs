@@ -1,5 +1,6 @@
 using System.Text;
 using OpenClawPTT.Formatting;
+using OpenClawPTT.Services.Commands;
 using OpenClawPTT.Services.StatusParts;
 using Spectre.Console;
 using StreamShell;
@@ -49,6 +50,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
     private readonly IAgentStatusTracker _tracker;
     private readonly MainAgentsPart _agentsPart;
     private readonly IConfigurationService _configService;
+    private SessionHistoryService? _historyService;
 
     // ── State ─────────────────────────────────────────────────────────────
     private readonly object _sync = new();
@@ -322,7 +324,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
             if (target.Agent is not null)
             {
                 await AgentRegistry.SwitchToAgentAsync(
-                    target.Agent.AgentId, _configService);
+                    target.Agent.AgentId, _configService, _historyService);
             }
         });
     }
@@ -449,6 +451,16 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
     }
 
     // ── Context formatting ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Sets the history service for full agent-switch behaviour
+    /// (history loading).  Called by <see cref="AppRunner"/> after
+    /// bootstrapping when the service becomes available.
+    /// </summary>
+    internal void SetHistoryService(SessionHistoryService historyService)
+    {
+        _historyService = historyService;
+    }
 
     // ── Helpers ──────────────────────────────────────────────────────────
 

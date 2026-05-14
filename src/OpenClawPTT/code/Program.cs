@@ -39,7 +39,8 @@ internal static class Program
         shellHost.SetDefaultPanel(appStatusPanel);
 
         var bootstrapper = new AppBootstrapper(configService, wizard, factory, shellHost, colorConsole,
-            mainAgentsPart: mainAgentsPart, testModeEnabled: testModeEnabled);
+            mainAgentsPart: mainAgentsPart, testModeEnabled: testModeEnabled,
+            bottomPanel: appStatusPanel);
         var exitCode = await bootstrapper.RunAsync(cts.Token);
 
         bootstrapper.Dispose();
