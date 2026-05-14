@@ -124,13 +124,26 @@ public sealed class CoquiUvEnvironment
         return first?.Trim() ?? "Build failed";
     }
 
-    public CoquiUvEnvironment(string? dataDir, string modelName, string? modelPath, string? ttsConfigPath, string? espeakNgPath)
-    {
-        _projectDir = Path.Combine(
+    /// <summary>
+    /// Resolves the full path to the coqui-tts-env project directory.
+    /// Shared utility (DRY) — also used by <see cref="CoquiTtsModelManager"/>.
+    /// </summary>
+    public static string GetProjectDir(string? dataDir) =>
+        Path.Combine(
             dataDir ?? Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 ".openclaw-ptt"),
             "coqui-tts-env");
+
+    /// <summary>
+    /// Resolves the path to the uv executable, falling back to "uv" (from PATH) if not found.
+    /// Shared utility (DRY) — also used by <see cref="CoquiTtsModelManager"/>.
+    /// </summary>
+    public static string ResolveUvPath() => FindUv() ?? "uv";
+
+    public CoquiUvEnvironment(string? dataDir, string modelName, string? modelPath, string? ttsConfigPath, string? espeakNgPath)
+    {
+        _projectDir = GetProjectDir(dataDir);
         _modelName = modelName;
         _modelPath = modelPath;
         _ttsConfigPath = ttsConfigPath;
@@ -350,22 +363,28 @@ public sealed class CoquiUvEnvironment
 
     // ── Project files ───────────────────────────────────────────────
 
-    public void EnsureProjectFiles()
+    /// <summary>
+    /// Ensures project files exist at <paramref name="projectDir"/>.
+    /// Static overload so callers don't need a throwaway instance (DRY).
+    /// </summary>
+    public static void EnsureProjectFiles(string projectDir)
     {
         lock (s_scriptsLock)
         {
             // Always write the latest pyproject.toml (may have build-dep fixes)
-            var pyprojectPath = Path.Combine(_projectDir, "pyproject.toml");
+            var pyprojectPath = Path.Combine(projectDir, "pyproject.toml");
             File.WriteAllText(pyprojectPath, CoquiTtsScripts.PyProjectToml, Encoding.UTF8);
 
             if (s_scriptsExtracted) return;
 
-            var scriptPath = Path.Combine(_projectDir, "tts_service.py");
+            var scriptPath = Path.Combine(projectDir, "tts_service.py");
             File.WriteAllText(scriptPath, CoquiTtsScripts.TtsServiceScript, Encoding.UTF8);
 
             s_scriptsExtracted = true;
         }
     }
+
+    public void EnsureProjectFiles() => EnsureProjectFiles(_projectDir);
 
     /// <summary>
     /// Returns " --python \"<path>\"" when a validated Python is known,
@@ -429,7 +448,7 @@ public sealed class CoquiUvEnvironment
     public ProcessStartInfo CreateProcessStartInfo()
     {
         EnsureProjectFiles();
-        var uvPath = FindUv() ?? "uv";
+        var uvPath = ResolveUvPath();
 
         var psi = new ProcessStartInfo
         {
