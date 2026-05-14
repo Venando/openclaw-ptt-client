@@ -125,17 +125,12 @@ public sealed class CoquiTtsModelManager
         Action<string, string, string?>? progressCallback,
         CancellationToken ct)
     {
-        var projectDir = Path.Combine(
-            dataDir ?? Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".openclaw-ptt"),
-            "coqui-tts-env");
+        var projectDir = CoquiUvEnvironment.GetProjectDir(dataDir);
 
-        var env = new CoquiUvEnvironment(dataDir, "tts_models/en/ljspeech/vits", null, null, null);
-        env.EnsureProjectFiles();
+        CoquiUvEnvironment.EnsureProjectFiles(projectDir);
         CoquiUvEnvironment.EnsureVenvPythonMatches(projectDir);
 
-        var uvPath = CoquiUvEnvironment.FindUv() ?? "uv";
+        var uvPath = CoquiUvEnvironment.ResolveUvPath();
         var cmd = "from TTS.api import TTS; import json; " +
                   "models = TTS().list_models().list_models(); " +
                   "print(json.dumps(models))";
@@ -229,14 +224,7 @@ public sealed class CoquiTtsModelManager
                 throw new InvalidOperationException($"uv exit={process.ExitCode}: {errorDetail.Trim()}");
             }
 
-            var stdoutTrimmed = stdoutText.Trim();
-            var jsonStart = stdoutTrimmed.LastIndexOf('[');
-            var jsonEnd = stdoutTrimmed.LastIndexOf(']');
-            string jsonText;
-            if (jsonStart >= 0 && jsonEnd > jsonStart)
-                jsonText = stdoutTrimmed[jsonStart..(jsonEnd + 1)];
-            else
-                jsonText = stdoutTrimmed;
+            var jsonText = ExtractJsonArray(stdoutText);
 
             var modelNames = JsonSerializer.Deserialize<List<string>>(jsonText);
             if (modelNames == null || modelNames.Count == 0)
@@ -247,8 +235,7 @@ public sealed class CoquiTtsModelManager
             .OrderBy(m => m.Name)
             .ToList();
 
-            if (CoquiUvEnvironment.IsUvBuildBroken)
-                CoquiUvEnvironment.ClearBrokenFlagKeepPython();
+            CoquiUvEnvironment.ClearBrokenFlagKeepPython();
 
             return liveList;
     }
@@ -256,11 +243,7 @@ public sealed class CoquiTtsModelManager
     public CoquiTtsModelManager(string? dataDir, IStreamShellHost host)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
-        _projectDir = Path.Combine(
-            dataDir ?? Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".openclaw-ptt"),
-            "coqui-tts-env");
+        _projectDir = CoquiUvEnvironment.GetProjectDir(dataDir);
         Directory.CreateDirectory(_projectDir);
     }
 
@@ -272,11 +255,7 @@ public sealed class CoquiTtsModelManager
     public static async Task<IReadOnlyList<string>> GetCachedModelsAsync(
         IStreamShellHost host, string? dataDir, CancellationToken ct = default)
     {
-        var projectDir = Path.Combine(
-            dataDir ?? Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".openclaw-ptt"),
-            "coqui-tts-env");
+        var projectDir = CoquiUvEnvironment.GetProjectDir(dataDir);
 
         if (!CoquiUvEnvironment.IsUvAvailable())
         {
@@ -290,7 +269,7 @@ public sealed class CoquiTtsModelManager
         var scriptPath = Path.Combine(projectDir, "list_cached.py");
         File.WriteAllText(scriptPath, CoquiUvEnvironment.ListCachedModelPathsScript());
 
-        var uvPath = CoquiUvEnvironment.FindUv() ?? "uv";
+        var uvPath = CoquiUvEnvironment.ResolveUvPath();
 
         var psi = new ProcessStartInfo
         {
@@ -334,7 +313,6 @@ public sealed class CoquiTtsModelManager
             }
 
             var trimmed = stdout.Trim();
-            //host.AddMessage($"[grey]    [[GetCachedModels]] stdout trimmed: '{CoquiMarkupHelper.EscapeSpectreMarkup(trimmed[..Math.Min(trimmed.Length, 500)])}'[/]");
 
             if (string.IsNullOrEmpty(trimmed))
             {
@@ -342,11 +320,7 @@ public sealed class CoquiTtsModelManager
                 return Array.Empty<string>();
             }
 
-            var jsonStart = trimmed.LastIndexOf('[');
-            var jsonEnd = trimmed.LastIndexOf(']');
-            var jsonText = (jsonStart >= 0 && jsonEnd > jsonStart)
-                ? trimmed[jsonStart..(jsonEnd + 1)]
-                : trimmed;
+            var jsonText = ExtractJsonArray(stdout);
 
             var names = JsonSerializer.Deserialize<List<string>>(jsonText);
             if (names == null)
@@ -359,8 +333,7 @@ public sealed class CoquiTtsModelManager
 
             // Successful uv run proves the environment works — clear any stale
             // broken flag set by a previous TTS service startup failure.
-            if (CoquiUvEnvironment.IsUvBuildBroken)
-                CoquiUvEnvironment.ClearBrokenFlagKeepPython();
+            CoquiUvEnvironment.ClearBrokenFlagKeepPython();
 
             return names;
         }
@@ -380,38 +353,6 @@ public sealed class CoquiTtsModelManager
     {
         var modelDir = GetModelDir(modelName);
         return modelDir != null && Directory.EnumerateFileSystemEntries(modelDir).Any();
-    }
-
-    private static string SummarizeBuildError(string errorText)
-    {
-        if (string.IsNullOrWhiteSpace(errorText))
-            return "Build failed (no details)";
-
-        var lines = errorText.Split('\n');
-        foreach (var line in lines)
-        {
-            var trimmed = line.Trim();
-            if (trimmed.Contains("requires python", StringComparison.OrdinalIgnoreCase))
-                return trimmed;
-            if (trimmed.Contains("RuntimeError", StringComparison.Ordinal))
-                return trimmed;
-            if (trimmed.Contains("Failed to build", StringComparison.Ordinal))
-                return trimmed;
-            if (trimmed.Contains("TypeError", StringComparison.Ordinal))
-                return trimmed;
-        }
-
-        var first = lines.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l));
-        return first?.Trim() ?? "Build failed";
-    }
-
-    private static bool IsBuildError(string errorText)
-    {
-        if (string.IsNullOrWhiteSpace(errorText)) return false;
-        return errorText.Contains("Failed to build", StringComparison.Ordinal)
-            || errorText.Contains("build_wheel", StringComparison.Ordinal)
-            || errorText.Contains("build backend", StringComparison.Ordinal)
-            || errorText.Contains("RuntimeError", StringComparison.Ordinal);
     }
 
     public async Task DownloadModelAsync(
@@ -436,7 +377,7 @@ public sealed class CoquiTtsModelManager
         progressCallback?.Invoke(modelName, "Starting download (uv resolving packages)...", null, null, false);
 
         var pythonCmd = CoquiUvEnvironment.BuildPreDownloadCommand(modelName);
-        var uvPath = CoquiUvEnvironment.FindUv() ?? "uv";
+        var uvPath = CoquiUvEnvironment.ResolveUvPath();
         var escapedCmd = pythonCmd.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
         var psi = new ProcessStartInfo
@@ -499,9 +440,9 @@ public sealed class CoquiTtsModelManager
             if (process.ExitCode != 0)
             {
                 var errorDetail = !string.IsNullOrWhiteSpace(stderrText) ? stderrText : stdoutText;
-                var summary = SummarizeBuildError(errorDetail);
+                var summary = CoquiUvEnvironment.SummarizeBuildError(errorDetail);
 
-                if (IsBuildError(errorDetail))
+                if (CoquiUvEnvironment.IsBuildError(errorDetail))
                     CoquiUvEnvironment.MarkUvBuildBroken(summary);
 
                 _host.AddMessage($"[red]    Download failed (exit={process.ExitCode}): {CoquiMarkupHelper.EscapeSpectreMarkup(summary)}[/]");
@@ -511,11 +452,15 @@ public sealed class CoquiTtsModelManager
 
             var okInStdout = stdoutText.Contains("OK", StringComparison.Ordinal);
             var isCached = okInStdout || IsModelCached(modelName);
+
+            // Successful download proves the environment works — clear any stale broken flag.
+            CoquiUvEnvironment.ClearBrokenFlagKeepPython();
+
             if (isCached)
             {
                 // Some Coqui models (e.g. jenny) are distributed as ZIP archives.
                 // Extract them so TTS can find the model files at the expected level.
-                var extracted = ExtractModelZips(modelName);
+                var extracted = CoquiTtsZipExtractor.ExtractModelZips(modelName);
                 if (extracted > 0)
                     _host.AddMessage($"[green]    \u2713 Model {modelName} cached (extracted {extracted} archive(s)).[/]");
                 else
@@ -547,8 +492,11 @@ public sealed class CoquiTtsModelManager
 
     /// <summary>
     /// Returns the Coqui TTS model directory path, or null if not found.
+    /// Coqui stores models in <c>%LOCALAPPDATA%/tts</c> (Windows) or
+    /// <c>~/.local/share/tts</c> (Linux/macOS) with <c>--</c> separators.
+    /// Internal so <see cref="CoquiTtsZipExtractor"/> can use it (SRP).
     /// </summary>
-    private static string? GetModelDir(string modelName)
+    internal static string? GetModelDir(string modelName)
     {
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var ttsDir = Path.Combine(localAppData, "tts");
@@ -564,91 +512,6 @@ public sealed class CoquiTtsModelManager
         return Directory.Exists(dir) ? dir : null;
     }
 
-    /// <summary>
-    /// Extracts any .zip archives found in the model directory.
-    /// Some Coqui models (e.g. jenny) are distributed as ZIPs that need
-    /// unpacking before TTS can load them. Deletes the ZIP after extraction.
-    /// Returns the number of archives extracted.
-    /// </summary>
-    internal static int ExtractModelZips(string modelName)
-    {
-        var modelDir = GetModelDir(modelName);
-        if (modelDir == null)
-            return 0;
-
-        var extracted = 0;
-        foreach (var zipPath in Directory.EnumerateFiles(modelDir, "*.zip"))
-        {
-            try
-            {
-                // Extract to a temp subdir first, then flatten up
-                var tempDir = Path.Combine(modelDir, "__extract_tmp__");
-                if (Directory.Exists(tempDir))
-                    Directory.Delete(tempDir, recursive: true);
-
-                System.IO.Compression.ZipFile.ExtractToDirectory(zipPath, tempDir);
-                File.Delete(zipPath);
-
-                // Some model ZIPs (e.g. jenny) contain a nested folder.
-                // Move files up to modelDir so TTS can find them.
-                FlattenDir(tempDir, modelDir);
-                Directory.Delete(tempDir, recursive: true);
-
-                extracted++;
-            }
-            catch
-            {
-                // Extraction failed — leave the ZIP, model may still work
-            }
-        }
-        return extracted;
-    }
-
-    /// <summary>
-    /// Moves all files from sourceDir into targetDir, flattening any nested
-    /// subdirectories. Skips __MACOSX and ._* junk from macOS ZIPs.
-    /// </summary>
-    private static void FlattenDir(string sourceDir, string targetDir)
-    {
-        foreach (var file in Directory.EnumerateFiles(sourceDir))
-        {
-            var dest = Path.Combine(targetDir, Path.GetFileName(file));
-            if (File.Exists(dest)) File.Delete(dest);
-            File.Move(file, dest);
-        }
-
-        foreach (var subDir in Directory.EnumerateDirectories(sourceDir))
-        {
-            var name = Path.GetFileName(subDir);
-            if (name == "__MACOSX" || name.StartsWith("._"))
-            {
-                try { Directory.Delete(subDir, recursive: true); } catch { }
-                continue;
-            }
-
-            // If a dir with the same name already exists in target, merge into it
-            var destSubDir = Path.Combine(targetDir, name);
-            if (Directory.Exists(destSubDir))
-            {
-                // Move contents of source subdir into existing target subdir
-                foreach (var f in Directory.EnumerateFiles(subDir, "*", SearchOption.AllDirectories))
-                {
-                    var rel = Path.GetRelativePath(subDir, f);
-                    var df = Path.Combine(destSubDir, rel);
-                    var dp = Path.GetDirectoryName(df);
-                    if (dp != null && !Directory.Exists(dp)) Directory.CreateDirectory(dp);
-                    if (File.Exists(df)) File.Delete(df);
-                    File.Move(f, df);
-                }
-                try { Directory.Delete(subDir, recursive: true); } catch { }
-            }
-            else
-            {
-                Directory.Move(subDir, destSubDir);
-            }
-        }
-    }
-
     /// <summary>Deletes a cached Coqui TTS model from the Coqui TTS storage dir.</summary>
     public static bool DeleteModel(string modelName)
     {
@@ -658,5 +521,21 @@ public sealed class CoquiTtsModelManager
 
         try { Directory.Delete(modelDir, recursive: true); return true; }
         catch { return false; }
+    }
+
+    // ── Private helper ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Extracts the JSON array ([...]) from process stdout text.
+    /// Falls back to the full trimmed text if no JSON brackets are found.
+    /// </summary>
+    private static string ExtractJsonArray(string text)
+    {
+        var trimmed = text.Trim();
+        var jsonStart = trimmed.LastIndexOf('[');
+        var jsonEnd = trimmed.LastIndexOf(']');
+        return jsonStart >= 0 && jsonEnd > jsonStart
+            ? trimmed[jsonStart..(jsonEnd + 1)]
+            : trimmed;
     }
 }
