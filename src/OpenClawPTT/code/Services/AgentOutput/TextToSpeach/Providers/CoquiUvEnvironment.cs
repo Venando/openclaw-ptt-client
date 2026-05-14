@@ -421,7 +421,12 @@ public sealed class CoquiUvEnvironment
     public static string BuildPreDownloadCommand(string modelName)
     {
         var escaped = modelName.Replace("\\", "\\\\").Replace("\"", "\\\"");
-        return "import torch; from TTS.api import TTS; " +
+        // PyTorch >=2.6 defaults weights_only=True in torch.load, but Coqui TTS
+        // models use legacy checkpoints that need weights_only=False.
+        // Monkey-patch torch.load before importing TTS.
+        return "import torch, functools; " +
+               "torch.load = functools.partial(torch.load, weights_only=False); " +
+               "from TTS.api import TTS; " +
                $"m = TTS(model_name=\"{escaped}\", progress_bar=False, gpu=False); " +
                "del m; print('OK')";
     }
@@ -499,7 +504,9 @@ def load_model():
     if not model_name and not model_path:
         raise RuntimeError("No TTS_MODEL or TTS_MODEL_PATH set")
 
-    import torch
+    import torch, functools
+    # PyTorch >=2.6 defaults weights_only=True; Coqui TTS models need False
+    torch.load = functools.partial(torch.load, weights_only=False)
     from TTS.api import TTS
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
