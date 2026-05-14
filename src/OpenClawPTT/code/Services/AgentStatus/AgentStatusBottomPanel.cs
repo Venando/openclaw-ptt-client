@@ -21,9 +21,15 @@ namespace OpenClawPTT.Services;
 public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 {
     // ── Margins ───────────────────────────────────────────────────────────
-    private const int LeftMargin = 2;
+    private const int LeftMargin = 8;
     private const int BottomMargin = 1;
-    private const string LeftPad = "  ";
+    private const string LeftPad = "        "; // LeftMargin spaces
+
+    // ── Alignment helpers ─────────────────────────────────────────────────
+    /// <summary>Data-row prefix that replaces the header's "│ ".</summary>
+    private const string DataPrefix = "  ";
+    /// <summary>Data-row column gap that replaces the header's " │ ".</summary>
+    private const string DataGap = "   ";
 
     // ── Column constants ──────────────────────────────────────────────────
     private const int MinNameWidth    = 4;
@@ -42,6 +48,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
     // ── Dependencies ──────────────────────────────────────────────────────
     private readonly IAgentStatusTracker _tracker;
     private readonly MainAgentsPart _agentsPart;
+    private readonly IConfigurationService _configService;
 
     // ── State ─────────────────────────────────────────────────────────────
     private readonly object _sync = new();
@@ -68,10 +75,12 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
     public AgentStatusBottomPanel(
         IAgentStatusTracker tracker,
-        MainAgentsPart agentsPart)
+        MainAgentsPart agentsPart,
+        IConfigurationService configService)
     {
         _tracker = tracker ?? throw new ArgumentNullException(nameof(tracker));
         _agentsPart = agentsPart ?? throw new ArgumentNullException(nameof(agentsPart));
+        _configService = configService ?? throw new ArgumentNullException(nameof(configService));
 
         _version = 1;
 
@@ -310,8 +319,13 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
             var visible = _agentsPart.GetVisibleAgents();
             var target = visible.FirstOrDefault(v =>
                 v.Snapshot.SessionKey == sessionKey);
-            if (target.Agent is not null)
-                AgentRegistry.SetActiveAgent(target.Agent.AgentId);
+            if (target.Agent is not null
+                && AgentRegistry.SetActiveAgent(target.Agent.AgentId))
+            {
+                var cfg = _configService.Load() ?? new AppConfig();
+                cfg.LastActiveAgentId = target.Agent.AgentId;
+                _configService.Save(cfg);
+            }
         });
     }
 
@@ -380,13 +394,19 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
     // ── Row rendering ────────────────────────────────────────────────────
 
-    /// <summary>Header row — the only row that uses │ separators.</summary>
+    /// <summary>
+    /// Header row — the only row that uses │ separators.
+    /// Format: "│ Name │ Status │ Model │ Context │"
+    /// </summary>
     private static string RenderHeaderRow(ColumnWidths w)
     {
         return $"│ [bold]{HeaderName.PadRight(w.Name)}[/] │ [bold]{HeaderStatus.PadRight(w.Status)}[/] │ [bold]{HeaderModel.PadRight(w.Model)}[/] │ [bold]{HeaderContext.PadRight(w.Context)}[/] │";
     }
 
-    /// <summary>Data row — no │ separators, just padded columns.</summary>
+    /// <summary>
+    /// Data row — no │ separators.
+    /// Prefix "  " matches header "│ ", gap "   " matches header " │ ".
+    /// </summary>
     private static string RenderDataRow(CellData cells, ColumnWidths w, bool selected)
     {
         var rawName    = StripMarkup(cells.Name);
@@ -394,7 +414,11 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         var rawModel   = StripMarkup(cells.Model);
         var rawContext = StripMarkup(cells.Context);
 
-        var row = $"{PadForTable(rawName, cells.Name, w.Name)}  {PadForTable(rawStatus, cells.Status, w.Status)}  {PadForTable(rawModel, cells.Model, w.Model)}  {PadForTable(rawContext, cells.Context, w.Context)}";
+        var row = DataPrefix
+            + PadForTable(rawName,    cells.Name,    w.Name)    + DataGap
+            + PadForTable(rawStatus,  cells.Status,  w.Status)  + DataGap
+            + PadForTable(rawModel,   cells.Model,   w.Model)   + DataGap
+            + PadForTable(rawContext, cells.Context, w.Context);
 
         return selected
             ? $"[invert]{row}[/]"

@@ -35,7 +35,7 @@ internal static class Program
         var colorConsole = factory.CreateColorConsole();
 
         // Set up the table-style agent status bottom panel
-        var appStatusPanel = new AgentStatusBottomPanel(agentStatusTracker, mainAgentsPart);
+        var appStatusPanel = new AgentStatusBottomPanel(agentStatusTracker, mainAgentsPart, configService);
         shellHost.SetDefaultPanel(appStatusPanel);
 
         var bootstrapper = new AppBootstrapper(configService, wizard, factory, shellHost, colorConsole,
