@@ -256,7 +256,9 @@ public sealed class ModularConfigurationWizard
         var provider = config.TtsProvider.ToString();
         var voice = string.IsNullOrWhiteSpace(config.TtsVoice) ? "(default)" : config.TtsVoice;
         var mode = config.TtsOutputMode ?? "siso";
-        return $"{provider} (voice: {voice}, mode: {mode})";
+        var model = config.CoquiModelName;
+        var modelPart = !string.IsNullOrEmpty(model) ? $"model: {model}, " : "";
+        return $"{provider} ({modelPart}voice: {voice}, mode: {mode})";
     }
 
     private static string GetDirectLlmStatus(AppConfig config)
