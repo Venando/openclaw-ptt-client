@@ -220,4 +220,95 @@ for root_dir in (tts_home, old_home):
 print(f'tts_home={tts_home} found={len(seen)}', file=sys.stderr)
 print(json.dumps(sorted(seen)))
 """ + "\n";
+
+    /// <summary>
+    /// Returns a Python script that fetches model download sizes from the Coqui TTS
+    /// model registry. Reads model names from a JSON file (path passed as first argument),
+    /// looks up download URLs via the TTS model manager, makes parallel HEAD requests
+    /// for Content-Length, caches to a second file, and prints size dict as JSON.
+    /// </summary>
+    internal static string HfSizesScript => """
+import json, sys, os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.request import Request, urlopen
+from urllib.error import URLError
+
+def _get_url_size(url):
+    '''HEAD request to get Content-Length from a download URL.'''
+    try:
+        req = Request(url, method='HEAD')
+        with urlopen(req, timeout=15) as resp:
+            length = resp.headers.get('Content-Length')
+            return int(length) if length else None
+    except Exception:
+        return None
+
+def main():
+    names_file = sys.argv[1]
+    cache_file = sys.argv[2] if len(sys.argv) > 2 else None
+
+    with open(names_file) as f:
+        model_names = json.load(f)
+
+    cache = {}
+    if cache_file and os.path.exists(cache_file):
+        with open(cache_file) as f:
+            cache = json.load(f)
+
+    # Resolve download URLs from the TTS model registry.
+    # Use ModelManager directly to avoid TTS() which triggers slow torch import.
+    from TTS.utils.manage import ModelManager
+    manager = ModelManager()
+
+    # manager.models_dict is a NESTED dict:
+    #   models_dict["tts_models"]["en"]["ljspeech"]["vits"] = {"github_rls_url": "...", ...}
+    registry = manager.models_dict
+    if registry and isinstance(registry, dict):
+
+    URL_FIELDS = ('github_rls_url', 'hf_url', 'url', 'download_url', 'repo_url')
+    url_map = {}
+    for name in model_names:
+        if name in cache:
+            continue
+        # Navigate nested dict: tts_models/en/ljspeech/vits -> models_dict["tts_models"]["en"]["ljspeech"]["vits"]
+        parts = name.split('/')
+        meta = registry
+        for part in parts:
+            if isinstance(meta, dict) and part in meta:
+                meta = meta[part]
+            else:
+                meta = {}
+                break
+        url = None
+        if isinstance(meta, dict):
+            for field in URL_FIELDS:
+                url = meta.get(field)
+                if url:
+                    break
+        if url:
+            url_map[name] = url
+        else:
+
+    if url_map:
+        sample_items = list(url_map.items())[:3]
+
+    if url_map:
+        with ThreadPoolExecutor(max_workers=15) as executor:
+            futures = {executor.submit(_get_url_size, url_map[n]): n for n in url_map}
+            for future in as_completed(futures):
+                name = futures[future]
+                size = future.result()
+                if size is not None:
+                    cache[name] = size
+
+    if cache_file:
+        os.makedirs(os.path.dirname(cache_file) or '.', exist_ok=True)
+        with open(cache_file, 'w') as f:
+            json.dump(cache, f)
+
+    print(json.dumps(cache))
+
+if __name__ == '__main__':
+    main()
+""" + "\n";
 }

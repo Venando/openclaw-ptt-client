@@ -105,7 +105,7 @@ public class GatewayAudioQaTests
         service.AgentReplyDelta += _ => { };
         service.AgentReplyDeltaEnd += () => { };
         service.EventReceived += (_, _) => { };
-        service.AgentReplyAudio += _ => { };
+        service.AgentReplyFinal += _ => { };
 
         service.Dispose();
     }
@@ -127,21 +127,6 @@ public class GatewayAudioQaTests
 
         var ex = Record.Exception(() => { coordinator.Dispose(); coordinator.Dispose(); });
         Assert.Null(ex);
-    }
-
-    [Fact]
-    public void AgentOutputCoordinator_OnAgentReplyAudio_WithNullHandler_DoesNotCrash()
-    {
-        var cfg = new AppConfig();
-        var console = CreateMockConsole();
-        var coordinator = new AgentOutputCoordinator(
-            new ReplyStreamCoordinator(cfg, console),
-            new ToolDisplayHandler(cfg.RightMarginIndent, console.GetStreamShellHost()),
-            new ThinkingDisplayHandler(cfg, console.GetStreamShellHost()),
-            audioHandler: null);
-
-        coordinator.OnAgentReplyAudio("some audio text");
-        coordinator.Dispose();
     }
 
     // ══════════════════════════════════════════════════════════════

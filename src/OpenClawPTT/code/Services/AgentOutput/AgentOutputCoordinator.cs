@@ -29,23 +29,23 @@ public sealed class AgentOutputCoordinator : IDisposable
     public void AttachToService(IGatewayUIEvents service)
     {
         service.AgentReplyFull += OnAgentReplyFull;
+        service.AgentReplyFinal += OnAgentReplyFinal;
         service.AgentThinking += OnAgentThinking;
         service.AgentToolCall += OnAgentToolCall;
         service.AgentReplyDeltaStart += OnAgentReplyDeltaStart;
         service.AgentReplyDelta += OnAgentReplyDelta;
         service.AgentReplyDeltaEnd += OnAgentReplyDeltaEnd;
-        service.AgentReplyAudio += OnAgentReplyAudio;
     }
 
     public void DetachFromService(IGatewayUIEvents service)
     {
         service.AgentReplyFull -= OnAgentReplyFull;
+        service.AgentReplyFinal -= OnAgentReplyFinal;
         service.AgentThinking -= OnAgentThinking;
         service.AgentToolCall -= OnAgentToolCall;
         service.AgentReplyDeltaStart -= OnAgentReplyDeltaStart;
         service.AgentReplyDelta -= OnAgentReplyDelta;
         service.AgentReplyDeltaEnd -= OnAgentReplyDeltaEnd;
-        service.AgentReplyAudio -= OnAgentReplyAudio;
     }
 
     /// <summary>Public entry points — GatewayService calls these directly.</summary>
@@ -98,9 +98,9 @@ public sealed class AgentOutputCoordinator : IDisposable
         }
     }
 
-    public void OnAgentReplyAudio(string audioText)
+    public void OnAgentReplyFinal(string text)
     {
-        // Audio markers handled by AudioResponseHandler — nothing to do here
+        // Final reply marker — currently a no-op, reserved for future use.
     }
 
     public void Dispose()

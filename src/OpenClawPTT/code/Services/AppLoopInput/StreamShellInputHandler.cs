@@ -41,6 +41,10 @@ public sealed class StreamShellInputHandler : IDisposable
     private readonly ErrorLogStore _errorLog;
     private readonly IStatusService _statusService;
     private readonly SessionHistoryService _historyService;
+
+    /// <summary>Exposed so AppRunner can wire it into the bottom panel.</summary>
+    public SessionHistoryService HistoryService => _historyService;
+
     private readonly CommandRegistry _registry;
     private readonly ThemeService _themeService;
 

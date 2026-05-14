@@ -25,6 +25,7 @@ public sealed class MockGatewayService : IGatewayService
     public event Action? ReconnectFailed;
 #pragma warning restore CS0067
     public event Action<string>? AgentReplyFull;
+    public event Action<string>? AgentReplyFinal;
     public event Action? AgentReplyDeltaStart;
     public event Action<string>? AgentReplyDelta;
     public event Action? AgentReplyDeltaEnd;
@@ -33,7 +34,6 @@ public sealed class MockGatewayService : IGatewayService
 #pragma warning disable CS0067 // Event is required by IGatewayService interface but never raised in mock
     public event Action<string, JsonElement>? EventReceived;
 #pragma warning restore CS0067
-    public event Action<string>? AgentReplyAudio;
 
     public MockGatewayService(string scenario, IColorConsole console)
     {
@@ -107,13 +107,7 @@ public sealed class MockGatewayService : IGatewayService
 
         AgentReplyDeltaEnd?.Invoke();
         AgentReplyFull?.Invoke(response);
-
-        // Simulate occasional audio response in multi-agent scenario
-        if (_scenario == TestScenarios.MultiAgent && _session.MessageCount % 2 == 0)
-        {
-            await Task.Delay(100, ct);
-            AgentReplyAudio?.Invoke("[Simulated audio response would play here]");
-        }
+        AgentReplyFinal?.Invoke(response);
     }
 
     /// <summary>

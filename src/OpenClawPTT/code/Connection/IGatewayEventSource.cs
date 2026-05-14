@@ -13,15 +13,12 @@ public interface IGatewayEventSource
     event Action? AgentReplyDeltaEnd;
     event Action<string>? AgentThinking;
     event Action<string, string>? AgentToolCall;
-    event Action<string>? AgentReplyAudio;
-
     /// <summary>Fires when the WebSocket connection is lost (server close, network error, etc.).</summary>
     event Action? Disconnected;
 
     // Raise helpers — allows external callers to fire events without violating C# event-access rules
     void RaiseAgentThinking(string thinking);
     void RaiseAgentToolCall(string toolName, string arguments);
-    void RaiseAgentReplyAudio(string audioText);
     void RaiseAgentReplyDeltaStart();
     void RaiseAgentReplyDeltaEnd();
     void RaiseAgentReplyFull(string text);

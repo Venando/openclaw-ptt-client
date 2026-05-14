@@ -56,15 +56,13 @@ public sealed class ChatCommand : ICommand
             return;
         }
 
-        if (AgentRegistry.SetActiveAgent(matched.AgentId))
-        {
-            _appConfig.LastActiveAgentId = matched.AgentId;
-            _configService.Save(_appConfig);
-            await _historyService.PrintSessionHistoryAsync(matched.SessionKey, ct);
-        }
-        else
+        // Avoid no-op: check if already active before switching
+        if (AgentRegistry.ActiveAgentId?.Equals(matched.AgentId, StringComparison.OrdinalIgnoreCase) == true)
         {
             _host.AddMessage("[yellow]  That agent is already active.[/]");
+            return;
         }
+
+        await AgentRegistry.SwitchToAgentAsync(matched.AgentId, _configService, _historyService, ct);
     }
 }

@@ -156,7 +156,7 @@ public class StatusServiceTests
 
         Assert.NotNull(host.LastSeparatorLeftText);
         Assert.Contains("Spelly", host.LastSeparatorLeftText);
-        Assert.Contains("🟢", host.LastSeparatorLeftText);
+        Assert.Contains("[green]•[/]", host.LastSeparatorLeftText);
         Assert.Contains("deepseek-v4-flash", host.LastSeparatorLeftText);
         Assert.Contains("high", host.LastSeparatorLeftText);
         Assert.Contains("6.0%", host.LastSeparatorLeftText);
@@ -226,9 +226,9 @@ public class StatusServiceTests
         };
         tracker.AddSnapshot(runningSnapshot);
         tracker.FireChanged();
-        Assert.Contains("🟢", host.LastSeparatorLeftText);
+        Assert.Contains("[green]•[/]", host.LastSeparatorLeftText);
 
-        // Second update — tool-use state (stopReason == "toolUse" → 🔄)
+        // Second update — tool-use state (stopReason == "toolUse" → ▶)
         var toolSnapshot = new AgentStatusSnapshot
         {
             SessionKey = "agent:test-agent:main",
@@ -239,7 +239,7 @@ public class StatusServiceTests
         };
         tracker.AddSnapshot(toolSnapshot);
         tracker.FireChanged();
-        Assert.Contains("🔄", host.LastSeparatorLeftText);
+        Assert.Contains("▶", host.LastSeparatorLeftText);
     }
 
     [Fact]

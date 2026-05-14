@@ -21,6 +21,7 @@ public partial class AppRunner : IDisposable
     private readonly IColorConsole _console;
     private readonly ErrorLogStore _errorLog;
     private readonly IStatusService _statusService;
+    private readonly StreamShell.IBottomPanel? _bottomPanel;
     private CancellationTokenSource? _cts;
 
     /// <summary>
@@ -29,7 +30,7 @@ public partial class AppRunner : IDisposable
     /// </summary>
     public const int MaxRestartCount = 3;
 
-    public AppRunner(AppConfig cfg, IServiceFactory factory, IStreamShellHost shellHost, IConfigurationService configService, IColorConsole console, MainAgentsPart? mainAgentsPart = null, IConfigWizardOrchestrator? wizard = null)
+    public AppRunner(AppConfig cfg, IServiceFactory factory, IStreamShellHost shellHost, IConfigurationService configService, IColorConsole console, MainAgentsPart? mainAgentsPart = null, IConfigWizardOrchestrator? wizard = null, StreamShell.IBottomPanel? bottomPanel = null)
     {
         _cfg = cfg;
         _factory = factory;
@@ -39,10 +40,11 @@ public partial class AppRunner : IDisposable
         _console = console;
         _errorLog = new ErrorLogStore(cfg.DataDir);
         _statusService = new StatusService(shellHost, mainAgentsPart: mainAgentsPart);
+        _bottomPanel = bottomPanel;
 
         // Wire agent status tracker if the factory provides one
-        if (_factory.AgentStatusTracker != null)
-            _statusService.SetAgentStatusTracker(_factory.AgentStatusTracker);
+        if (_factory.AgentActivityStore != null)
+            _statusService.SetAgentActivityStore(_factory.AgentActivityStore);
 
         // Set MainAgentsPart if it wasn't passed to the StatusService constructor
         // (e.g. when using the default runnerFactory path)
@@ -184,13 +186,18 @@ public partial class AppRunner : IDisposable
     }
 
     /// <summary>
-    /// Wires up the conversation naming pipeline: text sender wrapper, naming service,
-    /// and input handler. Returns the assembled objects for caller disposal.
+    /// Wires up the conversation naming pipeline when <see cref="AppConfig.ConversationNamePosition"/>
+    /// is not <see cref="DisplayPosition.None"/>. Otherwise returns the raw text sender and null naming service.
     /// </summary>
-    private (ConversationNamingTextMessageSender NamingTextSender, IConversationNamingService NamingService, Services.IInputHandler InputHandler)
+    private (ITextMessageSender TextSender, IConversationNamingService? NamingService, Services.IInputHandler InputHandler)
         CreateNamingPipeline(IGatewayService gateway, IDirectLlmService directLlmService)
     {
         var textSender = _factory.CreateTextMessageSender(gateway);
+
+        if (_cfg.ConversationNamePosition == DisplayPosition.None)
+        {
+            return (textSender, null, _factory.CreateInputHandler(textSender));
+        }
 
         var namingService = _factory.CreateConversationNamingService(
             directLlmService.IsConfigured ? directLlmService : null, _cfg);
@@ -198,11 +205,10 @@ public partial class AppRunner : IDisposable
 
         // Wire agent replies to naming service for adaptive conversation naming
         gateway.AgentReplyFull += namingService.OnAgentReplyReceived;
+        gateway.AgentReplyFinal += namingService.OnAgentReplyFinalReceived;
 
         var namingTextSender = new ConversationNamingTextMessageSender(textSender, namingService);
-        var inputHandler = _factory.CreateInputHandler(namingTextSender);
-
-        return (namingTextSender, namingService, inputHandler);
+        return (namingTextSender, namingService, _factory.CreateInputHandler(namingTextSender));
     }
 
     /// <summary>
@@ -266,14 +272,14 @@ public partial class AppRunner : IDisposable
 
         try
         {
-            var (namingTextSender, namingService, inputHandler) =
+            var (textSender, namingService, inputHandler) =
                 CreateNamingPipeline(gateway, directLlmService);
 
-            using var namingDisposable = (IDisposable)namingService;
+            using var namingDisposable = namingService as IDisposable;
 
             var (hotkeyService, shellCommands, snapshotCleaner, pttLoop) =
                 await CreateShellAndHotkeyServicesAsync(
-                    gateway, pttStateMachine, namingTextSender, namingService,
+                    gateway, pttStateMachine, textSender, namingService,
                     directLlmService, ttsSummarizer, audioService, inputHandler,
                     gatewayConnected, ct);
 

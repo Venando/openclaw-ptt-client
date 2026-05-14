@@ -21,7 +21,7 @@ public sealed class GatewayClient : IGatewayClient
     private readonly IGatewayEventSource _eventSource;
     private readonly Func<IGatewayConnectionLifecycle>? _lifecycleFactory;
     private readonly IColorConsole _console;
-    private readonly IAgentStatusTracker? _agentStatusTracker;
+    private readonly IAgentActivityStore? _activityStore;
 
     private IGatewayConnectionLifecycle? _lifecycle;
 
@@ -37,13 +37,13 @@ public sealed class GatewayClient : IGatewayClient
     public event Action? ReconnectFailed;
 
     public GatewayClient(AppConfig cfg, DeviceIdentity dev, IGatewayEventSource eventSource, IColorConsole console,
-        Func<IGatewayConnectionLifecycle>? lifecycleFactory = null, IAgentStatusTracker? agentStatusTracker = null)
+        Func<IGatewayConnectionLifecycle>? lifecycleFactory = null, IAgentActivityStore? activityStore = null)
     {
         _cfg = cfg;
         _dev = dev;
         _eventSource = eventSource;
         _console = console;
-        _lifecycleFactory = lifecycleFactory ?? (() => new GatewayConnectionLifecycle(_cfg, _dev, _eventSource, console, agentStatusTracker: agentStatusTracker));
+        _lifecycleFactory = lifecycleFactory ?? (() => new GatewayConnectionLifecycle(_cfg, _dev, _eventSource, console, activityStore: activityStore));
         _lifecycle = _lifecycleFactory();
         if (_lifecycle != null)
         {
@@ -51,7 +51,7 @@ public sealed class GatewayClient : IGatewayClient
             _lifecycle.Reconnecting += () => Reconnecting?.Invoke();
             _lifecycle.ReconnectFailed += () => ReconnectFailed?.Invoke();
         }
-        _agentStatusTracker = agentStatusTracker;
+        _activityStore = activityStore;
     }
 
     // ─── IGatewayClient properties ──────────────────────────────────
@@ -236,21 +236,11 @@ public sealed class GatewayClient : IGatewayClient
         return null;
     }
 
-    /// <summary>Extracts agent status snapshots from the most recent history entries.</summary>
+    /// <summary>Extracts agent activity from the most recent history entries into the activity store.</summary>
     private void ExtractAgentStatusFromHistory(JsonElement messages, string sessionKey)
     {
-        var totalEntries = messages.GetArrayLength();
-        const int extractStatusesFromHistory = 2;
-        var statusExtractStartIdx = Math.Max(0, totalEntries - extractStatusesFromHistory);
-
-        for (int i = statusExtractStartIdx; i < totalEntries; i++)
-        {
-            var snapshot = AgentStatusExtractor.FromHistoryMessage(messages[i], sessionKey);
-            if (snapshot != null)
-            {
-                _agentStatusTracker?.Update(snapshot);
-            }
-        }
+        if (_activityStore is null) return;
+        HistoryMessageParser.ExtractRecent(messages, sessionKey, _activityStore);
     }
 
     /// <summary>Projects the messages array into a list of ChatHistoryEntry, respecting the limit.</summary>

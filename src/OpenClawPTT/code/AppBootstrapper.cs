@@ -13,9 +13,10 @@ public sealed class AppBootstrapper : IDisposable
     private readonly IConfigurationService _configService;
     private readonly IConfigWizardOrchestrator _wizard;
     private readonly IStreamShellHost _shellHost;
-    private readonly Func<AppConfig, IServiceFactory, AppRunner> _runnerFactory;
+    private readonly Func<AppConfig, IServiceFactory, StreamShell.IBottomPanel?, AppRunner> _runnerFactory;
     private readonly bool _testModeEnabled;
     private readonly MainAgentsPart? _mainAgentsPart;
+    private readonly StreamShell.IBottomPanel? _bottomPanel;
     private CancellationTokenSource? _cts;
 
     private readonly IColorConsole _console;
@@ -26,9 +27,10 @@ public sealed class AppBootstrapper : IDisposable
         IServiceFactory factory,
         IStreamShellHost shellHost,
         IColorConsole console,
-        Func<AppConfig, IServiceFactory, AppRunner>? runnerFactory = null,
+        Func<AppConfig, IServiceFactory, StreamShell.IBottomPanel?, AppRunner>? runnerFactory = null,
         MainAgentsPart? mainAgentsPart = null,
-        bool testModeEnabled = false)
+        bool testModeEnabled = false,
+        StreamShell.IBottomPanel? bottomPanel = null)
     {
         _configService = configService;
         _wizard = wizard;
@@ -37,7 +39,8 @@ public sealed class AppBootstrapper : IDisposable
         _console = console;
         _mainAgentsPart = mainAgentsPart;
         _testModeEnabled = testModeEnabled;
-        _runnerFactory = runnerFactory ?? ((cfg, f) => new AppRunner(cfg, f, _shellHost, _configService, console, mainAgentsPart, _wizard));
+        _bottomPanel = bottomPanel;
+        _runnerFactory = runnerFactory ?? ((cfg, f, bp) => new AppRunner(cfg, f, _shellHost, _configService, console, mainAgentsPart, _wizard, bottomPanel: bp));
     }
 
     /// <summary>Runs the application and returns the exit code.</summary>
@@ -78,7 +81,7 @@ public sealed class AppBootstrapper : IDisposable
             agentSettings.Load();
             _factory.InitializeAgentSettingsPersistence(agentSettings);
 
-            using var runner = _runnerFactory(cfg, _factory);
+            using var runner = _runnerFactory(cfg, _factory, _bottomPanel);
             runnerExitCode = await runner.RunAsync(_cts.Token);
         }
         catch (Exception caught)

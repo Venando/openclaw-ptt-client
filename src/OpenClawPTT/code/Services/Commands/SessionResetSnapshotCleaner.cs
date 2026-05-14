@@ -3,7 +3,7 @@ namespace OpenClawPTT.Services.Commands;
 /// <summary>
 /// Mediator that listens for session reset commands (<c>/reset</c>, <c>/new</c>)
 /// and clears the stale <see cref="AgentStatusSnapshot"/> for the active session
-/// from the <see cref="IAgentStatusTracker"/>.
+/// from the <see cref="IAgentActivityStore"/>.
 ///
 /// Wire via <c>shellCommands.CommandExecuted += cleaner.Handle;</c> alongside the
 /// conversation naming service subscription.  The handler is a named method so
@@ -11,10 +11,10 @@ namespace OpenClawPTT.Services.Commands;
 /// </summary>
 public sealed class SessionResetSnapshotCleaner : IDisposable
 {
-    private readonly IAgentStatusTracker? _tracker;
+    private readonly IAgentActivityStore? _tracker;
     private readonly EventHandler<CommandExecutedEventArgs> _handler;
 
-    public SessionResetSnapshotCleaner(IAgentStatusTracker? tracker)
+    public SessionResetSnapshotCleaner(IAgentActivityStore? tracker)
     {
         _tracker = tracker;
         _handler = OnCommandExecuted;
