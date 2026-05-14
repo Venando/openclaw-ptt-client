@@ -258,19 +258,15 @@ def main():
     # Resolve download URLs from the TTS model registry.
     # Use ModelManager directly to avoid TTS() which triggers slow torch import.
     from TTS.utils.manage import ModelManager
-    import sys as _sys
     manager = ModelManager()
 
     # manager.models_dict is a NESTED dict:
     #   models_dict["tts_models"]["en"]["ljspeech"]["vits"] = {"github_rls_url": "...", ...}
     registry = manager.models_dict
-    print(f'[diag] models_dict: type={type(registry).__name__}', file=_sys.stderr)
     if registry and isinstance(registry, dict):
-        print(f'[diag] models_dict top keys: {list(registry.keys())[:10]}', file=_sys.stderr)
 
     URL_FIELDS = ('github_rls_url', 'hf_url', 'url', 'download_url', 'repo_url')
     url_map = {}
-    not_found = []
     for name in model_names:
         if name in cache:
             continue
@@ -292,13 +288,9 @@ def main():
         if url:
             url_map[name] = url
         else:
-            not_found.append(name)
 
-    print(f'[diag] url_map: {len(url_map)} entries', file=_sys.stderr)
     if url_map:
         sample_items = list(url_map.items())[:3]
-        print(f'[diag] sample url_map: {sample_items}', file=_sys.stderr)
-    print(f'[diag] not_found ({len(not_found)}): {not_found[:5]}', file=_sys.stderr)
 
     if url_map:
         with ThreadPoolExecutor(max_workers=15) as executor:
