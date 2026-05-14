@@ -314,17 +314,15 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         var sessionKey = _otherSessionKeys[_selectedIndex];
         ExitSelectionMode();
 
-        _ = Task.Run(() =>
+        _ = Task.Run(async () =>
         {
             var visible = _agentsPart.GetVisibleAgents();
             var target = visible.FirstOrDefault(v =>
                 v.Snapshot.SessionKey == sessionKey);
-            if (target.Agent is not null
-                && AgentRegistry.SetActiveAgent(target.Agent.AgentId))
+            if (target.Agent is not null)
             {
-                var cfg = _configService.Load() ?? new AppConfig();
-                cfg.LastActiveAgentId = target.Agent.AgentId;
-                _configService.Save(cfg);
+                await AgentRegistry.SwitchToAgentAsync(
+                    target.Agent.AgentId, _configService);
             }
         });
     }
@@ -396,16 +394,21 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
     /// <summary>
     /// Header row — the only row that uses │ separators.
-    /// Format: "│ Name │ Status │ Model │ Context │"
+    /// Header text is centred in each column.
     /// </summary>
     private static string RenderHeaderRow(ColumnWidths w)
     {
-        return $"│ [bold]{HeaderName.PadRight(w.Name)}[/] │ [bold]{HeaderStatus.PadRight(w.Status)}[/] │ [bold]{HeaderModel.PadRight(w.Model)}[/] │ [bold]{HeaderContext.PadRight(w.Context)}[/] │";
+        return "│ "
+            + CenterPadded(HeaderName,    w.Name,    bold: true) + " │ "
+            + CenterPadded(HeaderStatus,  w.Status,  bold: true) + " │ "
+            + CenterPadded(HeaderModel,   w.Model,   bold: true) + " │ "
+            + CenterPadded(HeaderContext, w.Context, bold: true) + " │";
     }
 
     /// <summary>
     /// Data row — no │ separators.
     /// Prefix "  " matches header "│ ", gap "   " matches header " │ ".
+    /// Cell content is centred in each column.
     /// </summary>
     private static string RenderDataRow(CellData cells, ColumnWidths w, bool selected)
     {
@@ -415,21 +418,34 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         var rawContext = StripMarkup(cells.Context);
 
         var row = DataPrefix
-            + PadForTable(rawName,    cells.Name,    w.Name)    + DataGap
-            + PadForTable(rawStatus,  cells.Status,  w.Status)  + DataGap
-            + PadForTable(rawModel,   cells.Model,   w.Model)   + DataGap
-            + PadForTable(rawContext, cells.Context, w.Context);
+            + CenterCell(rawName,    cells.Name,    w.Name)    + DataGap
+            + CenterCell(rawStatus,  cells.Status,  w.Status)  + DataGap
+            + CenterCell(rawModel,   cells.Model,   w.Model)   + DataGap
+            + CenterCell(rawContext, cells.Context, w.Context);
 
         return selected
             ? $"[invert]{row}[/]"
             : row;
     }
 
-    private static string PadForTable(string raw, string markup, int targetWidth)
+    /// <summary>Centres header text within the column width, wrapping in bold markup.</summary>
+    private static string CenterPadded(string text, int colWidth, bool bold)
+    {
+        int pad = colWidth - text.Length;
+        int left = pad / 2;
+        int right = pad - left;
+        var padded = $"{new string(' ', left)}{text}{new string(' ', right)}";
+        return bold ? $"[bold]{padded}[/]" : padded;
+    }
+
+    /// <summary>Centres a Spectre-markup value within the column width.</summary>
+    private static string CenterCell(string raw, string markup, int colWidth)
     {
         int currentWidth = CharacterWidth.GetDisplayWidth(raw);
-        int padding = targetWidth - currentWidth;
-        return padding > 0 ? markup + new string(' ', padding) : markup;
+        int pad = colWidth - currentWidth;
+        int left = pad / 2;
+        int right = pad - left;
+        return new string(' ', left) + markup + new string(' ', right);
     }
 
     // ── Context formatting ────────────────────────────────────────────────
