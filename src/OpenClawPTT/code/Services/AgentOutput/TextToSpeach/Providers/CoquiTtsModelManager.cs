@@ -294,7 +294,12 @@ public sealed class CoquiTtsModelManager
             "coqui-tts-env");
 
         if (!CoquiUvEnvironment.IsUvAvailable())
+        {
+            host.AddMessage("[grey]    [GetCachedModels] uv not available[/]");
             return Array.Empty<string>();
+        }
+
+        host.AddMessage($"[grey]    [GetCachedModels] Running Python cache scan...[/]");
 
         var pythonCmd = CoquiUvEnvironment.BuildListCachedModelPathsCommand();
         var uvPath = CoquiUvEnvironment.FindUv() ?? "uv";
@@ -316,17 +321,41 @@ public sealed class CoquiTtsModelManager
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
             using var process = Process.Start(psi);
             if (process == null)
+            {
+                host.AddMessage("[red]    [GetCachedModels] Process.Start returned null[/]");
                 return Array.Empty<string>();
+            }
 
             var stdout = await process.StandardOutput.ReadToEndAsync(linkedCts.Token);
+            var stderr = await process.StandardError.ReadToEndAsync(linkedCts.Token);
             await process.WaitForExitAsync(linkedCts.Token);
 
+            host.AddMessage($"[grey]    [GetCachedModels] exit={process.ExitCode}, stdout_len={stdout.Length}, stderr_len={stderr.Length}[/]");
+
+            if (!string.IsNullOrWhiteSpace(stderr))
+            {
+                foreach (var line in stderr.Split('\n'))
+                {
+                    var t = line.Trim();
+                    if (!string.IsNullOrEmpty(t))
+                        host.AddMessage($"[grey]    [GetCachedModels:stderr] {EscapeSpectreMarkup(t[..Math.Min(t.Length, 120)])}[/]");
+                }
+            }
+
             if (process.ExitCode != 0)
+            {
+                host.AddMessage($"[red]    [GetCachedModels] non-zero exit code, stderr excerpt: {EscapeSpectreMarkup(stderr.Trim()[..Math.Min(stderr.Trim().Length, 200)])}[/]");
                 return Array.Empty<string>();
+            }
 
             var trimmed = stdout.Trim();
+            host.AddMessage($"[grey]    [GetCachedModels] stdout trimmed: '{EscapeSpectreMarkup(trimmed[..Math.Min(trimmed.Length, 500)])}'[/]");
+
             if (string.IsNullOrEmpty(trimmed))
+            {
+                host.AddMessage("[yellow]    [GetCachedModels] stdout empty after trim[/]");
                 return Array.Empty<string>();
+            }
 
             var jsonStart = trimmed.LastIndexOf('[');
             var jsonEnd = trimmed.LastIndexOf(']');
@@ -334,11 +363,21 @@ public sealed class CoquiTtsModelManager
                 ? trimmed[jsonStart..(jsonEnd + 1)]
                 : trimmed;
 
+            host.AddMessage($"[grey]    [GetCachedModels] json: '{EscapeSpectreMarkup(jsonText[..Math.Min(jsonText.Length, 300)])}'[/]");
+
             var names = JsonSerializer.Deserialize<List<string>>(jsonText);
-            return (IReadOnlyList<string>?)names ?? Array.Empty<string>();
+            if (names == null)
+            {
+                host.AddMessage("[yellow]    [GetCachedModels] Deserialize returned null[/]");
+                return Array.Empty<string>();
+            }
+
+            host.AddMessage($"[green]    [GetCachedModels] Found {names.Count} cached models[/]");
+            return names;
         }
-        catch
+        catch (Exception ex)
         {
+            host.AddMessage($"[red]    [GetCachedModels] Exception: {EscapeSpectreMarkup(ex.Message)}[/]");
             return Array.Empty<string>();
         }
     }
