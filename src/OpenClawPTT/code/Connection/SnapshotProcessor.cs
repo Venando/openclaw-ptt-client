@@ -10,17 +10,17 @@ namespace OpenClawPTT;
 public sealed class SnapshotProcessor : ISnapshotProcessor
 {
     private readonly ILogger _logger;
-    private readonly IAgentStatusTracker? _agentStatusTracker;
+    private readonly IAgentActivityStore? _activityStore;
 
     /// <summary>
     /// Creates a new SnapshotProcessor.
     /// </summary>
     /// <param name="logger">The logger for diagnostic output.</param>
-    /// <param name="agentStatusTracker">Optional tracker to seed with snapshot agents.</param>
-    public SnapshotProcessor(ILogger logger, IAgentStatusTracker? agentStatusTracker = null)
+    /// <param name="activityStore">Optional tracker to seed with snapshot agents.</param>
+    public SnapshotProcessor(ILogger logger, IAgentActivityStore? activityStore = null)
     {
         _logger = logger;
-        _agentStatusTracker = agentStatusTracker;
+        _activityStore = activityStore;
     }
 
     /// <inheritdoc />
@@ -55,8 +55,8 @@ public sealed class SnapshotProcessor : ISnapshotProcessor
                     SessionKey = sessionKey
                 });
 
-                // Seed the status tracker so the bottom panel shows agents immediately
-                _agentStatusTracker?.Update(new AgentStatusSnapshot
+                // Seed the activity store so the bottom panel shows agents immediately
+                _activityStore?.Store(new SessionStateEvent
                 {
                     SessionKey = sessionKey,
                     DisplayName = name,

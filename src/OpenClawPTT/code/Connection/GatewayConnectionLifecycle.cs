@@ -16,7 +16,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
     private readonly DeviceIdentity _deviceIdentity;
     private readonly Func<IClientWebSocket> _socketFactory;
     private readonly IColorConsole _console;
-    private readonly IAgentStatusTracker? _agentStatusTracker;
+    private readonly IAgentActivityStore? _activityStore;
 
     private IClientWebSocket _ws = null!;
     private Task? _recvTask;
@@ -39,14 +39,14 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
     public event Action? ReconnectFailed;
 
     public GatewayConnectionLifecycle(AppConfig cfg, DeviceIdentity dev, IGatewayEventSource events, IColorConsole console,
-        Func<IClientWebSocket>? socketFactory = null, ISnapshotProcessor? snapshotProcessor = null, IAgentStatusTracker? agentStatusTracker = null)
+        Func<IClientWebSocket>? socketFactory = null, ISnapshotProcessor? snapshotProcessor = null, IAgentActivityStore? activityStore = null)
     {
         _cfg = cfg;
         _deviceIdentity = dev;
         _events = events;
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _socketFactory = socketFactory ?? (() => new ClientWebSocketAdapter());
-        _snapshotProcessor = snapshotProcessor ?? new SnapshotProcessor(new ConsoleLogger(console), agentStatusTracker);
+        _snapshotProcessor = snapshotProcessor ?? new SnapshotProcessor(new ConsoleLogger(console), activityStore);
         _jobRunner = new BackgroundJobRunner(msg => _console.Log("jobrunner", msg));
         _gatewayReconnector = new GatewayReconnector(cfg, console, this, _disposeCts.Token);
 
@@ -57,7 +57,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
         // ReconnectFailed signals the terminal state after all retries are exhausted.
         _gatewayReconnector.ReconnectFailed += () => ReconnectFailed?.Invoke();
 
-        _agentStatusTracker = agentStatusTracker;
+        _activityStore = activityStore;
     }
 
     // ─── ISender ──────────────────────────────────────────────────────
@@ -113,7 +113,7 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
         try
         {
             _ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
-            _gatewayMessager = new GatewayMessager(_ws, _events, _cfg, ct => _ = HandleDisconnectionAsync(ct), console: _console, jobRunner: _jobRunner, agentStatusTracker: _agentStatusTracker);
+            _gatewayMessager = new GatewayMessager(_ws, _events, _cfg, ct => _ = HandleDisconnectionAsync(ct), console: _console, jobRunner: _jobRunner, activityStore: _activityStore);
 
             await ConnectWebSocketAsync(linkedCt);
             _recvTask = Task.Run(() => _gatewayMessager.ReceiveLoop(linkedCt), linkedCt);

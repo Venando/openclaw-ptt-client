@@ -63,7 +63,7 @@ public partial class AppRunner
         // Wire history service into the bottom panel for full agent-switch behaviour
         _bottomPanel?.SetHistoryService(shellCommands.HistoryService);
 
-        var snapshotCleaner = new SessionResetSnapshotCleaner(_factory.AgentStatusTracker);
+        var snapshotCleaner = new SessionResetSnapshotCleaner(_factory.AgentActivityStore);
         shellCommands.CommandExecuted += snapshotCleaner.Handle;
 
         await shellCommands.RegisterBaseAsync();

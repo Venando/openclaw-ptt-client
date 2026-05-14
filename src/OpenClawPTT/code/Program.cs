@@ -17,25 +17,25 @@ internal static class Program
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         var shellHost = new StreamShellHost();
 
-        // Create agent status tracker and shared agents part
-        var agentStatusTracker = new AgentStatusTracker();
-        var mainAgentsPart = new MainAgentsPart(agentStatusTracker);
+        // Create agent activity store (replaces tracker + snapshots)
+        var activityStore = new AgentActivityStore();
+        var mainAgentsPart = new MainAgentsPart(activityStore);
 
         // Use TestModeServiceFactory when test mode is enabled
         ServiceFactory factory;
         if (testModeEnabled)
         {
-            factory = new TestModeServiceFactory(configService, shellHost, testScenario, agentStatusTracker);
+            factory = new TestModeServiceFactory(configService, shellHost, testScenario, activityStore);
         }
         else
         {
-            factory = new ServiceFactory(configService, shellHost, agentStatusTracker);
+            factory = new ServiceFactory(configService, shellHost, activityStore);
         }
 
         var colorConsole = factory.CreateColorConsole();
 
-        // Set up the table-style agent status bottom panel
-        var appStatusPanel = new AgentStatusBottomPanel(agentStatusTracker, mainAgentsPart, configService);
+        // Set up the agent status bottom panel
+        var appStatusPanel = new AgentStatusBottomPanel(activityStore, configService);
         shellHost.SetDefaultPanel(appStatusPanel);
 
         var bootstrapper = new AppBootstrapper(configService, wizard, factory, shellHost, colorConsole,

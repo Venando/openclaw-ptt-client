@@ -21,7 +21,7 @@ public sealed class GatewayClient : IGatewayClient
     private readonly IGatewayEventSource _eventSource;
     private readonly Func<IGatewayConnectionLifecycle>? _lifecycleFactory;
     private readonly IColorConsole _console;
-    private readonly IAgentStatusTracker? _agentStatusTracker;
+    private readonly IAgentActivityStore? _activityStore;
 
     private IGatewayConnectionLifecycle? _lifecycle;
 
@@ -37,13 +37,13 @@ public sealed class GatewayClient : IGatewayClient
     public event Action? ReconnectFailed;
 
     public GatewayClient(AppConfig cfg, DeviceIdentity dev, IGatewayEventSource eventSource, IColorConsole console,
-        Func<IGatewayConnectionLifecycle>? lifecycleFactory = null, IAgentStatusTracker? agentStatusTracker = null)
+        Func<IGatewayConnectionLifecycle>? lifecycleFactory = null, IAgentActivityStore? activityStore = null)
     {
         _cfg = cfg;
         _dev = dev;
         _eventSource = eventSource;
         _console = console;
-        _lifecycleFactory = lifecycleFactory ?? (() => new GatewayConnectionLifecycle(_cfg, _dev, _eventSource, console, agentStatusTracker: agentStatusTracker));
+        _lifecycleFactory = lifecycleFactory ?? (() => new GatewayConnectionLifecycle(_cfg, _dev, _eventSource, console, activityStore: activityStore));
         _lifecycle = _lifecycleFactory();
         if (_lifecycle != null)
         {
@@ -51,7 +51,7 @@ public sealed class GatewayClient : IGatewayClient
             _lifecycle.Reconnecting += () => Reconnecting?.Invoke();
             _lifecycle.ReconnectFailed += () => ReconnectFailed?.Invoke();
         }
-        _agentStatusTracker = agentStatusTracker;
+        _activityStore = activityStore;
     }
 
     // ─── IGatewayClient properties ──────────────────────────────────
@@ -245,10 +245,10 @@ public sealed class GatewayClient : IGatewayClient
 
         for (int i = statusExtractStartIdx; i < totalEntries; i++)
         {
-            var snapshot = AgentStatusExtractor.FromHistoryMessage(messages[i], sessionKey);
-            if (snapshot != null)
+            var state = AgentStatusExtractor.FromHistoryMessage(messages[i], sessionKey);
+            if (state != null)
             {
-                _agentStatusTracker?.Update(snapshot);
+                _activityStore?.Store(state);
             }
         }
     }

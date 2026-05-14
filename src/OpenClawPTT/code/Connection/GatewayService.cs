@@ -14,7 +14,7 @@ public sealed class GatewayService : IGatewayService
     private readonly IColorConsole _console;
     private readonly ITtsSummarizer? _summarizer;
     private readonly IPttStateMachine? _pttStateMachine;
-    private readonly IAgentStatusTracker? _agentStatusTracker;
+    private readonly IAgentActivityStore? _activityStore;
     private readonly IAudioPlayer? _audioPlayer;
     private readonly DeviceIdentity _device;
     private IGatewayClient _gatewayClient;
@@ -37,14 +37,14 @@ public sealed class GatewayService : IGatewayService
     public event Action<string, string>? AgentToolCall; // (toolName, arguments)
     public event Action<string, JsonElement>? EventReceived;
 
-    public GatewayService(AppConfig config, IColorConsole console, AgentOutputCoordinator coordinator, ITtsSummarizer? summarizer = null, IPttStateMachine? pttStateMachine = null, IAgentStatusTracker? agentStatusTracker = null, Task<ITextToSpeech?>? ttsProviderTask = null, IAudioPlayer? audioPlayer = null, IGatewayClient? initialGatewayClient = null)
+    public GatewayService(AppConfig config, IColorConsole console, AgentOutputCoordinator coordinator, ITtsSummarizer? summarizer = null, IPttStateMachine? pttStateMachine = null, IAgentActivityStore? activityStore = null, Task<ITextToSpeech?>? ttsProviderTask = null, IAudioPlayer? audioPlayer = null, IGatewayClient? initialGatewayClient = null)
     {
         _config = config;
         _console = console;
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         _summarizer = summarizer;
         _pttStateMachine = pttStateMachine;
-        _agentStatusTracker = agentStatusTracker;
+        _activityStore = activityStore;
         _audioPlayer = audioPlayer;
         _device = new DeviceIdentity(config.DataDir);
         _device.EnsureKeypair();
@@ -245,7 +245,7 @@ public sealed class GatewayService : IGatewayService
 
     private IGatewayClient CreateGatewayClient()
     {
-        var client = new GatewayClient(_config, _device, new GatewayEventSource(), _console, agentStatusTracker: _agentStatusTracker);
+        var client = new GatewayClient(_config, _device, new GatewayEventSource(), _console, activityStore: _activityStore);
         return InitGatewayClient(client);
     }
 

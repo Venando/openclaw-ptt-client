@@ -1,6 +1,5 @@
 using OpenClawPTT.Formatting;
 using OpenClawPTT.Services.Commands;
-using OpenClawPTT.Services.StatusParts;
 using Spectre.Console;
 using StreamShell;
 
@@ -26,8 +25,8 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
     private const int GapAfterName = 2;
     private const int GapBeforeTime = 2;
 
-    // ── Hardcoded visual-test data ────────────────────────────────────────
-    private static readonly string[] Actions =
+    // ── Hardcoded fallback data (when store has no activity yet) ──────────
+    private static readonly string[] FallbackActions =
     {
         "Editing src/components/Settings.tsx",
         "github.com/acme-web-app/pull",
@@ -39,16 +38,12 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         "Drafting release notes for v2.4",
     };
 
-    private static readonly string[] Times =
-    {
-        "12m", "3m", "40m", "1h", "5m", "22m", "2h", "8m",
-    };
+    private static readonly string[] FallbackTimes = { "12m", "3m", "40m", "1h", "5m", "22m", "2h", "8m" };
 
     private const int MaxNameDisplayLength = 10;
 
     // ── Dependencies ──────────────────────────────────────────────────────
-    private readonly IAgentStatusTracker _tracker;
-    private readonly MainAgentsPart _agentsPart;
+    private readonly IAgentActivityStore _store;
     private readonly IConfigurationService _configService;
     private SessionHistoryService? _historyService;
 
@@ -64,7 +59,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
     private bool _isSelectionMode;
     private int _selectedIndex;
 
-    private readonly List<string> _agentSessionKeys = new();
+    private readonly List<(string SessionKey, string? AgentId)> _visibleAgents = new();
     private string _lastCurrentInput = string.Empty;
 
     private readonly List<string> _lines = new(16);
@@ -72,20 +67,15 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
     // ── Construction ──────────────────────────────────────────────────────
 
     public AgentStatusBottomPanel(
-        IAgentStatusTracker tracker,
-        MainAgentsPart agentsPart,
+        IAgentActivityStore store,
         IConfigurationService configService)
     {
-        _tracker = tracker ?? throw new ArgumentNullException(nameof(tracker));
-        _agentsPart = agentsPart ?? throw new ArgumentNullException(nameof(agentsPart));
+        _store = store ?? throw new ArgumentNullException(nameof(store));
         _configService = configService ?? throw new ArgumentNullException(nameof(configService));
 
         _version = 1;
 
-        _tracker.Changed += OnTrackerChanged;
-        AgentRegistry.ActiveSessionChanged += OnActiveSessionChanged;
-
-        _agentsPart.RefreshVisibleAgents();
+        _store.Changed += OnStoreChanged;
     }
 
     // ── IBottomPanel ──────────────────────────────────────────────────────
@@ -120,7 +110,6 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
             _lines.Clear();
             _lastCurrentInput = currentInput ?? string.Empty;
-            _agentsPart.RefreshVisibleAgents();
 
             // Hide panel while user is typing
             if (_lastCurrentInput.Length > 0)
@@ -132,31 +121,39 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
             // ── Gather agents ─────────────────────────────────────────────
             var activeSessionKey = AgentRegistry.ActiveSessionKey;
-            var activeSnapshot = activeSessionKey is not null
-                ? _tracker.Get(activeSessionKey)
-                : null;
-            var activeInfo = GetActiveAgentInfo();
+            var trackedSessions = _store.GetTrackedSessions();
 
-            var visibleAgents = _agentsPart.GetVisibleAgents();
+            _visibleAgents.Clear();
 
-            // Build ordered list: active first, then others
-            var ordered = new List<(AgentStatusSnapshot? Snapshot, AgentInfo? Info, bool IsActive)>(visibleAgents.Count + 1);
+            // Active agent first (if tracked)
+            if (activeSessionKey is not null && trackedSessions.Contains(activeSessionKey))
+                _visibleAgents.Add((activeSessionKey, AgentRegistry.ActiveAgentId));
 
-            if (activeSnapshot is not null && activeInfo is not null)
-                ordered.Add((activeSnapshot, activeInfo, true));
-
-            foreach (var (snapshot, agent) in visibleAgents)
-                ordered.Add((snapshot, agent, false));
-
-            _agentSessionKeys.Clear();
-            foreach (var (snapshot, _, _) in ordered)
+            // Others: all tracked sessions that aren't active and aren't subagents
+            foreach (var sk in trackedSessions)
             {
-                if (snapshot?.SessionKey is not null)
-                    _agentSessionKeys.Add(snapshot.SessionKey);
+                if (sk == activeSessionKey) continue;
+
+                var state = _store.GetSessionState(sk);
+                if (state is null) continue;
+
+                // Skip subagents
+                if (state.ParentSessionKey is not null || state.SpawnedBy is not null)
+                    continue;
+
+                var agent = AgentRegistry.Agents.FirstOrDefault(
+                    a => a.SessionKey == sk);
+
+                // Respect ShowInStatusPanel setting
+                var show = agent is not null
+                    && AgentSettingsPersistenceLegacy.GetPersistedShowInStatusPanel(agent.AgentId);
+                if (!show && agent is not null) continue;
+
+                _visibleAgents.Add((sk, agent?.AgentId));
             }
 
             // No agents → 0 lines
-            if (ordered.Count == 0)
+            if (_visibleAgents.Count == 0)
             {
                 _cachedLineCount = 0;
                 _renderedVersion = _version;
@@ -164,22 +161,30 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
             }
 
             // Clamp selection
-            if (_selectedIndex >= ordered.Count)
-                _selectedIndex = Math.Max(0, ordered.Count - 1);
+            if (_selectedIndex >= _visibleAgents.Count)
+                _selectedIndex = Math.Max(0, _visibleAgents.Count - 1);
 
             // ── Render ────────────────────────────────────────────────────
-            for (int i = 0; i < ordered.Count; i++)
+            for (int i = 0; i < _visibleAgents.Count; i++)
             {
-                var (snapshot, info, isActive) = ordered[i];
+                var (sessionKey, agentId) = _visibleAgents[i];
                 bool selected = _isSelectionMode && i == _selectedIndex;
-                _lines.Add(RenderAgentLine(snapshot, info, i, selected, isActive));
+                bool isActive = sessionKey == activeSessionKey;
+
+                var name = GetAgentName(agentId, sessionKey);
+                var bullet = _store.GetStatusEmoji(sessionKey);
+                var action = _store.GetLastActionDescription(sessionKey)
+                    ?? FallbackActions[i % FallbackActions.Length];
+                var timeAgo = FormatRelativeTime(_store.GetLastActivityTime(sessionKey))
+                    ?? FallbackTimes[i % FallbackTimes.Length];
+
+                _lines.Add(RenderAgentLine(name, bullet, action, timeAgo, selected));
             }
 
-            // Selection hint
+            // Hint
             _lines.Add("  [dim grey]\u2191\u2193 navigate  Enter select  Esc back[/]");
 
-            // Line count
-            int total = ordered.Count + 1 + BottomMargin;
+            int total = _visibleAgents.Count + 1 + BottomMargin;
             _cachedLineCount = total;
             _renderedVersion = _version;
 
@@ -199,7 +204,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
             if (!_isSelectionMode)
             {
                 if (key.Key == ConsoleKey.DownArrow
-                    && _agentSessionKeys.Count > 0
+                    && _visibleAgents.Count > 0
                     && _lastCurrentInput.Length == 0)
                 {
                     EnterSelectionMode();
@@ -211,7 +216,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
             switch (key.Key)
             {
                 case ConsoleKey.DownArrow:
-                    if (_selectedIndex < _agentSessionKeys.Count - 1)
+                    if (_selectedIndex < _visibleAgents.Count - 1)
                     {
                         _selectedIndex++;
                         MarkDirty();
@@ -255,9 +260,8 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
             _disposed = true;
         }
 
-        _tracker.Changed -= OnTrackerChanged;
-        AgentRegistry.ActiveSessionChanged -= OnActiveSessionChanged;
-        _agentSessionKeys.Clear();
+        _store.Changed -= OnStoreChanged;
+        _visibleAgents.Clear();
         _lines.Clear();
     }
 
@@ -279,29 +283,27 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
     private void SelectCurrentAgent()
     {
-        if (_selectedIndex < 0 || _selectedIndex >= _agentSessionKeys.Count)
+        if (_selectedIndex < 0 || _selectedIndex >= _visibleAgents.Count)
         {
             ExitSelectionMode();
             return;
         }
 
-        var sessionKey = _agentSessionKeys[_selectedIndex];
+        var (sessionKey, agentId) = _visibleAgents[_selectedIndex];
+        if (agentId is null)
+        {
+            ExitSelectionMode();
+            return;
+        }
+
         ExitSelectionMode();
 
         _ = Task.Run(async () =>
         {
-            var visible = _agentsPart.GetVisibleAgents();
-            var target = visible.FirstOrDefault(v =>
-                v.Snapshot.SessionKey == sessionKey);
-            if (target.Agent is not null)
-            {
-                await AgentRegistry.SwitchToAgentAsync(
-                    target.Agent.AgentId, _configService, _historyService);
-            }
+            await AgentRegistry.SwitchToAgentAsync(agentId, _configService, _historyService);
         });
     }
 
-    /// <summary>Called by AppRunner to wire history service after bootstrapping.</summary>
     internal void SetHistoryService(SessionHistoryService historyService)
     {
         _historyService = historyService;
@@ -310,48 +312,35 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
     // ── Rendering ─────────────────────────────────────────────────────────
 
     private static string RenderAgentLine(
-        AgentStatusSnapshot? snapshot,
-        AgentInfo? info,
-        int index,
-        bool selected,
-        bool isActive)
+        string name,
+        string bullet,
+        string action,
+        string timeAgo,
+        bool selected)
     {
         var consoleWidth = ConsoleMetrics.GetWindowWidth();
-        var name = FormatName(info?.Name);
-        var bullet = snapshot is not null
-            ? snapshot.GetStatusEmoji()
-            : "•";
-
-        var action = Actions[index % Actions.Length];
-        var time = Times[index % Times.Length];
 
         // Left column: "• Name" padded to NameColWidth
-        // Bullet may be Spectre markup like "[green]•[/]"; measure only the symbol.
         var leftCol = selected ? $"{bullet} [bold black]{name}[/]" : $"{bullet} {name}";
-
         int bulletWidth = CharacterWidth.GetDisplayWidth(StripMarkup(bullet));
         int leftRaw = bulletWidth + 1 + name.Length;
         int leftPad = NameColWidth - leftRaw;
         var leftPadded = leftPad > 0 ? leftCol + new string(' ', leftPad) : leftCol;
 
-        // How much room is left for the action column?
+        // Action: escape + truncate
         int usedWidth = NameColWidth + GapAfterName + GapBeforeTime + TimeColWidth;
         int actionMax = consoleWidth - usedWidth;
-
-        // Action column: truncate raw, then escape for Spectre
         var actionRaw = action;
         if (actionRaw.Length > actionMax && actionMax > 3)
             actionRaw = actionRaw[..(actionMax - 1)] + "…";
         else if (actionRaw.Length > actionMax)
             actionRaw = actionRaw[..actionMax];
         var actionDisplay = Markup.Escape(actionRaw);
-
         int actionWidth = actionRaw.Length;
         int gapAfterAction = consoleWidth - NameColWidth - GapAfterName - actionWidth - GapBeforeTime - TimeColWidth - 1;
         if (gapAfterAction < 0) gapAfterAction = 0;
 
-        // Right column: pad time to be right-aligned within TimeColWidth
-        var timePadded = time.PadLeft(TimeColWidth);
+        var timePadded = timeAgo.PadLeft(TimeColWidth);
 
         var line = leftPadded
             + new string(' ', GapAfterName)
@@ -359,9 +348,23 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
             + new string(' ', gapAfterAction + GapBeforeTime)
             + $"[grey42]{timePadded}[/]";
 
-        return selected
-            ? $"[on Grey84]{line}[/]"
-            : line;
+        return selected ? $"[on Grey84]{line}[/]" : line;
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────
+
+    private static string GetAgentName(string? agentId, string sessionKey)
+    {
+        if (agentId is not null)
+        {
+            var agent = AgentRegistry.Agents.FirstOrDefault(a => a.AgentId == agentId);
+            if (agent is not null)
+                return FormatName(agent.Name);
+        }
+
+        // Fall back to session state display name
+        // (store is static, we access via a method)
+        return FormatName(sessionKey);
     }
 
     private static string FormatName(string? raw)
@@ -372,27 +375,26 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
             : Markup.Escape(name);
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────
-
-    private string[] PadToLineCount(int count)
+    /// <summary>Formats a Unix-ms timestamp as a relative time string.</summary>
+    private static string? FormatRelativeTime(long? timestampMs)
     {
-        while (_lines.Count < count)
-            _lines.Add(string.Empty);
+        if (timestampMs is not { } ts) return null;
 
-        if (_lines.Count > count)
-            _lines.RemoveRange(count, _lines.Count - count);
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var diff = now - ts;
 
-        return _lines.ToArray();
+        if (diff < 0) return "now";
+
+        var seconds = diff / 1000;
+        if (seconds < 60) return $"{seconds}s";
+        var minutes = seconds / 60;
+        if (minutes < 60) return $"{minutes}m";
+        var hours = minutes / 60;
+        if (hours < 24) return $"{hours}h";
+        var days = hours / 24;
+        return $"{days}d";
     }
 
-    private static AgentInfo? GetActiveAgentInfo()
-    {
-        var sessionKey = AgentRegistry.ActiveSessionKey;
-        if (sessionKey is null) return null;
-        return AgentRegistry.Agents.FirstOrDefault(a => a.SessionKey == sessionKey);
-    }
-
-    /// <summary>Strips Spectre markup tags for width measurement.</summary>
     private static string StripMarkup(string markup)
     {
         if (string.IsNullOrEmpty(markup)) return string.Empty;
@@ -413,8 +415,16 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         return sb.ToString();
     }
 
-    private void OnTrackerChanged() => MarkDirty();
-    private void OnActiveSessionChanged(string? _) => MarkDirty();
+    private string[] PadToLineCount(int count)
+    {
+        while (_lines.Count < count)
+            _lines.Add(string.Empty);
+        if (_lines.Count > count)
+            _lines.RemoveRange(count, _lines.Count - count);
+        return _lines.ToArray();
+    }
+
+    private void OnStoreChanged(string _) => MarkDirty();
 
     private void MarkDirty()
     {

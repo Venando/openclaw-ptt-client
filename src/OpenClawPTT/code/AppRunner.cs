@@ -43,8 +43,8 @@ public partial class AppRunner : IDisposable
         _bottomPanel = bottomPanel;
 
         // Wire agent status tracker if the factory provides one
-        if (_factory.AgentStatusTracker != null)
-            _statusService.SetAgentStatusTracker(_factory.AgentStatusTracker);
+        if (_factory.AgentActivityStore != null)
+            _statusService.SetAgentActivityStore(_factory.AgentActivityStore);
 
         // Set MainAgentsPart if it wasn't passed to the StatusService constructor
         // (e.g. when using the default runnerFactory path)
