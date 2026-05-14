@@ -437,55 +437,44 @@ public sealed class CoquiUvEnvironment
     /// <c>uv run python list_cached.py</c>.
     /// Respects HF_HOME / HUGGINGFACE_HUB_CACHE env vars for custom cache locations.
     /// </summary>
+    /// <summary>
+    /// Returns the content for a Python helper script that lists cached model paths.
+    /// Coqui TTS stores models in <c>%LOCALAPPDATA%/tts</c> (Windows) or
+    /// <c>~/.local/share/tts</c> (Linux/macOS), using <c>--</c> as path separator
+    /// (e.g. <c>tts_models--en--blizzard2013--capacitron-t2-c150_v2</c>).
+    /// Saved to <c>list_cached.py</c> and executed via <c>uv run python list_cached.py</c>.
+    /// </summary>
     public static string ListCachedModelPathsScript() => """
-import os, json, glob, sys
+import os, json, sys
 
-# Respect HF env vars for cache location (same as huggingface_hub)
-cache_home = os.environ.get('HUGGINGFACE_HUB_CACHE')
-if not cache_home:
-    hf_home = os.environ.get('HF_HOME')
-    if hf_home:
-        cache_home = os.path.join(hf_home, 'hub')
-if not cache_home:
-    cache_home = os.path.expanduser('~/.cache/huggingface/hub')
+# Coqui TTS uses its own storage, NOT HuggingFace cache.
+# Windows: %LOCALAPPDATA%/tts  |  Linux/macOS: ~/.local/share/tts
+tts_home = os.environ.get('LOCALAPPDATA')
+if tts_home:
+    tts_home = os.path.join(tts_home, 'tts')
+else:
+    tts_home = os.path.expanduser('~/.local/share/tts')
+
+# Priority 2: also check old Coqui TTS dir location
+old_home = os.path.join(os.path.expanduser('~'), '.local', 'share', 'tts')
 
 seen = set()
-repos_scanned = 0
-repos_matched = 0
-
-for repo in glob.glob(os.path.join(cache_home, 'models--*')):
-    repos_scanned += 1
-    base = os.path.basename(repo)
-    if not any(k in base.lower() for k in ('tts','coqui','tts_models')):
+for root_dir in (tts_home, old_home):
+    if not os.path.isdir(root_dir):
         continue
-    repos_matched += 1
-    snaps = os.path.join(repo, 'snapshots')
-    if not os.path.isdir(snaps):
-        continue
-    for snap in os.listdir(snaps):
-        root = os.path.join(snaps, snap)
-        if not os.path.isdir(root):
+    for entry in os.listdir(root_dir):
+        full = os.path.join(root_dir, entry)
+        if not os.path.isdir(full):
             continue
-        for sub in ['tts_models','vocoder_models']:
-            sub_path = os.path.join(root, sub)
-            if os.path.isdir(sub_path):
-                for lang in os.listdir(sub_path):
-                    lang_path = os.path.join(sub_path, lang)
-                    if not os.path.isdir(lang_path):
-                        continue
-                    for ds in os.listdir(lang_path):
-                        ds_path = os.path.join(lang_path, ds)
-                        if not os.path.isdir(ds_path):
-                            continue
-                        for arch in os.listdir(ds_path):
-                            arch_path = os.path.join(ds_path, arch)
-                            if os.path.isdir(arch_path):
-                                seen.add(f'{sub}/{lang}/{ds}/{arch}')
+        # Coqui stores models as tts_models--<lang>--<dataset>--<model>
+        # Convert back to standard /-separated format
+        for prefix in ('tts_models--', 'vocoder_models--'):
+            if entry.startswith(prefix):
+                model_name = entry.replace('--', '/')
+                seen.add(model_name)
+                break
 
-# Debug info on stderr so it doesn't contaminate JSON stdout
-print(f'cache_home={cache_home}', file=sys.stderr)
-print(f'repos_scanned={repos_scanned} repos_matched={repos_matched} models_found={len(seen)}', file=sys.stderr)
-
+print(f'tts_home={tts_home} found={len(seen)}', file=sys.stderr)
 print(json.dumps(sorted(seen)))
 """ + "\n";
 
