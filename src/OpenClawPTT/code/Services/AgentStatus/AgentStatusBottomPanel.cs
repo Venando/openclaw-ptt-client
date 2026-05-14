@@ -1,5 +1,6 @@
 using OpenClawPTT.Formatting;
 using OpenClawPTT.Services.Commands;
+using OpenClawPTT.Services.Themes;
 using Spectre.Console;
 using StreamShell;
 
@@ -165,7 +166,8 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
             }
 
             // Hint
-            _lines.Add("  [dim grey]\u2191\u2193 navigate  Enter select  Esc back[/]");
+            var hintStyle = ThemeProvider.Current.Tools.PanelHintStyle;
+            _lines.Add($"  [{hintStyle}]\u2191\u2193 navigate  Enter select  Esc back[/]");
 
             int total = _visibleAgents.Count + 1 + BottomMargin;
             _cachedLineCount = total;
@@ -304,7 +306,11 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         var consoleWidth = ConsoleMetrics.GetWindowWidth();
 
         // Left column: "• Name" padded to NameColWidth
-        var leftCol = selected ? $"{bullet} [bold black]{name}[/]" : $"{bullet} {name}";
+        var tools = ThemeProvider.Current.Tools;
+        var nameDisplay = selected
+            ? $"[{tools.PanelSelectedNameStyle}]{name}[/]"
+            : name;
+        var leftCol = $"{bullet} {nameDisplay}";
         int bulletWidth = CharacterWidth.GetDisplayWidth(StripMarkup(bullet));
         int leftRaw = bulletWidth + 1 + name.Length;
         int leftPad = NameColWidth - leftRaw;
@@ -327,11 +333,13 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
         var line = leftPadded
             + new string(' ', GapAfterName)
-            + (selected ? $"[Grey23]{actionDisplay}[/]" : $"[grey]{actionDisplay}[/]")
+            + (selected
+                ? $"[{tools.PanelActionSelectedStyle}]{actionDisplay}[/]"
+                : $"[{tools.PanelActionStyle}]{actionDisplay}[/]")
             + new string(' ', gapAfterAction + GapBeforeTime)
-            + $"[grey42]{timePadded}[/]";
+            + $"[{tools.PanelTimeStyle}]{timePadded}[/]";
 
-        return selected ? $"[on Grey84]{line}[/]" : line;
+        return selected ? $"[on {tools.PanelSelectedBg}]{line}[/]" : line;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────

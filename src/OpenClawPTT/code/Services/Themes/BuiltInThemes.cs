@@ -122,6 +122,12 @@ public static class BuiltInThemes
             AgentBadgeStyle = "#f8f8f2 on #44475a",
             IntroductionBorderStyle = "#bd93f9",
             PanelCapStyle = "#6272a4",
+            PanelHintStyle = "#6272a4",
+            PanelSelectedBg = "#44475a",
+            PanelSelectedNameStyle = "bold #f8f8f2",
+            PanelActionStyle = "#6272a4",
+            PanelActionSelectedStyle = "#f8f8f2",
+            PanelTimeStyle = "#6272a4",
 
             // StreamShell
             StreamCursorMarkup = "bold #282a36 on #f8f8f2",

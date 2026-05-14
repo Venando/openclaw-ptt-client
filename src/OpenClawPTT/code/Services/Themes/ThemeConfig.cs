@@ -165,6 +165,20 @@ public sealed class ToolTheme
     /// <summary>Style for the bottom panel decorative cap line (╭─┬─╮). Default: "white".</summary>
     public string PanelCapStyle { get; set; } = "white";
 
+    // ── AgentStatusBottomPanel (compact agent list) ───────────────────
+    /// <summary>Style for the keyboard navigation hint line. Default: "dim grey".</summary>
+    public string PanelHintStyle { get; set; } = "dim grey";
+    /// <summary>Background style for the selected agent row. Default: "Grey84".</summary>
+    public string PanelSelectedBg { get; set; } = "Grey84";
+    /// <summary>Style for the selected agent name (text on selected bg). Default: "bold black".</summary>
+    public string PanelSelectedNameStyle { get; set; } = "bold black";
+    /// <summary>Style for normal (unselected) action description. Default: "grey".</summary>
+    public string PanelActionStyle { get; set; } = "grey";
+    /// <summary>Style for the selected row action description. Default: "Grey23".</summary>
+    public string PanelActionSelectedStyle { get; set; } = "Grey23";
+    /// <summary>Style for relative time display. Default: "grey42".</summary>
+    public string PanelTimeStyle { get; set; } = "grey42";
+
     // ── StreamShell settings ─────────────────────────────────────────
     /// <summary>Style for the cursor highlight. Default: "bold black on cyan".</summary>
     public string StreamCursorMarkup { get; set; } = "bold black on cyan";
