@@ -153,28 +153,18 @@ public class EventDispatcherTests
     public async Task SessionMessageHandler_TextOnly_FiresAgentReplyFull()
     {
         string? captured = null;
+        string? capturedFinal = null;
         _mockEvents.Setup(x => x.RaiseAgentReplyFull(It.IsAny<string>()))
             .Callback<string>(t => captured = t);
+        _mockEvents.Setup(x => x.RaiseAgentReplyFinal(It.IsAny<string>()))
+            .Callback<string>(t => capturedFinal = t);
 
         var handler = new SessionMessageHandler(_mockEvents.Object, _cfg, _contentExtractor, _mockConsole.Object);
         var payload = CreatePayload("{\"message\":{\"role\":\"assistant\", \"content\":[{\"type\":\"text\",\"text\":\"hello\"}]}}");
         await handler.HandleAsync(new SessionMessageEvent("session.message", payload));
 
         Assert.Equal("hello", captured);
-    }
-
-    [Fact]
-    public async Task SessionMessageHandler_AudioOnly_FiresAgentReplyAudio()
-    {
-        string? captured = null;
-        _mockEvents.Setup(x => x.RaiseAgentReplyAudio(It.IsAny<string>()))
-            .Callback<string>(t => captured = t);
-
-        var handler = new SessionMessageHandler(_mockEvents.Object, _cfg, _contentExtractor, _mockConsole.Object);
-        var payload = CreatePayload("{\"message\":{\"role\":\"assistant\", \"content\":[{\"type\":\"audio\",\"audio\":\"voice data\"}]}}");
-        await handler.HandleAsync(new SessionMessageEvent("session.message", payload));
-
-        Assert.Equal("voice data", captured);
+        Assert.Equal("hello", capturedFinal);
     }
 
     [Fact]
@@ -267,17 +257,17 @@ public class EventDispatcherTests
     }
 
     [Fact]
-    public async Task SessionMessageHandler_ChatFinal_FiresAgentReplyFull()
+    public async Task SessionMessageHandler_ChatFinal_FiresAgentReplyFinal()
     {
-        string? captured = null;
+        string? capturedFinal = null;
         _mockEvents.Setup(x => x.RaiseAgentReplyFinal(It.IsAny<string>()))
-            .Callback<string>(t => captured = t);
+            .Callback<string>(t => capturedFinal = t);
 
         var handler = new SessionMessageHandler(_mockEvents.Object, _cfg, _contentExtractor, _mockConsole.Object);
         var payload = CreatePayload("{\"state\":\"final\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"final text\"}]}}");
         await handler.HandleAsync(new SessionMessageEvent("chat", payload));
 
-        Assert.Equal("final text", captured);
+        Assert.Equal("final text", capturedFinal);
     }
 
     // ─── GatewayConnectionHandler Tests ──────────────────────────

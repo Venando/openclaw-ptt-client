@@ -129,8 +129,6 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
                 if (!string.IsNullOrEmpty(text))
                 {
                     var (hasAudio, hasText, audioText, textContent) = _contentExtractor.ExtractMarkedContent(text);
-                    if (hasAudio)
-                        _events.RaiseAgentReplyAudio(audioText);
                     if (emitDelta && !startFired)
                     {
                         _events.RaiseAgentReplyDeltaStart();
@@ -138,23 +136,21 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
                     }
 
                     if (hasText)
+                    {
                         _events.RaiseAgentReplyFull(textContent);
+                        _events.RaiseAgentReplyFinal(textContent);
+                    }
                     else if (hasAudio)
-                        _events.RaiseAgentReplyFull(_contentExtractor.StripAudioTags(text));
+                    {
+                        var stripped = _contentExtractor.StripAudioTags(text);
+                        _events.RaiseAgentReplyFull(stripped);
+                        _events.RaiseAgentReplyFinal(stripped);
+                    }
                 }
             }
             else if (type == "audio" && block.TryGetProperty("audio", out var audioEl))
             {
-                var audioText = audioEl.GetString() ?? string.Empty;
-                if (!string.IsNullOrEmpty(audioText))
-                {
-                    if (emitDelta && !startFired)
-                    {
-                        _events.RaiseAgentReplyDeltaStart();
-                        startFired = true;
-                    }
-                    _events.RaiseAgentReplyAudio(audioText);
-                }
+                // Audio blocks are silently dropped — no longer surfaced to consumers.
             }
             else
             {
@@ -284,6 +280,7 @@ public class SessionMessageHandler : IEventHandler<SessionMessageEvent>
                     {
                         _events.RaiseAgentReplyDeltaStart();
                         _events.RaiseAgentReplyFull(errorMsg);
+                        _events.RaiseAgentReplyFinal(errorMsg);
                         _events.RaiseAgentReplyDeltaEnd();
                     }
                 }

@@ -56,7 +56,7 @@ public class ToolDisplayHandlerIntegrationTests
         public void SetBottomPanel(StreamShell.IBottomPanel panel) { }
         public void ResetBottomPanel() { }
         public event EventHandler<StreamShell.BottomPanelChangedEventArgs>? BottomPanelChanged { add { } remove { } }
-        public Task<StreamShell.IVariant[]?> PromptSelection(string title, StreamShell.IVariant[] variants, StreamShell.SelectionInfo? info = null)
+        public Task<StreamShell.IVariant[]?> PromptSelection(string title, StreamShell.IVariantEntry[] variants, StreamShell.SelectionInfo? info = null)
             => Task.FromResult<StreamShell.IVariant[]?>(null);
         public void Dispose() { }
     }

@@ -95,26 +95,17 @@ public class GatewayMessagerTests : IDisposable
     public void TestProcessFrame_SessionMessageEvent_FiresAgentReplyFull()
     {
         string? capturedText = null;
+        string? capturedFinal = null;
         _mockEvents.Setup(x => x.RaiseAgentReplyFull(It.IsAny<string>()))
             .Callback<string>(t => capturedText = t);
+        _mockEvents.Setup(x => x.RaiseAgentReplyFinal(It.IsAny<string>()))
+            .Callback<string>(t => capturedFinal = t);
 
         var json = @"{""type"":""event"",""event"":""session.message"",""payload"":{""message"":{""role"":""assistant"",""content"":[{""type"":""text"",""text"":""hello world""}]}}}";
         _messager.TestProcessFrame(json);
 
         Assert.Equal("hello world", capturedText);
-    }
-
-    [Fact]
-    public void TestProcessFrame_AudioBlock_FiresAgentReplyAudio()
-    {
-        string? capturedAudio = null;
-        _mockEvents.Setup(x => x.RaiseAgentReplyAudio(It.IsAny<string>()))
-            .Callback<string>(t => capturedAudio = t);
-
-        var json = @"{""type"":""event"",""event"":""session.message"",""payload"":{""message"":{""role"":""assistant"",""content"":[{""type"":""audio"",""audio"":""test audio content""}]}}}";
-        _messager.TestProcessFrame(json);
-
-        Assert.Equal("test audio content", capturedAudio);
+        Assert.Equal("hello world", capturedFinal);
     }
 
     [Fact]
@@ -157,7 +148,7 @@ public class GatewayMessagerTests : IDisposable
     }
 
     [Fact]
-    public void TestProcessFrame_ChatFinal_FiresAgentReplyFull()
+    public void TestProcessFrame_ChatFinal_FiresAgentReplyFinal()
     {
         string? captured = null;
         _mockEvents.Setup(x => x.RaiseAgentReplyFinal(It.IsAny<string>()))

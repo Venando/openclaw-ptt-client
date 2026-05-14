@@ -97,7 +97,7 @@ public class StreamShellCapturingConsoleTests
         public void SetBottomPanel(StreamShell.IBottomPanel panel) { }
         public void ResetBottomPanel() { }
         public event EventHandler<StreamShell.BottomPanelChangedEventArgs>? BottomPanelChanged { add { } remove { } }
-        public System.Threading.Tasks.Task<StreamShell.IVariant[]?> PromptSelection(string title, StreamShell.IVariant[] variants, StreamShell.SelectionInfo? info = null)
+        public System.Threading.Tasks.Task<StreamShell.IVariant[]?> PromptSelection(string title, StreamShell.IVariantEntry[] variants, StreamShell.SelectionInfo? info = null)
             => System.Threading.Tasks.Task.FromResult<StreamShell.IVariant[]?>(null);
         public void Dispose() { }
     }

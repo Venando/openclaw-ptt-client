@@ -61,7 +61,7 @@ public sealed class FakeStreamShellHost : IStreamShellHost, IDisposable
 
     public event EventHandler<BottomPanelChangedEventArgs>? BottomPanelChanged { add { } remove { } }
 
-    public Task<IVariant[]?> PromptSelection(string title, IVariant[] variants, SelectionInfo? info = null)
+    public Task<IVariant[]?> PromptSelection(string title, IVariantEntry[] variants, SelectionInfo? info = null)
         => Task.FromResult<IVariant[]?>(null);
 
     public void Dispose() { /* no-op */ }

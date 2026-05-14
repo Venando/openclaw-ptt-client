@@ -198,6 +198,7 @@ public partial class AppRunner : IDisposable
 
         // Wire agent replies to naming service for adaptive conversation naming
         gateway.AgentReplyFull += namingService.OnAgentReplyReceived;
+        gateway.AgentReplyFinal += _ => { };
 
         var namingTextSender = new ConversationNamingTextMessageSender(textSender, namingService);
         var inputHandler = _factory.CreateInputHandler(namingTextSender);

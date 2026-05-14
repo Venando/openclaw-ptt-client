@@ -23,13 +23,13 @@ public interface IGatewayUIEvents
     event Action? ReconnectFailed;
 
     event Action<string>? AgentReplyFull;
+    event Action<string>? AgentReplyFinal;
     event Action? AgentReplyDeltaStart;
     event Action<string>? AgentReplyDelta;
     event Action? AgentReplyDeltaEnd;
     event Action<string>? AgentThinking;
     event Action<string, string>? AgentToolCall;
     event Action<string, JsonElement>? EventReceived;
-    event Action<string>? AgentReplyAudio;
 }
 
 public interface IGatewayService : IDisposable, IGatewayUIEvents
