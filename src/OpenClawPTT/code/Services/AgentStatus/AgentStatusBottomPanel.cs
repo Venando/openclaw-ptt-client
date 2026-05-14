@@ -20,7 +20,7 @@ namespace OpenClawPTT.Services;
 public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 {
     // ── Layout ───────────────────────────────────────────────────────────
-    private const int BottomMargin = 1;
+    private const int BottomMargin = 0;
     private const int NameColWidth = 12;  // "• " + name (max 10)
     private const int TimeColWidth = 4;   // "12m", "1h", etc.
     private const int GapAfterName = 2;
@@ -176,11 +176,10 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
             }
 
             // Selection hint
-            if (_isSelectionMode)
-                _lines.Add("  [grey]\u2191\u2193 navigate  Enter select  Esc back[/]");
+            _lines.Add("  [dim grey]\u2191\u2193 navigate  Enter select  Esc back[/]");
 
             // Line count
-            int total = ordered.Count + (_isSelectionMode ? 1 : 0) + BottomMargin;
+            int total = ordered.Count + 1 + BottomMargin;
             _cachedLineCount = total;
             _renderedVersion = _version;
 
@@ -328,7 +327,8 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
         // Left column: "• Name" padded to NameColWidth
         // Bullet may be Spectre markup like "[green]•[/]"; measure only the symbol.
-        var leftCol = $"{bullet} {name}";
+        var leftCol = selected ? $"{bullet} [bold black]{name}[/]" : $"{bullet} {name}";
+
         int bulletWidth = CharacterWidth.GetDisplayWidth(StripMarkup(bullet));
         int leftRaw = bulletWidth + 1 + name.Length;
         int leftPad = NameColWidth - leftRaw;
@@ -347,7 +347,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         var actionDisplay = Markup.Escape(actionRaw);
 
         int actionWidth = actionRaw.Length;
-        int gapAfterAction = consoleWidth - NameColWidth - GapAfterName - actionWidth - GapBeforeTime - TimeColWidth;
+        int gapAfterAction = consoleWidth - NameColWidth - GapAfterName - actionWidth - GapBeforeTime - TimeColWidth - 1;
         if (gapAfterAction < 0) gapAfterAction = 0;
 
         // Right column: pad time to be right-aligned within TimeColWidth
@@ -355,12 +355,12 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
         var line = leftPadded
             + new string(' ', GapAfterName)
-            + $"[grey]{actionDisplay}[/]"
+            + (selected ? $"[Grey23]{actionDisplay}[/]" : $"[grey]{actionDisplay}[/]")
             + new string(' ', gapAfterAction + GapBeforeTime)
             + $"[grey42]{timePadded}[/]";
 
         return selected
-            ? $"[invert]{line}[/]"
+            ? $"[on Grey84]{line}[/]"
             : line;
     }
 
