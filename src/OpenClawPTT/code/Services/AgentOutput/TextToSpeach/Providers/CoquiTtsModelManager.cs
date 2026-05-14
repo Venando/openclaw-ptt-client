@@ -307,10 +307,19 @@ public sealed class CoquiTtsModelManager
             if (modelNames == null || modelNames.Count == 0)
                 return null;
 
-            return modelNames
+            var liveList = modelNames
             .Select(name => CoquiTtsModelInfo.FromModelName(name))
             .OrderBy(m => m.Name)
             .ToList();
+
+            // A successful model-list fetch proves that uv can resolve dependencies
+            // and run Python with the TTS package — the environment is not broken.
+            // Clear any stale broken flag set by the long-running TTS service startup
+            // failure, so that downstream operations (download) don't get blocked.
+            if (CoquiUvEnvironment.IsUvBuildBroken)
+                CoquiUvEnvironment.ResetBrokenFlag();
+
+            return liveList;
     }
 
     public CoquiTtsModelManager(string? dataDir, IStreamShellHost host)
