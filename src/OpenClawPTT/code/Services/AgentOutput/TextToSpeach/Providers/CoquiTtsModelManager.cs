@@ -316,8 +316,11 @@ public sealed class CoquiTtsModelManager
             // and run Python with the TTS package — the environment is not broken.
             // Clear any stale broken flag set by the long-running TTS service startup
             // failure, so that downstream operations (download) don't get blocked.
+            //
+            // NOTE: use ClearBrokenFlagKeepPython — we keep ValidatedPythonPath
+            // since the fetch succeeded with whatever Python was pinned.
             if (CoquiUvEnvironment.IsUvBuildBroken)
-                CoquiUvEnvironment.ResetBrokenFlag();
+                CoquiUvEnvironment.ClearBrokenFlagKeepPython();
 
             return liveList;
     }

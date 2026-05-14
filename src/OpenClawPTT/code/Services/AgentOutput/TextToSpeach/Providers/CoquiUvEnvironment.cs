@@ -63,6 +63,17 @@ public sealed class CoquiUvEnvironment
         UvBuildErrorDetail = detail;
     }
 
+    /// <summary>
+    /// Clears only the broken flag and error detail, without wiping
+    /// <see cref="ValidatedPythonPath"/>. Use when a successful <c>uv run</c>
+    /// operation proved the environment works with the currently pinned Python.
+    /// </summary>
+    public static void ClearBrokenFlagKeepPython()
+    {
+        IsUvBuildBroken = false;
+        UvBuildErrorDetail = null;
+    }
+
     /// <summary>Resets the broken flag — call after user fixes Python/uv.</summary>
     public static void ResetBrokenFlag()
     {
