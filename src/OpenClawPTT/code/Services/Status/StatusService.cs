@@ -19,7 +19,7 @@ namespace OpenClawPTT.Services;
 /// then rendered in order.
 ///
 /// Thread-safe: all public methods synchronize on a lock before mutating
-/// state.  Subscribes to the tracker's <see cref="IAgentStatusTracker.Changed"/>
+/// state.  Subscribes to the tracker's <see cref="IAgentActivityStore.Changed"/>
 /// event and triggers a re-render whenever a snapshot updates.
 /// Rendering mechanics are delegated to <see cref="StatusRenderer"/>.
 /// </summary>
@@ -28,7 +28,7 @@ public sealed class StatusService : IStatusService, IDisposable
     private readonly IStreamShellHost _shellHost;
     private readonly StatusRenderer _renderer;
     private readonly StatusAnimationManager _animationManager;
-    private IAgentStatusTracker? _agentTracker;
+    private IAgentActivityStore? _agentTracker;
     private readonly object _lock = new();
 
     // Status parts — each is a discrete, cacheable rendering unit
@@ -52,11 +52,11 @@ public sealed class StatusService : IStatusService, IDisposable
     // Map ServiceKind to the corresponding ServiceStatusPart
     private readonly Dictionary<ServiceKind, ServiceStatusPart> _serviceParts;
 
-    public StatusService(IStreamShellHost shellHost, IAgentStatusTracker? agentStatusTracker = null, MainAgentsPart? mainAgentsPart = null)
+    public StatusService(IStreamShellHost shellHost, IAgentActivityStore? activityStore = null, MainAgentsPart? mainAgentsPart = null)
     {
         _shellHost = shellHost ?? throw new ArgumentNullException(nameof(shellHost));
         _renderer = new StatusRenderer(shellHost);
-        _agentTracker = agentStatusTracker;
+        _agentTracker = activityStore;
 
         // Create parts with default positions; ApplyConfigPositions() will override
         _activeAgentPart = new ActiveAgentPart();
@@ -148,7 +148,7 @@ public sealed class StatusService : IStatusService, IDisposable
         }
     }
 
-    public void SetAgentStatusTracker(IAgentStatusTracker tracker)
+    public void SetAgentActivityStore(IAgentActivityStore tracker)
     {
         Mutate(() =>
         {
@@ -219,7 +219,7 @@ public sealed class StatusService : IStatusService, IDisposable
     /// Called when the agent status tracker fires its Changed event.
     /// Re-renders the separator bars with updated agent info.
     /// </summary>
-    private void OnAgentStatusChanged()
+    private void OnAgentStatusChanged(string _)
     {
         lock (_lock)
         {
@@ -255,42 +255,34 @@ public sealed class StatusService : IStatusService, IDisposable
 
     // ── Data refresh ────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Reads the active agent snapshot from the tracker and feeds the
-    /// data values into each agent-dependent part.  Parts internally
-    /// detect whether values actually changed before marking dirty.
-    /// </summary>
     private void RefreshAgentData()
     {
-        var snapshot = GetActiveSnapshot();
+        var state = GetActiveState();
 
-        if (snapshot is null)
+        if (state is null || _agentTracker is null)
         {
-            _activeAgentPart.Update(null);
+            _activeAgentPart.Update(null, null!);
             _modelPart.Update(null);
             _thinkingLevelPart.Update(null);
             _contextPart.Update(null, null);
             return;
         }
 
-        _activeAgentPart.Update(snapshot);
-        _modelPart.Update(snapshot.Model);
-        _thinkingLevelPart.Update(snapshot.ThinkingDefault);
-        _contextPart.Update(snapshot.ContextTokens,
-            snapshot.TotalTokens ?? snapshot.InputTokens);
+        _activeAgentPart.Update(state, _agentTracker);
+        _modelPart.Update(state.Model);
+        _thinkingLevelPart.Update(state.ThinkingDefault);
+        _contextPart.Update(state.ContextTokens,
+            state.TotalTokens ?? state.InputTokens);
     }
 
-    /// <summary>Gets the snapshot for the currently active agent, if any.</summary>
-    private AgentStatusSnapshot? GetActiveSnapshot()
+    private SessionStateEvent? GetActiveState()
     {
-        if (_agentTracker == null)
-            return null;
+        if (_agentTracker == null) return null;
 
         var activeSessionKey = AgentRegistry.ActiveSessionKey;
-        if (string.IsNullOrEmpty(activeSessionKey))
-            return null;
+        if (string.IsNullOrEmpty(activeSessionKey)) return null;
 
-        return _agentTracker.Get(activeSessionKey);
+        return _agentTracker.GetSessionState(activeSessionKey);
     }
 
     // ── Render ──────────────────────────────────────────────────────────

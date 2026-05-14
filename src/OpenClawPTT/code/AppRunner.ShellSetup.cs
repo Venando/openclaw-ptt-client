@@ -60,7 +60,11 @@ public partial class AppRunner
         if (namingService != null)
             shellCommands.CommandExecuted += namingService.OnCommandExecuted;
 
-        var snapshotCleaner = new SessionResetSnapshotCleaner(_factory.AgentStatusTracker);
+        // Wire history service into the bottom panel for full agent-switch behaviour
+        if (_bottomPanel is AgentStatusBottomPanel asp)
+            asp.SetHistoryService(shellCommands.HistoryService);
+
+        var snapshotCleaner = new SessionResetSnapshotCleaner(_factory.AgentActivityStore);
         shellCommands.CommandExecuted += snapshotCleaner.Handle;
 
         await shellCommands.RegisterBaseAsync();

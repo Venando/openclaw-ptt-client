@@ -11,21 +11,21 @@ public class ServiceFactory : IServiceFactory
     private readonly IConfigurationService _configService;
     private readonly IStreamShellHost _shellHost;
     private readonly IColorConsole _colorConsole;
-    private readonly IAgentStatusTracker? _agentStatusTracker;
+    private readonly IAgentActivityStore? _activityStore;
     private AgentSettingsService? _agentSettingsService;
     private IAgentSettingsPersistence? _agentSettingsPersistence;
 
-    public ServiceFactory(IConfigurationService configService, IStreamShellHost shellHost, IAgentStatusTracker? agentStatusTracker = null)
+    public ServiceFactory(IConfigurationService configService, IStreamShellHost shellHost, IAgentActivityStore? activityStore = null)
     {
         _configService = configService;
         _shellHost = shellHost;
         _colorConsole = new ColorConsole(shellHost);
-        _agentStatusTracker = agentStatusTracker;
+        _activityStore = activityStore;
     }
 
     public IColorConsole ColorConsole => _colorConsole;
 
-    public IAgentStatusTracker? AgentStatusTracker => _agentStatusTracker;
+    public IAgentActivityStore? AgentActivityStore => _activityStore;
 
     /// <summary>
     /// Initialize the agent settings persistence with the settings service.
@@ -66,10 +66,10 @@ public class ServiceFactory : IServiceFactory
         var device = new DeviceIdentity(cfg.DataDir);
         device.EnsureKeypair();
         var gatewayClient = new GatewayClient(cfg, device, new GatewayEventSource(), _colorConsole,
-            agentStatusTracker: _agentStatusTracker);
+            activityStore: _activityStore);
 
         return new GatewayService(cfg, _colorConsole, coordinator, summarizer, pttStateMachine,
-            agentStatusTracker: _agentStatusTracker, ttsProviderTask: ttsProviderTask,
+            activityStore: _activityStore, ttsProviderTask: ttsProviderTask,
             audioPlayer: audioPlayer, initialGatewayClient: gatewayClient);
     }
 

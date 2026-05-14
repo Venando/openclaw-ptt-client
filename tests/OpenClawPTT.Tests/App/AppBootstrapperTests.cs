@@ -69,7 +69,8 @@ public class AppBootstrapperTests : IDisposable
             _fakeConfig.Object,
             _fakeConsole.Object,
             (MainAgentsPart?)null!,
-            (IConfigWizardOrchestrator?)null);
+            (IConfigWizardOrchestrator?)null,
+            (AgentStatusBottomPanel?)null);
         mock.CallBase = false;
         if (throws != null)
             mock.Setup(x => x.RunAsync(It.IsAny<CancellationToken>())).ThrowsAsync(throws);
@@ -90,7 +91,7 @@ public class AppBootstrapperTests : IDisposable
             _fakeFactory.Object,
             _fakeShellHost.Object,
             _fakeConsole.Object,
-            (_, _) => mockRunner.Object);
+            (_, _, _) => mockRunner.Object);
 
         var exitCode = await bootstrapper.RunAsync();
 
@@ -111,7 +112,7 @@ public class AppBootstrapperTests : IDisposable
             _fakeFactory.Object,
             _fakeShellHost.Object,
             _fakeConsole.Object,
-            (_, _) => mockRunner.Object);
+            (_, _, _) => mockRunner.Object);
 
         var exitCode = await bootstrapper.RunAsync();
 
@@ -150,7 +151,7 @@ public class AppBootstrapperTests : IDisposable
             _fakeFactory.Object,
             _fakeShellHost.Object,
             _fakeConsole.Object,
-            (_, _) => mockRunner.Object);
+            (_, _, _) => mockRunner.Object);
 
         var exitCode = await bootstrapper.RunAsync();
 
@@ -173,7 +174,7 @@ public class AppBootstrapperTests : IDisposable
             _fakeFactory.Object,
             _fakeShellHost.Object,
             _fakeConsole.Object,
-            (_, _) => mockRunner.Object);
+            (_, _, _) => mockRunner.Object);
 
         cts.Cancel();
         var exitCode = await bootstrapper.RunAsync(cts.Token);
@@ -199,7 +200,7 @@ public class AppBootstrapperTests : IDisposable
             _fakeFactory.Object,
             _fakeShellHost.Object,
             _fakeConsole.Object,
-            (_, _) => mockRunner.Object);
+            (_, _, _) => mockRunner.Object);
 
         // Should not throw or hang
         var exitCode = await bootstrapper.RunAsync();
@@ -222,7 +223,7 @@ public class AppBootstrapperTests : IDisposable
             _fakeFactory.Object,
             _fakeShellHost.Object,
             _fakeConsole.Object,
-            (_, _) => mockRunner.Object);
+            (_, _, _) => mockRunner.Object);
 
         bootstrapper.Dispose();
 

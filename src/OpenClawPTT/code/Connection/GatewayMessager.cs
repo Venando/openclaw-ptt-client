@@ -24,7 +24,7 @@ public class GatewayMessager : IDisposable, IRpcCaller
     private readonly IColorConsole _console;
     private readonly IEventDispatcher _dispatcher;
     private readonly IBackgroundJobRunner _jobRunner;
-    private readonly IAgentStatusTracker _agentStatusTracker;
+    private readonly IAgentActivityStore _activityStore;
 
     public IMessageFraming GetFraming() => _framing;
 
@@ -37,7 +37,7 @@ public class GatewayMessager : IDisposable, IRpcCaller
         IColorConsole? console = null,
         IEventDispatcher? dispatcher = null,
         IBackgroundJobRunner? jobRunner = null,
-        IAgentStatusTracker? agentStatusTracker = null)
+        IAgentActivityStore? activityStore = null)
     {
         _ws = ws;
         _cfg = cfg;
@@ -48,7 +48,7 @@ public class GatewayMessager : IDisposable, IRpcCaller
         _console = console ?? new ColorConsole(new StreamShellHost());
         _dispatcher = dispatcher ?? new EventDispatcher(_console);
         _jobRunner = jobRunner ?? new BackgroundJobRunner(msg => _console.Log("jobrunner", msg));
-        _agentStatusTracker = agentStatusTracker ?? new AgentStatusTracker();
+        _activityStore = activityStore ?? new AgentActivityStore();
 
         // Register default handlers
         _dispatcher.RegisterHandler<SessionMessageEvent>(
@@ -183,21 +183,29 @@ public class GatewayMessager : IDisposable, IRpcCaller
 
         _console.Log("debug", $"Event name={name}", LogLevel.Debug);
 
-        // ── Extract agent/subagent status from ALL payloads BEFORE filtering ──
-        var snapshot = AgentStatusExtractor.Extract(_console, payload);
-        if (snapshot != null)
+        // ── Dispatch to typed records and store ──────────────────────────
+        var dispatched = GatewayEventDispatcher.Dispatch(root, _console);
+        switch (dispatched)
         {
-            _agentStatusTracker.Update(snapshot);
+            case SessionStateEvent sse:
+                _activityStore.Store(sse);
+                break;
+            case AssistantMessageEvent ame:
+                _activityStore.Store(ame);
+                break;
+            case ToolEvent te:
+                _activityStore.Store(te);
+                break;
+            case UserMessageEvent ume:
+                _activityStore.Store(ume);
+                break;
+            case AgentLifecycleEvent ale:
+                _activityStore.Store(ale);
+                break;
+            case AgentItemEvent aie:
+                _activityStore.Store(aie);
+                break;
         }
-        
-        // Also handle explicit subagent creation events that may not carry a nested session
-        // if (name.Contains("subagent", StringComparison.OrdinalIgnoreCase) ||
-        //     name.Contains("spawn", StringComparison.OrdinalIgnoreCase))
-        // {
-        //     var createSnapshot = AgentStatusExtractor.Extract(_console, payload);
-        //     if (createSnapshot != null)
-        //         _agentStatusTracker.Update(createSnapshot);
-        // }
 
         // Debug: log all events for error/fallback detection
         var isNoteworthy = IsNoteworthyEvent(name);

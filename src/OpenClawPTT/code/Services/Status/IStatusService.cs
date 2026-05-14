@@ -11,10 +11,10 @@ public interface IStatusService
     void SetServiceStatus(ServiceKind kind, StatusColor color);
 
     /// <summary>
-    /// Provide an <see cref="IAgentStatusTracker"/> for rendering active agent
+    /// Provide an <see cref="IAgentActivityStore"/> for rendering active agent
     /// status on the separator bar. Safe to call after construction.
     /// </summary>
-    void SetAgentStatusTracker(IAgentStatusTracker tracker);
+    void SetAgentActivityStore(IAgentActivityStore tracker);
 
     /// <summary>
     /// Sets the conversation name displayed in the separator bars.

@@ -1,7 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using OpenClawPTT.ConfigWizard;
+using OpenClawPTT.Services;
+using OpenClawPTT.Services.Commands;
 
 namespace OpenClawPTT;
 
@@ -151,6 +155,32 @@ public static class AgentRegistry
                 ActiveSessionChanged?.Invoke(_activeSessionKey);
             }
             return true;
+        }
+    }
+
+    /// <summary>
+    /// Switches to the agent, persists the choice to config,
+    /// and optionally prints recent session history.
+    /// Shared by <c>/chat</c> and the agent-status bottom panel (DRY).
+    /// </summary>
+    public static async Task SwitchToAgentAsync(
+        string agentId,
+        IConfigurationService configService,
+        SessionHistoryService? historyService = null,
+        CancellationToken ct = default)
+    {
+        if (!SetActiveAgent(agentId))
+            return;
+
+        var cfg = configService.Load() ?? new AppConfig();
+        cfg.LastActiveAgentId = agentId;
+        configService.Save(cfg);
+
+        if (historyService is not null)
+        {
+            var sessionKey = ActiveSessionKey;
+            if (sessionKey is not null)
+                await historyService.PrintSessionHistoryAsync(sessionKey, ct);
         }
     }
 
