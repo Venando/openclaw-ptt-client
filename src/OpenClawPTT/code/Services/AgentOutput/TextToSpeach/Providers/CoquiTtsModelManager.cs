@@ -511,7 +511,7 @@ public sealed class CoquiTtsModelManager
                     stdoutLines.Add(line);
                     // Log for user visibility
                     if (!string.IsNullOrWhiteSpace(line))
-                        _host.AddMessage($"[grey]      [stdout] {line}[/]");
+                        _host.AddMessage($"[grey]      [[stdout]] {line}[/]");
                     if (line.Contains("%", StringComparison.Ordinal) || line.Contains("Download", StringComparison.OrdinalIgnoreCase))
                         progressCallback?.Invoke(modelName, $"Downloading: {line.Trim()[..Math.Min(line.Trim().Length, 80)]}", null, null, false);
                 }
