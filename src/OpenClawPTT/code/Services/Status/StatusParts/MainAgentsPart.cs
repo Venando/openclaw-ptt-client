@@ -142,7 +142,8 @@ public sealed class MainAgentsPart : StatusPartBase, IDisposable
                 return;
             }
 
-            Builder.Append('│');
+            var openPipeStyle = ThemeProvider.Current.Tools.PanelCapStyle;
+            Builder.Append($"[{openPipeStyle}]│[/]");
             bool first = true;
 
             foreach (var (state, registryAgent) in _visible)

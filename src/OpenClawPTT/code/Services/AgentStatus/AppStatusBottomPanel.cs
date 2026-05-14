@@ -112,7 +112,8 @@ public sealed class AppStatusBottomPanel : IBottomPanel, IDisposable
                 {
                     // Build the status line via MainAgentsPart
                     var statusBuilder = new StringBuilder(256);
-                    statusBuilder.Append('│');
+                    var openPipeStyle = ThemeProvider.Current.Tools.PanelCapStyle;
+                    statusBuilder.Append($"[{openPipeStyle}]│[/]");
                     var segmentWidths = new List<int>(visible.Count);
                     int contentWidth = 1;
                     bool first = true;
