@@ -76,9 +76,9 @@ public static class BuiltInThemes
             ExecPathIcon = "#6272a4",
             ExecPathText = "#6272a4",
 
-            // Edit / Diff
-            DiffAdded = "default on #50fa7b",
-            DiffRemoved = "default on #ff5555",
+            // Edit / Diff — darker backgrounds so light text is readable
+            DiffAdded = "#f8f8f2 on #3b8055",
+            DiffRemoved = "#f8f8f2 on #8b3a3a",
             DiffPrefix = "#6272a4",
 
             // Read
@@ -97,6 +97,30 @@ public static class BuiltInThemes
             StatusNoAgentsText = "#6272a4",
             ConversationNameStyle = "italic #bd93f9",
             UserMessagePrefix = "[#50fa7b] Me:[/] ",
+
+            // Thinking display
+            ThinkingHeaderStyle = "bold #f8f8f2 on #44475a",
+            ThinkingTextStyle = "#f8f8f2",
+            ThinkingMoreStyle = "#6272a4",
+
+            // ColorConsole status messages — Muted/Accent/Error palette
+            BannerBorderStyle = "#bd93f9",
+            HelpCommandStyle = "#6272a4",
+            InfoStyle = "#6272a4",
+            SuccessStyle = "#50fa7b",
+            WarningStyle = "#ffb86c",
+            ErrorStyle = "#ff5555",
+            RecordingIndicatorStyle = "#ff5555",
+            GatewayErrorStyle = "#ff5555",
+            LogTagStyle = "#6272a4",
+            LogOkStyle = "#50fa7b",
+            LogErrorStyle = "#ff5555",
+            FallbackWarningStyle = "#ffb86c",
+            FallbackFromStyle = "#ff5555",
+            FallbackToStyle = "#50fa7b",
+            ModelFailedStyle = "#ff5555",
+            AgentBadgeStyle = "#f8f8f2 on #44475a",
+            IntroductionBorderStyle = "#bd93f9",
 
             // StreamShell
             StreamCursorMarkup = "bold #282a36 on #f8f8f2",

@@ -118,6 +118,50 @@ public sealed class ToolTheme
     /// <summary>Spectre markup prefix for user's own messages. Default: "[green] Me:[/] ".</summary>
     public string UserMessagePrefix { get; set; } = "[green] Me:[/] ";
 
+    // ── Thinking display ──────────────────────────────────────────
+    /// <summary>Style for the thinking header bar (e.g. "gray93 on #333333").</summary>
+    public string ThinkingHeaderStyle { get; set; } = "gray93 on #333333";
+    /// <summary>Style for thinking body text in Full mode. Default: "grey".</summary>
+    public string ThinkingTextStyle { get; set; } = "grey";
+    /// <summary>Style for the "... (N more lines)" indicator. Default: "dim".</summary>
+    public string ThinkingMoreStyle { get; set; } = "dim";
+
+    // ── ColorConsole status messages ──────────────────────────────
+    /// <summary>Style for the app banner border box. Default: "deepskyblue3".</summary>
+    public string BannerBorderStyle { get; set; } = "deepskyblue3";
+    /// <summary>Style for command hints in the help menu. Default: "grey".</summary>
+    public string HelpCommandStyle { get; set; } = "grey";
+    /// <summary>Style for info messages (PrintInfo). Default: "grey".</summary>
+    public string InfoStyle { get; set; } = "grey";
+    /// <summary>Style for success messages (PrintSuccess). Default: "green".</summary>
+    public string SuccessStyle { get; set; } = "green";
+    /// <summary>Style for warning messages (PrintWarning). Default: "yellow".</summary>
+    public string WarningStyle { get; set; } = "yellow";
+    /// <summary>Style for error messages (PrintError). Default: "red".</summary>
+    public string ErrorStyle { get; set; } = "red";
+    /// <summary>Style for recording indicator. Default: "red".</summary>
+    public string RecordingIndicatorStyle { get; set; } = "red";
+    /// <summary>Style for gateway error messages. Default: "red".</summary>
+    public string GatewayErrorStyle { get; set; } = "red";
+    /// <summary>Style for log tags. Default: "grey".</summary>
+    public string LogTagStyle { get; set; } = "grey";
+    /// <summary>Style for success log entries. Default: "green".</summary>
+    public string LogOkStyle { get; set; } = "green";
+    /// <summary>Style for error log entries. Default: "red".</summary>
+    public string LogErrorStyle { get; set; } = "red";
+    /// <summary>Style for model fallback warning text. Default: "orange1".</summary>
+    public string FallbackWarningStyle { get; set; } = "orange1";
+    /// <summary>Style for the failing provider/model in fallback messages. Default: "red".</summary>
+    public string FallbackFromStyle { get; set; } = "red";
+    /// <summary>Style for the fallback provider/model. Default: "green".</summary>
+    public string FallbackToStyle { get; set; } = "green";
+    /// <summary>Style for model failure messages. Default: "red".</summary>
+    public string ModelFailedStyle { get; set; } = "red";
+    /// <summary>Style for agent name badge in the introduction card. Default: "white on gray15".</summary>
+    public string AgentBadgeStyle { get; set; } = "white on gray15";
+    /// <summary>Style for the introduction card borders and separators. Default: "deepskyblue3".</summary>
+    public string IntroductionBorderStyle { get; set; } = "deepskyblue3";
+
     // ── StreamShell settings ─────────────────────────────────────────
     /// <summary>Style for the cursor highlight. Default: "bold black on cyan".</summary>
     public string StreamCursorMarkup { get; set; } = "bold black on cyan";
