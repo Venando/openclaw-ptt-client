@@ -29,13 +29,13 @@ public sealed class GatewayService : IGatewayService
     public event Action? Reconnecting;
     public event Action? ReconnectFailed;
     public event Action<string>? AgentReplyFull;
+    public event Action<string>? AgentReplyFinal;
     public event Action? AgentReplyDeltaStart;
     public event Action<string>? AgentReplyDelta;
     public event Action? AgentReplyDeltaEnd;
     public event Action<string>? AgentThinking;
     public event Action<string, string>? AgentToolCall; // (toolName, arguments)
     public event Action<string, JsonElement>? EventReceived;
-    public event Action<string>? AgentReplyAudio;
 
     public GatewayService(AppConfig config, IColorConsole console, AgentOutputCoordinator coordinator, ITtsSummarizer? summarizer = null, IPttStateMachine? pttStateMachine = null, IAgentStatusTracker? agentStatusTracker = null, Task<ITextToSpeech?>? ttsProviderTask = null, IAudioPlayer? audioPlayer = null, IGatewayClient? initialGatewayClient = null)
     {
@@ -275,12 +275,6 @@ public sealed class GatewayService : IGatewayService
             AgentToolCall?.Invoke(toolName, arguments);
         };
 
-        events.AgentReplyAudio += audioText =>
-        {
-            _coordinator.OnAgentReplyAudio(audioText);
-            AgentReplyAudio?.Invoke(audioText);
-        };
-
         events.EventReceived += (name, json) =>
         {
             EventReceived?.Invoke(name, json);
@@ -315,6 +309,11 @@ public sealed class GatewayService : IGatewayService
             {
                 _coordinator.OnAgentReplyFull(body);
                 AgentReplyFull?.Invoke(body);
+            };
+
+            events.AgentReplyFinal += text =>
+            {
+                AgentReplyFinal?.Invoke(text);
             };
         }
     }

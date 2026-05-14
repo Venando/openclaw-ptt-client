@@ -13,12 +13,10 @@ public sealed class GatewayEventSource : IGatewayEventSource
     public event Action? AgentReplyDeltaEnd;
     public event Action<string>? AgentThinking;
     public event Action<string, string>? AgentToolCall;
-    public event Action<string>? AgentReplyAudio;
     public event Action? Disconnected;
 
     public void RaiseAgentThinking(string thinking) => AgentThinking?.Invoke(thinking);
     public void RaiseAgentToolCall(string toolName, string arguments) => AgentToolCall?.Invoke(toolName, arguments);
-    public void RaiseAgentReplyAudio(string audioText) => AgentReplyAudio?.Invoke(audioText);
     public void RaiseAgentReplyDeltaStart() => AgentReplyDeltaStart?.Invoke();
     public void RaiseAgentReplyDeltaEnd() => AgentReplyDeltaEnd?.Invoke();
     public void RaiseAgentReplyFull(string text) => AgentReplyFull?.Invoke(text);

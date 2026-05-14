@@ -83,7 +83,7 @@ public sealed class AppConfig
     public DisplayPosition ModelPosition { get; set; } = DisplayPosition.TopSeparatorLeft;
     public DisplayPosition ThinkingLevelPosition { get; set; } = DisplayPosition.TopSeparatorLeft;
     public DisplayPosition ContextPosition { get; set; } = DisplayPosition.TopSeparatorLeft;
-    public DisplayPosition ConversationNamePosition { get; set; } = DisplayPosition.TopSeparatorLeft;
+    public DisplayPosition ConversationNamePosition { get; set; } = DisplayPosition.None;
     public DisplayPosition ConnectionStatusPosition { get; set; } = DisplayPosition.TopSeparatorRight;
     public DisplayPosition TtsStatusPosition { get; set; } = DisplayPosition.TopSeparatorRight;
     public DisplayPosition SttStatusPosition { get; set; } = DisplayPosition.TopSeparatorRight;
@@ -147,7 +147,7 @@ public sealed class AppConfig
 
     // Conversation naming prompt (Direct LLM)
     public string ConversationNamingPrompt { get; set; } =
-        "Give a very short 4-6 word descriptive name for a conversation that starts with this message. Return ONLY the name, no quotes, no explanation, no punctuation at the end.\n\nMessage: {message}";
+        "Give a very short 4-6 word descriptive name for a conversation that starts with this message. Return ONLY the name.\n\nMessage: {message}";
 
     [JsonIgnore]
     public string ClientVersion => "1.0.0";

@@ -172,7 +172,7 @@ public class GatewayServiceStabilityTests : IDisposable
         service.AgentThinking += _ => eventCount++;
         service.AgentToolCall += (_, _) => eventCount++;
         service.EventReceived += (_, _) => eventCount++;
-        service.AgentReplyAudio += _ => eventCount++;
+        service.AgentReplyFinal += _ => eventCount++;
 
         // Assert - subscriptions work
         Assert.Equal(0, eventCount); // no events fired yet
@@ -197,13 +197,13 @@ internal sealed class TestableGatewayService : IGatewayService
     public event Action? Reconnecting;
     public event Action? ReconnectFailed;
     public event Action<string>? AgentReplyFull;
+    public event Action<string>? AgentReplyFinal;
     public event Action? AgentReplyDeltaStart;
     public event Action<string>? AgentReplyDelta;
     public event Action? AgentReplyDeltaEnd;
     public event Action<string>? AgentThinking;
     public event Action<string, string>? AgentToolCall;
     public event Action<string, JsonElement>? EventReceived;
-    public event Action<string>? AgentReplyAudio;
 
     public Task<List<ChatHistoryEntry>?> FetchSessionHistoryAsync(string sessionKey, int limit = 5)
     {
@@ -234,7 +234,6 @@ internal sealed class TestableGatewayService : IGatewayService
 
         es.AgentThinking += e => AgentThinking?.Invoke(e);
         es.AgentToolCall += (n, a) => AgentToolCall?.Invoke(n, a);
-        es.AgentReplyAudio += a => AgentReplyAudio?.Invoke(a);
         es.EventReceived += (name, payload) => EventReceived?.Invoke(name, payload);
 
         // Wire delta/full paths based on config
@@ -251,6 +250,7 @@ internal sealed class TestableGatewayService : IGatewayService
         if (useFull)
         {
             es.AgentReplyFull += body => AgentReplyFull?.Invoke(body);
+            es.AgentReplyFinal += text => AgentReplyFinal?.Invoke(text);
         }
     }
 
