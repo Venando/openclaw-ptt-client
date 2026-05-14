@@ -27,7 +27,7 @@ public sealed class ModelPart : StringStatusPartBase
     /// E.g. "deepseek/deepseek-v4-flash" → "deepseek-v4-flash"
     ///       "kimi/kimi-k2.6" → "kimi-k2.6"
     /// </summary>
-    private static string ShortenModelName(string model)
+    internal static string ShortenModelName(string model)
     {
         if (string.IsNullOrEmpty(model))
             return model;

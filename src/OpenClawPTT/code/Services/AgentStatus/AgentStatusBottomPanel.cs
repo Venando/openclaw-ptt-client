@@ -22,10 +22,26 @@ namespace OpenClawPTT.Services;
 /// </summary>
 public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 {
-    // ── Configuration ─────────────────────────────────────────────────────
-    private const string HeaderTemplate = "│ [bold]Name[/]       │ [bold]Status[/] │ [bold]Model[/]      │ [bold]Context[/] │";
-    private const string SectionLabelActive  = " Active";
-    private const string SectionLabelOthers  = " Others";
+    // ── Margins ───────────────────────────────────────────────────────────
+    private const int LeftMargin = 2;
+    private const int BottomMargin = 1;
+    private const string LeftPad = "  "; // LeftMargin spaces
+
+    // ── Column constants ──────────────────────────────────────────────────
+    private const int MinNameWidth    = 4;
+    private const int MinStatusWidth  = 1;   // single emoji
+    private const int MinModelWidth   = 3;   // "…"
+    private const int MinContextWidth = 3;   // "…"
+    private const int MaxColumnWidth  = 20;
+
+    private const string HeaderName    = "Name";
+    private const string HeaderStatus  = "Status";
+    private const string HeaderModel   = "Model";
+    private const string HeaderContext = "Context";
+
+    private const string SectionLabelActive = " Active";
+    private const string SectionLabelOthers = " Others";
+
     private const int MaxNameDisplayLength = 10;
 
     // ── Dependencies ──────────────────────────────────────────────────────
@@ -47,7 +63,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
     /// <summary>
     /// Ordered session keys of agents shown in the Others section.
-    /// Filled during each GetLines call so TryHandleKey can map
+    /// Filled during each render so TryHandleKey can map
     /// <see cref="_selectedIndex"/> to the correct session key.
     /// </summary>
     private readonly List<string> _otherSessionKeys = new();
@@ -84,21 +100,19 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
     // ── IBottomPanel ──────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Number of lines returned by <see cref="GetLines"/>.  Always in
+    /// sync — <see cref="GetLines"/> pads with empty strings to match.
+    /// </summary>
     public int LineCount
     {
         get
         {
-            // Header (1) + empty spacer (1) = 2 base lines
-            // + Section "Active" (1) + one active row (1)
-            // + Section "Others" (1) + N other rows
-            var visible = _agentsPart.GetVisibleAgents();
-            int others = visible.Count;
-            int total = 2 + 1 + 1 + 1 + others;
-
-            // When in selection mode, reserve an extra hint line.
-            if (_isSelectionMode) total++;
-
-            return Math.Max(4, total);
+            var others = _agentsPart.GetVisibleAgents().Count;
+            // left-margin spacer + header + spacer + Active label + Active row
+            // + Others label + N other rows + selection hint? + bottom margin
+            int hint = _isSelectionMode ? 1 : 0;
+            return 1 + 1 + 1 + 1 + 1 + 1 + others + hint + BottomMargin;
         }
     }
 
@@ -116,8 +130,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
     public string? CurrentSuggestion => null;
 
-    /// <summary>No separator between input and bottom panel.</summary>
-    public bool ShowBottomSeparator => false;
+    public bool ShowBottomSeparator => true;
 
     /// <summary>
     /// <c>false</c> when selection mode is active (the user input field
@@ -129,7 +142,10 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
     {
         lock (_sync)
         {
-            if (_disposed) return Array.Empty<string>();
+            var targetLineCount = LineCount;
+
+            if (_disposed)
+                return PadToLineCount(targetLineCount);
 
             try
             {
@@ -142,15 +158,16 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
                 // Refresh data
                 _agentsPart.RefreshVisibleAgents();
 
-                // ── Build sections ────────────────────────────────────────
+                // ── Gather data ───────────────────────────────────────────
                 var activeSessionKey = AgentRegistry.ActiveSessionKey;
                 var activeSnapshot = activeSessionKey is not null
                     ? _tracker.Get(activeSessionKey)
                     : null;
                 var activeInfo = GetActiveAgentInfo();
 
+                var visibleAgents = _agentsPart.GetVisibleAgents();
                 _otherSessionKeys.Clear();
-                foreach (var (snapshot, _) in _agentsPart.GetVisibleAgents())
+                foreach (var (snapshot, _) in visibleAgents)
                 {
                     if (snapshot.SessionKey is not null)
                         _otherSessionKeys.Add(snapshot.SessionKey);
@@ -160,49 +177,63 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
                 if (_selectedIndex >= _otherSessionKeys.Count)
                     _selectedIndex = Math.Max(0, _otherSessionKeys.Count - 1);
 
-                // Emit header
-                _lines.Add(HeaderTemplate);
+                // ── Build column data for all rows ────────────────────────
+                var activeData = CellData.FromAgent(activeSnapshot, activeInfo);
+                var otherData = new List<(CellData Cells, bool Selected)>(visibleAgents.Count);
+                for (int i = 0; i < visibleAgents.Count; i++)
+                {
+                    var (snapshot, agent) = visibleAgents[i];
+                    var cells = CellData.FromAgent(snapshot, agent);
+                    bool sel = _isSelectionMode && i == _selectedIndex;
+                    otherData.Add((cells, sel));
+                }
 
-                // Emit empty spacer
+                // ── Compute column widths from all rows ───────────────────
+                var colW = ComputeColumnWidths(activeData, otherData);
+
+                // ── Emit lines ────────────────────────────────────────────
+
+                // Left-margin spacer
                 _lines.Add(string.Empty);
 
-                // ── Active section ────────────────────────────────────────
-                _lines.Add(SectionLabelActive);
-                _lines.Add(RenderActiveRow(activeSnapshot, activeInfo));
+                // Header row
+                _lines.Add(LeftPad + RenderHeaderRow(colW));
 
-                // ── Others section ────────────────────────────────────────
-                _lines.Add(SectionLabelOthers);
-                int i = 0;
-                foreach (var (snapshot, agent) in _agentsPart.GetVisibleAgents())
+                // Spacer
+                _lines.Add(string.Empty);
+
+                // Active section
+                _lines.Add(LeftPad + SectionLabelActive);
+                _lines.Add(LeftPad + RenderDataRow(activeData, colW, selected: false));
+
+                // Others section
+                _lines.Add(LeftPad + SectionLabelOthers);
+
+                if (otherData.Count == 0)
                 {
-                    bool isSelected = _isSelectionMode && i == _selectedIndex;
-                    _lines.Add(RenderAgentRow(snapshot, agent, isSelected));
-                    i++;
+                    _lines.Add(LeftPad + "  [grey](none)[/]");
+                }
+                else
+                {
+                    foreach (var (cells, selected) in otherData)
+                        _lines.Add(LeftPad + RenderDataRow(cells, colW, selected));
                 }
 
-                if (_agentsPart.GetVisibleAgents().Count == 0)
-                {
-                    _lines.Add("  [grey](none)[/]");
-                }
-
-                // ── Selection hint ────────────────────────────────────────
+                // Selection hint
                 if (_isSelectionMode)
-                {
-                    _lines.Add(string.Empty);
-                    _lines.Add("  [grey]\u2191\u2193 navigate  Enter select  Esc back[/]");
-                }
+                    _lines.Add(LeftPad + "[grey]\u2191\u2193 navigate  Enter select  Esc back[/]");
             }
             catch
             {
                 _lines.Clear();
-                _lines.Add("[grey]No agents connected[/]");
             }
             finally
             {
                 _renderedVersion = _version;
             }
 
-            return _lines;
+            // ── Pad to exact LineCount ───────────────────────────────────
+            return PadToLineCount(targetLineCount);
         }
     }
 
@@ -215,7 +246,6 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
     {
         lock (_sync)
         {
-            // ── Enter selection mode ──────────────────────────────────────
             if (!_isSelectionMode)
             {
                 // Only enter selection mode when the input field is empty.
@@ -230,7 +260,6 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
                 return false;
             }
 
-            // ── Navigation in selection mode ──────────────────────────────
             switch (key.Key)
             {
                 case ConsoleKey.DownArrow:
@@ -249,7 +278,6 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
                     }
                     else
                     {
-                        // Arrow Up at top → exit selection mode
                         ExitSelectionMode();
                     }
                     return true;
@@ -263,7 +291,6 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
                     return true;
 
                 default:
-                    // Any other key while in selection mode exits it.
                     ExitSelectionMode();
                     return false;
             }
@@ -313,37 +340,100 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         var sessionKey = _otherSessionKeys[_selectedIndex];
         ExitSelectionMode();
 
-        // Switch active agent via the registry (fire-and-forget on another thread).
         _ = Task.Run(() =>
         {
             var visible = _agentsPart.GetVisibleAgents();
             var target = visible.FirstOrDefault(v =>
                 v.Snapshot.SessionKey == sessionKey);
             if (target.Agent is not null)
-            {
                 AgentRegistry.SetActiveAgent(target.Agent.AgentId);
-            }
         });
     }
 
-    // ── Rendering helpers ─────────────────────────────────────────────────
+    // ── Column width computation ─────────────────────────────────────────
 
-    /// <summary>
-    /// Formats a single agent row with columns: Name, Status, Model, Context.
-    /// When <paramref name="selected"/> is true, wraps the whole line in
-    /// Spectre markup for highlighted background.
-    /// </summary>
-    private static string RenderAgentRow(
-        AgentStatusSnapshot snapshot,
-        AgentInfo agent,
-        bool selected)
+    /// <summary>Holds raw display values for one row's four columns.</summary>
+    private readonly record struct CellData(
+        string Name,      // already Markup.Escape'd
+        string Status,    // already Markup.Escape'd
+        string Model,     // already Markup.Escape'd (or grey "…")
+        string Context    // already formatted (or grey "…")
+    )
     {
-        var name = FormatName(agent.Name);
-        var status = Markup.Escape(snapshot.GetStatusEmoji());
-        var model = FormatModel(snapshot.Model);
-        var context = FormatContext(snapshot.ContextTokens);
+        public static CellData FromAgent(AgentStatusSnapshot? snapshot, AgentInfo? info)
+        {
+            if (snapshot is null || info is null)
+                return new CellData("?", "—", "[grey]…[/]", "[grey]…[/]");
 
-        var row = $"│ {name,-10} │ {status,-6} │ {model,-10} │ {context,-7} │";
+            var name = info.Name ?? "?";
+            name = name.Length > MaxNameDisplayLength
+                ? Markup.Escape(name[..MaxNameDisplayLength])
+                : Markup.Escape(name);
+
+            var status = Markup.Escape(snapshot.GetStatusEmoji());
+
+            var model = !string.IsNullOrWhiteSpace(snapshot.Model)
+                ? Markup.Escape(ModelPart.ShortenModelName(snapshot.Model))
+                : "[grey]…[/]";
+
+            var context = snapshot.ContextTokens is { } ct and > 0
+                ? ContextPart.FormatTokenCount(ct)
+                : "[grey]…[/]";
+
+            return new CellData(name, status, model, context);
+        }
+
+        /// <summary>Display width of the value (ignoring Spectre markup tags).</summary>
+        public int NameWidth    => CharacterWidth.GetDisplayWidth(StripMarkup(Name));
+        public int StatusWidth  => CharacterWidth.GetDisplayWidth(StripMarkup(Status));
+        public int ModelWidth   => CharacterWidth.GetDisplayWidth(StripMarkup(Model));
+        public int ContextWidth => CharacterWidth.GetDisplayWidth(StripMarkup(Context));
+    }
+
+    /// <summary>Column widths for the four display columns.</summary>
+    private readonly record struct ColumnWidths(int Name, int Status, int Model, int Context);
+
+    private static ColumnWidths ComputeColumnWidths(
+        CellData active,
+        List<(CellData Cells, bool Selected)> others)
+    {
+        int nw = Math.Max(MinNameWidth,    Math.Min(MaxColumnWidth, HeaderName.Length));
+        int sw = Math.Max(MinStatusWidth,  Math.Min(MaxColumnWidth, HeaderStatus.Length));
+        int mw = Math.Max(MinModelWidth,   Math.Min(MaxColumnWidth, HeaderModel.Length));
+        int cw = Math.Max(MinContextWidth, Math.Min(MaxColumnWidth, HeaderContext.Length));
+
+        void Consider(CellData c)
+        {
+            nw = Math.Max(nw, Math.Min(MaxColumnWidth, c.NameWidth));
+            sw = Math.Max(sw, Math.Min(MaxColumnWidth, c.StatusWidth));
+            mw = Math.Max(mw, Math.Min(MaxColumnWidth, c.ModelWidth));
+            cw = Math.Max(cw, Math.Min(MaxColumnWidth, c.ContextWidth));
+        }
+
+        Consider(active);
+        foreach (var (cells, _) in others)
+            Consider(cells);
+
+        return new ColumnWidths(nw, sw, mw, cw);
+    }
+
+    // ── Row rendering ────────────────────────────────────────────────────
+
+    private static string RenderHeaderRow(ColumnWidths w)
+    {
+        return $"│ [bold]{HeaderName.PadRight(w.Name)}[/] │ [bold]{HeaderStatus.PadRight(w.Status)}[/] │ [bold]{HeaderModel.PadRight(w.Model)}[/] │ [bold]{HeaderContext.PadRight(w.Context)}[/] │";
+    }
+
+    private static string RenderDataRow(CellData cells, ColumnWidths w, bool selected)
+    {
+        // Pad raw values (without markup) to column widths.
+        // We need to pad the escaped values to the right width.
+        var rawName    = StripMarkup(cells.Name);
+        var rawStatus  = StripMarkup(cells.Status);
+        var rawModel   = StripMarkup(cells.Model);
+        var rawContext = StripMarkup(cells.Context);
+
+        var row = $"│ {PadForTable(rawName, cells.Name, w.Name)} │ {PadForTable(rawStatus, cells.Status, w.Status)} │ {PadForTable(rawModel, cells.Model, w.Model)} │ {PadForTable(rawContext, cells.Context, w.Context)} │";
 
         return selected
             ? $"[default on gray17]{row}[/]"
@@ -351,55 +441,66 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
     }
 
     /// <summary>
-    /// Renders the Active agent row.  If no active agent is found, shows
-    /// a grey placeholder.  The active row is never selectable.
+    /// Pads a Spectre-markup value to the given display width.
+    /// Appends spaces after the markup to reach <paramref name="targetWidth"/>.
     /// </summary>
-    private static string RenderActiveRow(
-        AgentStatusSnapshot? snapshot,
-        AgentInfo? info)
+    private static string PadForTable(string raw, string markup, int targetWidth)
     {
-        if (snapshot is null || info is null)
-            return "  [grey](not set)[/]";
-
-        var name = FormatName(info.Name);
-        var status = Markup.Escape(snapshot.GetStatusEmoji());
-        var model = FormatModel(snapshot.Model);
-        var context = FormatContext(snapshot.ContextTokens);
-
-        return $"│ {name,-10} │ {status,-6} │ {model,-10} │ {context,-7} │";
+        int currentWidth = CharacterWidth.GetDisplayWidth(raw);
+        int padding = targetWidth - currentWidth;
+        return padding > 0 ? markup + new string(' ', padding) : markup;
     }
 
-    // ── Field formatters ──────────────────────────────────────────────────
+    // ── Helpers ──────────────────────────────────────────────────────────
 
-    private static string FormatName(string? raw)
+    /// <summary>Strips Spectre.Console markup tags from a string for width measurement.</summary>
+    private static string StripMarkup(string markup)
     {
-        var name = raw ?? "?";
-        return name.Length > MaxNameDisplayLength
-            ? Markup.Escape(name[..MaxNameDisplayLength])
-            : Markup.Escape(name);
-    }
+        if (string.IsNullOrEmpty(markup)) return string.Empty;
 
-    private static string FormatModel(string? model)
-    {
-        if (string.IsNullOrWhiteSpace(model)) return "[grey]…[/]";
-
-        var display = model.Length > 10 ? model[..10] : model;
-        return Markup.Escape(display);
-    }
-
-    private static string FormatContext(long? tokens)
-    {
-        if (tokens is null) return "[grey]…[/]";
-
-        return tokens.Value switch
+        var sb = new StringBuilder(markup.Length);
+        bool inTag = false;
+        for (int i = 0; i < markup.Length; i++)
         {
-            >= 1_000_000 => $"{tokens.Value / 1_000_000.0:F1}M",
-            >= 1_000     => $"{tokens.Value / 1_000.0:F0}K",
-            _            => tokens.Value.ToString()
-        };
+            char c = markup[i];
+            if (c == '[' && i + 1 < markup.Length)
+            {
+                // Escape sequence [[ → literal [
+                if (markup[i + 1] == '[')
+                {
+                    sb.Append('[');
+                    i++;
+                    continue;
+                }
+                inTag = true;
+                continue;
+            }
+            if (c == ']' && inTag)
+            {
+                inTag = false;
+                continue;
+            }
+            if (!inTag)
+                sb.Append(c);
+        }
+        return sb.ToString();
     }
 
-    // ── Data helpers ──────────────────────────────────────────────────────
+    /// <summary>
+    /// Returns exactly <paramref name="count"/> lines, padding with empty
+    /// strings and adding bottom margins as needed.
+    /// </summary>
+    private string[] PadToLineCount(int count)
+    {
+        while (_lines.Count < count)
+            _lines.Add(string.Empty);
+
+        // Trim excess if we somehow produced too many lines
+        if (_lines.Count > count)
+            _lines.RemoveRange(count, _lines.Count - count);
+
+        return _lines.ToArray();
+    }
 
     private static AgentInfo? GetActiveAgentInfo()
     {
@@ -409,15 +510,8 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         return AgentRegistry.Agents.FirstOrDefault(a => a.SessionKey == sessionKey);
     }
 
-    private void OnTrackerChanged()
-    {
-        MarkDirty();
-    }
-
-    private void OnActiveSessionChanged(string? _)
-    {
-        MarkDirty();
-    }
+    private void OnTrackerChanged() => MarkDirty();
+    private void OnActiveSessionChanged(string? _) => MarkDirty();
 
     private void MarkDirty()
     {

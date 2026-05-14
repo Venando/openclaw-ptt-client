@@ -45,9 +45,9 @@ public sealed class ContextPart : StatusPartBase
         Builder.Append('%');
 
         Builder.Append(" (");
-        AppendTokenCount(Builder, _totalTokens.Value);
+        AppendTokenCountToBuilder(Builder, _totalTokens.Value);
         Builder.Append('/');
-        AppendTokenCount(Builder, _contextTokens.Value);
+        AppendTokenCountToBuilder(Builder, _contextTokens.Value);
         Builder.Append(')');
     }
 
@@ -67,7 +67,18 @@ public sealed class ContextPart : StatusPartBase
         }
     }
 
-    private static void AppendTokenCount(StringBuilder sb, long count)
+    /// <summary>
+    /// Formats a token count for display, e.g. "1.2M", "112k", "512".
+    /// Exposed for reuse by other components (e.g. bottom panel).
+    /// </summary>
+    internal static string FormatTokenCount(long count)
+    {
+        var sb = new StringBuilder(8);
+        AppendTokenCountToBuilder(sb, count);
+        return sb.ToString();
+    }
+
+    private static void AppendTokenCountToBuilder(StringBuilder sb, long count)
     {
         if (count >= 1_000_000)
         {
