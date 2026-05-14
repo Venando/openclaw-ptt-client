@@ -3,37 +3,26 @@ using System.Text.Json;
 namespace OpenClawPTT.Services;
 
 /// <summary>
-/// Parses chat history messages into typed activity events for
-/// storage in <see cref="IAgentActivityStore"/>.
+/// Parses chat history messages into <see cref="HistoryMessageEvent"/> records.
+/// Schema matches <see cref="UserMessageHelper"/> (role, content blocks, usage, etc.).
 ///
-/// History messages use a different JSON schema than live gateway events
-/// (see <see cref="UserMessageHelper"/> for the schema).  This parser
-/// extracts tool calls and message metadata from history so the bottom
-/// panel can show last-action descriptions for agents loaded from history.
+/// Field coverage is tracked — any JSON field present in the message that is not
+/// extracted into the record is logged at Info level.
 /// </summary>
 public static class HistoryMessageParser
 {
     /// <summary>
-    /// Extracts the last N history messages for a session and stores
-    /// them as typed events in the activity store.  This lets
-    /// <see cref="IAgentActivityStore.GetLastActionDescription"/>
-    /// return meaningful descriptions for agents that were loaded from
-    /// history rather than live wire events.
+    /// Extracts the most recent N messages from a history array and stores
+    /// them as typed events in the activity store for bottom-panel display.
     /// </summary>
-    /// <param name="messages">The messages array from chat.history / sessions.preview.</param>
-    /// <param name="sessionKey">Session key these messages belong to.</param>
-    /// <param name="store">Target activity store.</param>
-    /// <param name="count">How many recent messages to extract (default 2).</param>
     public static void ExtractRecent(
         JsonElement messages,
         string sessionKey,
         IAgentActivityStore store,
+        IColorConsole? console = null,
         int count = 2)
     {
-        if (messages.ValueKind != JsonValueKind.Array)
-            return;
-
-        if (string.IsNullOrEmpty(sessionKey))
+        if (messages.ValueKind != JsonValueKind.Array || string.IsNullOrEmpty(sessionKey))
             return;
 
         int total = messages.GetArrayLength();
@@ -41,85 +30,283 @@ public static class HistoryMessageParser
 
         for (int i = start; i < total; i++)
         {
-            var msg = messages[i];
-            if (msg.ValueKind != JsonValueKind.Object)
-                continue;
+            var evt = Extract(messages[i], sessionKey, console);
+            if (evt is null) continue;
 
-            var role = GetString(msg, "role");
-            if (role is null) continue;
-
-            long? timestamp = null;
-            if (msg.TryGetProperty("timestamp", out var ts) && ts.TryGetInt64(out var t))
-                timestamp = t;
-
-            // ── Always store basic session state (model, provider, tokens) ──
-            var state = AgentStatusExtractor.FromHistoryMessage(msg, sessionKey);
-            if (state is not null)
-                store.Store(state);
-
-            // ── Extract tool calls from content blocks ────────────────────
-            if (msg.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.Array)
+            // Store session-level metadata (model, tokens)
+            store.Store(new SessionStateEvent
             {
-                int callIdx = 0;
-                foreach (var block in content.EnumerateArray())
-                {
-                    var blockType = GetString(block, "type");
-                    if (blockType is "toolCall" or "tool_use")
-                    {
-                        var toolName = GetString(block, "name");
-                        var argsEl = block.TryGetProperty("arguments", out var a)
-                            ? a.GetRawText() : null;
+                SessionKey = sessionKey,
+                Model = evt.Model,
+                ModelProvider = evt.Provider,
+                UpdatedAt = evt.Timestamp,
+                InputTokens = evt.InputTokens,
+                OutputTokens = evt.OutputTokens,
+                TotalTokens = evt.TotalTokens,
+            });
 
-                        if (toolName is not null)
-                        {
-                            store.Store(new ToolEvent
-                            {
-                                SessionKey = sessionKey,
-                                RunId = "history",
-                                ToolCallId = $"history_{i}_{callIdx}",
-                                ToolName = toolName,
-                                Phase = "start",
-                                Ts = timestamp,
-                                ArgsJson = argsEl,
-                            });
-                            callIdx++;
-                        }
-                    }
-                }
-            }
-
-            // ── Assistant message events for non-toolUse messages ────────
-            if (role == "assistant")
+            // Store tool calls
+            for (int t = 0; t < evt.ToolCalls.Count; t++)
             {
-                var stopReason = GetString(msg, "stopReason");
-                store.Store(new AssistantMessageEvent
+                var tc = evt.ToolCalls[t];
+                store.Store(new ToolEvent
                 {
                     SessionKey = sessionKey,
-                    MessageId = $"history_{i}",
-                    MessageSeq = i,
-                    Timestamp = timestamp,
-                    StopReason = stopReason,
+                    RunId = "history",
+                    ToolCallId = $"hist_{i}_{t}",
+                    ToolName = tc.Name,
+                    Phase = "start",
+                    Ts = evt.Timestamp,
+                    ArgsJson = tc.ArgumentsJson,
                 });
             }
 
-            // ── User messages ─────────────────────────────────────────────
-            if (role == "user")
+            // Store assistant metadata
+            if (evt.Role == "assistant")
             {
-                string? contentText = null;
-                if (msg.TryGetProperty("content", out var uc) && uc.ValueKind == JsonValueKind.String)
-                    contentText = uc.GetString();
+                store.Store(new AssistantMessageEvent
+                {
+                    SessionKey = sessionKey,
+                    MessageId = $"hist_{i}",
+                    MessageSeq = i,
+                    Timestamp = evt.Timestamp,
+                    StopReason = evt.StopReason,
+                    Model = evt.Model,
+                    ModelProvider = evt.Provider,
+                });
+            }
 
+            // Store user message
+            if (evt.Role == "user")
+            {
                 store.Store(new UserMessageEvent
                 {
                     SessionKey = sessionKey,
-                    MessageId = $"history_{i}",
+                    MessageId = $"hist_{i}",
                     MessageSeq = i,
-                    Timestamp = timestamp,
-                    ContentText = contentText,
+                    Timestamp = evt.Timestamp,
+                    ContentText = evt.ContentText,
                 });
             }
         }
     }
+
+    /// <summary>
+    /// Extracts a single history message into a typed record.
+    /// Returns null when role is missing or not assistant/user.
+    /// Logs unused fields at Info level.
+    /// </summary>
+    public static HistoryMessageEvent? Extract(
+        JsonElement msg,
+        string sessionKey,
+        IColorConsole? console = null)
+    {
+        if (msg.ValueKind != JsonValueKind.Object) return null;
+
+        var tracker = new FieldTracker(console);
+
+        var role = tracker.Fetch(msg, "role");
+        if (role is null || role is not ("assistant" or "user"))
+        {
+            if (role is not null)
+                console?.Log("history", $"Skipping history message role='{role}'", LogLevel.Info);
+            return null;
+        }
+
+        // ── Envelope ─────────────────────────────────────────────────────
+        var provider = tracker.Fetch(msg, "provider");
+        var model = tracker.Fetch(msg, "model");
+        var stopReason = tracker.Fetch(msg, "stopReason");
+        var timestamp = tracker.FetchLong(msg, "timestamp");
+        var responseId = tracker.Fetch(msg, "responseId");
+        var api = tracker.Fetch(msg, "api");
+
+        // ── Usage ─────────────────────────────────────────────────────────
+        long? inputTokens = null, outputTokens = null, totalTokens = null,
+              cacheRead = null, cacheWrite = null;
+        decimal? costTotal = null;
+
+        if (msg.TryGetProperty("usage", out var usage) && usage.ValueKind == JsonValueKind.Object)
+        {
+            tracker.MarkNested("usage");
+            inputTokens = tracker.FetchLong(usage, "input");
+            outputTokens = tracker.FetchLong(usage, "output");
+            totalTokens = tracker.FetchLong(usage, "totalTokens");
+            cacheRead = tracker.FetchLong(usage, "cacheRead");
+            cacheWrite = tracker.FetchLong(usage, "cacheWrite");
+
+            if (usage.TryGetProperty("cost", out var cost) && cost.ValueKind == JsonValueKind.Object)
+            {
+                tracker.MarkNested("usage.cost");
+                costTotal = tracker.FetchDecimal(cost, "total");
+            }
+        }
+
+        // ── Content blocks ────────────────────────────────────────────────
+        string? contentText = null;
+        var toolCalls = new List<HistoryToolCall>();
+        var thinkingBlocks = new List<string>();
+
+        if (msg.TryGetProperty("content", out var content))
+        {
+            if (content.ValueKind == JsonValueKind.String)
+            {
+                tracker.MarkNested("content");
+                contentText = content.GetString();
+            }
+            else if (content.ValueKind == JsonValueKind.Array)
+            {
+                tracker.MarkNested("content");
+                foreach (var block in content.EnumerateArray())
+                {
+                    var blockType = tracker.Fetch(block, "type");
+                    if (blockType is null) { tracker.MarkNested("content[?]"); continue; }
+
+                    tracker.MarkNested($"content[type={blockType}]");
+
+                    switch (blockType)
+                    {
+                        case "text":
+                            contentText = tracker.Fetch(block, "text") ?? contentText;
+                            break;
+
+                        case "toolCall":
+                        case "tool_use":
+                        {
+                            var tcId = tracker.Fetch(block, "id");
+                            var tcName = tracker.Fetch(block, "name");
+                            var tcArgs = block.TryGetProperty("arguments", out var a)
+                                ? a.GetRawText() : null;
+                            tracker.MarkNested($"content[{blockType}].arguments");
+
+                            if (tcId is not null && tcName is not null)
+                                toolCalls.Add(new HistoryToolCall { Id = tcId, Name = tcName, ArgumentsJson = tcArgs });
+                            break;
+                        }
+
+                        case "thinking":
+                        {
+                            var thinkText = tracker.Fetch(block, "thinking");
+                            if (!string.IsNullOrEmpty(thinkText))
+                                thinkingBlocks.Add(thinkText);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── __openclaw metadata ───────────────────────────────────────────
+        string? openClawId = null;
+        int? openClawSeq = null;
+        if (msg.TryGetProperty("__openclaw", out var oc) && oc.ValueKind == JsonValueKind.Object)
+        {
+            tracker.MarkNested("__openclaw");
+            openClawId = tracker.Fetch(oc, "id");
+            openClawSeq = tracker.FetchInt(oc, "seq");
+        }
+
+        var result = new HistoryMessageEvent
+        {
+            SessionKey = sessionKey,
+            Role = role,
+            Provider = provider,
+            Model = model,
+            StopReason = stopReason,
+            Timestamp = timestamp,
+            ResponseId = responseId,
+            Api = api,
+            InputTokens = inputTokens,
+            OutputTokens = outputTokens,
+            TotalTokens = totalTokens,
+            CacheRead = cacheRead,
+            CacheWrite = cacheWrite,
+            CostTotal = costTotal,
+            ContentText = contentText,
+            ToolCalls = toolCalls.AsReadOnly(),
+            ThinkingBlocks = thinkingBlocks.AsReadOnly(),
+            OpenClawId = openClawId,
+            OpenClawSeq = openClawSeq,
+        };
+
+        tracker.ReportUnused("history", sessionKey, msg);
+
+        return result;
+    }
+
+    // ── Field tracker (same pattern as GatewayEventDispatcher) ────────────
+
+    private sealed class FieldTracker
+    {
+        private readonly IColorConsole? _console;
+        private readonly HashSet<string> _consumed = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _nestedMarked = new(StringComparer.Ordinal);
+
+        public FieldTracker(IColorConsole? console) => _console = console;
+
+        public string? Fetch(JsonElement el, string key)
+        {
+            _consumed.Add(key);
+            return GetString(el, key);
+        }
+
+        public long? FetchLong(JsonElement el, string key)
+        {
+            _consumed.Add(key);
+            return GetLong(el, key);
+        }
+
+        public int? FetchInt(JsonElement el, string key)
+        {
+            _consumed.Add(key);
+            return GetInt(el, key);
+        }
+
+        public decimal? FetchDecimal(JsonElement el, string key)
+        {
+            _consumed.Add(key);
+            return GetDecimal(el, key);
+        }
+
+        public void MarkNested(string path) => _nestedMarked.Add(path);
+
+        public void ReportUnused(string label, string sessionKey, JsonElement el)
+        {
+            if (_console is null) return;
+            CheckElement(el, "", label, sessionKey);
+        }
+
+        private void CheckElement(JsonElement el, string prefix, string label, string sessionKey)
+        {
+            if (el.ValueKind != JsonValueKind.Object) return;
+
+            foreach (var prop in el.EnumerateObject())
+            {
+                var fullKey = string.IsNullOrEmpty(prefix) ? prop.Name : $"{prefix}.{prop.Name}";
+                if (_consumed.Contains(prop.Name) || _nestedMarked.Contains(prop.Name) || _nestedMarked.Contains(fullKey))
+                {
+                    if (prop.Value.ValueKind == JsonValueKind.Object)
+                        CheckElement(prop.Value, fullKey, label, sessionKey);
+                    continue;
+                }
+
+                if (prop.Value.ValueKind == JsonValueKind.Object)
+                {
+                    _console.Log("history", $"Unused object '{prop.Name}' in {label} (sk={Truncate(sessionKey, 20)})", LogLevel.Info);
+                    CheckElement(prop.Value, fullKey, label, sessionKey);
+                }
+                else
+                {
+                    _console.Log("history", $"Unused field '{fullKey}' in {label} (sk={Truncate(sessionKey, 20)})", LogLevel.Info);
+                }
+            }
+        }
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────
+
+    private static string Truncate(string s, int max) =>
+        s.Length <= max ? s : s[..max] + "…";
 
     private static string? GetString(JsonElement el, string key)
     {
@@ -127,6 +314,33 @@ public static class HistoryMessageParser
             && el.TryGetProperty(key, out var v)
             && v.ValueKind == JsonValueKind.String)
             return v.GetString();
+        return null;
+    }
+
+    private static long? GetLong(JsonElement el, string key)
+    {
+        if (el.ValueKind == JsonValueKind.Object
+            && el.TryGetProperty(key, out var v)
+            && v.ValueKind == JsonValueKind.Number
+            && v.TryGetInt64(out var r)) return r;
+        return null;
+    }
+
+    private static int? GetInt(JsonElement el, string key)
+    {
+        if (el.ValueKind == JsonValueKind.Object
+            && el.TryGetProperty(key, out var v)
+            && v.ValueKind == JsonValueKind.Number
+            && v.TryGetInt32(out var r)) return r;
+        return null;
+    }
+
+    private static decimal? GetDecimal(JsonElement el, string key)
+    {
+        if (el.ValueKind == JsonValueKind.Object
+            && el.TryGetProperty(key, out var v)
+            && v.ValueKind == JsonValueKind.Number
+            && v.TryGetDecimal(out var r)) return r;
         return null;
     }
 }

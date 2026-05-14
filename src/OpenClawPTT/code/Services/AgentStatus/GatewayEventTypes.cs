@@ -248,3 +248,52 @@ public sealed record ChatStreamEvent
     public int? Seq { get; init; }
     public string? MessageText { get; init; }      // null on "final" when no content
 }
+
+
+// ── 9. Chat history messages (chat.history / sessions.preview) ───────────────
+// These use a different schema from live gateway events.
+// See UserMessageHelper.cs for the full JSON shape.
+
+/// <summary>Single tool call inside a history message content block.</summary>
+public sealed record HistoryToolCall
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+    public string? ArgumentsJson { get; init; }
+}
+
+/// <summary>
+/// Extracted from chat.history / sessions.preview response entries.
+/// Covers role=="assistant" and role=="user".  Tool calls are extracted
+/// from the content[] array into <see cref="ToolCalls"/>.
+/// </summary>
+public sealed record HistoryMessageEvent
+{
+    public required string SessionKey { get; init; }
+    public required string Role { get; init; }      // "assistant" | "user"
+
+    // ── Message envelope ────────────────────────────────────────────────
+    public string? Provider { get; init; }
+    public string? Model { get; init; }
+    public string? StopReason { get; init; }
+    public long? Timestamp { get; init; }
+    public string? ResponseId { get; init; }
+    public string? Api { get; init; }
+
+    // ── Usage ───────────────────────────────────────────────────────────
+    public long? InputTokens { get; init; }
+    public long? OutputTokens { get; init; }
+    public long? TotalTokens { get; init; }
+    public long? CacheRead { get; init; }
+    public long? CacheWrite { get; init; }
+    public decimal? CostTotal { get; init; }
+
+    // ── Content ─────────────────────────────────────────────────────────
+    public string? ContentText { get; init; }
+    public IReadOnlyList<HistoryToolCall> ToolCalls { get; init; } = Array.Empty<HistoryToolCall>();
+    public IReadOnlyList<string> ThinkingBlocks { get; init; } = Array.Empty<string>();
+
+    // ── __openclaw metadata ─────────────────────────────────────────────
+    public string? OpenClawId { get; init; }
+    public int? OpenClawSeq { get; init; }
+}
