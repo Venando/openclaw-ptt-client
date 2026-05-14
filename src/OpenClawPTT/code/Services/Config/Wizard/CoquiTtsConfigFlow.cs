@@ -78,22 +78,16 @@ public sealed class CoquiTtsConfigFlow
 
         bool modelChanged = modelResult != config.CoquiModelName;
 
-        // ── Phase 3: Download (with user confirmation, only when model changed) ──
-        // Don't prompt to download if nothing changed — the user didn't pick a new model.
-        if (!modelChanged)
-        {
-            if (!CoquiTtsModelManager.IsModelCached(modelResult))
-            {
-                host.AddMessage($"[yellow]  ⚠ Model '{modelResult}' is not cached — TTS won't work until downloaded.[/]");
-                host.AddMessage("[grey]    Use /reconfigure TTS to download it.[/]");
-            }
-            return false;
-        }
+        // ── Phase 3: Download (prompt when not cached, regardless of model change) ──
         var downloadSucceeded = true;
         if (!CoquiTtsModelManager.IsModelCached(modelResult))
         {
+            string promptText = modelChanged
+                ? $"Model '{modelResult}' is not cached. Download now?"
+                : $"Model '{modelResult}' (already configured) is not cached. Download now?";
+
             var shouldDownload = await host.PromptSelection(
-                $"Model '{modelResult}' is not cached. Download now?",
+                promptText,
                 [new ConfigVariant("[green]Download now[/]", "download"),
                  new ConfigVariant("[yellow]Select without downloading[/]", "select"),
                  new ConfigVariant("[grey]Cancel[/]", "cancel")]);
