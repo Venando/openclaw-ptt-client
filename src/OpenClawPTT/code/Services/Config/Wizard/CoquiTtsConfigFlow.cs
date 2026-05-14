@@ -230,15 +230,15 @@ public sealed class CoquiTtsConfigFlow
                     if (model.SizeBytes.HasValue) diskSized++;
                 }
             }
-            host.AddMessage($"[grey]      [diag] Disk sizes set for {diskSized}/{cachedModels.Count} cached models[/]");
+            host.AddMessage($"[grey]      [[diag]] Disk sizes set for {diskSized}/{cachedModels.Count} cached models[/]");
 
             // HF/download sizes for all models (fills in the blanks, cached for future runs)
             var allNames = allModels.Select(m => m.Name).ToList();
-            host.AddMessage($"[grey]      [diag] Calling FetchHuggingFaceSizesAsync with {allNames.Count} names...[/]");
+            host.AddMessage($"[grey]      [[diag]] Calling FetchHuggingFaceSizesAsync with {allNames.Count} names...[/]");
             var hfSizes = await CoquiTtsModelManager.FetchHuggingFaceSizesAsync(
                 host, allNames, dataDir, ct);
 
-            host.AddMessage($"[grey]      [diag] FetchHuggingFaceSizesAsync returned {hfSizes.Count} sizes[/]");
+            host.AddMessage($"[grey]      [[diag]] FetchHuggingFaceSizesAsync returned {hfSizes.Count} sizes[/]");
             var hfSized = 0;
             foreach (var model in allModels)
             {
@@ -248,9 +248,9 @@ public sealed class CoquiTtsConfigFlow
                     hfSized++;
                 }
             }
-            host.AddMessage($"[grey]      [diag] HF sizes applied to {hfSized} additional models[/]");
+            host.AddMessage($"[grey]      [[diag]] HF sizes applied to {hfSized} additional models[/]");
             var noSize = allModels.Count(m => m.SizeBytes == null);
-            host.AddMessage($"[grey]      [diag] Models still without size: {noSize}/{allModels.Count}[/]");
+            host.AddMessage($"[grey]      [[diag]] Models still without size: {noSize}/{allModels.Count}[/]");
         }
 
         if (allModels.Count == 0)

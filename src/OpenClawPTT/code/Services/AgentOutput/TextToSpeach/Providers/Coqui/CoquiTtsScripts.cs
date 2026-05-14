@@ -257,18 +257,42 @@ def main():
 
     # Resolve download URLs from the TTS model registry
     from TTS.api import TTS
+    import sys as _sys
     manager = TTS().list_models()
-    # manager._models is a dict: model_name -> {github_rls_url, ...}
     registry = getattr(manager, '_models', {})
+    print(f'[diag] registry type={type(registry).__name__}, len={len(registry)}', file=_sys.stderr)
+    if registry:
+        first_keys = list(registry.keys())[:5]
+        print(f'[diag] first 5 registry keys: {first_keys}', file=_sys.stderr)
+        if first_keys:
+            first_val = registry[first_keys[0]]
+            print(f'[diag] first value keys: {list(first_val.keys()) if isinstance(first_val, dict) else type(first_val).__name__}', file=_sys.stderr)
+            print(f'[diag] first value sample: {str(first_val)[:300]}', file=_sys.stderr)
 
+    # Try multiple possible URL field names
+    URL_FIELDS = ('github_rls_url', 'hf_url', 'url', 'download_url', 'repo_url', 'checkpoint')
     url_map = {}
+    not_found = []
     for name in model_names:
         if name in cache:
             continue
         meta = registry.get(name, {})
-        url = meta.get('github_rls_url') or meta.get('url')
+        url = None
+        if isinstance(meta, dict):
+            for field in URL_FIELDS:
+                url = meta.get(field)
+                if url:
+                    break
         if url:
             url_map[name] = url
+        else:
+            not_found.append(name)
+
+    print(f'[diag] url_map: {len(url_map)} entries', file=_sys.stderr)
+    if url_map:
+        sample_items = list(url_map.items())[:3]
+        print(f'[diag] sample url_map: {sample_items}', file=_sys.stderr)
+    print(f'[diag] not_found ({len(not_found)}): {not_found[:5]}', file=_sys.stderr)
 
     if url_map:
         with ThreadPoolExecutor(max_workers=15) as executor:

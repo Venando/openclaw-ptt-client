@@ -504,41 +504,41 @@ public sealed class CoquiTtsModelManager
         string? dataDir,
         CancellationToken ct = default)
     {
-        host.AddMessage($"[grey]      [diag] FetchHuggingFaceSizesAsync: entered, {modelNames.Count} model names[/]");
+        host.AddMessage($"[grey]      [[diag]] FetchHuggingFaceSizesAsync: entered, {modelNames.Count} model names[/]");
 
         if (modelNames.Count == 0)
         {
-            host.AddMessage("[grey]      [diag] 0 model names, returning empty[/]");
+            host.AddMessage("[grey]      [[diag]] 0 model names, returning empty[/]");
             return new Dictionary<string, long>();
         }
 
         var projectDir = CoquiUvEnvironment.GetProjectDir(dataDir);
-        host.AddMessage($"[grey]      [diag] projectDir={projectDir}, exists={Directory.Exists(projectDir)}[/]");
+        host.AddMessage($"[grey]      [[diag]] projectDir={projectDir}, exists={Directory.Exists(projectDir)}[/]");
 
         var uvAvailable = CoquiUvEnvironment.IsUvAvailable();
-        host.AddMessage($"[grey]      [diag] IsUvAvailable={uvAvailable}, ResolveUvPath={CoquiUvEnvironment.ResolveUvPath()}[/]");
+        host.AddMessage($"[grey]      [[diag]] IsUvAvailable={uvAvailable}, ResolveUvPath={CoquiUvEnvironment.ResolveUvPath()}[/]");
         if (!uvAvailable)
         {
-            host.AddMessage("[yellow]      [diag] uv not available, returning empty[/]");
+            host.AddMessage("[yellow]      [[diag]] uv not available, returning empty[/]");
             return new Dictionary<string, long>();
         }
 
         // Write model names to a temp JSON file
         var namesPath = Path.Combine(projectDir, "model_names.json");
         File.WriteAllText(namesPath, JsonSerializer.Serialize(modelNames));
-        host.AddMessage($"[grey]      [diag] Wrote {modelNames.Count} names to {namesPath}[/]");
+        host.AddMessage($"[grey]      [[diag]] Wrote {modelNames.Count} names to {namesPath}[/]");
 
         var cachePath = Path.Combine(projectDir, "model_download_sizes_cache.json");
 
         // Write the Python helper script
         var scriptPath = Path.Combine(projectDir, "fetch_model_sizes.py");
         File.WriteAllText(scriptPath, CoquiUvEnvironment.HfSizesScript());
-        host.AddMessage($"[grey]      [diag] Wrote Python script to {scriptPath}, existsAfter={File.Exists(scriptPath)}[/]");
+        host.AddMessage($"[grey]      [[diag]] Wrote Python script to {scriptPath}, existsAfter={File.Exists(scriptPath)}[/]");
 
         // Load existing cache to show progress
         var existingCount = 0;
         var cacheExists = File.Exists(cachePath);
-        host.AddMessage($"[grey]      [diag] cachePath={cachePath}, exists={cacheExists}[/]");
+        host.AddMessage($"[grey]      [[diag]] cachePath={cachePath}, exists={cacheExists}[/]");
         if (cacheExists)
         {
             try
@@ -546,11 +546,11 @@ public sealed class CoquiTtsModelManager
                 var existing = JsonSerializer.Deserialize<Dictionary<string, long>>(
                     File.ReadAllText(cachePath));
                 existingCount = existing?.Count ?? 0;
-                host.AddMessage($"[grey]      [diag] Loaded {existingCount} cached sizes[/]");
+                host.AddMessage($"[grey]      [[diag]] Loaded {existingCount} cached sizes[/]");
             }
             catch (Exception ex)
             {
-                host.AddMessage($"[grey]      [diag] Failed to parse cache: {ex.Message}[/]");
+                host.AddMessage($"[grey]      [[diag]] Failed to parse cache: {ex.Message}[/]");
             }
         }
 
@@ -563,7 +563,7 @@ public sealed class CoquiTtsModelManager
         var uvPath = CoquiUvEnvironment.ResolveUvPath();
         var pythonArg = CoquiUvEnvironment.GetPythonArg();
         var psiArgs = $"run{pythonArg} --directory \"{projectDir}\" python \"{scriptPath}\" \"{namesPath}\" \"{cachePath}\"";
-        host.AddMessage($"[grey]      [diag] uv command: {uvPath} {psiArgs}[/]");
+        host.AddMessage($"[grey]      [[diag]] uv command: {uvPath} {psiArgs}[/]");
 
         var psi = new ProcessStartInfo
         {
@@ -582,28 +582,28 @@ public sealed class CoquiTtsModelManager
             using var process = Process.Start(psi);
             if (process == null)
             {
-                host.AddMessage("[red]      [diag] Process.Start returned null[/]");
+                host.AddMessage("[red]      [[diag]] Process.Start returned null[/]");
                 return new Dictionary<string, long>();
             }
-            host.AddMessage($"[grey]      [diag] Python process started, PID={process.Id}, waiting...[/]");
+            host.AddMessage($"[grey]      [[diag]] Python process started, PID={process.Id}, waiting...[/]");
 
             var stdout = await process.StandardOutput.ReadToEndAsync(linkedCts.Token);
             var stderr = await process.StandardError.ReadToEndAsync(linkedCts.Token);
             await process.WaitForExitAsync(linkedCts.Token);
 
-            host.AddMessage($"[grey]      [diag] Python exited, code={process.ExitCode}[/]");
-            host.AddMessage($"[grey]      [diag] stdout length={stdout.Length}, stderr length={stderr.Length}[/]");
+            host.AddMessage($"[grey]      [[diag]] Python exited, code={process.ExitCode}[/]");
+            host.AddMessage($"[grey]      [[diag]] stdout length={stdout.Length}, stderr length={stderr.Length}[/]");
 
             if (!string.IsNullOrWhiteSpace(stderr))
             {
                 var stderrPreview = stderr.Length > 500 ? stderr[..500] + "..." : stderr;
-                host.AddMessage($"[grey]      [diag] stderr: {CoquiMarkupHelper.EscapeSpectreMarkup(stderrPreview)}[/]");
+                host.AddMessage($"[grey]      [[diag]] stderr: {CoquiMarkupHelper.EscapeSpectreMarkup(stderrPreview)}[/]");
             }
 
             if (!string.IsNullOrWhiteSpace(stdout))
             {
                 var stdoutPreview = stdout.Length > 300 ? stdout[..300] + "..." : stdout;
-                host.AddMessage($"[grey]      [diag] stdout preview: {CoquiMarkupHelper.EscapeSpectreMarkup(stdoutPreview)}[/]");
+                host.AddMessage($"[grey]      [[diag]] stdout preview: {CoquiMarkupHelper.EscapeSpectreMarkup(stdoutPreview)}[/]");
             }
 
             if (process.ExitCode != 0)
@@ -614,34 +614,34 @@ public sealed class CoquiTtsModelManager
                 {
                     var cached = JsonSerializer.Deserialize<Dictionary<string, long>>(
                         File.ReadAllText(cachePath));
-                    host.AddMessage($"[grey]      [diag] Loaded {(cached?.Count ?? 0)} from cache after error[/]");
+                    host.AddMessage($"[grey]      [[diag]] Loaded {(cached?.Count ?? 0)} from cache after error[/]");
                     return cached ?? new Dictionary<string, long>();
                 }
                 return new Dictionary<string, long>();
             }
 
             var jsonText = ExtractJsonArray(stdout);
-            host.AddMessage($"[grey]      [diag] Extracted JSON, length={jsonText.Length}[/]");
+            host.AddMessage($"[grey]      [[diag]] Extracted JSON, length={jsonText.Length}[/]");
             var sizes = JsonSerializer.Deserialize<Dictionary<string, long>>(jsonText);
             var found = sizes?.Count ?? 0;
             host.AddMessage($"[green]      Download sizes known for {found}/{modelNames.Count} models.[/]");
             if (found > 0 && sizes != null)
             {
                 var sample = sizes.Take(3).Select(kv => $"{kv.Key}={kv.Value}");
-                host.AddMessage($"[grey]      [diag] Sample sizes: {string.Join(", ", sample)}[/]");
+                host.AddMessage($"[grey]      [[diag]] Sample sizes: {string.Join(", ", sample)}[/]");
             }
             return sizes ?? new Dictionary<string, long>();
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            host.AddMessage("[grey]      [diag] Cancelled via ct[/]");
+            host.AddMessage("[grey]      [[diag]] Cancelled via ct[/]");
             throw;
         }
         catch (Exception ex)
         {
             host.AddMessage($"[yellow]      Model size fetch failed: {ex.Message}. Type={ex.GetType().Name}[/]");
             if (ex.InnerException != null)
-                host.AddMessage($"[grey]      [diag] Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}[/]");
+                host.AddMessage($"[grey]      [[diag]] Inner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}[/]");
             if (File.Exists(cachePath))
             {
                 try
