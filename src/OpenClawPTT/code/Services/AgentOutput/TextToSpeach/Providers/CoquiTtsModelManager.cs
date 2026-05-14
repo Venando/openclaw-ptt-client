@@ -13,8 +13,7 @@ namespace OpenClawPTT.TTS.Providers;
 
 /// <summary>
 /// Manages Coqui TTS models via <c>uv</c> — listing, pre-downloading, and deleting.
-/// Models are fetched live from the <c>TTS</c> package (<c>uv run python -c "..."</c>)
-/// with a hardcoded fallback for offline scenarios.
+/// Models are fetched live from the <c>TTS</c> package (<c>uv run python -c "..."</c>).
 /// </summary>
 public sealed class CoquiTtsModelManager
 {
@@ -27,41 +26,15 @@ public sealed class CoquiTtsModelManager
     private static readonly object s_liveLock = new();
 
     /// <summary>
-    /// True when the last <see cref="GetAvailableModelsAsync"/> call returned
-    /// the hardcoded fallback list rather than live models from the TTS package.
-    /// </summary>
-    public static bool IsUsingFallbackModels { get; private set; }
-
-    /// <summary>
     /// Human-readable reason from the last fetch attempt (set even on success).
     /// Empty if the last call hasn't been made yet.
     /// </summary>
     public static string LastFetchErrorDetail { get; private set; } = string.Empty;
 
     /// <summary>
-    /// Hardcoded fallback list — well-known Coqui TTS models.
-    /// Used when uv is not available or the live fetch fails.
-    /// </summary>
-    public static readonly IReadOnlyList<CoquiTtsModelInfo> FallbackModels = new List<CoquiTtsModelInfo>
-    {
-        new("tts_models/multilingual/mxtts/vits",       "XTTS v2 — multilingual, voice cloning, ~1.9 GB"),
-        new("tts_models/en/ljspeech/vits",              "LJSpeech VITS — English single-speaker, ~300 MB"),
-        new("tts_models/en/ljspeech/tacotron2-DDC",     "Tacotron2 + WaveGlow — English, ~500 MB"),
-        new("tts_models/en/ljspeech/fast_pitch",        "FastPitch — English, fast, ~300 MB"),
-        new("tts_models/en/ljspeech/glow-tts",          "Glow-TTS — English, ~200 MB"),
-        new("tts_models/en/vctk/vits",                  "VCTK VITS — English multi-speaker, ~400 MB"),
-        new("tts_models/en/jenny/jenny",                "Jenny — English female, ~50 MB"),
-        new("tts_models/en/sam/tacotron-DDC",           "SAM Tacotron — English male, ~500 MB"),
-        new("tts_models/es/mai_speak/vits",             "Spanish VITS, ~300 MB"),
-        new("tts_models/fr/css10/vits",                 "French VITS, ~300 MB"),
-        new("tts_models/de/thorsten/vits",              "German VITS, ~300 MB"),
-        new("tts_models/uk/mai_speak/vits",             "Ukrainian VITS, ~300 MB"),
-        new("tts_models/ja/kokoro/vits",                "Japanese Kokoro VITS, ~300 MB"),
-    };
-
-    /// <summary>
-    /// Returns the best available model list: live from <c>TTS</c> package if uv is
-    /// available and fetch succeeds; otherwise the hardcoded fallback.
+    /// Returns the live model list from <c>TTS</c> package if uv is available
+    /// and fetch succeeds. Returns empty list on failure with error in
+    /// <see cref="LastFetchErrorDetail"/>.
     /// </summary>
     public static async Task<IReadOnlyList<CoquiTtsModelInfo>> GetAvailableModelsAsync(
         IStreamShellHost host,
@@ -77,11 +50,10 @@ public sealed class CoquiTtsModelManager
 
         if (!CoquiUvEnvironment.IsUvAvailable())
         {
-            IsUsingFallbackModels = true;
             LastFetchErrorDetail = "uv is not installed";
-            host.AddMessage("[yellow]    ⚠ uv not found — using built-in (offline) model list.[/]");
+            host.AddMessage("[red]    ✗ uv is not installed — cannot fetch model list.[/]");
             host.AddMessage($"[grey]      Install: {CoquiUvEnvironment.GetInstallInstructions()}[/]");
-            return FallbackModels;
+            return Array.Empty<CoquiTtsModelInfo>();
         }
 
         try
@@ -97,7 +69,6 @@ public sealed class CoquiTtsModelManager
 
                 if (liveList is { Count: > 0 })
                 {
-                    IsUsingFallbackModels = false;
                     LastFetchErrorDetail = string.Empty;
                     setupPanel.SetCompleted(true, $"Found {liveList.Count} models");
                     lock (s_liveLock) { s_liveModels = liveList; }
@@ -105,40 +76,32 @@ public sealed class CoquiTtsModelManager
                     return liveList;
                 }
 
-                IsUsingFallbackModels = true;
                 LastFetchErrorDetail = "TTS package returned no models";
                 setupPanel.SetCompleted(false, "No models returned");
             }
             finally
             {
-                // Keep the panel visible briefly so the user sees completion
                 await Task.Delay(500, CancellationToken.None);
                 host.ResetBottomPanel();
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            IsUsingFallbackModels = true;
             LastFetchErrorDetail = "User cancelled";
             host.ResetBottomPanel();
-            throw; // User cancelled — propagate
+            throw;
         }
         catch (OperationCanceledException)
         {
-            // uv command timed out (5 min) — fall back to built-in list
-            IsUsingFallbackModels = true;
             LastFetchErrorDetail = "Live model fetch timed out after 5 minutes";
-            host.AddMessage("[yellow]    \u26a0 Live model fetch timed out after 5 minutes, using built-in list.[/]");
+            host.AddMessage("[red]    ✗ Live model fetch timed out after 5 minutes.[/]");
+            host.AddMessage("[grey]      Check network and uv/Python setup, then re-run /reconfigure TTS.[/]");
         }
         catch (Exception ex)
         {
-            IsUsingFallbackModels = true;
-            // Show the full error detail — ex.Message contains stderr when thrown from FetchFromUvAsync
             var errorMsg = ex.Message;
-            host.AddMessage("[red]    \u2717 Live model fetch failed. Error from uv:[/]");
+            host.AddMessage("[red]    ✗ Live model fetch failed. Error from uv:[/]");
 
-            // ex.Message from InvalidOperationException includes: "uv exit=N: <stderr>"
-            // Split into lines for readability; avoid flooding with too many lines
             var errorLines = errorMsg.Split('\n');
             var shown = 0;
             foreach (var line in errorLines)
@@ -153,18 +116,14 @@ public sealed class CoquiTtsModelManager
             }
 
             LastFetchErrorDetail = errorMsg;
-            host.AddMessage("[yellow]    \u26a0 Falling back to built-in (offline) model list.[/]");
-            host.AddMessage("[grey]      Fix the uv/Python issues above and re-run setup to get live models.[/]");
+            host.AddMessage("[grey]      Fix the uv/Python issues above and re-run /reconfigure TTS to get models.[/]");
         }
 
-        return FallbackModels;
+        return Array.Empty<CoquiTtsModelInfo>();
     }
 
     /// <summary>
     /// Fetches the full model list from the installed <c>TTS</c> package via <c>uv run python</c>.
-    /// Runs <c>TTS().list_models()</c> which queries the HuggingFace <c>coqui/TTS</c> repo.
-    /// First-run dependency resolution (Python + TTS + torch + pandas + ...) can take
-    /// several minutes, so stderr is streamed via <paramref name="progressCallback"/>.
     /// </summary>
     private static async Task<IReadOnlyList<CoquiTtsModelInfo>?> FetchFromUvAsync(
         IStreamShellHost host,
@@ -178,16 +137,11 @@ public sealed class CoquiTtsModelManager
                 ".openclaw-ptt"),
             "coqui-tts-env");
 
-        // Ensure pyproject.toml exists so uv can resolve
         var env = new CoquiUvEnvironment(dataDir, "tts_models/en/ljspeech/vits", null, null, null);
         env.EnsureProjectFiles();
-
-        // If .venv was created with a different Python, delete it so uv recreates it
         CoquiUvEnvironment.EnsureVenvPythonMatches(projectDir);
 
         var uvPath = CoquiUvEnvironment.FindUv() ?? "uv";
-        // TTS 0.22.0: .list_models() returns ModelManager, need .list_models().list_models()
-        // See: https://github.com/coqui-ai/TTS/issues/3508
         var cmd = "from TTS.api import TTS; import json; " +
                   "models = TTS().list_models().list_models(); " +
                   "print(json.dumps(models))";
@@ -208,7 +162,6 @@ public sealed class CoquiTtsModelManager
         host.AddMessage($"[grey]    Fetching model list from coqui/TTS on HuggingFace{pythonInfo}...[/]");
         progressCallback?.Invoke("Resolving packages", "uv setting up Python environment...", null);
 
-        // First-run dep resolution can take minutes (Python + TTS + torch + pandas + ...)
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
@@ -216,9 +169,8 @@ public sealed class CoquiTtsModelManager
             ?? throw new InvalidOperationException("Failed to start uv run for model list fetch.");
 
         var stderrLines = new List<string>();
-        var stdoutBuilder = new System.Text.StringBuilder();
+        var stdoutBuilder = new StringBuilder();
 
-        // Read stderr line-by-line for progress (uv outputs package downloads here)
         var stderrTask = Task.Run(async () =>
             {
                 var reader = process.StandardError;
@@ -230,7 +182,6 @@ public sealed class CoquiTtsModelManager
                     if (!string.IsNullOrWhiteSpace(line))
                     {
                         var trimmed = line.Trim();
-                        // uv spinner characters indicate active work
                         bool isSpinner = trimmed.Length > 0 && (
                             trimmed[0] == '\u2801' || trimmed[0] == '\u2809' ||
                             trimmed[0] == '\u2819' || trimmed[0] == '\u2838' ||
@@ -251,10 +202,7 @@ public sealed class CoquiTtsModelManager
                                  trimmed.Contains("Error", StringComparison.Ordinal) ||
                                  trimmed.Contains("Traceback", StringComparison.Ordinal))
                         {
-                            // Kill process immediately — no point waiting for timeout
                             try { if (!process.HasExited) process.Kill(true); } catch { }
-
-                            // Show the last few non-empty stderr lines — most relevant for the error
                             var relevantLines = stderrLines
                                 .Where(l => !string.IsNullOrWhiteSpace(l))
                                 .Select(l => l.Trim())
@@ -262,13 +210,11 @@ public sealed class CoquiTtsModelManager
                                 .ToArray();
                             var errorDetail = string.Join("\n", relevantLines);
                             progressCallback?.Invoke("Error encountered", trimmed, errorDetail);
-                            // Continue reading remaining lines briefly then break
                         }
                     }
                 }
             }, linkedCts.Token);
 
-            // Read stdout: should contain a single JSON array line
             var stdoutTask = Task.Run(async () =>
             {
                 var reader = process.StandardOutput;
@@ -292,8 +238,6 @@ public sealed class CoquiTtsModelManager
                 throw new InvalidOperationException($"uv exit={process.ExitCode}: {errorDetail.Trim()}");
             }
 
-            // Parse JSON array of model names from stdout
-            // NB: stdout may have uv info lines prefixed; extract the last JSON array
             var stdoutTrimmed = stdoutText.Trim();
             var jsonStart = stdoutTrimmed.LastIndexOf('[');
             var jsonEnd = stdoutTrimmed.LastIndexOf(']');
@@ -312,13 +256,6 @@ public sealed class CoquiTtsModelManager
             .OrderBy(m => m.Name)
             .ToList();
 
-            // A successful model-list fetch proves that uv can resolve dependencies
-            // and run Python with the TTS package — the environment is not broken.
-            // Clear any stale broken flag set by the long-running TTS service startup
-            // failure, so that downstream operations (download) don't get blocked.
-            //
-            // NOTE: use ClearBrokenFlagKeepPython — we keep ValidatedPythonPath
-            // since the fetch succeeded with whatever Python was pinned.
             if (CoquiUvEnvironment.IsUvBuildBroken)
                 CoquiUvEnvironment.ClearBrokenFlagKeepPython();
 
@@ -336,22 +273,80 @@ public sealed class CoquiTtsModelManager
         Directory.CreateDirectory(_projectDir);
     }
 
-    /// <summary>Converts a Coqui model name like tts_models/en/ljspeech/vits to a HuggingFace cache dir slug.</summary>
-    /// <summary>
-    /// Escapes raw process output so literal <c>[</c> and <c>]</c> characters
-    /// don't get interpreted as Spectre.Console markup tags.
-    /// </summary>
     private static string EscapeSpectreMarkup(string text)
     {
         if (string.IsNullOrEmpty(text)) return "";
         return text.Replace("[", "[[").Replace("]", "]]");
     }
 
-    /// <summary>Converts a Coqui model name like tts_models/en/ljspeech/vits to a HuggingFace cache dir slug.</summary>
+    /// <summary>
+    /// Returns model names that are currently cached on disk by running
+    /// a Python command that walks the HuggingFace cache directly.
+    /// Much more reliable than C# filesystem traversal.
+    /// </summary>
+    public static async Task<IReadOnlyList<string>> GetCachedModelsAsync(
+        IStreamShellHost host, string? dataDir, CancellationToken ct = default)
+    {
+        var projectDir = Path.Combine(
+            dataDir ?? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".openclaw-ptt"),
+            "coqui-tts-env");
+
+        if (!CoquiUvEnvironment.IsUvAvailable())
+            return Array.Empty<string>();
+
+        var pythonCmd = CoquiUvEnvironment.BuildListCachedModelPathsCommand();
+        var uvPath = CoquiUvEnvironment.FindUv() ?? "uv";
+        var escapedCmd = pythonCmd.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = uvPath,
+            Arguments = $"run{CoquiUvEnvironment.GetPythonArg()} --directory \"{projectDir}\" python -c \"{escapedCmd}\"",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+
+        try
+        {
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+            using var process = Process.Start(psi);
+            if (process == null)
+                return Array.Empty<string>();
+
+            var stdout = await process.StandardOutput.ReadToEndAsync(linkedCts.Token);
+            await process.WaitForExitAsync(linkedCts.Token);
+
+            if (process.ExitCode != 0)
+                return Array.Empty<string>();
+
+            var trimmed = stdout.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+                return Array.Empty<string>();
+
+            var jsonStart = trimmed.LastIndexOf('[');
+            var jsonEnd = trimmed.LastIndexOf(']');
+            var jsonText = (jsonStart >= 0 && jsonEnd > jsonStart)
+                ? trimmed[jsonStart..(jsonEnd + 1)]
+                : trimmed;
+
+            var names = JsonSerializer.Deserialize<List<string>>(jsonText);
+            return (IReadOnlyList<string>?)names ?? Array.Empty<string>();
+        }
+        catch
+        {
+            return Array.Empty<string>();
+        }
+    }
+
     /// <summary>
     /// Check if a model's files are cached in the HuggingFace hub.
-    /// Scans ALL TTS-related cache directories (not just coqui/TTS),
-    /// since some models may live under different HF repos.
+    /// Scans ALL TTS-related cache directories, since models may
+    /// live under different HF repos.
     /// </summary>
     public static bool IsModelCached(string modelName)
     {
@@ -361,7 +356,6 @@ public sealed class CoquiTtsModelManager
         if (!Directory.Exists(hub))
             return false;
 
-        // Scan all TTS-related cache dirs, matching the Python BuildListCachedCommand approach
         foreach (var cacheDir in Directory.EnumerateDirectories(hub, "models--*"))
         {
             var dirName = Path.GetFileName(cacheDir);
@@ -379,7 +373,6 @@ public sealed class CoquiTtsModelManager
                 var modelPath = Path.Combine(snap, modelName);
                 if (Directory.Exists(modelPath))
                     return true;
-                // Some models store as single .pth file
                 var pthFile = modelPath + ".pth";
                 if (File.Exists(pthFile))
                     return true;
@@ -389,46 +382,29 @@ public sealed class CoquiTtsModelManager
         return false;
     }
 
-    /// <summary>
-    /// Extracts a summary from a build/dependency error for display.
-    /// Returns the most relevant line (e.g. version mismatch) instead
-    /// of the full traceback. Also catches Python runtime errors like
-    /// TypeError which are not build errors but still actionable.
-    /// </summary>
     private static string SummarizeBuildError(string errorText)
     {
         if (string.IsNullOrWhiteSpace(errorText))
             return "Build failed (no details)";
 
-        // Look for actionable lines first
         var lines = errorText.Split('\n');
         foreach (var line in lines)
         {
             var trimmed = line.Trim();
-            // Python version mismatch (build-time check)
             if (trimmed.Contains("requires python", StringComparison.OrdinalIgnoreCase))
                 return trimmed;
-            // RuntimeError in setup.py / build process
             if (trimmed.Contains("RuntimeError", StringComparison.Ordinal))
                 return trimmed;
-            // Build failures
             if (trimmed.Contains("Failed to build", StringComparison.Ordinal))
                 return trimmed;
-            // Python runtime errors (e.g. ModelManager not JSON serializable)
             if (trimmed.Contains("TypeError", StringComparison.Ordinal))
                 return trimmed;
         }
 
-        // Fallback: first non-empty line
         var first = lines.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l));
         return first?.Trim() ?? "Build failed";
     }
 
-    /// <summary>
-    /// True when the error is an actual build/dependency error that requires
-    /// environment changes (not a transient Python runtime error like TypeError).
-    /// Only build errors set <see cref="CoquiUvEnvironment.IsUvBuildBroken"/>.
-    /// </summary>
     private static bool IsBuildError(string errorText)
     {
         if (string.IsNullOrWhiteSpace(errorText)) return false;
@@ -438,27 +414,6 @@ public sealed class CoquiTtsModelManager
             || errorText.Contains("RuntimeError", StringComparison.Ordinal);
     }
 
-    /// <summary>Lists names of locally cached Coqui TTS models (from known list).</summary>
-    /// <summary>
-    /// Returns model names that are currently cached on disk.
-    /// Checks both the live model list (if fetched) and the fallback list.
-    /// </summary>
-    public static IReadOnlyList<string> GetCachedModels()
-    {
-        // Prefer live models if available, fall back to hardcoded list
-        var candidates = (s_liveModels as IReadOnlyList<CoquiTtsModelInfo>)
-                         ?? FallbackModels;
-        return candidates
-            .Where(m => IsModelCached(m.Name))
-            .Select(m => m.Name)
-            .ToList();
-    }
-
-    /// <summary>
-    /// Pre-downloads a Coqui TTS model by invoking <c>uv run python -c</c>
-    /// to instantiate TTS(model_name). This triggers HuggingFace download.
-    /// Logs all uv/Python output for debugging via <c>host.AddMessage</c>.
-    /// </summary>
     public async Task DownloadModelAsync(
         string modelName,
         Action<string, string, long?, long?, bool>? progressCallback = null,
@@ -470,7 +425,6 @@ public sealed class CoquiTtsModelManager
             return;
         }
 
-        // Don't retry doomed builds
         if (CoquiUvEnvironment.IsUvBuildBroken)
         {
             var detail = CoquiUvEnvironment.UvBuildErrorDetail ?? "uv environment is broken";
@@ -501,13 +455,11 @@ public sealed class CoquiTtsModelManager
         using var process = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start uv run for Coqui TTS model download.");
 
-        // Collect all stdout/stderr for debugging
         var stdoutLines = new List<string>();
         var stderrLines = new List<string>();
 
         try
         {
-            // Read both stdout and stderr, logging progress
             var stdoutTask = Task.Run(async () =>
             {
                 var reader = process.StandardOutput;
@@ -516,7 +468,6 @@ public sealed class CoquiTtsModelManager
                     var line = await reader.ReadLineAsync(linkedCts.Token).ConfigureAwait(false);
                     if (line == null) break;
                     stdoutLines.Add(line);
-                    // Log for user visibility
                     if (!string.IsNullOrWhiteSpace(line))
                         _host.AddMessage($"[grey]      [[stdout]] {line}[/]");
                     if (line.Contains("%", StringComparison.Ordinal) || line.Contains("Download", StringComparison.OrdinalIgnoreCase))
@@ -532,10 +483,8 @@ public sealed class CoquiTtsModelManager
                     var line = await reader.ReadLineAsync(linkedCts.Token).ConfigureAwait(false);
                     if (line == null) break;
                     stderrLines.Add(line);
-                    // Log uv/Python stderr for user visibility
                     if (!string.IsNullOrWhiteSpace(line))
                         _host.AddMessage($"[grey]      {EscapeSpectreMarkup(line)}[/]");
-                    // HF download progress often shows percentages on stderr
                     if (line.Contains("%", StringComparison.Ordinal) || line.Contains("Download", StringComparison.OrdinalIgnoreCase) || line.Contains("Fetching", StringComparison.OrdinalIgnoreCase))
                         progressCallback?.Invoke(modelName, $"Downloading: {line.Trim()[..Math.Min(line.Trim().Length, 80)]}", null, null, false);
                 }
@@ -552,8 +501,6 @@ public sealed class CoquiTtsModelManager
                 var errorDetail = !string.IsNullOrWhiteSpace(stderrText) ? stderrText : stdoutText;
                 var summary = SummarizeBuildError(errorDetail);
 
-                // Only mark as permanently broken for actual build/dependency errors
-                // Runtime errors (TypeError, etc.) are transient and retryable.
                 if (IsBuildError(errorDetail))
                     CoquiUvEnvironment.MarkUvBuildBroken(summary);
 
@@ -562,9 +509,6 @@ public sealed class CoquiTtsModelManager
                 throw new InvalidOperationException($"Coqui TTS download failed (exit={process.ExitCode}): {summary}");
             }
 
-            // Python prints "OK" after successful TTS(model_name=...) + del m.
-            // Trust this as a stronger signal than IsModelCached (which can have
-            // false negatives if the model lives under an unexpected HF repo).
             var okInStdout = stdoutText.Contains("OK", StringComparison.Ordinal);
             var isCached = okInStdout || IsModelCached(modelName);
             if (isCached)
@@ -606,7 +550,6 @@ public sealed class CoquiTtsModelManager
 
         var deleted = false;
 
-        // Scan all TTS-related cache dirs (matching IsModelCached)
         foreach (var cacheDir in Directory.EnumerateDirectories(hub, "models--*"))
         {
             var dirName = Path.GetFileName(cacheDir);
@@ -649,17 +592,12 @@ public sealed class CoquiTtsModelInfo
         Description = description;
     }
 
-    /// <summary>
-    /// Derives a user-friendly description from the model path segments.
-    /// E.g. "tts_models/en/ljspeech/vits" → "English · LJSpeech · VITS"
-    /// </summary>
     public static CoquiTtsModelInfo FromModelName(string modelName)
     {
         var parts = modelName.Split('/');
         if (parts.Length < 3)
             return new CoquiTtsModelInfo(modelName, modelName);
 
-        // tts_models / <lang> / <dataset> / <architecture>
         var lang = parts.Length > 1 ? parts[1] : "";
         var dataset = parts.Length > 2 ? parts[2] : "";
         var arch = parts.Length > 3 ? parts[3] : "";

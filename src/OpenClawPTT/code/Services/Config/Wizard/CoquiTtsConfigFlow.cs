@@ -144,30 +144,19 @@ public sealed class CoquiTtsConfigFlow
         IStreamShellHost host, CoquiTtsModelManager modelManager,
         AppConfig config, string? currentModel, CancellationToken ct)
     {
-        // Fetch live model list from Coqui TTS (falls back to hardcoded)
+        var dataDir = config.CustomDataDir ?? config.DataDir;
+
+        // Fetch live model list from Coqui TTS
         var allModels = await CoquiTtsModelManager.GetAvailableModelsAsync(
-            host, config.CustomDataDir ?? config.DataDir, ct);
+            host, dataDir, ct);
 
-        var isFallback = CoquiTtsModelManager.IsUsingFallbackModels;
-
-        // If the model list is from fallback, show a prominent warning before
-        // presenting the model selection list so the user knows what they're seeing.
-        if (isFallback)
+        if (allModels.Count == 0)
         {
             host.AddMessage("");
-            host.AddMessage("[bold yellow]  \u2500\u2500\u2500 Using Built-in (Offline) Model List \u2500\u2500\u2500[/]");
-            host.AddMessage("[grey]    These are well-known Coqui TTS models hardcoded in OpenClawPTT.[/]");
-            host.AddMessage("[grey]    Live models from coqui/TTS could not be fetched. See errors above.[/]");
-            host.AddMessage("[grey]    Fix uv/Python issues and re-run to get the live model catalogue.[/]");
-            host.AddMessage("");
+            host.AddMessage("[red]  ✗ No models available — live fetch from coqui/TTS failed.[/]");
+            host.AddMessage("[grey]    Check the errors above and fix uv/Python issues.[/]");
+            host.AddMessage("[grey]    Then re-run /reconfigure TTS to select a model.[/]");
 
-            // If uv's dependency resolution itself broke (build error, not just timeout/missing),
-            // there's no point in showing a model selection — the user needs to fix uv first.
-            // Keep the current model and let them come back after fixing the environment.
-            //
-            // NOTE: Only real build/dependency errors block model selection.
-            // Python runtime errors (TypeError, etc.) are transient — the user should
-            // still be able to browse the fallback model list.
             var errorDetail = CoquiTtsModelManager.LastFetchErrorDetail;
             var isUvBuildBroken = !string.IsNullOrEmpty(errorDetail) &&
                 (errorDetail.Contains("Failed to build", StringComparison.Ordinal) ||
@@ -175,26 +164,25 @@ public sealed class CoquiTtsConfigFlow
                  errorDetail.Contains("build backend", StringComparison.Ordinal));
             if (isUvBuildBroken)
             {
-                host.AddMessage("[yellow]  The uv environment could not be set up (build/dependency error).[/]");
-                host.AddMessage("[grey]    Fix the issues above, then re-run /reconfigure TTS to select a model.[/]");
                 if (!string.IsNullOrEmpty(currentModel))
                     host.AddMessage($"[grey]    Current model: {currentModel}[/]");
-                return currentModel; // Keep current model, skip selection
+                return currentModel;
             }
         }
 
+        // Use Python to get actually-cached model paths (accurate)
         var cachedModels = new HashSet<string>(
-            CoquiTtsModelManager.GetCachedModels(),
+            await CoquiTtsModelManager.GetCachedModelsAsync(host, dataDir, ct),
             StringComparer.Ordinal);
 
         string? result = null;
-        var currentModelRef = currentModel; // captured for closure
+        var currentModelRef = currentModel;
 
         while (result == null)
         {
             ct.ThrowIfCancellationRequested();
 
-            List<IVariantEntry> variants = BuildVariants(allModels, cachedModels, currentModelRef, isFallback: isFallback);
+            List<IVariantEntry> variants = BuildVariants(allModels, cachedModels, currentModelRef);
             variants.Add(new ConfigDecoration(""));
             variants.Add(new ConfigVariant("[grey]Cancel[/]", CancelSentinel));
 
@@ -228,11 +216,10 @@ public sealed class CoquiTtsConfigFlow
                     {
                         host.AddMessage($"[green]  ✓ Removed {modelName}[/]");
                         cachedModels = new HashSet<string>(
-                            CoquiTtsModelManager.GetCachedModels(),
+                            await CoquiTtsModelManager.GetCachedModelsAsync(host, dataDir, ct),
                             StringComparer.Ordinal);
-                        // Refresh live model list after removal
                         allModels = await CoquiTtsModelManager.GetAvailableModelsAsync(
-                            host, config.CustomDataDir ?? config.DataDir, ct);
+                            host, dataDir, ct);
                     }
                     else
                     {
@@ -291,22 +278,12 @@ public sealed class CoquiTtsConfigFlow
 
     private static List<IVariantEntry> BuildVariants(
         IReadOnlyList<CoquiTtsModelInfo> allModels,
-        HashSet<string> cachedModels, string? currentModel,
-        bool isFallback = false)
+        HashSet<string> cachedModels, string? currentModel)
     {
         var variants = new List<IVariantEntry>(allModels.Count * 3 + 10);
 
-        // ── Source indicator header ──
-        if (isFallback)
-        {
-            variants.Add(new ConfigDecoration(
-                "[bold yellow]── Built-in list (uv not available) ──[/]"));
-        }
-        else
-        {
-            variants.Add(new ConfigDecoration(
-                "[bold green]── Live from Coqui TTS ──[/]"));
-        }
+        variants.Add(new ConfigDecoration(
+            $"[bold green]── {allModels.Count} models from Coqui TTS ──[/]"));
 
         // ── Cached models ──
         foreach (var info in allModels)
