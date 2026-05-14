@@ -45,7 +45,9 @@ public sealed class ThemeCommand : ICommand
         _host.AddMessage($"[cyan2]Current theme:[/] [bold]{Markup.Escape(currentName)}[/]");
         _host.AddMessage($"  [grey]Author:[/] {Markup.Escape(current.Author)}");
         _host.AddMessage($"  [grey]Tools header:[/] [{tools.HeaderStyle}]{Markup.Escape(tools.HeaderStyle)}[/]");
-        _host.AddMessage($"  [grey]Code fence style:[/] [{md.CodeFenceStartStyle}]{Markup.Escape(md.CodeFenceStartStyle)}[/]  [grey]Code content:[/] [{md.CodeContentStyle}]{Markup.Escape(md.CodeContentStyle)}[/]");
+        _host.AddMessage($"  [grey]Code fence start:[/] [dim]{Markup.Escape(md.CodeFenceStartMarkup)}[/]");
+        _host.AddMessage($"  [grey]Code fence end:[/]   [dim]{Markup.Escape(md.CodeFenceEndMarkup)}[/]");
+        _host.AddMessage($"  [grey]Code content:[/] [{md.CodeContentStyle}]{Markup.Escape(md.CodeContentStyle)}[/]");
         _host.AddMessage($"  [grey]Table edges:[/] [{table.EdgeColor}]{Markup.Escape(table.EdgeColor)}[/]");
         _host.AddMessage("");
 

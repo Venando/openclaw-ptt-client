@@ -37,14 +37,17 @@ public sealed class MarkdownTheme
 {
     // ── Code fences ────────────────────────────────────────────────────────
 
-    /// <summary>Style for the opening code fence border line (e.g. "dim").</summary>
-    public string CodeFenceStartStyle { get; set; } = "dim";
+    /// <summary>
+    /// Full Spectre markup for the opening code fence border.
+    /// Includes decorative characters and any label.
+    /// </summary>
+    public string CodeFenceStartMarkup { get; set; } = "[dim]─────────────────[italic]code[/]─────────────────[/]";
 
-    /// <summary>Style for the closing code fence border line (e.g. "dim").</summary>
-    public string CodeFenceEndStyle { get; set; } = "dim";
-
-    /// <summary>Style for the "[italic]code[/]" label inside the start fence (e.g. "italic").</summary>
-    public string CodeFenceLabelStyle { get; set; } = "italic";
+    /// <summary>
+    /// Full Spectre markup for the closing code fence border.
+    /// Includes decorative characters.
+    /// </summary>
+    public string CodeFenceEndMarkup { get; set; } = "[dim]──────────────────────────────────────[/]";
 
     /// <summary>Style for each line of fenced code content (e.g. "default on gray15").</summary>
     public string CodeContentStyle { get; set; } = "default on gray15";
@@ -72,8 +75,11 @@ public sealed class MarkdownTheme
 
     // ── Thematic break ─────────────────────────────────────────────────────
 
-    /// <summary>Style for thematic break / horizontal rules (e.g. "dim").</summary>
-    public string ThematicBreakStyle { get; set; } = "dim";
+    /// <summary>
+    /// Full Spectre markup for thematic break / horizontal rules.
+    /// Includes decorative characters.
+    /// </summary>
+    public string ThematicBreakMarkup { get; set; } = "[dim]────────────────────────────────────────[/]";
 
     // ── Inline formatting (shared by all levels) ───────────────────────────
 

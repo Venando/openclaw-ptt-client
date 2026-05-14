@@ -60,9 +60,9 @@ public static class MarkdownToSpectreConverter
                 inFencedBlock = !inFencedBlock;
 
                 if (inFencedBlock)
-                    result.MyAppendLine($"[{md.CodeFenceStartStyle}]─────────────────[{md.CodeFenceLabelStyle}]code[/]─────────────────[/]");
+                    result.MyAppendLine(md.CodeFenceStartMarkup);
                 else
-                    result.MyAppendLine($"[{md.CodeFenceEndStyle}]──────────────────────────────────────[/]");
+                    result.MyAppendLine(md.CodeFenceEndMarkup);
 
                 continue;
             }
@@ -85,7 +85,7 @@ public static class MarkdownToSpectreConverter
             // ── Thematic break (--- / *** / ___) ────────────────────────────
             if (HrPattern.IsMatch(line))
             {
-                result.MyAppendLine($"[{md.ThematicBreakStyle}]────────────────────────────────────────[/]");
+                result.MyAppendLine(md.ThematicBreakMarkup);
                 continue;
             }
 
