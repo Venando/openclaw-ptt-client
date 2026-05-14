@@ -140,7 +140,7 @@ public sealed class AgentActivityStore : IAgentActivityStore
 
             // Find most recent activity with a timestamp
             if (toolTime is { } tt && (msgTime is null || tt >= msgTime) && (userTime is null || tt >= userTime))
-                return AgentActivityFormatter.Default.FormatTool(lastTool!.ToolName, lastTool.Args);
+                return AgentActivityFormatter.Default.FormatTool(lastTool!.ToolName, lastTool.ArgsJson);
 
             if (msgTime is { } mt && (userTime is null || mt >= userTime))
                 return AgentActivityFormatter.Default.FormatAssistantMessage(lastMsg);

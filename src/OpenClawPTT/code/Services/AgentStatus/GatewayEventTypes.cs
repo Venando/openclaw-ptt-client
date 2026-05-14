@@ -157,12 +157,12 @@ public sealed record ToolEvent
     public long? Ts { get; init; }
 
     // Phase == "start"
-    public JsonElement? Args { get; init; }
+    public string? ArgsJson { get; init; }
 
     // Phase == "result"
     public bool? IsError { get; init; }
     public string? ResultText { get; init; }       // first text content block
-    public JsonElement? ResultDetails { get; init; }
+    public string? ResultDetailsJson { get; init; }
 }
 
 

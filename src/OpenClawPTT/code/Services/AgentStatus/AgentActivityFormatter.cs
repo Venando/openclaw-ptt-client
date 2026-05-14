@@ -29,8 +29,19 @@ public sealed class AgentActivityFormatter
         yield return new WebFetchActivityRenderer();
     }
 
-    public string FormatTool(string toolName, JsonElement? args)
+    public string FormatTool(string toolName, string? argsJson)
     {
+        JsonElement? args = null;
+        if (argsJson is not null)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(argsJson);
+                args = doc.RootElement;
+            }
+            catch { }
+        }
+
         if (_renderers.TryGetValue(toolName, out var renderer))
             return renderer.Render(args);
         return $"Executing {toolName}";

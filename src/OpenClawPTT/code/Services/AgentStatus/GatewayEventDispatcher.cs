@@ -363,7 +363,7 @@ public static class GatewayEventDispatcher
             return null;
 
         string? resultText = null;
-        JsonElement? resultDetails = null;
+        string? resultDetailsJson = null;
         bool? isError = null;
 
         if (phase == "result" && data.TryGetProperty("result", out var result))
@@ -391,12 +391,15 @@ public static class GatewayEventDispatcher
             if (result.TryGetProperty("details", out var details))
             {
                 tracker.MarkNested("result.details");
-                resultDetails = details;
+                resultDetailsJson = details.GetRawText();
             }
         }
-        else if (phase == "start" && data.TryGetProperty("args", out var args))
+
+        string? argsJson = null;
+        if (phase == "start" && data.TryGetProperty("args", out var args))
         {
             tracker.MarkNested("args");
+            argsJson = args.GetRawText();
         }
 
         var evt = new ToolEvent
@@ -408,10 +411,10 @@ public static class GatewayEventDispatcher
             Phase = phase,
             Seq = tracker.FetchInt(p, "seq"),
             Ts = tracker.FetchLong(p, "ts"),
-            Args = phase == "start" && data.TryGetProperty("args", out var a) ? a : null,
+            ArgsJson = argsJson,
             IsError = isError,
             ResultText = resultText,
-            ResultDetails = resultDetails,
+            ResultDetailsJson = resultDetailsJson,
         };
 
         tracker.ReportUnused("session.tool", sessionKey);
