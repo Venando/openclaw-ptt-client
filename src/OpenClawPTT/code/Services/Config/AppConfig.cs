@@ -57,6 +57,8 @@ public sealed class AppConfig
     public string? LastActiveAgentId { get; set; }
     public bool RequireConfirmBeforeSend { get; set; } = false;
 
+    /// <summary>Theme JSON file name (relative to themes folder). Empty = use ThemeConfig defaults.</summary>
+    public string ThemeFile { get; set; } = "";
 
     public string TranscriptionPromptPrefix { get; set; } = "";
     // AudioWrapPrompt and IsAudioEnabled removed — no longer needed
@@ -161,6 +163,10 @@ public sealed class AppConfig
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".openclaw-ptt");
 
+    /// <summary>Full path to the themes folder under DataDir.</summary>
+    [JsonIgnore]
+    public string ThemesDir => Path.Combine(DataDir, "themes");
+
     /// <summary>Short plain-English descriptions for each config property, shown by /config.</summary>
     [JsonIgnore]
     public static readonly IReadOnlyDictionary<string, string> PropertyDescriptions = new Dictionary<string, string>
@@ -244,6 +250,7 @@ public sealed class AppConfig
         ["TtsCodeBlockMode"] = "How to handle code in TTS: summarize, skip, smart",
         ["TtsTooLongFallback"] = "Action when TTS exceeds limit: truncate or skip",
         ["TtsUseDirectLlmSummary"] = "Use direct LLM summary instead of TTS summarizer pipeline",
+        ["ThemeFile"] = "Theme JSON file name (relative to themes/ folder, empty = default theme)",
         ["CustomDataDir"] = "Override for config data directory path",
         ["ConversationNamingPrompt"] = "Prompt template for generating conversation names via Direct LLM. Use {message} as placeholder for the user's first message.",
     };
