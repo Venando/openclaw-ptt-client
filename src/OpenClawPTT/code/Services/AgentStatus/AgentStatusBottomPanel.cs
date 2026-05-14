@@ -158,7 +158,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
 
                 var name = GetAgentName(agentId, sessionKey);
                 var bullet = _store.GetStatusEmoji(sessionKey);
-                var action = _store.GetLastActionDescription(sessionKey) ?? "[grey]…[/]";
+                var action = _store.GetLastActionDescription(sessionKey) ?? "…";
                 var timeAgo = FormatRelativeTime(_store.GetLastActivityTime(sessionKey)) ?? "…";
 
                 _lines.Add(RenderAgentLine(name, bullet, action, timeAgo, selected));

@@ -85,9 +85,9 @@ public sealed class MainAgentsPart : StatusPartBase, IDisposable
         target.Append(' ');
         segWidth += displayName.Length + 1;
 
-        var statusEmoji = Markup.Escape(_tracker.GetStatusEmoji(state.SessionKey));
+        var statusEmoji = _tracker.GetStatusEmoji(state.SessionKey);
         target.Append(statusEmoji);
-        segWidth += CharacterWidth.GetDisplayWidth(statusEmoji);
+        segWidth += CharacterWidth.GetDisplayWidth(Markup.Remove(statusEmoji));
 
         if (_newlyOnlineAgents.Contains(state.SessionKey))
         {
