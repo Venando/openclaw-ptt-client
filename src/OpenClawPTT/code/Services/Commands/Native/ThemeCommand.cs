@@ -38,11 +38,15 @@ public sealed class ThemeCommand : ICommand
     {
         var currentName = _themeService.GetCurrentThemeName();
         var current = _themeService.CurrentTheme;
+        var md = current.Markdown;
+        var tools = current.Tools;
+        var table = current.Table;
 
         _host.AddMessage($"[cyan2]Current theme:[/] [bold]{Markup.Escape(currentName)}[/]");
         _host.AddMessage($"  [grey]Author:[/] {Markup.Escape(current.Author)}");
-        _host.AddMessage($"  [grey]Accent:[/] [{current.AccentColor}]{Markup.Escape(current.AccentColor)}[/]  [grey]Secondary:[/] [{current.SecondaryColor}]{Markup.Escape(current.SecondaryColor)}[/]");
-        _host.AddMessage($"  [grey]Foreground:[/] [{current.ForegroundColor}]{Markup.Escape(current.ForegroundColor)}[/]  [grey]Border:[/] [{current.BorderColor}]{Markup.Escape(current.BorderColor)}[/]");
+        _host.AddMessage($"  [grey]Tools header:[/] [{tools.HeaderStyle}]{Markup.Escape(tools.HeaderStyle)}[/]");
+        _host.AddMessage($"  [grey]Code fence style:[/] [{md.CodeFenceStartStyle}]{Markup.Escape(md.CodeFenceStartStyle)}[/]  [grey]Code content:[/] [{md.CodeContentStyle}]{Markup.Escape(md.CodeContentStyle)}[/]");
+        _host.AddMessage($"  [grey]Table edges:[/] [{table.EdgeColor}]{Markup.Escape(table.EdgeColor)}[/]");
         _host.AddMessage("");
 
         var available = _themeService.GetAvailableThemes();

@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using OpenClawPTT.Services.Themes;
 
 /// <summary>
 /// Handles inline Markdown-to-Spectre conversion: bold, italic, code, links, etc.
 /// This class is used by <see cref="MarkdownToSpectreConverter"/> during block-level
 /// parsing and by <see cref="SpectreTableRenderer"/> for cell content.
+/// All Spectre markup styles are driven by <see cref="ThemeProvider.Current.Markdown"/>.
 /// </summary>
 internal static class SpectreInlineRenderer
 {
@@ -37,6 +39,8 @@ internal static class SpectreInlineRenderer
     /// </summary>
     public static string ConvertInline(string text)
     {
+        var md = ThemeProvider.Current.Markdown;
+
         text = EscapeBracketsExceptLinks(text);
 
         var codePlaceholders = new Dictionary<int, string>();
@@ -50,13 +54,13 @@ internal static class SpectreInlineRenderer
         });
 
         text = ConvertLinksWithFormatting(text);
-        text = ApplyInlineFormatting(text);
+        text = ApplyInlineFormatting(md, text);
 
         for (int i = 0; i < codeIdx; i++)
         {
             text = text.Replace(
                 CodePlaceholderPrefix + i + CodePlaceholderSuffix,
-                "[bold gray89 on darkblue]" + codePlaceholders[i] + "[/]");
+                $"[{md.InlineCodeStyle}]{codePlaceholders[i]}[/]");
         }
 
         return text;
@@ -65,14 +69,14 @@ internal static class SpectreInlineRenderer
     /// <summary>
     /// Applies bold, italic, bold-italic, and strikethrough formatting patterns.
     /// </summary>
-    private static string ApplyInlineFormatting(string text)
+    private static string ApplyInlineFormatting(MarkdownTheme md, string text)
     {
-        text = BoldItalicStars.Replace(text, "[bold italic]$1[/]");
-        text = BoldStars.Replace(text, "[bold]$1[/]");
-        text = BoldUnderscores.Replace(text, "[bold]$1[/]");
-        text = ItalicStars.Replace(text, "[italic]$1[/]");
-        text = ItalicUnderscores.Replace(text, "[italic]$1[/]");
-        text = Strikethrough.Replace(text, "[strikethrough]$1[/]");
+        text = BoldItalicStars.Replace(text, $"[{md.BoldItalicStyle}]$1[/]");
+        text = BoldStars.Replace(text, $"[{md.BoldStyle}]$1[/]");
+        text = BoldUnderscores.Replace(text, $"[{md.BoldStyle}]$1[/]");
+        text = ItalicStars.Replace(text, $"[{md.ItalicStyle}]$1[/]");
+        text = ItalicUnderscores.Replace(text, $"[{md.ItalicStyle}]$1[/]");
+        text = Strikethrough.Replace(text, $"[{md.StrikethroughStyle}]$1[/]");
         return text;
     }
 
@@ -114,12 +118,14 @@ internal static class SpectreInlineRenderer
     /// </summary>
     private static string ConvertLinksWithFormatting(string text)
     {
+        var md = ThemeProvider.Current.Markdown;
+
         return Link.Replace(text, m =>
         {
             string label = m.Groups[1].Value;
             string url = m.Groups[2].Value;
 
-            string formattedLabel = ApplyInlineFormatting(label);
+            string formattedLabel = ApplyInlineFormatting(md, label);
 
             var outerTagMatch = Regex.Match(
                 formattedLabel, @"^\[([a-z0-9 ]+)\](.+)\[/\]$", RegexOptions.Singleline);

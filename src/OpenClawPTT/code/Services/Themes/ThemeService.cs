@@ -52,20 +52,21 @@ public sealed class ThemeService
     /// <summary>
     /// Loads the theme specified in <see cref="AppConfig.ThemeFile"/>.
     /// If ThemeFile is empty or the file can't be loaded, uses <see cref="ThemeConfig.Default"/>.
+    /// Updates <see cref="ThemeProvider.Current"/> so all theme-aware consumers pick up the change.
     /// </summary>
     public ThemeConfig LoadTheme()
     {
         var themeFile = _appConfig.ThemeFile;
         if (string.IsNullOrWhiteSpace(themeFile))
         {
-            _currentTheme = ThemeConfig.Default;
+            ApplyTheme(ThemeConfig.Default);
             return _currentTheme;
         }
 
         var themePath = Path.Combine(_appConfig.ThemesDir, themeFile);
         if (!File.Exists(themePath))
         {
-            _currentTheme = ThemeConfig.Default;
+            ApplyTheme(ThemeConfig.Default);
             return _currentTheme;
         }
 
@@ -75,16 +76,16 @@ public sealed class ThemeService
             var loaded = JsonSerializer.Deserialize<ThemeConfig>(json, JsonOpts);
             if (loaded == null)
             {
-                _currentTheme = ThemeConfig.Default;
+                ApplyTheme(ThemeConfig.Default);
                 return _currentTheme;
             }
-            _currentTheme = loaded;
+            ApplyTheme(loaded);
             return _currentTheme;
         }
         catch (JsonException)
         {
             // JSON parse error — fall back to defaults
-            _currentTheme = ThemeConfig.Default;
+            ApplyTheme(ThemeConfig.Default);
             return _currentTheme;
         }
     }
@@ -154,9 +155,9 @@ public sealed class ThemeService
                 return false;
 
             var oldTheme = _currentTheme;
-            _currentTheme = loaded;
+            ApplyTheme(loaded);
             var fileNameOnly = Path.GetFileNameWithoutExtension(fileName);
-            ThemeChanged?.Invoke(this, new ThemeChangedEventArgs(oldTheme, loaded, fileNameOnly));
+            ThemeChanged?.Invoke(this, new ThemeChangedEventArgs(oldTheme, _currentTheme, fileNameOnly));
             return true;
         }
         catch (JsonException)
@@ -194,19 +195,23 @@ public sealed class ThemeService
         return !string.IsNullOrWhiteSpace(name) ? name : "Default";
     }
 
+    /// <summary>
+    /// Applies the given ThemeConfig as the current theme both locally
+    /// and via <see cref="ThemeProvider.Current"/>.
+    /// </summary>
+    private void ApplyTheme(ThemeConfig theme)
+    {
+        _currentTheme = theme;
+        ThemeProvider.Current = theme;
+    }
+
+    /// <summary>
+    /// Compares two ThemeConfig instances by serializing them to JSON.
+    /// </summary>
     private static bool ThemesEqual(ThemeConfig a, ThemeConfig b)
     {
-        return string.Equals(a.Name, b.Name, StringComparison.Ordinal) &&
-               string.Equals(a.Author, b.Author, StringComparison.Ordinal) &&
-               string.Equals(a.AccentColor, b.AccentColor, StringComparison.Ordinal) &&
-               string.Equals(a.SecondaryColor, b.SecondaryColor, StringComparison.Ordinal) &&
-               string.Equals(a.ForegroundColor, b.ForegroundColor, StringComparison.Ordinal) &&
-               string.Equals(a.SuccessColor, b.SuccessColor, StringComparison.Ordinal) &&
-               string.Equals(a.WarningColor, b.WarningColor, StringComparison.Ordinal) &&
-               string.Equals(a.ErrorColor, b.ErrorColor, StringComparison.Ordinal) &&
-               string.Equals(a.InfoColor, b.InfoColor, StringComparison.Ordinal) &&
-               string.Equals(a.BorderColor, b.BorderColor, StringComparison.Ordinal) &&
-               string.Equals(a.SelectionBackground, b.SelectionBackground, StringComparison.Ordinal) &&
-               string.Equals(a.MutedColor, b.MutedColor, StringComparison.Ordinal);
+        var jsonA = JsonSerializer.Serialize(a, JsonOpts);
+        var jsonB = JsonSerializer.Serialize(b, JsonOpts);
+        return string.Equals(jsonA, jsonB, StringComparison.Ordinal);
     }
 }

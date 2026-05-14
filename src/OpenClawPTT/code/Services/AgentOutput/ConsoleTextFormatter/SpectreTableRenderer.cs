@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Spectre.Console;
 using OpenClawPTT;
+using OpenClawPTT.Services.Themes;
 using static SpectreInlineRenderer;
 
 /// <summary>
@@ -35,10 +36,12 @@ internal sealed class MarkdownTable
 /// <summary>
 /// Renders Markdown tables as Spectre.Console markup with box-drawing characters,
 /// word-aware cell wrapping, and proportional column width distribution.
+/// Table edge colors are driven by <see cref="ThemeProvider.Current.Table.EdgeColor"/>.
 /// </summary>
 internal static class SpectreTableRenderer
 {
-    private const string TableEdgesMarkup = "deepskyblue3";
+    /// <summary>Gets the current table edge color from the active theme.</summary>
+    private static string TableEdgesMarkup => ThemeProvider.Current.Table.EdgeColor;
 
     /// <summary>
     /// Minimum display width per column in characters. Prevents columns from being
