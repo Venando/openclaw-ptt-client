@@ -14,13 +14,12 @@ public sealed class WebFetchToolRenderer : ToolRendererBase
     {
         if (args.TryGetProperty("url", out var urlProp))
         {
-            var url = urlProp.GetString() ?? "";
-            url = url.Replace("https://", "").Replace("http://", "").Replace("www.", "");
-            PrintValue(url, ConsoleColor.Gray);
+            string url = urlProp.GetString() ?? "";
+            PrintValue(url, Style.Reader.FetchUrl);
         }
         if (args.TryGetProperty("maxChars", out var maxCharsProp))
         {
-            Output.Print($" (max {maxCharsProp.GetInt32()} chars)", ConsoleColor.DarkGray);
+            Output.Print($" (max {maxCharsProp.GetInt32()} chars)", Style.Reader.FetchMaxInfo);
         }
     }
 }

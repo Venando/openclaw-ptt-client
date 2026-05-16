@@ -1,5 +1,6 @@
 using System.Text;
 using OpenClawPTT.Formatting;
+using OpenClawPTT.Services.Themes;
 using Spectre.Console;
 
 namespace OpenClawPTT.Services.StatusParts;
@@ -15,9 +16,10 @@ public sealed class MainAgentsPart : StatusPartBase, IDisposable
 
     private const int MaxAgentNameLength = 10;
     private const string NoAgentsText = "No agents connected";
-    private const string NoAgentsTextMarkup = $"[grey]{NoAgentsText}[/]";
+    private static string NoAgentsTextMarkup
+        => $"[{ThemeProvider.Current.Tools.StatusBar.NoAgentsText}]{NoAgentsText}[/]";
 
-    private const string ReadyEmoji = "[green]•[/]";
+    private static string ReadyEmoji => $"[{ThemeProvider.Current.Tools.Messages.Success}]•[/]";
     private const string NotificationEmoji = "❗";
 
     private readonly IAgentActivityStore _tracker;
@@ -74,7 +76,7 @@ public sealed class MainAgentsPart : StatusPartBase, IDisposable
         segWidth += CharacterWidth.GetDisplayWidth(emoji) + 1;
 
         var color = Markup.Escape(
-            AgentSettingsPersistenceLegacy.GetPersistedColor(registryAgent.AgentId) ?? "grey");
+            AgentSettingsPersistenceLegacy.GetPersistedColor(registryAgent.AgentId) ?? ThemeProvider.Current.Tools.General.Muted);
         var displayName = FormatAgentName(registryAgent.Name);
 
         target.Append('[');
@@ -140,13 +142,17 @@ public sealed class MainAgentsPart : StatusPartBase, IDisposable
                 return;
             }
 
-            Builder.Append('│');
+            var openPipeStyle = ThemeProvider.Current.Tools.Messages.PanelCap;
+            Builder.Append($"[{openPipeStyle}]│[/]");
             bool first = true;
 
             foreach (var (state, registryAgent) in _visible)
             {
                 if (!first)
-                    Builder.Append(" [white bold]│[/] ");
+                {
+                    var pipeStyle = ThemeProvider.Current.Tools.StatusBar.SegmentPipe;
+                    Builder.Append($" [{pipeStyle}]│[/] ");
+                }
                 first = false;
 
                 RenderAgentSegment(Builder, state, registryAgent);

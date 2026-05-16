@@ -2,6 +2,8 @@ namespace OpenClawPTT.Formatting;
 
 /// <summary>
 /// Maps System.ConsoleColor values to Spectre.Console color names.
+/// Retained for legacy callers; new code should use <c>IToolOutput.Print(text, style)</c>
+/// with raw Spectre style strings.
 /// </summary>
 public static class ConsoleColorMapper
 {

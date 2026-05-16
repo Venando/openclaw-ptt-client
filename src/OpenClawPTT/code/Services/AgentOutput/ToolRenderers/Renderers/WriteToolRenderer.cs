@@ -14,12 +14,7 @@ public sealed class WriteToolRenderer : ToolRendererBase
     {
         if (args.TryGetProperty("path", out var pathProp))
         {
-            Output.PrintLine(FilePathDisplayHelper.FormatDisplayPath(pathProp.GetString() ?? ""), ConsoleColor.Gray);
-        }
-        if (args.TryGetProperty("content", out var contentProp))
-        {
-            var content = contentProp.GetString() ?? "";
-            Output.PrintTruncated(content, "", rightMarginIndent, maxRows: 8);
+            Output.PrintLine(FilePathDisplayHelper.FormatDisplayPath(pathProp.GetString() ?? ""), Style.General.Label);
         }
     }
 }

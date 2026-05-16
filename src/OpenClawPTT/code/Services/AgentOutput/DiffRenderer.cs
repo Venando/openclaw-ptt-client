@@ -1,9 +1,11 @@
+using OpenClawPTT.Services.Themes;
 using Spectre.Console;
 
 namespace OpenClawPTT.Services;
 
 /// <summary>
 /// Renders diff results to tool output with color coding.
+/// Colors driven from <see cref="ThemeProvider.Current.Tools"/>.
 /// </summary>
 public sealed class DiffRenderer
 {
@@ -22,14 +24,10 @@ public sealed class DiffRenderer
     public void RenderDiff(DiffResult result, int maxRows = 30)
     {
         if (result.Entries.Count == 0 || result.IsEmpty)
-        {
             return;
-        }
 
-        // Compact: prioritize changed lines, keep only 1-2 context lines
         var displayLines = CompactDiff(result.Entries);
 
-        // Enforce maxRows
         bool hasMore = displayLines.Count > maxRows;
         var shown = hasMore ? displayLines.Take(maxRows).ToList() : displayLines;
 
@@ -44,7 +42,8 @@ public sealed class DiffRenderer
             int shownAdded = shown.Count(d => d.Operation == DiffOperation.Add);
             int remainingRemoved = result.Removals - shownRemoved;
             int remainingAdded = result.Additions - shownAdded;
-            _output.PrintMarkup($"  [dim]... {displayLines.Count - maxRows} more changes (-{remainingRemoved} +{remainingAdded})[/]\n");
+            var tools = ThemeProvider.Current.Tools;
+            _output.PrintMarkup($"  [{tools.General.TruncatedMore}]... {displayLines.Count - maxRows} more changes (-{remainingRemoved} +{remainingAdded})[/]\n");
         }
     }
 
@@ -53,10 +52,11 @@ public sealed class DiffRenderer
     /// </summary>
     public void RenderDiffLine(DiffEntry entry)
     {
+        var tools = ThemeProvider.Current.Tools;
         string markup = entry.Operation switch
         {
-            DiffOperation.Add => $"[default on springgreen4]+ {Markup.Escape(entry.Line)}[/]\n",
-            DiffOperation.Remove => $"[default on darkred]- {Markup.Escape(entry.Line)}[/]\n",
+            DiffOperation.Add => $"[{tools.Diff.Added}]+ {Markup.Escape(entry.Line)}[/]\n",
+            DiffOperation.Remove => $"[{tools.Diff.Removed}]- {Markup.Escape(entry.Line)}[/]\n",
             _ => $"  {Markup.Escape(entry.Line)}\n"
         };
         _output.PrintMarkup(markup);
@@ -67,14 +67,11 @@ public sealed class DiffRenderer
     /// </summary>
     public void RenderPlainText(string text, string prefix, int rightMarginIndent, int maxRows = 8)
     {
-        _output.Print(prefix, ConsoleColor.DarkGray);
-        _output.PrintTruncated(text, prefix, rightMarginIndent, ConsoleColor.White, maxRows);
+        var tools = ThemeProvider.Current.Tools;
+        _output.Print(prefix, tools.Diff.Prefix);
+        _output.PrintTruncated(text, prefix, rightMarginIndent, tools.General.Value, maxRows);
     }
 
-    /// <summary>
-    /// Compact diff entries for display: keeps all Add/Remove lines but
-    /// limits unchanged context lines to at most 2 before/after each change.
-    /// </summary>
     private static List<DiffEntry> CompactDiff(List<DiffEntry> diff)
     {
         int n = diff.Count;
@@ -85,7 +82,6 @@ public sealed class DiffRenderer
             if (diff[i].Operation == DiffOperation.Equal)
                 continue;
 
-            // Found a change — mark nearby Equal lines as context
             for (int j = Math.Max(0, i - 2); j < i; j++)
                 if (diff[j].Operation == DiffOperation.Equal)
                     keepEqual[j] = true;

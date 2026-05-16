@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Themes;
 
 namespace OpenClawPTT.Transcriber;
 
@@ -167,7 +168,7 @@ public sealed class FasterWhisperModelManager
             return;
         }
 
-        _host.AddMessage($"[grey]    Starting download of faster-whisper/{modelName}...[/]");
+        _host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]    Starting download of faster-whisper/{modelName}...[/]");
         progressCallback?.Invoke(modelName, "Starting download (uv resolving)...", null, null, false);
 
         var pythonCmd = FasterWhisperEnvironment.BuildPreDownloadCommand(modelName);
@@ -195,7 +196,7 @@ public sealed class FasterWhisperModelManager
                     if (line == null) break;
                     stdoutLines.Add(line);
                     if (!string.IsNullOrWhiteSpace(line))
-                        _host.AddMessage($"[grey]      [[stdout]] {line}[/]");
+                        _host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]      [[stdout]] {line}[/]");
                 }
             }, linkedCts.Token);
 
@@ -208,7 +209,7 @@ public sealed class FasterWhisperModelManager
                     if (line == null) break;
                     stderrLines.Add(line);
                     if (!string.IsNullOrWhiteSpace(line))
-                        _host.AddMessage($"[grey]      [stderr] {line}[/]");
+                        _host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]      [stderr] {line}[/]");
                     if (line.Contains("%", StringComparison.Ordinal) || line.Contains("Download", StringComparison.OrdinalIgnoreCase))
                         progressCallback?.Invoke(modelName, "Downloading...", null, null, false);
                 }
@@ -221,22 +222,22 @@ public sealed class FasterWhisperModelManager
 
             if (process.ExitCode != 0)
             {
-                _host.AddMessage($"[red]    Download failed (exit={process.ExitCode}): {stderrText.Trim()}[/]");
+                _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Error}]    Download failed (exit={process.ExitCode}): {stderrText.Trim()}[/]");
                 progressCallback?.Invoke(modelName, $"Failed (exit={process.ExitCode})", null, null, false);
                 throw new InvalidOperationException(
                     $"faster-whisper model download failed (exit={process.ExitCode}): {stderrText.Trim()}");
             }
 
-            _host.AddMessage($"[grey]    Process exited OK. Checking cache...[/]");
+            _host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]    Process exited OK. Checking cache...[/]");
             var isCached = IsModelCached(modelName);
             if (isCached)
             {
-                _host.AddMessage($"[green]    ✓ Model {modelName} cached successfully.[/]");
+                _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]    ✓ Model {modelName} cached successfully.[/]");
                 progressCallback?.Invoke(modelName, "Download complete", null, null, true);
             }
             else
             {
-                _host.AddMessage($"[yellow]    ⚠ Process completed but model not found in cache. See stdout/stderr above.[/]");
+                _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Warning}]    ⚠ Process completed but model not found in cache. See stdout/stderr above.[/]");
                 progressCallback?.Invoke(modelName,
                     "Process completed but model not found in cache", null, null, false);
             }
@@ -244,14 +245,14 @@ public sealed class FasterWhisperModelManager
         catch (OperationCanceledException)
         {
             try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
-            _host.AddMessage("[yellow]    Download cancelled.[/]");
+            _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Warning}]    Download cancelled.[/]");
             progressCallback?.Invoke(modelName, "Cancelled", null, null, false);
             throw;
         }
         catch (Exception ex) when (ex is not InvalidOperationException)
         {
             try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
-            _host.AddMessage($"[red]    Download error: {ex.Message}[/]");
+            _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Error}]    Download error: {ex.Message}[/]");
             progressCallback?.Invoke(modelName, $"Failed: {ex.Message}", null, null, false);
             throw;
         }

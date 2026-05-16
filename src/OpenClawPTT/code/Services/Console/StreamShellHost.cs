@@ -1,3 +1,4 @@
+using OpenClawPTT.Services.Themes;
 using StreamShell;
 
 namespace OpenClawPTT.Services;
@@ -42,6 +43,8 @@ public sealed class StreamShellHost : IStreamShellHost, IDisposable
         }
     }
 
+    public void SetRenderChunkSize(int size) => _host.Settings.RenderChunkSize = size;
+
     public event Action<StreamShell.UserInputSubmittedEventArgs>? UserInputSubmitted
     {
         add => _host.UserInputSubmitted += value;
@@ -81,6 +84,22 @@ public sealed class StreamShellHost : IStreamShellHost, IDisposable
     public void SetRightMarginIndent(int margin) => _host.Settings.WrappingRightMargin = margin;
     public void SetInputPrefix(string prefix) => _host.Settings.InputPrefix = prefix;
     public void SetContinuationPrefix(string prefix) => _host.Settings.ContinuationPrefix = prefix;
+    public void SetCursorMarkup(string markup) => _host.Settings.CursorMarkup = markup;
+    public void SetSelectionMarkup(string markup) => _host.Settings.SelectionMarkup = markup;
+    public void SetCommandSlashMarkup(string markup) => _host.Settings.CommandSlashMarkup = markup;
+
+    public void ApplyStreamShellTheme(int prefixWidth)
+    {
+        var t = ThemeProvider.Current.Tools;
+        _host.Settings.CursorMarkup = t.StreamShell.CursorMarkup;
+        _host.Settings.SelectionMarkup = t.StreamShell.SelectionMarkup;
+        _host.Settings.CommandSlashMarkup = t.StreamShell.CommandSlashMarkup;
+
+        // Build input prefix: theme style + dynamic spacing to match user message width
+        int wsCount = Math.Max(0, prefixWidth - 2);
+        _host.Settings.InputPrefix = $"[{t.StreamShell.InputPrefixStyle}]{new string(' ', wsCount)}> [/]";
+        _host.Settings.ContinuationPrefix = new string(' ', prefixWidth);
+    }
     public void SetDefaultPanel(StreamShell.IBottomPanel panel) => _host.SetDefaultPanel(panel);
 
     public void SetBottomPanel(StreamShell.IBottomPanel panel) => _host.SetBottomPanel(panel);

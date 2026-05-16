@@ -1,3 +1,5 @@
+using OpenClawPTT.Services.Themes;
+
 namespace OpenClawPTT.Services;
 
 /// <summary>
@@ -407,10 +409,10 @@ public sealed class AgentActivityStore : IAgentActivityStore
 /// </summary>
 internal static class AgentStatusEmoji
 {
-    public const string Ready = "[green]•[/]";
+    public static string Ready => $"[{ThemeProvider.Current.Tools.Messages.Success}]•[/]";
     public const string Aborted = "▶";
     public const string ToolExecuting = "▶";
-    public const string Finished = "[green]•[/]";
+    public static string Finished => $"[{ThemeProvider.Current.Tools.Messages.Success}]•[/]";
     public const string Spawning = "▶";
     public const string UnknownSubagent = "◘";
     public const string Yielding = "▶";

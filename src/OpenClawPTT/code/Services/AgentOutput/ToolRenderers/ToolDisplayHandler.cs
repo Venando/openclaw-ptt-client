@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using OpenClawPTT.Services.Themes;
 using Spectre.Console;
 
 namespace OpenClawPTT.Services;
@@ -80,7 +81,8 @@ public sealed class ToolDisplayHandler
 
         string icon = ToolIcons.TryGetValue(toolName, out var i) ? i : "🔧";
         string displayName = string.Join(" ", toolName.Split('_').Select(w => char.ToUpper(w[0]) + w[1..]));
-        string headerLine = $"[gray93 on #333333]  {icon} {displayName}[/]  ";
+        var toolsTheme = ThemeProvider.Current.Tools;
+        string headerLine = $"[{toolsTheme.HeaderStyle}]  {icon} {displayName}[/]  ";
 
 
         if (string.IsNullOrWhiteSpace(arguments))
@@ -108,7 +110,8 @@ public sealed class ToolDisplayHandler
         }
         catch
         {
-            _shellHost?.AddMessage($"[grey]  {Markup.Escape(arguments)}[/]");
+            var tools = ThemeProvider.Current.Tools;
+            _shellHost?.AddMessage($"[{tools.General.Muted}]  {Markup.Escape(arguments)}[/]");
         }
 
         _output.PrintLine("");

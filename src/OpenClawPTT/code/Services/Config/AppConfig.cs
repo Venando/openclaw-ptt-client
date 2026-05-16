@@ -57,6 +57,8 @@ public sealed class AppConfig
     public string? LastActiveAgentId { get; set; }
     public bool RequireConfirmBeforeSend { get; set; } = false;
 
+    /// <summary>Theme JSON file name (relative to themes folder). Empty = use ThemeConfig defaults.</summary>
+    public string ThemeFile { get; set; } = "";
 
     public string TranscriptionPromptPrefix { get; set; } = "";
     // AudioWrapPrompt and IsAudioEnabled removed — no longer needed
@@ -72,7 +74,6 @@ public sealed class AppConfig
     // Text formatting
     public int RightMarginIndent { get; set; } = 5; // Minimum right margin indent in characters
     public bool EnableWordWrap { get; set; } = true; // Enable word wrapping and margin indent
-    public string UserMessagePrefix { get; set; } = "[green] Me:[/] ";
 
     /// <summary>The right-edge margin reserved for display, computed once after loading config.
     /// Equals max(RightMarginIndent, 10% of console width).</summary>
@@ -162,6 +163,10 @@ public sealed class AppConfig
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".openclaw-ptt");
 
+    /// <summary>Full path to the themes folder under DataDir.</summary>
+    [JsonIgnore]
+    public string ThemesDir => Path.Combine(DataDir, "themes");
+
     /// <summary>Short plain-English descriptions for each config property, shown by /config.</summary>
     [JsonIgnore]
     public static readonly IReadOnlyDictionary<string, string> PropertyDescriptions = new Dictionary<string, string>
@@ -203,7 +208,7 @@ public sealed class AppConfig
         ["ReconnectDelaySeconds"] = "Gateway reconnection delay in seconds",
         ["RightMarginIndent"] = "Right margin indent for word-wrap in characters",
         ["EnableWordWrap"] = "Enable word-wrap and right margin",
-        ["UserMessagePrefix"] = "Prefix for user's own messages (Spectre markup, e.g. ' [green] You:[/] ')",
+
         ["VisualMode"] = "Recording indicator visual style: Dot, SolidDot, Bar",
         ["VisualFeedbackEnabled"] = "Show visual recording indicator",
         ["VisualFeedbackPosition"] = "Indicator position: TopRight, TopLeft, BottomRight, BottomLeft",
@@ -246,6 +251,7 @@ public sealed class AppConfig
         ["TtsCodeBlockMode"] = "How to handle code in TTS: summarize, skip, smart",
         ["TtsTooLongFallback"] = "Action when TTS exceeds limit: truncate or skip",
         ["TtsUseDirectLlmSummary"] = "Use direct LLM summary instead of TTS summarizer pipeline",
+        ["ThemeFile"] = "Theme JSON file name (relative to themes/ folder, empty = default theme)",
         ["CustomDataDir"] = "Override for config data directory path",
         ["ConversationNamingPrompt"] = "Prompt template for generating conversation names via Direct LLM. Use {message} as placeholder for the user's first message.",
     };

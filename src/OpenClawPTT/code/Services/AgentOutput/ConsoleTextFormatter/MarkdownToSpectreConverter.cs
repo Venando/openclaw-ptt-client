@@ -1,10 +1,12 @@
 using System;
 using System.Text;
 using System.Text.RegularExpressions;
+using OpenClawPTT.Services.Themes;
 using static SpectreInlineRenderer;
 
 /// <summary>
 /// Converts a Markdown string (.md) into an equivalent Spectre.Console markup string.
+/// All Spectre markup styles are driven by <see cref="ThemeProvider.Current"/>.
 /// </summary>
 /// <remarks>
 /// Supported Markdown constructs:
@@ -33,11 +35,15 @@ public static class MarkdownToSpectreConverter
     /// <summary>
     /// Converts <paramref name="markdown"/> to a Spectre.Console markup string
     /// with an available width for table layout (to avoid overflowing the console).
+    /// All spectre style tags are resolved from <see cref="ThemeProvider.Current"/>.
     /// </summary>
     public static string Convert(string markdown, int availableWidth = int.MaxValue)
     {
         if (markdown is null) throw new ArgumentNullException(nameof(markdown));
         if (availableWidth <= 0) availableWidth = int.MaxValue;
+
+        var theme = ThemeProvider.Current;
+        var md = theme.Markdown;
 
         var lines = markdown.Replace("\r\n", "\n").Split('\n');
         var result = new StringBuilder();
@@ -54,16 +60,16 @@ public static class MarkdownToSpectreConverter
                 inFencedBlock = !inFencedBlock;
 
                 if (inFencedBlock)
-                    result.MyAppendLine("[dim]─────────────────[italic]code[/]─────────────────[/]");
+                    result.MyAppendLine(md.CodeFenceStartMarkup);
                 else
-                    result.MyAppendLine("[dim]──────────────────────────────────────[/]");
+                    result.MyAppendLine(md.CodeFenceEndMarkup);
 
                 continue;
             }
 
             if (inFencedBlock)
             {
-                result.MyAppendLine($"[default on gray15]{EscapeBrackets(line)}[/]");
+                result.MyAppendLine($"[{md.CodeContentStyle}]{EscapeBrackets(line)}[/]");
                 continue;
             }
 
@@ -79,7 +85,7 @@ public static class MarkdownToSpectreConverter
             // ── Thematic break (--- / *** / ___) ────────────────────────────
             if (HrPattern.IsMatch(line))
             {
-                result.MyAppendLine("[dim]────────────────────────────────────────[/]");
+                result.MyAppendLine(md.ThematicBreakMarkup);
                 continue;
             }
 
@@ -92,9 +98,9 @@ public static class MarkdownToSpectreConverter
 
                 string spectreTag = level switch
                 {
-                    1 => $"[bold underline default on gray27]{content}[/]",
-                    2 => $"[bold underline]{content}[/]",
-                    _ => $"[bold dim]{content}[/]",   // H3–H6
+                    1 => $"[{md.HeadingH1Style}]{content}[/]",
+                    2 => $"[{md.HeadingH2Style}]{content}[/]",
+                    _ => $"[{md.HeadingH3PlusStyle}]{content}[/]",   // H3–H6
                 };
 
                 result.MyAppendLine(spectreTag);
@@ -106,7 +112,7 @@ public static class MarkdownToSpectreConverter
             if (bqMatch.Success)
             {
                 string content = SpectreInlineRenderer.ConvertInline(bqMatch.Groups[1].Value);
-                result.MyAppendLine($"[italic dim]{content}[/]");
+                result.MyAppendLine($"[{md.BlockquoteStyle}]{content}[/]");
                 continue;
             }
 

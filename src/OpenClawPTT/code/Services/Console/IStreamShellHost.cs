@@ -20,6 +20,8 @@ public interface IStreamShellHost
     /// <summary>Removes a previously registered command by name.</summary>
     void RemoveCommand(string name);
 
+    void SetRenderChunkSize(int size);
+
     /// <summary>
     /// Sets the top separator line (between message feed and input block).
     /// LeftText/RightText support Spectre markup. Called frequently to update status info.
@@ -46,6 +48,24 @@ public interface IStreamShellHost
 
     /// <summary>Sets the continuation prefix for wrapped input lines on the underlying StreamShell settings.</summary>
     void SetContinuationPrefix(string prefix);
+
+    /// <summary>Sets the cursor highlight markup on the underlying StreamShell settings.</summary>
+    void SetCursorMarkup(string markup);
+
+    /// <summary>Sets the selection highlight markup on the underlying StreamShell settings.</summary>
+    void SetSelectionMarkup(string markup);
+
+    /// <summary>Sets the command slash character markup on the underlying StreamShell settings.</summary>
+    void SetCommandSlashMarkup(string markup);
+
+    /// <summary>
+    /// Applies all theme-driven StreamShell settings from ThemeConfig.
+    /// </summary>
+    /// <param name="prefixWidth">
+    /// Visual width of the user message prefix in characters, used to align the
+    /// input prompt continuation prefix to match message display width.
+    /// </param>
+    void ApplyStreamShellTheme(int prefixWidth);
 
     /// <summary>Sets the default bottom panel (shown when no command is active).</summary>
     void SetDefaultPanel(StreamShell.IBottomPanel panel);

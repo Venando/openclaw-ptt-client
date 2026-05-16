@@ -75,4 +75,9 @@ public sealed class FakeStreamShellHost : IStreamShellHost, IDisposable
         prop?.SetValue(args, input);
         UserInputSubmitted?.Invoke(args);
     }
+
+    public void SetCursorMarkup(string markup) { }
+    public void SetSelectionMarkup(string markup) { }
+    public void SetCommandSlashMarkup(string markup) { }
+    public void ApplyStreamShellTheme(int prefixWidth) { }
 }

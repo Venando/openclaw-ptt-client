@@ -24,15 +24,15 @@ public sealed class UpdatePlanToolRenderer : ToolRendererBase
             var explanation = explanationProp.GetString();
             if (!string.IsNullOrWhiteSpace(explanation))
             {
-                Output.PrintMarkup($"  [gray] {MarkupEscape(explanation)}[/]");
-                Output.PrintLine("", ConsoleColor.DarkGray);
+                Output.PrintMarkup($"  [{Style.General.Muted}] {MarkupEscape(explanation)}[/]");
+                Output.PrintLine("", Style.General.Muted);
             }
         }
 
         // Plan steps
         if (!args.TryGetProperty("plan", out var planProp) || planProp.ValueKind != JsonValueKind.Array)
         {
-            Output.PrintLine("  (no plan steps)", ConsoleColor.DarkGray);
+            Output.PrintLine("  (no plan steps)", Style.General.Muted);
             return;
         }
 
@@ -57,33 +57,32 @@ public sealed class UpdatePlanToolRenderer : ToolRendererBase
         var (icon, label, color) = GetStatusDisplay(status);
         var statusTag = FormatStatusTag(icon, label, color);
 
-        Output.PrintLine("", ConsoleColor.DarkGray);
+        Output.PrintLine("", Style.General.Muted);
 
         // Step number + status tag
-        Output.PrintMarkup($"  [gray]#{index,2}[/] ");
+        Output.PrintMarkup($"  [{Style.General.Muted}]#{index,2}[/] ");
         Output.PrintMarkup(statusTag);
 
-        // Step description — fill remaining visible width using the status block width
-        Output.PrintMarkup($"  [white]{MarkupEscape(stepText)}[/]");
+        // Step description
+        Output.PrintMarkup($"  [{Style.General.Value}]{MarkupEscape(stepText)}[/]");
     }
 
     private static (string icon, string label, string color) GetStatusDisplay(string status)
     {
         return status.ToLowerInvariant() switch
         {
-            "completed"    => ("✅", "Completed",   "green"),
-            "in_progress"  => ("➡️", "In Progress", "gold3"),
-            "pending"      => ("⭕", "Pending",     "grey"),
-            "skipped"      => ("◇", "Skipped",     "grey42"),
-            _              => ("·", status,        "grey"),
+            "completed"    => ("\u2705", "Completed",   Style.Messages.Success),
+            "in_progress"  => ("\u27a1\ufe0f", "In Progress", Style.Messages.Warning),
+            "pending"      => ("\u2b55", "Pending",     Style.General.Muted),
+            "skipped"      => ("\u25c7", "Skipped",     Style.General.Muted),
+            _              => ("\u00b7", status,        Style.General.Muted),
         };
     }
 
     private static string FormatStatusTag(string icon, string label, string color)
     {
-        // Pad the label so all status tags are the same width (icon + space + zero-width space + label + right-pad)
         var paddedLabel = label.PadRight(StatusWidth);
-        return $"[bold {color}]{icon} {paddedLabel}[/]";
+        return $"[{Style.Messages.Emphasis} {color}]{icon} {paddedLabel}[/]";
     }
 
     private static string MarkupEscape(string text)

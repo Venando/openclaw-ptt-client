@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Themes;
 using Spectre.Console;
 using StreamShell;
 
@@ -38,7 +39,7 @@ public static class PromptTextHelper
 
                 if (allowClear && input == "--")
                 {
-                    host.AddMessage("[green]  ✓ (cleared)[/]");
+                    host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]  ✓ (cleared)[/]");
                     tcs.TrySetResult("");
                     return;
                 }
@@ -50,7 +51,7 @@ public static class PromptTextHelper
 
                 if (!validate(input))
                 {
-                    host.AddMessage($"[red]  ✗ Invalid value.{(validationHint != null ? " " + validationHint : "")}[/]");
+                    host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Error}]  ✗ Invalid value.{(validationHint != null ? " " + validationHint : "")}[/]");
                     SendPrompt(host, description, defaultValue, isSecret);
                     return;
                 }
@@ -63,7 +64,7 @@ public static class PromptTextHelper
                 if (string.IsNullOrWhiteSpace(displayValue))
                     displayValue = "(not set)";
 
-                host.AddMessage($"[green]  ✓ {Markup.Escape(displayValue)}[/]");
+                host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Success}]  ✓ {Markup.Escape(displayValue)}[/]");
                 tcs.TrySetResult(input);
             }
             catch (Exception ex)
@@ -124,10 +125,10 @@ public static class PromptTextHelper
     private static void SendPrompt(IStreamShellHost host, string description, string? defaultValue, bool isSecret)
     {
         host.AddMessage("");
-        host.AddMessage($"[cyan2]▸ {Markup.Escape(description)}[/]");
+        host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Highlight}]▸ {Markup.Escape(description)}[/]");
         var displayDefault = isSecret ? MaskSecret(defaultValue ?? "") : defaultValue;
         if (!string.IsNullOrEmpty(displayDefault))
-            host.AddMessage($"  [grey](current: {Markup.Escape(displayDefault)}, press Enter to keep)[/]");
+            host.AddMessage($"  [{ThemeProvider.Current.Tools.General.Muted}](current: {Markup.Escape(displayDefault)}, press Enter to keep)[/]");
     }
 
     private static string MaskSecret(string value) => ConfigSetupItem.MaskSecret(value);

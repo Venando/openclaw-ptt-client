@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using OpenClawPTT.Services.Themes;
 using StreamShell;
 
 namespace OpenClawPTT.Transcriber;
@@ -47,14 +48,15 @@ public sealed class DownloadProgressBottomPanel : IBottomPanel
         lock (_sync)
         {
             // Line 0: file name and status
-            var statusText = _completed ? "[green]✓[/] " : "[cyan]⬇[/] ";
-            _lines[0] = $"{statusText}[bold]{_fileName}[/] — {_status}";
+            var tools = ThemeProvider.Current.Tools;
+            var statusText = _completed ? $"[{tools.Messages.Success}]✓[/] " : $"[{tools.Messages.Highlight}]⬇[/] ";
+            _lines[0] = $"{statusText}[{tools.Messages.Emphasis}]{_fileName}[/] — {_status}";
 
             // Line 1: progress bar
             if (_completed)
             {
                 var size = FormatSize(_totalBytes);
-                _lines[1] = $"[green]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/] {size}";
+                _lines[1] = $"[{tools.Messages.Success}]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/] {size}";
             }
             else if (_downloadedBytes.HasValue && _totalBytes.HasValue && _totalBytes.Value > 0)
             {
@@ -67,11 +69,11 @@ public sealed class DownloadProgressBottomPanel : IBottomPanel
                 var filledBar = new string('━', Math.Min(filled, 40));
                 var emptyBar = new string('─', Math.Max(0, 40 - filled));
 
-                _lines[1] = $"[cyan]{filledBar}[/][grey]{emptyBar}[/] {pctText}  {downloaded} / {total}";
+                _lines[1] = $"[{tools.Messages.Highlight}]{filledBar}[/][{tools.General.Muted}]{emptyBar}[/] {pctText}  {downloaded} / {total}";
             }
             else
             {
-                _lines[1] = "[grey]Connecting...[/]";
+                _lines[1] = $"[{ThemeProvider.Current.Tools.General.Muted}]Connecting...[/]";
             }
 
             _isDirty = false;

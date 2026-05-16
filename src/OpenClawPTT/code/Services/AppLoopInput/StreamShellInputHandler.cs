@@ -6,6 +6,7 @@ using OpenClawPTT.ConfigWizard;
 using OpenClawPTT.Services;
 using OpenClawPTT.Services.Commands;
 using OpenClawPTT.Services.Diagnostics;
+using OpenClawPTT.Services.Themes;
 using Spectre.Console;
 using StreamShell;
 
@@ -45,6 +46,7 @@ public sealed class StreamShellInputHandler : IDisposable
     public SessionHistoryService HistoryService => _historyService;
 
     private readonly CommandRegistry _registry;
+    private readonly ThemeService _themeService;
 
     // ── Group-tracking state ──────────────────────────────────────────────
     private bool _gatewayCommandsRegistered;
@@ -72,7 +74,8 @@ public sealed class StreamShellInputHandler : IDisposable
         IConversationNamingService? namingService = null,
         ErrorLogStore? errorLogStore = null,
         IStatusService? statusService = null,
-        IConfigWizardOrchestrator? wizard = null)
+        IConfigWizardOrchestrator? wizard = null,
+        ThemeService? themeService = null)
     {
         _host = host;
         _textSender = textSender;
@@ -92,6 +95,15 @@ public sealed class StreamShellInputHandler : IDisposable
         _messageComposer = new TextMessageComposer(host, textSender);
         _historyService = new SessionHistoryService(host, gatewayService, console, pttStateMachine, appConfig);
         _registry = new CommandRegistry(host);
+        _themeService = themeService ?? new ThemeService(appConfig);
+
+        // Initialize theme: ensure example file exists, then load the configured theme
+        _themeService.EnsureExampleFile();
+        _themeService.LoadTheme();
+        _host.ApplyStreamShellTheme(ComputePrefixWidth());
+
+        // Re-apply StreamShell settings on runtime theme swap
+        _themeService.ThemeChanged += (_, _) => _host.ApplyStreamShellTheme(ComputePrefixWidth());
 
         _lastKnownLlmUrl = appConfig.DirectLlmUrl;
         _lastKnownLlmModel = appConfig.DirectLlmModelName;
@@ -121,6 +133,7 @@ public sealed class StreamShellInputHandler : IDisposable
 
         _registry.Register(new AppConfigCommand(_host, _appConfig, _configService));
         _registry.Register(new AppStatusCommand(_host, _statusService, _appConfig));
+        _registry.Register(new ThemeCommand(_host, _themeService));
 
         // ── Wire input handling ────────────────────────────────────────────
         _host.UserInputSubmitted += OnUserInput;
@@ -368,4 +381,11 @@ public sealed class StreamShellInputHandler : IDisposable
             }
         });
     }
+
+    /// <summary>
+    /// Computes the visual width of the user message prefix for input prompt alignment.
+    /// Reads from the active theme so /theme changes realign the prompt.
+    /// </summary>
+    private int ComputePrefixWidth()
+        => Markup.Remove(ThemeProvider.Current.Tools.StatusBar.UserMessagePrefix).Length;
 }

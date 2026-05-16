@@ -1,6 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Themes;
 
 namespace OpenClawPTT.ConfigWizard;
 
@@ -82,7 +83,7 @@ public sealed class SttConfigSection : ConfigSectionBase
                 "Setup Speech-To-Text?", allowCancel: true, cancellationToken: ct);
             if (!setupStt.HasValue || !setupStt.Value)
             {
-                host.AddMessage("[grey]  Skipped STT setup.[/]");
+                host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Info}]  Skipped STT setup.[/]");
                 result.IsChanged = false;
                 return result;
             }

@@ -1,4 +1,7 @@
+using System;
+using System.Linq;
 using OpenClawPTT.Formatting;
+using OpenClawPTT.Services.Themes;
 using Spectre.Console;
 
 namespace OpenClawPTT.Services;
@@ -11,6 +14,7 @@ namespace OpenClawPTT.Services;
 /// via <see cref="IToolOutput"/>, reusing the same pipeline as tool calls.
 /// Mode 4 (Full) renders through <see cref="AgentReplyFormatter"/> like
 /// agent replies, supporting future streaming.
+/// All Spectre styles driven from <see cref="ThemeProvider.Current.Tools"/>.
 /// </summary>
 public sealed class ThinkingDisplayHandler
 {
@@ -51,46 +55,41 @@ public sealed class ThinkingDisplayHandler
     /// </summary>
     private void DisplayEmojiOnly()
     {
-        string header = $"[gray93 on #333333]  💭 Thinking[/] ";
+        var tools = ThemeProvider.Current.Tools;
+        string header = $"[{tools.Thinking.HeaderStyle}]  \U0001f4ad Thinking[/] ";
         _shellHost?.AddMessage(header);
         _shellHost?.AddMessage("");
     }
 
     /// <summary>
     /// Mode 3: Show emoji header + first N lines of thinking, tool-output style.
-    /// Breaks thinking text into lines that fit within the console width,
-    /// accounting for full-width and half-width character differences,
-    /// and respecting <see cref="AppConfig.ThinkingPreviewLines"/>.
     /// </summary>
     private void DisplayFirstNLines(string thinking)
     {
-        string emojiHeader = $"[gray93 on #333333]  💭 Thinking[/] ";
+        var tools = ThemeProvider.Current.Tools;
+        string emojiHeader = $"[{tools.Thinking.HeaderStyle}]  \U0001f4ad Thinking[/] ";
         _toolOutput.Start(emojiHeader);
 
         if (!string.IsNullOrEmpty(thinking))
         {
-            // Available width: min of 80 and console width minus overhead
             int consoleWidth = ConsoleMetrics.GetWindowWidth();
-
-            // Estimate prefix visual width (~5 chars for "  💭 ", variable for rest)
-            int prefixWidth = CharacterWidth.GetDisplayWidth("  💭 Thinking ");
+            int prefixWidth = CharacterWidth.GetDisplayWidth("  \U0001f4ad Thinking ");
             int maxLineWidth = Math.Min(79, consoleWidth - prefixWidth - _config.ReservedRightMargin);
-            if (maxLineWidth < 20) maxLineWidth = 79; // fallback
+            if (maxLineWidth < 20) maxLineWidth = 79;
 
             var wrappedLines = CharacterWidth.WrapToWidth(thinking, maxLineWidth);
-
             var displayLines = wrappedLines.Take(_config.ThinkingPreviewLines).ToList();
             bool hasMore = wrappedLines.Count > _config.ThinkingPreviewLines;
 
             foreach (var line in displayLines)
             {
-                _toolOutput.PrintLine(line, ConsoleColor.Gray);
+                _toolOutput.PrintLine(line, tools.General.Label);
             }
 
             if (hasMore)
             {
                 int remainingLines = wrappedLines.Count - _config.ThinkingPreviewLines;
-                _toolOutput.PrintMarkup($"[dim]... ({remainingLines} more lines)[/]\n");
+                _toolOutput.PrintMarkup($"[{tools.Thinking.MoreStyle}]... ({remainingLines} more lines)[/]\n");
             }
         }
 
@@ -99,31 +98,26 @@ public sealed class ThinkingDisplayHandler
     }
 
     /// <summary>
-    /// Mode 4: Show all thinking through the agent-reply formatting pipeline
-    /// (<see cref="AgentReplyFormatter"/> + <see cref="StreamShellCapturingConsole"/>),
-    /// enabling word-wrapped output. The text is rendered in gray to match tool
-    /// output styling. Ready for future streaming support.
+    /// Mode 4: Show all thinking through the agent-reply formatting pipeline.
     /// </summary>
     private void DisplayFull(string thinking)
     {
         if (_shellHost == null)
             return;
 
+        var tools = ThemeProvider.Current.Tools;
         var capturingConsole = new StreamShellCapturingConsole(_shellHost);
-        string prefix = $"  💭 Thinking: ";
+        string prefix = $"  \U0001f4ad Thinking: ";
         var formatter = new AgentReplyFormatter(
             prefix,
             _config.ReservedRightMargin,
             prefixAlreadyPrinted: false,
             output: capturingConsole);
 
-        // Render thinking text in gray to match tool output style.
-        // Escape brackets so Spectre doesn't interpret them as markup tags,
-        // then wrap in gray color tag.
         var escaped = Markup.Escape(thinking);
-        formatter.ProcessMarkupDelta($"[gray]{escaped}[/]");
+        formatter.ProcessMarkupDelta($"[{tools.Thinking.TextStyle}]{escaped}[/]");
         formatter.Finish();
 
-        capturingConsole.FlushToStreamShell($"[gray93 on #333333]{Markup.Escape(prefix.TrimEnd())}[/]");
+        capturingConsole.FlushToStreamShell($"[{tools.Thinking.HeaderStyle}]{Markup.Escape(prefix.TrimEnd())}[/]");
     }
 }

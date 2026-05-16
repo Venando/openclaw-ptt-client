@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Themes;
 
 namespace OpenClawPTT.Transcriber;
 
@@ -121,7 +122,7 @@ public sealed class WhisperCppModelManager
         }
         catch (Exception ex)
         {
-            _host.AddMessage($"[red][download] failed to download: {ex.Message} [/]");
+            _host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Error}][download] failed to download: {ex.Message} [/]");
             SafeDeleteTempFile(tempPath);
             throw;
         }

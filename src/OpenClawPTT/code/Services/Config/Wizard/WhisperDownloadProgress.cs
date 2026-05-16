@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Themes;
 using OpenClawPTT.Transcriber;
 using StreamShell;
 
@@ -43,11 +44,11 @@ internal static class WhisperDownloadProgress
         }
         catch (OperationCanceledException)
         {
-            host.AddMessage("[yellow]  Download cancelled.[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Warning}]  Download cancelled.[/]");
         }
         catch (Exception ex)
         {
-            host.AddMessage($"[red]  Download failed: {ex.Message}[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Error}]  Download failed: {ex.Message}[/]");
         }
         finally
         {
@@ -82,11 +83,11 @@ internal static class WhisperDownloadProgress
         }
         catch (OperationCanceledException)
         {
-            host.AddMessage("[yellow]  Download cancelled.[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Warning}]  Download cancelled.[/]");
         }
         catch (Exception ex)
         {
-            host.AddMessage($"[red]  Download failed: {ex.Message}[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Error}]  Download failed: {ex.Message}[/]");
         }
         finally
         {
@@ -121,11 +122,11 @@ internal static class WhisperDownloadProgress
         }
         catch (OperationCanceledException)
         {
-            host.AddMessage("[yellow]  Download cancelled.[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Warning}]  Download cancelled.[/]");
         }
         catch (Exception ex)
         {
-            host.AddMessage($"[red]  Download failed: {ex.Message}[/]");
+            host.AddMessage($"[{ThemeProvider.Current.Tools.Messages.Error}]  Download failed: {ex.Message}[/]");
         }
         finally
         {

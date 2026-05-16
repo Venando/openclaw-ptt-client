@@ -1,5 +1,6 @@
 using System.Text;
 using OpenClawPTT.Services.StatusParts;
+using OpenClawPTT.Services.Themes;
 using Spectre.Console;
 using StreamShell;
 
@@ -19,7 +20,8 @@ public sealed class AppStatusBottomPanel : IBottomPanel, IDisposable
 {
     private const int DefaultLineCount = 2;
     private const string NoAgentsInfoText = "No agents connected";
-    private const string NoAgentsInfoTextMarkup = $"[grey]{NoAgentsInfoText}[/]";
+    private static string NoAgentsInfoTextMarkup
+        => $"[{ThemeProvider.Current.Tools.StatusBar.NoAgentsText}]{NoAgentsInfoText}[/]";
 
     private readonly MainAgentsPart _agentsPart;
     private readonly StringBuilder _capBuilder = new(256);
@@ -110,7 +112,8 @@ public sealed class AppStatusBottomPanel : IBottomPanel, IDisposable
                 {
                     // Build the status line via MainAgentsPart
                     var statusBuilder = new StringBuilder(256);
-                    statusBuilder.Append('│');
+                    var openPipeStyle = ThemeProvider.Current.Tools.Messages.PanelCap;
+                    statusBuilder.Append($"[{openPipeStyle}]│[/]");
                     var segmentWidths = new List<int>(visible.Count);
                     int contentWidth = 1;
                     bool first = true;
@@ -119,7 +122,8 @@ public sealed class AppStatusBottomPanel : IBottomPanel, IDisposable
                     {
                         if (!first)
                         {
-                            statusBuilder.Append(" [white bold]│[/] ");
+                            var pipeStyle = ThemeProvider.Current.Tools.StatusBar.SegmentPipe;
+                            statusBuilder.Append($" [{pipeStyle}]│[/] ");
                             contentWidth += 3;
                         }
                         first = false;
@@ -159,7 +163,9 @@ public sealed class AppStatusBottomPanel : IBottomPanel, IDisposable
 
     private string RenderCapLine(List<int> segmentWidths)
     {
+        var capStyle = ThemeProvider.Current.Tools.Messages.PanelCap;
         _capBuilder.Clear();
+        _capBuilder.Append($"[{capStyle}]");
         _capBuilder.Append('╭');
 
         for (int i = 0; i < segmentWidths.Count; i++)
@@ -169,6 +175,7 @@ public sealed class AppStatusBottomPanel : IBottomPanel, IDisposable
                 _capBuilder.Append("─┬─");
         }
 
+        _capBuilder.Append("[/]");
         return _capBuilder.ToString();
     }
 

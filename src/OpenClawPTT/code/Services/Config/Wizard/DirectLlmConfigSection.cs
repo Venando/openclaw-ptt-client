@@ -1,6 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using OpenClawPTT.Services;
+using OpenClawPTT.Services.Themes;
 using StreamShell;
 
 namespace OpenClawPTT.ConfigWizard;
@@ -60,7 +61,7 @@ public sealed class DirectLlmConfigSection : ConfigSectionBase
                 "Setup Direct LLM? (for /llm command and TTS summarization)", allowCancel: true, cancellationToken: ct);
             if (!setupDirectLlm.HasValue || !setupDirectLlm.Value)
             {
-                host.AddMessage("[grey]  Skipped Direct LLM setup.[/]");
+                host.AddMessage($"[{ThemeProvider.Current.Tools.General.Muted}]  Skipped Direct LLM setup.[/]");
                 result.IsChanged = false;
                 return result;
             }
