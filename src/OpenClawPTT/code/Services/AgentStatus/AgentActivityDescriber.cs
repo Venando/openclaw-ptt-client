@@ -28,26 +28,22 @@ public sealed class AgentActivityDescriber
         long? histTime = lastHist?.Timestamp;
         long? toolTime = lastTool?.Ts;
         long? msgTime = lastMsg?.Timestamp;
-        long? userTime = lastUser?.Timestamp;
+        //long? userTime = lastUser?.Timestamp;
 
         // History message is most recent
         if (histTime is { } ht && (toolTime is null || ht >= toolTime)
-            && (msgTime is null || ht >= msgTime) && (userTime is null || ht >= userTime))
+            && (msgTime is null || ht >= msgTime))
         {
             return FormatHistoryAction(lastHist!);
         }
 
         // Tool call
-        if (toolTime is { } tt && (msgTime is null || tt >= msgTime) && (userTime is null || tt >= userTime))
+        if (toolTime is { } tt && (msgTime is null || tt >= msgTime))
             return _formatter.FormatTool(lastTool!.ToolName, lastTool.ArgsJson);
 
         // Assistant message
-        if (msgTime is { } mt && (userTime is null || mt >= userTime))
-            return _formatter.FormatAssistantMessage(null);
-
-        // User message
-        if (userTime is not null && lastUser?.ContentText is { } ct)
-            return _formatter.FormatUserMessage(ct);
+        if (msgTime is { } mt)
+            return _formatter.FormatAssistantMessage(lastMsg!.ContentText);
 
         return null;
     }

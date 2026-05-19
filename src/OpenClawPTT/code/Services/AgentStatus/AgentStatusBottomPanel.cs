@@ -185,6 +185,9 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         // Others: all tracked sessions that aren't active and aren't subagents
         foreach (var sk in trackedSessions)
         {
+            if (sk.Contains("cron") || !sk.Contains("main"))
+                continue;
+
             var state = _store.GetSessionState(sk);
             if (state is null) continue;
 

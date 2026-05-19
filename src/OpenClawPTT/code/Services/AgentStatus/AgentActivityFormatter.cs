@@ -102,12 +102,4 @@ public sealed class AgentActivityFormatter
 
         return formatText.Replace('\n', ' ').Replace("  ", " ");
     }
-
-    public string FormatUserMessage(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text)) return "Sent a message";
-        var trimmed = text.Trim();
-        if (trimmed.Length > 60) return trimmed[..57] + "…";
-        return trimmed;
-    }
 }
