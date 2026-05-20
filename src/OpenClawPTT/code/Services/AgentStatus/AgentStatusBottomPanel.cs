@@ -360,7 +360,7 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
     {
         var consoleWidth = ConsoleMetrics.GetWindowWidth();
 
-        // Left column: "• Name" padded to NameColWidth
+        // Left column: "• Name" padded to NameColWidth (display-width aware)
         var tools = ThemeProvider.Current.Tools;
         var nameDisplay = selected
             ? $"[{tools.Panel.SelectedName}]{name}[/]"
@@ -370,21 +370,28 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
             : nameDisplay;
         var leftCol = $"{bullet} {nameDisplay}";
         int bulletWidth = CharacterWidth.GetDisplayWidth(StripMarkup(bullet));
-        int leftRaw = bulletWidth + 1 + name.Length;
+        int nameDisplayWidth = CharacterWidth.GetDisplayWidth(StripMarkup(name));
+        int leftRaw = bulletWidth + 1 + nameDisplayWidth;
         int leftPad = NameColWidth - leftRaw;
         var leftPadded = leftPad > 0 ? leftCol + new string(' ', leftPad) : leftCol;
 
-        // Action: escape + truncate
-        int usedWidth = NameColWidth + GapAfterName + GapBeforeTime + TimeColWidth;
+        // Action: escape + truncate (using display width, not string length)
+        int usedWidth = NameColWidth + GapAfterName + GapBeforeTime + TimeColWidth + 1;
         int actionMax = consoleWidth - usedWidth;
         var actionRaw = action;
-        if (actionRaw.Length > actionMax && actionMax > 3)
-            actionRaw = actionRaw[..(actionMax - 1)] + "…";
-        else if (actionRaw.Length > actionMax)
-            actionRaw = actionRaw[..actionMax];
+        int actionDisplayWidth = CharacterWidth.GetDisplayWidth(actionRaw);
+        if (actionDisplayWidth > actionMax && actionMax > 3)
+        {
+            actionRaw = TruncateByDisplayWidth(actionRaw, actionMax - 1) + "…";
+            actionDisplayWidth = CharacterWidth.GetDisplayWidth(actionRaw);
+        }
+        else if (actionDisplayWidth > actionMax)
+        {
+            actionRaw = TruncateByDisplayWidth(actionRaw, actionMax);
+            actionDisplayWidth = CharacterWidth.GetDisplayWidth(actionRaw);
+        }
         var actionDisplay = Markup.Escape(actionRaw);
-        int actionWidth = actionRaw.Length;
-        int gapAfterAction = consoleWidth - NameColWidth - GapAfterName - actionWidth - GapBeforeTime - TimeColWidth - 1;
+        int gapAfterAction = consoleWidth - NameColWidth - GapAfterName - actionDisplayWidth - GapBeforeTime - TimeColWidth - 1;
         if (gapAfterAction < 0) gapAfterAction = 0;
 
         var timePadded = timeAgo.PadLeft(TimeColWidth);
@@ -425,9 +432,13 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
     private static string FormatName(string? raw)
     {
         var name = raw ?? "?";
-        return name.Length > MaxNameDisplayLength
-            ? Markup.Escape(name[..MaxNameDisplayLength])
-            : Markup.Escape(name);
+        var displayWidth = CharacterWidth.GetDisplayWidth(name);
+        if (displayWidth > MaxNameDisplayLength)
+        {
+            var truncated = TruncateByDisplayWidth(name, MaxNameDisplayLength);
+            return Markup.Escape(truncated);
+        }
+        return Markup.Escape(name);
     }
 
     /// <summary>Formats a Unix-ms timestamp as a relative time string.</summary>
@@ -448,6 +459,24 @@ public sealed class AgentStatusBottomPanel : IBottomPanel, IDisposable
         if (hours < 24) return $"{hours}h";
         var days = hours / 24;
         return $"{days}d";
+    }
+
+    /// <summary>Truncates a string so its display width does not exceed <paramref name="maxWidth"/>.</summary>
+    private static string TruncateByDisplayWidth(string text, int maxWidth)
+    {
+        if (maxWidth <= 0) return string.Empty;
+
+        var sb = new System.Text.StringBuilder();
+        int width = 0;
+        foreach (char c in text)
+        {
+            int charWidth = CharacterWidth.GetDisplayWidth(c.ToString());
+            if (width + charWidth > maxWidth)
+                break;
+            sb.Append(c);
+            width += charWidth;
+        }
+        return sb.ToString();
     }
 
     private static string StripMarkup(string markup)
