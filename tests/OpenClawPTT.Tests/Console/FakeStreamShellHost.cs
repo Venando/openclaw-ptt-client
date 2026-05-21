@@ -76,6 +76,7 @@ public sealed class FakeStreamShellHost : IStreamShellHost, IDisposable
         UserInputSubmitted?.Invoke(args);
     }
 
+    public void SetRenderChunkSize(int size) { }
     public void SetCursorMarkup(string markup) { }
     public void SetSelectionMarkup(string markup) { }
     public void SetCommandSlashMarkup(string markup) { }
