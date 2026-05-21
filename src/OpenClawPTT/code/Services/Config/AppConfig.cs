@@ -53,7 +53,7 @@ public sealed class AppConfig
     public bool HoldToTalk { get; set; } = false;
     public ThinkingMode ThinkingDisplayMode { get; set; } = ThinkingMode.FirstNLines;
     public int ThinkingPreviewLines { get; set; } = 1;
-    public int HistoryDisplayCount { get; set; } = 8;
+    public int HistoryDisplayCount { get; set; } = 15;
     public string? LastActiveAgentId { get; set; }
     public bool RequireConfirmBeforeSend { get; set; } = false;
 
