@@ -139,9 +139,7 @@ public sealed class ReplyStreamCoordinator : IDisposable
             else
             {
                 _capturingConsole = null;
-                _formatter = new AgentReplyFormatter(
-                    _currentPrefix, _config.ReservedRightMargin,
-                    prefixAlreadyPrinted: true, output: null!);
+                _formatter = null;
             }
         }
     }
