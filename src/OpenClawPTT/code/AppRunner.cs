@@ -130,6 +130,13 @@ public partial class AppRunner : IDisposable
     }
 
 
+    /// <summary>
+    /// Hard ceiling for the entire gateway connection attempt (including handshake
+    /// and authentication). If the gateway is unreachable or the handshake hangs,
+    /// we abort after this time rather than staying stuck indefinitely.
+    /// </summary>
+    private static readonly TimeSpan GlobalConnectTimeout = TimeSpan.FromSeconds(45);
+
     /// <summary>Result of the guided connect attempt.</summary>
     private enum ConnectResult { Success, ContinueWithoutGateway, GiveUp }
 
@@ -143,7 +150,41 @@ public partial class AppRunner : IDisposable
         {
             _statusService.SetServiceStatus(ServiceKind.Gateway, StatusColor.Yellow);
             _console.PrintInfo("Connecting to gateway...");
-            await gateway.ConnectAsync(ct);
+            _console.Log("gateway", $"[connect] Starting connection attempt (hard timeout: {GlobalConnectTimeout.TotalSeconds}s)...");
+
+            using var timeoutCts = new CancellationTokenSource(GlobalConnectTimeout);
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+
+            var connectTask = gateway.ConnectAsync(linked.Token);
+            var delayTask = Task.Delay(GlobalConnectTimeout, linked.Token);
+
+            var finished = await Task.WhenAny(connectTask, delayTask).ConfigureAwait(false);
+
+            // Determine if this is a genuine timeout (not user cancellation).
+            // Covers both: delayTask won the race, AND connectTask won but faulted
+            // because the timeout token fired (OCE misclassification fix).
+            bool isTimeout = finished == delayTask
+                || (finished == connectTask && !connectTask.IsCompletedSuccessfully
+                    && timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested);
+
+            if (isTimeout)
+            {
+                _console.LogError("gateway", "[connect] Global connect timeout exceeded — aborting stuck connection.");
+
+                // Cancel the linked token to nudge the abandoned connectTask
+                try { linked.Cancel(); } catch { /* already cancelled */ }
+
+                // Give the abandoned task a short grace period to unwind and release
+                // ReconnectLock before we throw (lock-contention fix).
+                try { await connectTask.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None); }
+                catch { /* best effort — task may have faulted or still be running */ }
+
+                throw new TimeoutException(
+                    $"Gateway connection did not complete within {GlobalConnectTimeout.TotalSeconds}s. " +
+                    "The connection may be stuck in DNS resolution, TCP handshake, or waiting for the server.");
+            }
+
+            await connectTask.ConfigureAwait(false);
             _console.LogOk("gateway", "Gateway connected.");
             // Status set to Green via gateway.Connected event handler (handles initial + reconnect)
             return ConnectResult.Success;
@@ -169,7 +210,6 @@ public partial class AppRunner : IDisposable
                 foreach (var action in classification.SuggestedActions)
                     _console.PrintInfo($"    \u2192 {action}");
             }
-
 
             if (classification.ShouldStopApp)
             {
