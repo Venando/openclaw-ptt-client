@@ -505,6 +505,87 @@ items.map(i => console.log(i));
     }
 
     [Fact]
+    public void ProcessDelta_TableLines_AreDeferredUntilComplete()
+    {
+        var output = new StringWriterTextOutput();
+        var formatter = new AgentReplyFormatter(prefix: "  ", reservedRightMargin: 10, prefixAlreadyPrinted: false, output: output);
+
+        // First chunk: normal text
+        formatter.ProcessDelta("Here is a table:\n");
+        // At this point the first line should be flushed (no table yet)
+        Assert.Contains("Here is a table:", output.Result);
+
+        // Table header
+        formatter.ProcessDelta("| Name | Value |\n");
+        // Should NOT appear yet because table deferral is active
+        Assert.DoesNotContain("| Name | Value |", output.Result);
+
+        // Table separator
+        formatter.ProcessDelta("|------|-------|\n");
+        // Still deferred
+        Assert.DoesNotContain("|------|-------|", output.Result);
+
+        // Table body + end of table
+        formatter.ProcessDelta("| A    | 1     |\n\nDone.");
+        // The non-table line "Done." ends deferral, so table + remaining text appears
+        formatter.Finish();
+
+        var result = output.Result.Replace("\r\n", "\n");
+        Assert.Contains("| Name | Value |", result);
+        Assert.Contains("|------|-------|", result);
+        Assert.Contains("| A    | 1     |", result);
+        Assert.Contains("Done.", result);
+    }
+
+    [Fact]
+    public void ProcessDelta_TableDeferral_FlushesOnFinish()
+    {
+        var output = new StringWriterTextOutput();
+        var formatter = new AgentReplyFormatter(prefix: "  ", reservedRightMargin: 10, prefixAlreadyPrinted: false, output: output);
+
+        // Only table content, no trailing non-table line
+        formatter.ProcessDelta("| H1 | H2 |\n|---|---|\n| A | B |");
+        // Nothing should be written yet
+        Assert.Empty(output.Result.Trim());
+
+        // Finish forces flush
+        formatter.Finish();
+        var result = output.Result.Replace("\r\n", "\n");
+        Assert.Contains("| H1 | H2 |", result);
+        Assert.Contains("|---|---|", result);
+        Assert.Contains("| A | B |", result);
+    }
+
+    [Fact]
+    public void ProcessDelta_LineBuffering_FlushesCompleteLines()
+    {
+        var output = new StringWriterTextOutput();
+        var formatter = new AgentReplyFormatter(prefix: "  ", reservedRightMargin: 10, prefixAlreadyPrinted: false, output: output);
+
+        // A long line that doesn't wrap — should stay buffered until newline or Finish
+        formatter.ProcessDelta("Hello world this is a sentence");
+        // No newline yet, so if there were partial flushing it might be empty or have content.
+        // With line buffering, the content is buffered until Finish (or word-wrap line break).
+        formatter.Finish();
+        Assert.Contains("Hello world this is a sentence", output.Result);
+    }
+
+    [Fact]
+    public void ProcessMarkupDelta_LineBuffering_ProducesSameFinalOutput()
+    {
+        // Regression test: line buffering should not change the final formatted result.
+        var output = new StringWriterTextOutput { WindowWidth = 40 };
+        var formatter = new AgentReplyFormatter(prefix: "", reservedRightMargin: 5, prefixAlreadyPrinted: true, output: output);
+        formatter.ProcessMarkupDelta("[bold]Line one[/] and [italic]line two[/] with more text here.");
+        formatter.Finish();
+        ValidateMarkup(output);
+
+        var result = output.Result.Replace("\r\n", "\n");
+        Assert.Contains("[bold]Line one[/]", result);
+        Assert.Contains("[italic]line two[/]", result);
+    }
+
+    [Fact]
     public void ProcessMarkupDelta_DoubleMarkdown()
     {
         var spectreMarkup = "[bold underline]Heading[/]";

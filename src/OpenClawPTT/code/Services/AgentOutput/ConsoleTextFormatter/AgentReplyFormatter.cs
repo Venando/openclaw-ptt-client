@@ -1,3 +1,5 @@
+using System;
+using System.Text;
 using Spectre.Console;
 
 namespace OpenClawPTT;
@@ -19,6 +21,13 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     private string _newlinePrefixLenght = null!;
     private bool _prefixAlreadyPrinted;
     private int _consoleWidth;
+
+    // ── Line buffering: accumulate output per line, flush on line break ──
+    private readonly StringBuilder _lineBuffer = new();
+
+    // ── Table deferral: delay flushing while a markdown table is being added ──
+    private bool _deferred;
+    private readonly StringBuilder _deferredBuffer = new();
 
     /// <summary>
     /// Convenience constructor using default right-margin indent (10).
@@ -46,6 +55,9 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
         _prefixAlreadyPrinted = prefixAlreadyPrinted;
         _consoleWidth = _output.WindowWidth > 0 ? _output.WindowWidth : 80;
         _wordWrap = new WordWrapEngine(GetAvailableWidth());
+        _lineBuffer.Clear();
+        _deferred = false;
+        _deferredBuffer.Clear();
     }
 
     /// <summary>
@@ -69,6 +81,95 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
         _openMarkupTags.Clear();
     }
 
+    // ── Output helpers ───────────────────────────────────────────────────
+
+    /// <summary>Appends text to the current line buffer instead of writing directly to output.</summary>
+    private void AppendToLine(string text) => _lineBuffer.Append(text);
+
+    /// <summary>
+    /// Flushes the current line buffer to the appropriate destination:
+    /// <paramref name="_deferredBuffer"/> when deferred, otherwise <paramref name="_output"/>.
+    /// </summary>
+    private void FlushLineBuffer()
+    {
+        if (_lineBuffer.Length == 0) return;
+
+        var line = _lineBuffer.ToString();
+        _lineBuffer.Clear();
+
+        if (_deferred)
+            _deferredBuffer.Append(line);
+        else
+            _output.Write(line);
+    }
+
+    /// <summary>
+    /// Ends the current line, emitting a line break to the appropriate destination.
+    /// </summary>
+    private void EndLine()
+    {
+        if (_deferred)
+            _deferredBuffer.Append('\n');
+        else
+            _output.WriteLine();
+    }
+
+    /// <summary>
+    /// If deferred output is buffered, flushes it to <paramref name="_output"/> and clears the buffer.
+    /// </summary>
+    private void FlushDeferredBuffer()
+    {
+        if (_deferredBuffer.Length == 0) return;
+        _output.Write(_deferredBuffer.ToString());
+        _deferredBuffer.Clear();
+    }
+
+    // ── Table detection ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Checks whether a raw text line looks like a markdown table row or separator.
+    /// </summary>
+    private static bool IsTableLine(string line)
+    {
+        if (string.IsNullOrEmpty(line)) return false;
+        var trimmed = line.Trim();
+        return trimmed.Length >= 3 && trimmed[0] == '|' && trimmed[^1] == '|';
+    }
+
+    /// <summary>
+    /// Updates the <see cref="_deferred"/> flag based on table patterns in the incoming delta.
+    /// Enters deferral when a table line is seen; exits when a non-table, non-empty line appears.
+    /// </summary>
+    private void UpdateTableDeferral(string delta)
+    {
+        var lines = delta.Split('\n');
+
+        // First, check if this delta contains any table line — if so, enter deferral.
+        foreach (var line in lines)
+        {
+            if (IsTableLine(line))
+            {
+                _deferred = true;
+                return;
+            }
+        }
+
+        // If already deferred, check whether we should exit.
+        if (_deferred)
+        {
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (!string.IsNullOrEmpty(trimmed) && !IsTableLine(trimmed))
+                {
+                    _deferred = false;
+                    FlushDeferredBuffer();
+                    return;
+                }
+            }
+        }
+    }
+
     /// <summary>
     /// Process a plain-text delta chunk and write formatted output with word-wrap.
     /// Uses <see cref="CharacterWidth.GetDisplayWidth(char)"/> to correctly account
@@ -76,6 +177,8 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     /// </summary>
     public void ProcessDelta(string delta)
     {
+        UpdateTableDeferral(delta);
+
         foreach (char c in delta)
         {
             int cw = CharacterWidth.GetDisplayWidth(c);
@@ -95,13 +198,13 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                 FlushAndWrite(_wordWrap.GetBufferVisualWidth());
                 if (_wordWrap.CurrentLineLength + cw <= _wordWrap.AvailableWidth)
                 {
-                    _output.Write(c.ToString());
+                    AppendToLine(c.ToString());
                     _wordWrap.RecordWritten(cw);
                 }
                 else
                 {
                     WriteNewLine();
-                    _output.Write(c.ToString());
+                    AppendToLine(c.ToString());
                     _wordWrap.RecordWritten(cw);
                 }
             }
@@ -126,7 +229,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                         if (lineFit.Length > 0)
                         {
                             int fitWidth = CharacterWidth.GetDisplayWidth(lineFit);
-                            _output.Write(lineFit);
+                            AppendToLine(lineFit);
                             _wordWrap.RecordWritten(fitWidth);
                         }
                         if (_wordWrap.BufferLength > 0)
@@ -247,13 +350,13 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                 nonTagCharsSinceLastWhitespace = 0;
                 if (_wordWrap.CurrentLineLength + cw <= _wordWrap.AvailableWidth)
                 {
-                    _output.Write(c.ToString());
+                    AppendToLine(c.ToString());
                     _wordWrap.RecordWritten(cw);
                 }
                 else
                 {
                     WriteNewLine();
-                    _output.Write(c.ToString());
+                    AppendToLine(c.ToString());
                     _wordWrap.RecordWritten(cw);
                 }
                 continue;
@@ -280,7 +383,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                     if (fit.Length > 0)
                     {
                         int fitWidth = CharacterWidth.GetDisplayWidth(fit);
-                        _output.Write(fit);
+                        AppendToLine(fit);
                         visibleWordWidth = Math.Max(0, visibleWordWidth - fitWidth);
                         _wordWrap.RecordWritten(fitWidth);
                         nonTagCharsSinceLastWhitespace = 0;
@@ -292,7 +395,7 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
                         int tagLen = remainingBuf.Length - visibleWordWidth;
                         if (tagLen > 0)
                         {
-                            _output.Write(remainingBuf.Substring(0, tagLen));
+                            AppendToLine(remainingBuf.Substring(0, tagLen));
                             _wordWrap.RemoveFromBuffer(tagLen);
                             nonTagCharsSinceLastWhitespace = 0;
                         }
@@ -328,10 +431,19 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
 
         foreach (string _ in _openMarkupTags.AsEnumerable())
         {
-            _output.Write("[/]");
+            AppendToLine("[/]");
         }
         _openMarkupTags.Clear();
-        _output.WriteLine();
+
+        FlushLineBuffer();
+        EndLine();
+
+        // If we were deferring table output, flush the deferred buffer now.
+        if (_deferred)
+        {
+            _deferred = false;
+            FlushDeferredBuffer();
+        }
     }
 
     private void FlushAndWrite(int visibleWidth)
@@ -342,14 +454,14 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
 
         if (_wordWrap.CurrentLineLength + visibleWidth <= _wordWrap.AvailableWidth)
         {
-            _output.Write(content);
+            AppendToLine(content);
             _wordWrap.RecordWritten(visibleWidth);
         }
         else
         {
             if (_wordWrap.CurrentLineLength > 0)
                 WriteNewLine();
-            _output.Write(content);
+            AppendToLine(content);
             _wordWrap.RecordWritten(visibleWidth);
         }
     }
@@ -358,16 +470,18 @@ public sealed class AgentReplyFormatter : IAgentReplyFormatter
     {
         foreach (string tag in _openMarkupTags.AsEnumerable())
         {
-            _output.Write("[/]");
+            AppendToLine("[/]");
         }
 
-        _output.WriteLine();
-        _output.Write(_newlinePrefixLenght);
+        FlushLineBuffer();
+        EndLine();
+
+        AppendToLine(_newlinePrefixLenght);
         _wordWrap.RecordNewLine();
 
         foreach (string tag in _openMarkupTags.AsEnumerable())
         {
-            _output.Write($"[{tag}]");
+            AppendToLine($"[{tag}]");
         }
     }
 }
