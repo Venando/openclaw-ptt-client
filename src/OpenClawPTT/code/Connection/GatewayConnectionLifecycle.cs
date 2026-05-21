@@ -323,6 +323,8 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
         AgentRegistry.ActiveSessionChanged += OnActiveSessionChanged;
     }
 
+    private string? _subscribedSessionKey;
+
     private void OnActiveSessionChanged(string? newSessionKey)
     {
         if (newSessionKey == null) return;
@@ -330,11 +332,22 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
         {
             try
             {
+                // Unsubscribe from previous session first
+                if (_subscribedSessionKey != null)
+                {
+                    var unsubParams = new Dictionary<string, object?>
+                    {
+                        ["key"] = _subscribedSessionKey
+                    };
+                    await SendRequestAsync("sessions.messages.unsubscribe", unsubParams, CancellationToken.None).ConfigureAwait(false);
+                }
+
                 var subscribeParams = new Dictionary<string, object?>
                 {
-                    ["sessionKey"] = newSessionKey
+                    ["key"] = newSessionKey
                 };
-                await SendRequestAsync("sessions.subscribe", subscribeParams, CancellationToken.None).ConfigureAwait(false);
+                await SendRequestAsync("sessions.messages.subscribe", subscribeParams, CancellationToken.None).ConfigureAwait(false);
+                _subscribedSessionKey = newSessionKey;
             }
             catch (Exception ex)
             {
@@ -348,10 +361,11 @@ public sealed class GatewayConnectionLifecycle : IGatewayConnector, IGatewayConn
         var sessionKey = AgentRegistry.ActiveSessionKey ?? "main";
         var subscribeParams = new Dictionary<string, object?>
         {
-            ["sessionKey"] = sessionKey
+            ["key"] = sessionKey
         };
 
-        await SendRequestAsync("sessions.subscribe", subscribeParams, linkedCt).ConfigureAwait(false);
+        await SendRequestAsync("sessions.messages.subscribe", subscribeParams, linkedCt).ConfigureAwait(false);
+        _subscribedSessionKey = sessionKey;
     }
 
     // ─── connection resilience ───────────────────────────────────────
