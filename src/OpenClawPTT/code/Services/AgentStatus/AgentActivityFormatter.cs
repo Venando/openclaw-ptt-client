@@ -163,4 +163,13 @@ public sealed class AgentActivityFormatter
 
         return formatText.Replace('\n', ' ').Replace("  ", " ");
     }
+
+    public string FormatAssistantThoughts(string? message)
+    {
+        if (message is null) return "Thinking...";
+
+        string formatText = TtsContentFilter.SanitizeForTts(message, _sanitizerOptions);
+
+        return "Thinking..." + formatText.Replace('\n', ' ').Replace("  ", " ");
+    }
 }

@@ -20,7 +20,7 @@ public static class HistoryMessageParser
         string sessionKey,
         IAgentActivityStore store,
         IColorConsole? console = null,
-        int count = 2)
+        int count = 3)
     {
         if (messages.ValueKind != JsonValueKind.Array || string.IsNullOrEmpty(sessionKey))
             return;
@@ -30,7 +30,8 @@ public static class HistoryMessageParser
 
         for (int i = start; i < total; i++)
         {
-            var evt = Extract(messages[i], sessionKey, console);
+            var message = messages[i];
+            var evt = Extract(message, sessionKey, console);
             if (evt is not null)
                 store.Store(evt);
         }

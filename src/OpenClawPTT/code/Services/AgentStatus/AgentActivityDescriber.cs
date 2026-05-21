@@ -35,7 +35,16 @@ public sealed class AgentActivityDescriber
 
         // Assistant text
         if (e.Role == "assistant")
-            return _formatter.FormatAssistantMessage(e.ContentText);
+        {
+            if (!string.IsNullOrWhiteSpace(e.ContentText))
+                return _formatter.FormatAssistantMessage(e.ContentText);
+
+            if (e.ThinkingBlocks.Count > 0)
+            {
+                var lastTb = e.ThinkingBlocks[^1];
+                return _formatter.FormatAssistantThoughts(lastTb);
+            }
+        }
 
         // User text — skip, we don't show user's own messages as "last action"
         if (e.Role == "user" && !string.IsNullOrWhiteSpace(e.ContentText))

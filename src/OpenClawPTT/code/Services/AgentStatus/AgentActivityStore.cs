@@ -198,17 +198,21 @@ public sealed class AgentActivityStore : IAgentActivityStore
         string sessionKey,
         Func<HistoryMessageEvent, TResult> onHistory,
         Func<ToolEvent, TResult> onTool,
-        Func<AssistantMessageEvent, TResult> onAssistant)
+        Func<AssistantMessageEvent, TResult> onAssistant,
+        Func<UserMessageEvent, TResult>? onUser = null)
     {
         HistoryMessageEvent? hist;
         ToolEvent? tool;
         AssistantMessageEvent? msg = null;
+        UserMessageEvent? user = null;
         lock (_lock)
         {
             var rec = Get(sessionKey);
             if (rec is null) return default;
             hist = rec.HistoryMessages.Count > 0 ? rec.HistoryMessages[^1] : null;
             tool = rec.ToolCalls.Count > 0 ? rec.ToolCalls[^1] : null;
+            if (onUser is not null && rec.UserMessages.Count > 0)
+                user = rec.UserMessages[^1];
 
             // Walk back to skip assistant messages with no text content
             for (int i = rec.AssistantMessages.Count - 1; i >= 0; i--)
@@ -224,11 +228,13 @@ public sealed class AgentActivityStore : IAgentActivityStore
         long histTs = hist?.Timestamp ?? long.MinValue;
         long toolTs = tool?.Ts        ?? long.MinValue;
         long msgTs  = msg?.Timestamp  ?? long.MinValue;
-        long best = Math.Max(histTs, Math.Max(toolTs, msgTs));
+        long userTs = user?.Timestamp ?? long.MinValue;
+        long best = Math.Max(Math.Max(histTs, toolTs), Math.Max(msgTs, userTs));
         if (best == long.MinValue) return default;
 
         if (best == histTs) return onHistory(hist!);
         if (best == toolTs) return onTool(tool!);
+        if (best == userTs) return onUser!(user!);
         return onAssistant(msg!);
     }
 
@@ -237,7 +243,8 @@ public sealed class AgentActivityStore : IAgentActivityStore
             sessionKey,
             onHistory:   entry => entry.StopReason == "stop" ? AgentStatusEmoji.Ready : AgentStatusEmoji.ToolExecuting,
             onTool:      entry => AgentStatusEmoji.ToolExecuting,
-            onAssistant: m => m.StopReason == "stop" ? AgentStatusEmoji.Ready : AgentStatusEmoji.ToolExecuting)
+            onAssistant: m => m.StopReason == "stop" ? AgentStatusEmoji.Ready : AgentStatusEmoji.ToolExecuting,
+            onUser: m => AgentStatusEmoji.ToolExecuting)
         ?? AgentStatusEmoji.Unknown;
 
     // ── IAgentActivityStore — mutations ────────────────────────────────────

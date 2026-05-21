@@ -59,7 +59,8 @@ public interface IAgentActivityStore
         string sessionKey,
         Func<HistoryMessageEvent, TResult> onHistory,
         Func<ToolEvent, TResult> onTool,
-        Func<AssistantMessageEvent, TResult> onAssistant);
+        Func<AssistantMessageEvent, TResult> onAssistant,
+        Func<UserMessageEvent, TResult>? onUser = null);
 
     // ── Derived display ───────────────────────────────────────────────────
 
