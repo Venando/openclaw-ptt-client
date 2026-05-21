@@ -101,6 +101,7 @@ public sealed class StreamShellInputHandler : IDisposable
         _themeService.EnsureExampleFile();
         _themeService.LoadTheme();
         _host.ApplyStreamShellTheme(ComputePrefixWidth());
+        _statusService.RefreshTheme();
 
         // Re-apply StreamShell settings on runtime theme swap
         _themeService.ThemeChanged += (_, _) =>
