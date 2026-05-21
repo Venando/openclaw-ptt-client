@@ -103,7 +103,11 @@ public sealed class StreamShellInputHandler : IDisposable
         _host.ApplyStreamShellTheme(ComputePrefixWidth());
 
         // Re-apply StreamShell settings on runtime theme swap
-        _themeService.ThemeChanged += (_, _) => _host.ApplyStreamShellTheme(ComputePrefixWidth());
+        _themeService.ThemeChanged += (_, _) =>
+        {
+            _host.ApplyStreamShellTheme(ComputePrefixWidth());
+            _statusService.RefreshTheme();
+        };
 
         _lastKnownLlmUrl = appConfig.DirectLlmUrl;
         _lastKnownLlmModel = appConfig.DirectLlmModelName;
